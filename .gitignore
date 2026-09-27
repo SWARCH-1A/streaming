@@ -1,0 +1,94 @@
+# Sistema operativo
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Archivos locales, secretos y configuración privada
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.sample
+!.env.*.sample
+!.env.template
+!.env.*.template
+/secrets/
+/infra/local/secrets/
+/infra/local/certs/
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Editores y archivos temporales
+.history/
+.vs/
+*.swp
+*.swo
+*~
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/**/shelf/
+.vscode/*.local.json
+
+# Logs, cobertura e informes locales
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+coverage/
+.nyc_output/
+.coverage
+.coverage.*
+htmlcov/
+test-results/
+playwright-report/
+allure-results/
+
+# Cachés y artefactos de compilación (en cualquier módulo)
+**/.cache/
+**/.pytest_cache/
+**/.hypothesis/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.tox/
+**/.nox/
+**/__pycache__/
+**/.gradle/
+**/.npm/
+**/node_modules/
+**/.next/
+**/.nuxt/
+**/.output/
+**/.svelte-kit/
+**/.angular/
+**/.astro/
+**/.turbo/
+**/.vercel/
+**/*.tsbuildinfo
+**/dist/
+**/build/
+**/out/
+**/target/
+**/bin/
+**/obj/
+**/venv/
+**/.venv/
+**/*.egg-info/
+
+# Archivos binarios y bytecode compilado
+*.py[cod]
+*.class
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Datos locales de bases/volúmenes del entorno de desarrollo
+/infra/local/data/
+/infra/local/volumes/
+/infra/local/.data/
+
+# Los artefactos aprobados de contracts/generated/ se versionan intencionalmente.
