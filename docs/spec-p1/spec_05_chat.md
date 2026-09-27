@@ -10,7 +10,7 @@ Define RF-031…RF-035 y cubre lectura/envío/distribución vinculados a una ses
 
 ## 2. Estado del sistema y brecha
 
-La moderación avanzada SRC-RF-35 y SRC-RF-36 queda fuera de P1; esta iteración no implementa bloqueo ni eliminación de mensajes.
+La moderación avanzada (RF-036 y RF-037) queda fuera de P1; esta iteración no implementa bloqueo ni eliminación de mensajes.
 
 ## 3. Historia de usuario
 
@@ -56,7 +56,7 @@ Como espectador, quiero leer mensajes de la sesión en vivo; como usuario autent
 
 - RF-034 el sistema muestra el autor y contenido del mensaje.
 
-- RF-035 el sistema rechaza el envío cuando la sala de chat no está disponible (SRC-RF-34 legado). Devuelve un error estable y comprensible; la indisponibilidad de chat no afecta la reproducción de video.
+- RF-035 el sistema rechaza el envío cuando la sala de chat no está disponible. Devuelve un error estable y comprensible; la indisponibilidad de chat no afecta la reproducción de video.
 
 ## 6. Criterios de aceptación
 

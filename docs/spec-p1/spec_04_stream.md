@@ -127,7 +127,7 @@ Como broadcaster, quiero emitir una señal audiovisual desde mi canal; como espe
 
 ## 9. Decisiones y preguntas abiertas
 
-**Decisiones:** un streamId/configuración persistente por canal; nueva sessionId por emisión; RTMP/HLS, LIVE solo al confirmar playback, auto-start tras metadata, PREPARING máximo 30 s, máximo cinco sesiones no terminadas, estado/disponibilidad separados, gracia 30 s, lease por player/expiración 30 s; máximo 5 s al primer frame según PERF-NFR-02. La tecnología concreta la decide el owner.
+**Decisiones:** un streamId/configuración persistente por canal; nueva sessionId por emisión; RTMP/HLS, LIVE solo al confirmar playback, auto-start tras metadata, PREPARING máximo 30 s, máximo cinco sesiones no terminadas, estado/disponibilidad separados, gracia 30 s, lease por player/expiración 30 s; máximo 5 s al primer frame según RNF-012. La tecnología concreta la decide el owner.
 
 **Abierto:** no hay preguntas de producto bloqueantes. La persona responsable debe registrar el ADR y cerrar los detalles de implementación listados en Diseño.
 
@@ -139,7 +139,7 @@ Como broadcaster, quiero emitir una señal audiovisual desde mi canal; como espe
 
 - integridad y autorización de stream key; actualización de metadatos; conteo/heartbeat; errores de media server sin estado LIVE falso.
 
-- simultaneidad 5 streams/100 reproductores durante 10 min; sexto stream rechazado; retención de datos de usuario/canal/stream tras reinicio según RELIABILITY-NFR-02 y RECOVERY-NFR-01.
+- simultaneidad 5 streams/100 reproductores durante 10 min; sexto stream rechazado; retención de datos de usuario/canal/stream tras reinicio según RNF-022 y RNF-050.
 
 ## 11. Esfuerzo, riesgos y consecuencias
 

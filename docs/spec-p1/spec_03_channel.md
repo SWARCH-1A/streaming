@@ -10,7 +10,7 @@ Define RF-008…RF-012, que separa canal de cuenta, perfil y sesión multimedia.
 
 ## 2. Estado del sistema y brecha
 
-Seguimiento SRC-RF-13…SRC-RF-15 queda fuera de P1. Channels publica información del canal y proyecta los estados definidos por Identity y Streaming; los contratos entre esos dominios se encuentran en SPEC-10 y SPEC-11.
+Seguimiento (RF-014…RF-016) queda fuera de P1. Channels publica información del canal y proyecta los estados definidos por Identity y Streaming; los contratos entre esos dominios se encuentran en SPEC-10 y SPEC-11.
 
 ## 3. Historia de usuario
 
@@ -92,7 +92,7 @@ Como visitante o propietario, quiero consultar y mantener la página del canal, 
 
 ## 9. Decisiones y preguntas abiertas
 
-**Decisiones:** un canal por cuenta, creado automáticamente; handle URL estable; Channels posee descripción/portada y proyecta el estado cuyo dueño es Streaming; SRC-RF-12 se separa: stream LIVE P1 y VOD futuro; esos alcances corresponden a RF-012 y RF-013 respectivamente.
+**Decisiones:** un canal por cuenta, creado automáticamente; handle URL estable; Channels posee descripción/portada y proyecta el estado cuyo dueño es Streaming; RF-012 cubre streams LIVE y RF-013 el catálogo VOD futuro.
 
 **Abierto:** no hay preguntas de producto bloqueantes. La persona responsable debe registrar el ADR y cerrar los detalles de implementación listados en Diseño.
 

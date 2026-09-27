@@ -11,9 +11,9 @@ el orden de lectura, alcance, contratos y decisiones. El trabajo de implementaci
 [AGENTS.md](AGENTS.md): cada encargo se asigna a un módulo y ese módulo tiene rutas propias para
 backend, frontend y pruebas.
 
-No se necesita consultar documentos preliminares, copias históricas, Pages externas ni otros
-repositorios para conocer el alcance P1. Las decisiones de implementación pendientes se registran en
-ADR dentro de `docs/adr/` antes de tratarse como aprobadas.
+La versión 0 de esta documentación define el alcance P1 y las capacidades futuras conservadas. Las
+decisiones de implementación pendientes se registran en ADR dentro de `docs/adr/` antes de tratarse
+como aprobadas.
 
 ## Módulos
 

@@ -1,24 +1,23 @@
 # Fases futuras y capacidades preservadas
 
-**Fuente de alcance:** [catalogo_requisitos_v2.md](catalogo_requisitos_v2.md), con decisiones en
-[decisiones_alcance_p1.md](decisiones_alcance_p1.md). Esta página evita que requisitos fuera de P1 se
-pierdan al construir ahora los contratos que los habilitan después.
+**Alcance:** requisitos y capacidades fuera de P1 definidos en el catálogo de esta versión. Esta página
+resume las dependencias que deben conservarse al construir los contratos actuales.
 
 ## Capacidades fuera de P1
 
-| Dominio | Requisitos fuente | Alcance a conservar / habilitadores P1 |
+| Dominio | Requisitos | Alcance a conservar / habilitadores P1 |
 | --- | --- | --- |
-| Recuperación y endurecimiento de identidad | RF-004 (`AUTH-RF-04`, `SRC-RF-04`); RNF de seguridad aplicables | Verificación de email, recuperación/restablecimiento, políticas avanzadas de credencial y roles. P1 debe evitar acoplar perfil público a credenciales. |
-| Seguimiento | SRC-RF-13…SRC-RF-15 | Seguir/dejar de seguir y consultar canales seguidos. Eventos de inicio pueden habilitar notificaciones futuras, pero P1 no añade seguimiento. |
-| Calidad/transcoding | SRC-RF-26…SRC-RF-29 | Variantes, selección manual/automática, información a streamer/espectador. P1 entrega una reproducción funcional; manifest/codec adaptativo no presupone ABR completo. |
-| Moderación de chat | SRC-RF-35…SRC-RF-36 | Eliminar mensajes y bloquear usuarios; chat events P1 necesitan ID estable y política futura para suprimir moderados del replay. |
-| Suscripciones y premium | SRC-RF-37…SRC-RF-44 | Productos/precios, suscripción, estado, acceso premium y elementos exclusivos. Requiere autorización/entitlement y pago con estados/idempotencia. |
-| Watch party | SRC-RF-45…SRC-RF-50 | Sesiones con varios streams, acceso, sincronía, límites y metadatos por canal. El título “juntar varios streams para crear uno solo” necesita distinguir layout multivideo de mezcla/transcodificación audiovisual real. |
-| Notificaciones | SRC-RF-51…SRC-RF-54 | Notificar inicio de canal seguido, bandeja, leído y preferencias. Depende de follow y eventos fiables, no de polling indiscriminado. |
-| VOD | SRC-RF-12 (catálogo), SRC-RF-55…SRC-RF-61, RF-074…RF-075 (partes VOD de SRC-RF-71…72) | Retención, asociación a canal/origen, catálogo, reproducción, edición/eliminación, duración/metadatos, búsqueda por título y filtro por categoría/etiqueta sobre VOD. Guardar `sessionId` y eventos de chat en P1 prepara origen y Chat Replay; no implica almacenar video. |
+| Recuperación y endurecimiento de identidad | RF-004; RNF-025…RNF-032 | Verificación de email, recuperación/restablecimiento, políticas avanzadas de credencial y roles. P1 debe evitar acoplar perfil público a credenciales. |
+| Seguimiento | RF-014…RF-016 | Seguir/dejar de seguir y consultar canales seguidos. Eventos de inicio pueden habilitar notificaciones futuras, pero P1 no añade seguimiento. |
+| Calidad/transcoding | RF-027…RF-030 | Variantes, selección manual/automática, información a streamer/espectador. P1 entrega una reproducción funcional; manifest/codec adaptativo no presupone ABR completo. |
+| Moderación de chat | RF-036…RF-037 | Eliminar mensajes y bloquear usuarios; los eventos de Chat P1 necesitan ID estable y política futura para suprimir mensajes moderados del replay. |
+| Suscripciones y premium | RF-038…RF-045 | Productos/precios, suscripción, estado, acceso premium y elementos exclusivos. Requiere autorización/entitlement y pago con estados/idempotencia. |
+| Watch party | RF-046…RF-051 | Sesiones con varios streams, acceso, sincronía, límites y metadatos por canal. El diseño debe distinguir un layout multivideo de una mezcla/transcodificación audiovisual real. |
+| Notificaciones | RF-052…RF-055 | Notificar inicio de canal seguido, bandeja, leído y preferencias. Depende de seguimiento y eventos fiables, no de polling indiscriminado. |
+| VOD | RF-013, RF-056…RF-062, RF-074…RF-075 | Retención, asociación a canal/origen, catálogo, reproducción, edición/eliminación, duración/metadatos, búsqueda por título y filtro por categoría/etiqueta sobre VOD. Guardar `sessionId` y eventos de chat en P1 prepara origen y Chat Replay; no implica almacenar video. |
 | Chat Replay | derivado acordado del chat futuro | Reproducir mensajes sincronizados con VOD. Acordar retención, timezone/offset, edición/borrado de moderación, privacidad y relación de borrado del VOD. |
-| Subtítulos | SRC-RF-62…SRC-RF-64 | Son opcionales para fases posteriores; P1 no exige upload, selección, activación ni pistas. Mantener player no acoplado a un único mecanismo de accesibilidad. |
-| Administración | SRC-RF-73…SRC-RF-74 y restante catálogo | Consulta/operación administrativa con autorización diferenciada y audit log. No crear privilegio admin implícito en P1. |
+| Subtítulos | RF-063…RF-065 | Son opcionales para fases posteriores; P1 no exige carga, selección, activación ni pistas. Mantener player no acoplado a un único mecanismo de accesibilidad. |
+| Administración | RF-076…RF-079 | Consulta/operación administrativa con autorización diferenciada y audit log. No crear privilegio admin implícito en P1. |
 
 Las clasificaciones P2/P3/Futuro definitivas son las del catálogo. Esta lista describe temas y
 dependencias, no establece el orden de iteraciones.
@@ -37,6 +36,6 @@ dependencias, no establece el orden de iteraciones.
 
 ## Puerta para priorizar una fase
 
-Antes de pasar capacidad a P1 de una fase futura, actualizar catálogo, cruce de RF, casos de aceptación,
-datos/ERD, errores, contratos, seguridad/privacidad, métricas y ADR. Confirmar dependencias con módulos
-consumidores y la política de migración para datos creados en iteraciones anteriores.
+Antes de incluir una capacidad futura en P1, actualizar sus RF, casos de aceptación, datos/ERD, errores,
+contratos, seguridad/privacidad, métricas y ADR. Confirmar dependencias con módulos consumidores y la
+política de migración para los datos existentes.

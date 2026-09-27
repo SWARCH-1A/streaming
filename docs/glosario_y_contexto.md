@@ -42,7 +42,7 @@ pagos, VOD, moderación avanzada, subtítulos y otras capacidades se conservan f
 | Reverse proxy | Componente de entrada que enruta HTTPS, API, WebSocket y media a upstreams definidos; no posee lógica de dominio. |
 | Módulo | Agrupación de código y responsabilidades por dominio; no equivale necesariamente a proceso, servicio o contenedor. |
 | SDD | Especificación de diseño de software con once secciones; agrupa requisitos de responsabilidad coherente. |
-| RF/RNF | Requisito funcional/no funcional; los IDs por dominio de `catalogo_requisitos_v2.md` son canónicos. |
+| RF/RNF | Requisito funcional/no funcional; `RF-NNN` y `RNF-NNN` son IDs globales definidos en `catalogo_requisitos.md`. |
 | P1 | Prioridad de la primera iteración acordada por el equipo y registrada en el catálogo y decisiones. |
 | ADR | Registro versionado de una decisión arquitectónica o tecnológica con opciones, racional y consecuencias. |
 

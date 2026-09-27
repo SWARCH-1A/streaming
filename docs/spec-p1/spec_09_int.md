@@ -40,7 +40,7 @@ Como equipo que integra componentes independientes, queremos una arquitectura co
 
 - El monorepo modular está establecido para este proyecto; una separación futura en varios repositorios requiere decisión explícita, contratos versionados y despliegue reproducible.
 
-- La documentación normativa, incluida esta especificación, se versiona en docs/ y no depende de contenido externo.
+- Esta especificación forma parte de la documentación normativa versionada junto con el software.
 
 ## 5. Requisitos de integración
 
@@ -70,13 +70,13 @@ Como equipo que integra componentes independientes, queremos una arquitectura co
 
 ## 7. Diseño técnico y datos
 
-- Artefactos: vista de contexto, C&C, despliegue, matriz de contratos y errores, ownership/ERD lógico, tabla de rutas, runbook, matriz de restricciones, [matriz de trazabilidad RNF](../matriz_trazabilidad_nfr.md) y ADR index.
+- Artefactos: vista de contexto, C&C, despliegue, matriz de contratos y errores, ownership/ERD lógico, tabla de rutas, runbook, matriz de restricciones, [matriz de trazabilidad RNF](../matriz_trazabilidad_rnf.md) y ADR index.
 
 - Separar requisito de sistema de decisión de implementación; cada decisión tiene ADR con estado propuesta/aceptada/rechazada/sustituida.
 
-- Los identificadores heredados/new catalog IDs y su correspondencia permanecen en el catálogo vigente; cada SDD hijo enlaza su trazabilidad.
+- Los RF y RNF relacionados con cada SDD hijo se identifican con sus IDs canónicos del catálogo.
 
-- La documentación /docs debe ser autocontenida y versionarse junto al software; no depender de archivos no oficiales externos para entender alcance/contratos.
+- La documentación `/docs` contiene el alcance y los contratos necesarios para implementar el proyecto.
 
 ## 8. Dependencias y contratos de integración
 

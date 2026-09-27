@@ -6,7 +6,7 @@
 
 ## 1. Contexto y problema
 
-Define los criterios transversales A11Y-NFR-01…02 y UX-NFR aplicables a navegación, formularios, reproductor, estado de emisión y chat. El alcance acordado incluye accesibilidad de la interfaz aunque subtítulos quedan fuera de P1.
+Define los criterios RNF-033…RNF-036 aplicables a navegación, formularios, reproductor, estado de emisión y chat. El alcance acordado incluye accesibilidad de la interfaz aunque subtítulos quedan fuera de P1.
 
 ## 2. Estado del sistema y brecha
 
@@ -46,11 +46,11 @@ Como usuario con distintas capacidades y formas de interacción, quiero navegar 
 
 ## 5. Requisitos funcionales y calidad
 
-- **A11Y-NFR-01:** la funcionalidad esencial P1 es operable por teclado, con foco identificable y sin trampas.
+- **RNF-035:** la funcionalidad esencial P1 es operable por teclado, con foco identificable y sin trampas.
 
-- **A11Y-NFR-02:** controles, formularios, estados y mensajes de error exponen semántica accesible.
+- **RNF-036:** controles, formularios, estados y mensajes de error exponen semántica accesible.
 
-- Aplicar UX-NFR de navegación/estados del catálogo y validar contraste suficiente en interfaz.
+- Aplicar RNF-033…RNF-036 según la matriz de trazabilidad y validar contraste suficiente en la interfaz.
 
 ## 6. Criterios de aceptación
 
