@@ -1,24 +1,24 @@
 # Registro de decisiones — Streaming
 
-**Estado:** decisiones de alcance P1 acordadas en conversación; se mantienen abiertas las decisiones
-de implementación que cada módulo debe justificar en su ADR.
-**Fecha de consolidación:** 2026-09-26
+**Versión:** 0
+**Estado:** decisiones de alcance P1 acordadas; las decisiones de implementación que siguen abiertas
+se deben justificar en un ADR del módulo responsable.
+**Fecha de consolidación:** 2026-09-27
 **Organización de trabajo:** SWARCH-1A; el repositorio principal es este monorepo.
 
-Este archivo conserva las decisiones tomadas durante la entrevista de requisitos. Es la referencia
-de producto para actualizar el catálogo, las especificaciones P1 y el índice de fases futuras. Los detalles
-de implementación observables en Twitch se usan como referencia pública; no se infiere su arquitectura
-interna.
+Este archivo registra las decisiones vigentes de producto para el catálogo, las especificaciones P1 y
+las capacidades futuras. Los detalles de comportamiento observables en Twitch se usan como referencia
+pública; no se infiere su arquitectura interna.
 
 ## 1. Alcance y organización de requisitos
 
 | ID | Decisión |
 | --- | --- |
 | D-01 | La primera iteración implementa todos los requisitos acordados como P1. |
-| D-02 | Se conserva el catálogo fuente completo, incluidos RF de VOD. Solo se fusionan ideas que sean duplicadas; las ideas únicas se preservan. |
+| D-02 | El catálogo de esta versión incluye las capacidades acordadas de P1 y futuras, incluidos los RF de VOD. Solo se consolidan requisitos duplicados; se conservan las capacidades únicas. |
 | D-03 | VOD queda fuera de P1. Sus requisitos y decisiones futuras se documentan ahora para evitar rehacer el análisis. |
 | D-04 | Subtítulos quedan fuera de P1. Las demás medidas de accesibilidad de la interfaz sí se consideran en P1. |
-| D-05 | Reorganizar y renumerar RF/RNF por dominio, manteniendo un cruce explícito de IDs antiguos a nuevos. |
+| D-05 | Los RF y RNF usan identificadores globales estables con formato `RF-NNN` y `RNF-NNN`; cada requisito tiene un único ID dentro de esta versión. |
 | D-06 | Agrupar RF relacionados en SDDs por responsabilidad acotada; evitar tanto un SDD por detalle trivial como SDDs que abarquen muchos dominios. |
 | D-07 | Mantener documentos transversales para arquitectura, propiedad de datos, contratos de interacción, integración del frontend y reverse proxy. |
 | D-08 | Adaptar la plantilla SDD existente y conservar sus once secciones. Añadir trazabilidad de RF/RNF, criterios verificables, modelos de datos, contratos y ADRs; eliminar supuestos heredados de Promotores de Convivencia. |
@@ -32,8 +32,8 @@ interna.
 | D-16 | P1 expone lectura de sesión para el player, manifiesto HLS, y creación/renovación/cierre de un lease de playback emitido por servidor. `viewerCount` deriva de leases validados por instancia de reproducción, no de un valor indicado por el navegador. |
 | D-17 | Chat usa WebSocket bidireccional en `/realtime/chat/sessions/{sessionId}` y REST para leer historial en `/api/chat/sessions/{sessionId}/messages`; lectura anónima, escritura autenticada. El cliente abre primero el WebSocket, espera `chat.ready`, solicita el historial y fusiona ambas fuentes por sequence. |
 | D-18 | El límite P1 es como máximo un mensaje aceptado por cuenta en cualquier ventana móvil de 1000 ms en todo el sistema, no uno por sala; no se acumulan ráfagas. El objetivo de carga sigue siendo 20 mensajes/s agregados entre sesiones durante 10 minutos. |
-| D-19 | La medición de inicio HLS es un máximo de 5 segundos, según PERF-NFR-02; no se convierte a percentil. Los umbrales definidos explícitamente como p95 conservan ese percentil. |
-| D-20 | SRC-RF-71 y SRC-RF-72 se dividen semánticamente: búsqueda/filtro LIVE en P1 y búsqueda/filtro VOD en futuro (`RF-074` y `RF-075`). No se pierde la parte VOD de los requisitos fuente. |
+| D-19 | La medición de inicio HLS es un máximo de 5 segundos, según RNF-012; no se convierte a percentil. Los umbrales definidos explícitamente como p95 conservan ese percentil. |
+| D-20 | `RF-072` y `RF-073` definen la búsqueda y los filtros de emisiones LIVE en P1; `RF-074` y `RF-075` definen las capacidades equivalentes para VOD en una fase futura. |
 | D-21 | Cada canal tiene cero o una configuración persistente de stream (`streamId` estable) con título, categoría, tags y clave RTMP. Cada emisión aceptada crea un `sessionId` nuevo; al acabar se conserva `streamId`/metadata para la siguiente emisión. La clave se muestra una sola vez al crear/rotar y solo se rota sin sesión activa. |
 | D-22 | El inicio RTMP reserva un slot y pasa por PREPARING. Solo HLS comprobado habilita LIVE/PLAYABLE; si no es reproducible dentro de 30 s de autorizado el inicio, Streaming finaliza la sesión y libera el slot. El límite cinco cuenta PREPARING, LIVE y RECONNECT_GRACE; la gracia posterior a LIVE dura 30 s. |
 | D-23 | La interfaz pública de Discovery usa GraphQL sobre HTTP/JSON según el contrato P1 vigente. Esto no impone GraphQL a Identity, Profile, Channels, Streaming, Taxonomy o Chat. La implementación concreta debe respetar esta interfaz y registrar su tecnología en ADR. |
@@ -51,17 +51,17 @@ interna.
 | --- | --- | --- |
 | Identidad y autorización | Registro, login, logout, unicidad de email/handle, sesión y autorización mínima por propietario. | Verificación de email, recuperación de contraseña y endurecimiento avanzado. |
 | Perfil | Consultar/editar nombre visible, biografía y avatar. | Cambiar handle y preferencias avanzadas. La portada pertenece al canal. |
-| Canales | Un canal por cuenta, creado automáticamente con el registro; editar y consultar perfil público; consultar estado y stream activo. | Seguimiento SRC-RF-13…SRC-RF-15; catálogo VOD del canal. |
-| Streaming | Ingesta y reproducción real en vivo, ciclo de sesión, metadatos, acceso de espectadores y conteo. | Calidad/transcoding SRC-RF-26…SRC-RF-29. |
-| Chat | Sala por sesión en vivo, lectura pública, escritura autenticada, distribución, historial reciente y persistencia de eventos para Chat Replay futuro. | Moderación avanzada SRC-RF-35…SRC-RF-36, modo lento configurable y reproducción de VOD. |
+| Canales | Un canal por cuenta, creado automáticamente con el registro; editar y consultar perfil público; consultar estado y stream activo. | Seguimiento (RF-014…RF-016) y catálogo VOD del canal (RF-013, RF-058). |
+| Streaming | Ingesta y reproducción real en vivo, ciclo de sesión, metadatos, acceso de espectadores y conteo. | Calidad/transcoding (RF-027…RF-030). |
+| Chat | Sala por sesión en vivo, lectura pública, escritura autenticada, distribución, historial reciente y persistencia de eventos para Chat Replay futuro. | Moderación avanzada (RF-036…RF-037), modo lento configurable y reproducción de VOD. |
 | Taxonomía | Categoría requerida y hasta cinco etiquetas seleccionables desde catálogo controlado; consulta/filtrado de streams activos. | Administración dinámica del catálogo. |
 | Descubrimiento | Listado de streams activos, búsqueda parcial de canales/títulos y filtros por categoría/etiquetas, únicamente sobre streams activos. | Búsqueda y filtros de VOD. |
 | Accesibilidad | Operación por teclado, nombres/roles/estados semánticos, foco visible, contraste suficiente y control para pausar/ocultar autodesplazamiento del chat. | Subtítulos/captions; no declarar conformidad global WCAG 2.2 AA sin cubrir sus criterios aplicables. |
 | Repositorios e integración | Documentar contrato del shell frontend, rutas del reverse proxy, puertos de desarrollo, propiedad de datos y comandos reproducibles. | El monorepo modular ya está establecido; procesos, puertos y stack se concretan mediante ADR. |
 
-La partición de SRC-RF-12 evita mezclar dos capacidades: vista del stream en vivo en P1 y listado de
-VOD en una fase futura. SRC-RF-18 describe la edición de metadatos de un stream; RF de Taxonomía definen
-la asociación y consulta reutilizable de categoría/etiquetas.
+`RF-012` define la consulta de emisiones LIVE de un canal y `RF-013` su catálogo VOD futuro.
+`RF-019` define los metadatos editables de una emisión; `RF-066`…`RF-069` definen la asociación y
+consulta reutilizable de categorías y etiquetas.
 
 ## 3. Reglas funcionales acordadas
 
@@ -119,7 +119,8 @@ la asociación y consulta reutilizable de categoría/etiquetas.
 - La búsqueda acepta coincidencias parciales en nombre visible/handle de canal y título del stream.
   La búsqueda de canales incluye OFFLINE, LIVE y RECONNECTING y muestra disponibilidad; la búsqueda
   por título/filtros solo incluye streams PLAYABLE. Los filtros aceptan un categoryId y un tagId como
-  máximo, y combinan ambos con AND. VOD queda excluido de P1; SRC-RF-71 y SRC-RF-72 conservan ramas VOD futuras.
+  máximo, y combinan ambos con AND. VOD queda excluido de P1; RF-074 y RF-075 definen su búsqueda y
+  filtrado para una fase futura.
 - P1 permite seleccionar como máximo una categoría y un tag en una consulta; si ambos se indican los combina con AND. Selección simultánea de varios tags y VOD quedan fuera de P1.
 
 ### Carga y accesibilidad
@@ -139,5 +140,5 @@ la asociación y consulta reutilizable de categoría/etiquetas.
   timeouts y reglas de compatibilidad. No se accede directamente al esquema interno de otro módulo.
 - Los documentos transversales cubren vista C&C y despliegue, contratos/integración, propiedad de
   datos y ERD, frontend/reverse proxy, estructura del repositorio y política/índice de ADRs.
-- El catálogo mantiene un mapa explícito SRC-RF-01…SRC-RF-76 → RF-001…RF-079 y alias de dominio anterior,
-  incluyendo la separación de alcance P1/futuro, y una matriz RF/RNF → SPEC primaria y contribuyentes.
+- El catálogo define los IDs RF/RNF y sus prioridades; una matriz relaciona cada RNF con su SPEC
+  primaria y las SPEC contribuyentes.

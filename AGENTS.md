@@ -23,16 +23,15 @@ son `identity`, `profile`, `channels`, `streaming`, `chat`, `taxonomy`, `discove
 1. Lee este archivo y el [README raíz](README.md).
 2. Lee [docs/README.md](docs/README.md) para entender la autoridad y el orden de lectura documental.
 3. Abre el README de la ruta asignada, la SPEC indicada en la tabla y sus RF/RNF en
-   [docs/catalogo_requisitos_v2.md](docs/catalogo_requisitos_v2.md).
+   [docs/catalogo_requisitos.md](docs/catalogo_requisitos.md).
 4. Antes de cambiar una interacción entre dominios, lee
    [docs/contratos_modelo_datos.md](docs/contratos_modelo_datos.md),
    [docs/integracion_sistema_p1.md](docs/integracion_sistema_p1.md) y las SPEC afectadas.
 5. Para un cambio de integración, lee SPEC-09 a SPEC-13, la vista C&C y los documentos de proxy,
    despliegue y trazabilidad enlazados desde docs/README.md.
 
-Los documentos en `docs/` son la fuente canónica del proyecto. No bases decisiones en documentos
-preliminares omitidos, contenido externo, comentarios aislados de Plane ni suposiciones. Si el usuario
-pide operar sobre Plane, utiliza exclusivamente el MCP de Plane y el proyecto STREAMING; no uses el
+Los documentos en `docs/` son la línea base normativa versión 0 del proyecto. Si el usuario pide
+operar sobre Plane, utiliza exclusivamente el MCP de Plane y el proyecto STREAMING; no uses el
 navegador para editar Plane.
 
 ## 3. Mapa de propiedad y rutas
@@ -73,8 +72,8 @@ módulos correspondientes.
 
 ## 5. Requisitos, decisiones y conflictos
 
-- Mantén la estructura de IDs `SPEC-XX Título` y `RF-NNN Título`. No renumeres ni elimines requisitos
-  fuente, incluidos los de VOD y otras fases futuras.
+- Mantén la estructura de IDs `SPEC-XX Título`, `RF-NNN Título` y `RNF-NNN Título`. No renumeres ni
+  elimines requisitos del catálogo, incluidos los de VOD y otras fases futuras.
 - Si una implementación requiere cambiar alcance, comportamiento observable, contrato, ownership,
   seguridad o una cifra de aceptación, actualiza los documentos canónicos afectados en el mismo
   cambio. Registra decisiones técnicas en `docs/adr/` con la plantilla de
@@ -86,7 +85,17 @@ módulos correspondientes.
 - Conserva los límites de datos: cada dominio es autoridad de sus propios datos y publica los datos
   que otros consumen mediante API o eventos definidos.
 
-## 6. Higiene de cambios
+## 6. Bugs de contratos e integración en Plane
+
+- Si durante el trabajo confirmas un bug reproducible en un contrato publicado o en el comportamiento
+  entre componentes, puedes crear un work item de tipo Bug en el backlog del proyecto `STREAMING`.
+- Usa exclusivamente el MCP de Plane. Registra un título concreto, resultado esperado y observado,
+  pasos o evidencia reproducible, componentes afectados y los RF/RNF/SPEC canónicos relacionados.
+- No registres preguntas de diseño, decisiones pendientes ni hipótesis sin confirmar como bugs. Crear
+  el Bug no autoriza cambiar el contrato; su corrección sigue el proceso de decisiones y asignación de
+  módulos de este repositorio.
+
+## 7. Higiene de cambios
 
 - No pongas credenciales, tokens, claves de emisión ni datos personales reales en el repositorio. Usa
   variables y valores ficticios en archivos de ejemplo.

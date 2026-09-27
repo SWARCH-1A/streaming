@@ -6,7 +6,7 @@
 
 ## 1. Contexto y problema
 
-El prototipo necesita registrar y autenticar usuarios, establecer identidad y proteger recursos propios. Se basa en RF-001…RF-003, RF-005 y SEC-NFR-01…07. El P1 requiere email único, handle único, contraseña, login/logout y autorización mínima por propiedad.
+El prototipo necesita registrar y autenticar usuarios, establecer identidad y proteger recursos propios. Se basa en RF-001…RF-003, RF-005 y RNF-025…RNF-031. El P1 requiere email único, handle único, contraseña, login/logout y autorización mínima por propiedad.
 
 ## 2. Estado del sistema y brecha
 

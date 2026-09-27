@@ -6,7 +6,7 @@
 
 ## 1. Contexto y problema
 
-Define RF-070…RF-073 (fuentes SRC-RF-69…SRC-RF-72): encontrar canales y emisiones actuales. Separa búsqueda de canal público de búsqueda/filtros de streams LIVE para que OFFLINE no desaparezca de la búsqueda de canales.
+Define RF-070…RF-073: encontrar canales y emisiones actuales. Separa búsqueda de canal público de búsqueda/filtros de streams LIVE para que OFFLINE no desaparezca de la búsqueda de canales.
 
 ## 2. Estado del sistema y brecha
 
@@ -64,7 +64,7 @@ Como espectador, quiero descubrir streams activos por popularidad, título, cate
 
 - **CA-05:** categoría/tag desconocido o inactivo produce un error del campo `streams` con `extensions.code=INVALID_FILTER` y `extensions.httpStatus=422`; no se interpreta como texto libre. Si la consulta incluye una categoría y un tag, ambos filtros se aplican con AND.
 
-- **CA-06:** las consultas de lista/búsqueda aplican PERF-NFR-01: p95 ≤ 2 s bajo la carga objetivo del prototipo; la respuesta está paginada y no devuelve resultados ilimitados.
+- **CA-06:** las consultas de lista/búsqueda aplican RNF-011: p95 ≤ 2 s bajo la carga objetivo del prototipo; la respuesta está paginada y no devuelve resultados ilimitados.
 - **CA-07:** si una categoría/tag asociado a una configuración existente se vuelve inactivo, Discovery conserva y reconstruye su label para esa metadata; no incluye ese valor en el catálogo de filtros activos ni acepta ese ID como filtro.
 - **CA-08:** GraphQL rechaza antes de ejecutar aliases, fragments, introspection, más de 50 filas por conexión, costo agregado mayor a 100 o body mayor a 16 KiB; rate limit acepta 600 requests/IP/60 s con burst 20 y reporta 429/Retry-After. El perfil de carga nominal de 3 consultas/s por una misma IP queda por debajo del límite.
 - **CA-09:** `ChannelProvisioned` por sí solo nunca crea un resultado público ni permite que un canal PENDING/EXPIRED aparezca en `channels`. Solo después de `IdentityPublicChanged` para una identidad ACTIVE, Discovery confirma userId/handle con Identity, obtiene el canal y perfil públicos y crea el documento de canal aunque esté OFFLINE. Si llegan primero cambios/versiones del canal, se reconcilian sin hacer visible el canal antes de la activación; reordenar provisión, activación y cambios no crea duplicados ni expone una cuenta pendiente.

@@ -6,7 +6,7 @@
 
 ## 1. Contexto y problema
 
-Define RF-006…RF-007 y PRIVACY-NFR-01. El perfil aporta identidad pública al canal y a mensajes sin exponer credenciales ni información privada.
+Define RF-006…RF-007 y RNF-032. El perfil aporta identidad pública al canal y a mensajes sin exponer credenciales ni información privada.
 
 ## 2. Estado del sistema y brecha
 
@@ -46,7 +46,7 @@ Como usuario, quiero consultar y editar mi presentación pública, para que los 
 
 - RF-007 el propietario edita nombre visible, biografía y avatar; el handle es inmutable en P1.
 
-- PRIVACY-NFR-01 — no exponer información privada a vistas públicas.
+- RNF-032 — no exponer información privada a vistas públicas.
 
 ## 6. Criterios de aceptación
 

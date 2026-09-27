@@ -6,7 +6,7 @@
 
 ## 1. Contexto y problema
 
-Define RF-066…RF-069 (fuentes SRC-RF-65…SRC-RF-68): vocabulario controlado para clasificar emisiones y permitir consultas consistentes de streams LIVE. La selección de taxonomía es compartida con Streaming y Discovery.
+Define RF-066…RF-069: vocabulario controlado para clasificar emisiones y permitir consultas consistentes de streams LIVE. La selección de taxonomía es compartida con Streaming y Discovery.
 
 ## 2. Estado del sistema y brecha
 
