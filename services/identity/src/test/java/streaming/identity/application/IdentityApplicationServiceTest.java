@@ -80,4 +80,24 @@ class IdentityApplicationServiceTest {
         verify(store).scheduleRetry(anyString(), any(Instant.class));
         verify(store, never()).createSession(anyString(), anyString(), any(Instant.class), any(Instant.class));
     }
+
+    @Test
+    void deadlineRaceDoesNotCompensateWhenAnotherWorkerAlreadyActivatedRegistration() {
+        UUID key = UUID.fromString("4648de69-4df6-4c4f-b2bf-2b9f9937dad0");
+        Instant deadline = Instant.now().minusSeconds(1);
+        Registration stalePending = new Registration("reg_1", "key-hash", "fingerprint", "PENDING",
+                "usr_1", null, deadline.minusSeconds(60), deadline, "person@example.test",
+                "person@example.test", "caster_01", "password-hash", 0);
+        Registration activated = new Registration("reg_1", "key-hash", "fingerprint", "ACTIVE",
+                "usr_1", "chn_1", deadline.minusSeconds(60), deadline, null, null, null, null, 0);
+        when(store.registration(eq("reg_1"), anyString())).thenReturn(Optional.of(stalePending), Optional.of(activated));
+        when(store.expire(eq("reg_1"), any(Instant.class))).thenReturn(false);
+
+        var result = service.registrationStatus("reg_1", key);
+
+        assertThat(result.status()).isEqualTo("ACTIVE");
+        assertThat(result.channelId()).isEqualTo("chn_1");
+        verify(channels, never()).find(anyString());
+        verify(channels, never()).compensate(anyString());
+    }
 }

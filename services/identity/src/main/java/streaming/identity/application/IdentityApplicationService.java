@@ -81,8 +81,7 @@ public class IdentityApplicationService {
         if ("ACTIVE".equals(r.status()) || "EXPIRED".equals(r.status())) return r;
         Instant now=Instant.now();
         if (!now.isBefore(r.deadline())) {
-            store.expire(r.registrationId(),now);
-            compensate(r.registrationId());
+            expireAndCompensate(r.registrationId(),now);
             return store.registration(r.registrationId(),r.keyHash()).orElse(r);
         }
         try {
@@ -92,8 +91,7 @@ public class IdentityApplicationService {
                 Registration current=store.registration(r.registrationId(),r.keyHash()).orElse(r);
                 if ("ACTIVE".equals(current.status())) return current;
                 if (!Instant.now().isBefore(current.deadline())) {
-                    store.expire(r.registrationId(),Instant.now());
-                    compensate(r.registrationId());
+                    expireAndCompensate(r.registrationId(),Instant.now());
                 } else scheduleRetry(current);
             } else {
                 scheduleRetry(r);
@@ -102,6 +100,10 @@ public class IdentityApplicationService {
             scheduleRetry(r);
         }
         return store.registration(r.registrationId(),r.keyHash()).orElse(r);
+    }
+
+    private void expireAndCompensate(String registrationId, Instant now) {
+        if (store.expire(registrationId,now)) compensate(registrationId);
     }
 
     private void scheduleRetry(Registration r) {
