@@ -7,7 +7,7 @@ Profile es un proceso independiente y dueño de `displayName`, `bio`, `avatarUri
 - `api/` adapta REST y multipart; `application/` aplica las reglas de lectura y edición; `infrastructure/` implementa PostgreSQL, el cliente HTTP de Identity y almacenamiento de imágenes.
 - Cada acceso propio valida la cookie de sesión llamando a Identity por introspección privada; no se valida JWT local ni se conserva en caché la respuesta. Si Identity no está disponible, la operación falla con 503.
 - Cuando un perfil activo aún no tiene fila propia, la lectura pública devuelve `displayName=handle`, `bio=""`, `avatarUri=null` y `profileVersion=0`. La lectura consulta Identity para distinguir identidad activa, pendiente, expirada o inexistente.
-- Los uploads guardan el identificador opaco como hash, son de un solo uso y vencen en 15 minutos. El servidor decodifica JPEG/PNG/GIF, limita a 10 MB y evita nombres de archivo controlados por el usuario. La imagen anterior se conserva si la actualización falla.
+- Los uploads guardan el identificador opaco como hash, son de un solo uso y vencen en 15 minutos. El servidor decodifica JPEG/PNG/GIF, limita a 10 MB, exige al menos 200×200 px y evita nombres de archivo controlados por el usuario. La imagen anterior se conserva si la actualización falla.
 - PostgreSQL 18 conserva perfiles, permisos de upload y outbox; Flyway crea el esquema `profile`. No hay FK entre dominios.
 
 ## Contrato P1 implementado

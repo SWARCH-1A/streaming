@@ -24,7 +24,7 @@ class AvatarFileStoreTest {
 
     @Test
     void acceptsRealPngAndPublishesItUnderOpaqueKey() throws Exception {
-        byte[] png = pngImage();
+        byte[] png = pngImage(200, 200);
 
         var saved = store.saveTemporary(png);
 
@@ -42,6 +42,12 @@ class AvatarFileStoreTest {
     }
 
     @Test
+    void rejectsAvatarWhenEitherDimensionIsBelowTwoHundredPixels() throws Exception {
+        assertInvalidAvatar(() -> store.saveTemporary(pngImage(199, 200)));
+        assertInvalidAvatar(() -> store.saveTemporary(pngImage(200, 199)));
+    }
+
+    @Test
     void rejectsPathLikeObjectKeys() {
         assertThatThrownBy(() -> store.readPublic("../secret.png"))
                 .isInstanceOfSatisfying(ProfileException.class,
@@ -56,8 +62,8 @@ class AvatarFileStoreTest {
                 });
     }
 
-    private static byte[] pngImage() throws Exception {
-        BufferedImage image = new BufferedImage(2, 2, BufferedImage.TYPE_INT_RGB);
+    private static byte[] pngImage(int width, int height) throws Exception {
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         ImageIO.write(image, "png", bytes);
         return bytes.toByteArray();

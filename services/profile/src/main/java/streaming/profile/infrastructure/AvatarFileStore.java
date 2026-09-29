@@ -21,6 +21,7 @@ import streaming.profile.application.ProfileException;
 @Component
 public class AvatarFileStore implements AvatarStorage {
     private static final long MAX_BYTES=10L*1024*1024, MAX_PIXELS=40_000_000L;
+    private static final int MIN_DIMENSION=200;
     private final Path root;
     public AvatarFileStore(@Value("${profile.storage-root}") String root) { this.root=Path.of(root).toAbsolutePath().normalize(); }
     @Override public StoredAvatar saveTemporary(byte[] bytes) {
@@ -60,7 +61,9 @@ public class AvatarFileStore implements AvatarStorage {
             try {
                 reader.setInput(input,true,true); String format=reader.getFormatName().toLowerCase(Locale.ROOT);
                 int width=reader.getWidth(0),height=reader.getHeight(0);
-                if(width<1||height<1||(long)width*height>MAX_PIXELS) throw invalid("Dimensiones de imagen no admitidas.");
+                if(width<MIN_DIMENSION||height<MIN_DIMENSION||(long)width*height>MAX_PIXELS) {
+                    throw invalid("El avatar debe medir al menos 200×200 px.");
+                }
                 if(reader.read(0)==null) throw invalid("El archivo no es una imagen válida.");
                 String type=switch(format) { case "jpeg","jpg"->"image/jpeg"; case "png"->"image/png"; case "gif"->"image/gif"; default->throw invalid("Solo se admiten imágenes JPEG, PNG o GIF."); };
                 return new ImageInfo(format,type,width,height);
