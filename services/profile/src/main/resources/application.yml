@@ -1,0 +1,33 @@
+server:
+  port: ${PORT:8082}
+  forward-headers-strategy: framework
+spring:
+  application:
+    name: profile
+  datasource:
+    url: ${PROFILE_DB_URL:jdbc:postgresql://localhost:5432/profile}
+    username: ${PROFILE_DB_USER:profile}
+    password: ${PROFILE_DB_PASSWORD:profile-local-only}
+  flyway:
+    schemas: profile
+    default-schema: profile
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+profile:
+  secure-cookie: ${PROFILE_SECURE_COOKIE:false}
+  public-origin: ${WEB_ORIGIN:http://localhost:3000}
+  identity-base-url: ${IDENTITY_INTERNAL_URL:http://localhost:8081}
+  identity-service-token: ${PROFILE_IDENTITY_TOKEN:local-profile-token}
+  storage-root: ${PROFILE_AVATAR_STORAGE:./data/avatars}
+  avatar-public-base-url: ${PROFILE_AVATAR_PUBLIC_BASE:/api/profile/avatars}

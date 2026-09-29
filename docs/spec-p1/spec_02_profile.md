@@ -26,7 +26,7 @@ Como usuario, quiero consultar y editar mi presentación pública, para que los 
 
 - El handle único no se puede cambiar en P1; permanece como identificador de URL del canal.
 
-- Avatar opcional; si no existe se presenta avatar por defecto. Formatos JPEG/PNG/GIF, máximo 10 MB, mínimo recomendado 200×200 px.
+- Avatar opcional; si no existe se presenta avatar por defecto. Formatos JPEG/PNG/GIF, máximo 10 MB y dimensiones mínimas obligatorias de 200×200 px.
 
 ### Fuera de P1
 
@@ -56,7 +56,7 @@ Como usuario, quiero consultar y editar mi presentación pública, para que los 
 
 - CA-03 — el cambio de nombre visible no modifica el handle ni URL estable.
 
-- CA-04 — archivo no admitido o mayor de 10 MB se rechaza con mensaje claro y conserva el avatar anterior.
+- CA-04 — archivo no admitido, mayor de 10 MB o con ancho o alto inferior a 200 px se rechaza con mensaje claro y conserva el avatar anterior.
 
 - CA-05 — sin avatar configurado se muestra el recurso predeterminado.
 
