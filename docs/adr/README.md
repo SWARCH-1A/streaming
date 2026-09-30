@@ -8,3 +8,4 @@ Las decisiones que cambien contratos se revisan con los módulos consumidores y 
 | --- | --- | --- | --- |
 | [ADR-001](ADR-001-identity-plataforma-y-seguridad.md) | Identity | Plataforma, persistencia, hash, sesiones, CSRF y autenticación interna | Aceptada |
 | [ADR-002](ADR-002-profile-persistencia-y-avatar.md) | Profile | Persistencia de perfiles y ciclo de vida/almacenamiento de avatares | Aceptada |
+| [ADR-003](ADR-003-channels-persistencia-provision-y-proyeccion.md) | Channels | Persistencia, provisión anti-huérfanos, proyección de estado de Streaming y portada | Propuesta |
