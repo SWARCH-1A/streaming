@@ -1,7 +1,8 @@
 FROM eclipse-temurin:25-jdk AS build
 WORKDIR /workspace
 COPY . .
-RUN chmod +x mvnw && ./mvnw -B -DskipTests package
+# Windows checkouts may convert mvnw to CRLF; normalize it so the Linux build works from any machine.
+RUN sed -i 's/\r$//' mvnw && chmod +x mvnw && ./mvnw -B -DskipTests package
 
 FROM eclipse-temurin:25-jre
 WORKDIR /app

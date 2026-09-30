@@ -14,6 +14,7 @@ import streaming.channels.application.IdentityClient;
 
 @Component
 public class HttpIdentityClient implements IdentityClient {
+    private static final org.slf4j.Logger log=org.slf4j.LoggerFactory.getLogger(HttpIdentityClient.class);
     private final RestClient client; private final String serviceToken;
     public HttpIdentityClient(RestClient.Builder builder,@Value("${channels.identity-base-url}") String baseUrl,
             @Value("${channels.identity-service-token}") String serviceToken) {
@@ -29,16 +30,19 @@ public class HttpIdentityClient implements IdentityClient {
             Introspection result=client.post().uri("/internal/identity/sessions/introspect").header("X-Service-Name","channels")
                     .header("X-Service-Token",serviceToken).header("X-Session-Credential",credential).retrieve().body(Introspection.class);
             return result!=null && result.active()?Optional.of(new Principal(result.userId(),result.handle(),result.expiresAtUtc())):Optional.empty();
-        } catch(RestClientException e) { throw unavailable(); }
+        } catch(RestClientException e) { throw unavailable("introspect",e); }
     }
     @Override public Optional<PublicIdentity> findActiveUser(String userId) {
         try {
             IdentityResponse response=client.get().uri("/api/identity/public/users/{id}",userId).retrieve().body(IdentityResponse.class);
             return response==null?Optional.empty():Optional.of(new PublicIdentity(response.userId(),response.handle()));
         } catch(HttpClientErrorException.NotFound e) { return Optional.empty(); }
-        catch(RestClientException e) { throw unavailable(); }
+        catch(RestClientException e) { throw unavailable("find_active_user",e); }
     }
-    private static ChannelException unavailable() { return new ChannelException(HttpStatus.SERVICE_UNAVAILABLE,"IDENTITY_UNAVAILABLE","No fue posible validar la identidad en este momento."); }
+    private static ChannelException unavailable(String operation,RestClientException e) {
+        log.warn("event=dependency_failed component=channels dependency=identity operation={} error={} cause={}",operation,e.getClass().getSimpleName(),String.valueOf(e.getMostSpecificCause()));
+        return new ChannelException(HttpStatus.SERVICE_UNAVAILABLE,"IDENTITY_UNAVAILABLE","No fue posible validar la identidad en este momento.");
+    }
     private record Introspection(boolean active,String userId,String handle,Instant expiresAtUtc) { }
     private record IdentityResponse(String userId,String handle) { }
 }

@@ -33,7 +33,7 @@ public class InternalServiceTokenFilter extends OncePerRequestFilter {
         chain.doFilter(request,response);
     }
     private static void reject(HttpServletResponse response,int status,String code,String message) throws IOException {
-        response.setStatus(status); response.setContentType("application/json");
+        response.setStatus(status); response.setContentType("application/json"); response.setCharacterEncoding("UTF-8");
         response.getWriter().write("{\"code\":\""+code+"\",\"message\":\""+message+"\"}");
     }
 }

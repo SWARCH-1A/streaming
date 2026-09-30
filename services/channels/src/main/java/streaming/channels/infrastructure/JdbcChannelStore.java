@@ -33,7 +33,7 @@ public class JdbcChannelStore implements ChannelStore {
         return jdbc.sql("SELECT "+CHANNEL_COLUMNS+" FROM channels.channels WHERE channel_id=:id FOR UPDATE").param("id",channelId).query(JdbcChannelStore::channel).optional();
     }
     @Override public void lockKey(String key) {
-        jdbc.sql("SELECT pg_advisory_xact_lock(hashtext(:key))").param("key","channels:"+key).query(rs -> { rs.next(); return null; });
+        jdbc.sql("SELECT pg_advisory_xact_lock(hashtext(:key))").param("key","channels:"+key).query(rs -> { rs.next(); return Boolean.TRUE; });
     }
 
     @Override public Optional<Fence> findFence(String registrationId) {

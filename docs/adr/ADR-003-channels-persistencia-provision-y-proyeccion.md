@@ -67,7 +67,21 @@ Identity ya invoca `POST /internal/channels/provision`, `GET` y `DELETE /interna
 - CA-02/CA-07: owner edita, otro usuario recibe `403`, entradas inválidas conservan el estado y dos PATCH concurrentes en campos distintos conservan ambos cambios.
 - CA-04/CA-05: un `StreamSessionStarted` con `PLAYABLE` pone el canal en `LIVE` en ≤5 s tras la entrega; `StreamSessionEnded` lo pone en `OFFLINE`; eventos repetidos o viejos no retroceden el estado.
 - CA-06: una cuenta PENDING/EXPIRED o inexistente da el mismo `404`; `channelVersion` empieza en 0 y sube solo con cambios efectivos.
-- Evidencia al preparar este ADR: `./mvnw -B -q -Djava.version=21 -DskipTests compile` terminó sin errores (JDK local 21; la imagen usa 25). No se ejecutaron pruebas unitarias ni integradas, ni el build de Docker (Docker Engine no estaba activo).
+- Evidencia registrada al preparar este ADR (2026-09-30): verificación manual con `curl` contra el JAR (`./mvnw -B -q -Djava.version=21 -DskipTests package`, JDK local 21; la imagen usa 25) y PostgreSQL 18 en contenedor. Como Identity no estaba operativo, se usó un simulador local de introspección y lookup. Resultados:
+  - Flyway crea el esquema.
+  - CA-01: 201 y luego 200 con el mismo `channelId`.
+  - CA-08: 410 si venció; lookup `PROVISIONED`/`ABSENT` terminal con 410 posterior; `DELETE` repetido da 204.
+  - CA-03/CA-06: lectura pública y 404 idéntico.
+  - CA-02: 401 sin sesión, 403 sin CSRF u otro usuario, 400 con 501 caracteres o campo ajeno.
+  - `channelVersion` no sube sin cambios.
+  - Portada: falsa da 400, válida da 201, el `uploadId` es de un solo uso y el archivo se sirve.
+  - Eventos: `APPLIED`/`DUPLICATE`/`STALE`, `RECONNECTING` sigue LIVE, `Ended` pone OFFLINE, servicio incorrecto da 403.
+  - Los datos persisten tras reiniciar el proceso.
+  - Con Identity caído la lectura da 503.
+  
+  - `docker build` genera la imagen (Java 25). El contenedor arranca con PostgreSQL en red Docker, `/actuator/health` responde UP y la provisión devuelve 201.
+  
+  No hay pruebas automatizadas ni verificación integrada con Identity real.
 
 ## Revisión
 
