@@ -48,18 +48,27 @@ public class ChannelProvisioningService {
         return new ProvisionResult(created,true);
     }
 
-    /** Terminal lookup: once it answers ABSENT the registrationId stays fenced and no later provision can create a channel. */
+    /** Lookup is terminal only after the stored deadline; pre-deadline attempts remain recoverable. */
     @Transactional
     public ProvisionState lookup(String registrationId) {
         if(!ChannelRules.isExternalId(registrationId)) throw invalid("registrationId no es válido.");
         store.lockKey("registration:"+registrationId);
         Optional<Channel> existing=store.findByRegistration(registrationId);
-        if(existing.isPresent()) return new ProvisionState("PROVISIONED",existing.get().ownerUserId(),existing.get().channelId());
+        if(existing.isPresent()) return new ProvisionState("PROVISIONED",existing.get().ownerUserId(),existing.get().channelId(),null);
         Optional<Fence> fence=store.findFence(registrationId);
-        if(fence.isEmpty() || "OPEN".equals(fence.get().state()))
-            store.saveFence(registrationId,fence.map(Fence::ownerUserId).orElse(null),fence.map(Fence::pendingUntil).orElse(null),"ABSENT",Instant.now());
+        if(fence.isEmpty()) throw unknownRegistration();
+        Fence stored=fence.get();
+        Instant now=Instant.now();
+        if("OPEN".equals(stored.state())) {
+            if(stored.pendingUntil()==null) throw unknownRegistration();
+            if(now.isBefore(stored.pendingUntil())) {
+                log.info("event=channel_provision_lookup component=channels registrationId={} result=PENDING",registrationId);
+                return new ProvisionState("PENDING",null,null,250);
+            }
+            store.saveFence(registrationId,stored.ownerUserId(),stored.pendingUntil(),"ABSENT",now);
+        }
         log.info("event=channel_provision_lookup component=channels registrationId={} result=ABSENT",registrationId);
-        return new ProvisionState("ABSENT",null,null);
+        return new ProvisionState("ABSENT",null,null,null);
     }
 
     @Transactional
@@ -76,7 +85,8 @@ public class ChannelProvisioningService {
         log.info("event=channel_provision component=channels registrationId={} result=REGISTRATION_EXPIRED",registrationId);
         return new ChannelException(HttpStatus.GONE,"REGISTRATION_EXPIRED","El registro venció; no se crea el canal.");
     }
+    private static ChannelException unknownRegistration() { return new ChannelException(HttpStatus.NOT_FOUND,"UNKNOWN_REGISTRATION","registrationId desconocido."); }
     private static ChannelException invalid(String message) { return new ChannelException(HttpStatus.BAD_REQUEST,"VALIDATION_ERROR",message); }
     public record ProvisionResult(Channel channel,boolean created) { }
-    public record ProvisionState(String state,String ownerUserId,String channelId) { }
+    public record ProvisionState(String state,String ownerUserId,String channelId,Integer retryAfterMs) { }
 }

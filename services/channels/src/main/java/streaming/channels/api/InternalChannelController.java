@@ -30,9 +30,10 @@ public class InternalChannelController {
         return ResponseEntity.status(result.created()?201:200).body(new ProvisionResponse(c.channelId(),c.ownerUserId(),c.registrationId(),c.version()));
     }
     @GetMapping(path="/internal/channels/provisions/{registrationId}",produces=MediaType.APPLICATION_JSON_VALUE)
-    public ProvisionStateResponse state(@PathVariable String registrationId) {
+    public ResponseEntity<ProvisionStateResponse> state(@PathVariable String registrationId) {
         var state=provisioning.lookup(registrationId);
-        return new ProvisionStateResponse(state.state(),registrationId,state.ownerUserId(),state.channelId());
+        var response=new ProvisionStateResponse(state.state(),registrationId,state.ownerUserId(),state.channelId(),state.retryAfterMs());
+        return ResponseEntity.status("PENDING".equals(state.state())?202:200).body(response);
     }
     @DeleteMapping("/internal/channels/provisions/{registrationId}")
     public ResponseEntity<Void> compensate(@PathVariable String registrationId) {
@@ -45,6 +46,6 @@ public class InternalChannelController {
     public record ProvisionRequest(String ownerUserId,String registrationId,String pendingUntilUtc) { }
     public record ProvisionResponse(String channelId,String ownerUserId,String registrationId,long channelVersion) { }
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record ProvisionStateResponse(String state,String registrationId,String ownerUserId,String channelId) { }
+    public record ProvisionStateResponse(String state,String registrationId,String ownerUserId,String channelId,Integer retryAfterMs) { }
     public record EventAck(String eventId,String result) { }
 }
