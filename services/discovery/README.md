@@ -1,5 +1,6 @@
-# Backend discovery
+# Core / Consultas y descubrimiento
 
-Responsabilidad: lógica del dominio discovery. Mantén aquí su implementación y sus pruebas locales.
-
-Especificación canónica: docs/spec-p1/spec_07_disc.md (SPEC-07). Datos, errores e interacciones con otros dominios siguen docs/contratos_modelo_datos.md y SPEC-10/SPEC-11. No accedas directamente al almacenamiento de otro módulo.
+Consultas y descubrimiento es un módulo interno de Core, con interfaces locales, PostgreSQL y el stack de Core.
+La definición es [SPEC-07](../../docs/spec-p1/spec_07_disc.md) y el
+[mapa de responsabilidades](../../docs/mapa_sdd_p1.md). Su implementación pertenece a services/core;
+esta carpeta contiene documentación, sin build de servicio propio.

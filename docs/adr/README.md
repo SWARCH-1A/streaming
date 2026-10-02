@@ -1,10 +1,10 @@
 # Registro de decisiones arquitectónicas
 
-Guarda aquí decisiones arquitectónicas con nombres `ADR-NNN-titulo.md`. Usa la plantilla y estados de [política ADR](../politica_ADR.md). No reutilices números. Una ADR aceptada identifica las SPEC, contratos y módulos afectados; los cambios de alcance se reflejan también en las decisiones de producto y las SPEC.
+| ADR | Estado | Decisión |
+| --- | --- | --- |
+| [ADR-001](ADR-001-identity-plataforma-y-seguridad.md) | Aceptada | Plataforma Core, registro transaccional, Argon2id, sesión opaca, seguridad local y auth entre procesos. |
+| [ADR-002](ADR-002-profile-persistencia-y-avatar.md) | Aceptada | Perfil público en Cuentas y avatares en volumen persistente con URI inmutables/reconciliación. |
+| [ADR-003](ADR-003-servicios-cohesivos.md) | Aceptada | Fronteras Core, Chat, Media y Web; responsabilidad local y condiciones de extracción. |
 
-Las decisiones que cambien contratos se revisan con los módulos consumidores y dejan registradas sus observaciones.
-
-| ADR | Módulo | Decisión | Estado |
-| --- | --- | --- | --- |
-| [ADR-001](ADR-001-identity-plataforma-y-seguridad.md) | Identity | Plataforma, persistencia, hash, sesiones, CSRF y autenticación interna | Aceptada |
-| [ADR-002](ADR-002-profile-persistencia-y-avatar.md) | Profile | Persistencia de perfiles y ciclo de vida/almacenamiento de avatares | Aceptada |
+La selección de Chat, Web, motor/adaptador Media y herramientas de despliegue se registra conforme
+a la [política ADR](../politica_ADR.md). Las alternativas candidatas requieren decisión del responsable.

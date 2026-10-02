@@ -1,39 +1,30 @@
-# Documentación normativa del proyecto STREAMING
+# Documentación de STREAMING
 
-## Autoridad
-
-Esta carpeta es la línea base documental versión 0 y contiene los requisitos, decisiones de producto,
-especificaciones, contratos y reglas de integración del proyecto. Los requisitos fuera de P1 se
-conservan aquí para que aplazarlos no implique perderlos.
-
-El código se organiza según [el mapa de módulos y SPEC](mapa_sdd_p1.md) y las instrucciones raíz
-[AGENTS.md](../AGENTS.md). Las especificaciones de esta carpeta, no los artefactos operativos del
-tracker, fijan el comportamiento del producto.
+`docs/` contiene la definición vigente del proyecto: requisitos, arquitectura, responsabilidades,
+contratos y criterios de aceptación. El catálogo conserva 79 RF y 50 RNF con IDs estables.
+Plane, proyecto STREAMING, contiene las mismas SPEC y agrupaciones de trabajo.
+La documentación ubicada junto al repositorio remite a esta fuente.
 
 ## Orden de lectura
 
-1. [Contexto y glosario](glosario_y_contexto.md): actores, términos e identificadores.
-2. [Decisiones de alcance](decisiones_alcance_p1.md): decisiones aprobadas y límites P1.
-3. [Catálogo RF/RNF](catalogo_requisitos.md): requisitos canónicos y prioridades.
-4. [Mapa de módulos y SPEC](mapa_sdd_p1.md): responsabilidad de cada dominio y carpeta asignada.
-5. [Índice SPEC P1](spec-p1/README.md): las trece especificaciones completas.
-6. [Matriz de trazabilidad RNF](matriz_trazabilidad_rnf.md): responsables y evidencia de cierre.
-7. Arquitectura e interacción: [C&C y despliegue](arquitectura_c4_cnc_despliegue.md),
-   [datos y contratos](contratos_modelo_datos.md), [flujos entre dominios](integracion_sistema_p1.md)
-   y [shell/proxy](integracion_frontend_reverse_proxy.md).
-8. [Fases futuras](fases_futuras.md), [política ADR](politica_ADR.md) y decisiones registradas en
-   [docs/adr](adr/README.md).
-9. [Puertas de implementación P1](puertas_implementacion_p1.md): riesgos residuales y decisiones que deben cerrarse.
-10. [Plantilla SPEC](sdd_template.md) para una especificación nueva.
+1. [Contexto](glosario_y_contexto.md), [decisiones de alcance](decisiones_alcance_p1.md) y [catálogo](catalogo_requisitos.md).
+2. [Arquitectura](arquitectura_c4_cnc_despliegue.md) y [ADR-003](adr/ADR-003-servicios-cohesivos.md): Core, Chat, Media, Web y sus fronteras.
+3. [Mapa de responsabilidades](mapa_sdd_p1.md) y [SPEC P1](spec-p1/README.md).
+4. [Contratos y datos](contratos_modelo_datos.md), [flujos](integracion_sistema_p1.md) y [Web/proxy](integracion_frontend_reverse_proxy.md).
+5. [Fases futuras](fases_futuras.md): dueño inicial y condiciones para extraer servicios.
+6. [Matriz RNF](matriz_trazabilidad_rnf.md) y [criterios de entrega P1](puertas_implementacion_p1.md).
+7. [Política ADR](politica_ADR.md), [registro ADR](adr/README.md) y [plantilla SPEC](sdd_template.md).
 
 ## Convenciones
 
-- P1 es el alcance acordado de la primera iteración; no equivale a una demo mínima.
-- P2/Futuro conserva requisitos fuera de P1; no se eliminan por no implementarse todavía.
-- RF-NNN y RNF-NNN son identificadores globales del catálogo versión 0.
-- Los títulos empiezan por el identificador ordenable: SPEC-XX Título, RF-NNN Título y RNF-NNN Título.
-- Cada RF/RNF tiene una SPEC primaria responsable de evidenciar su cierre; las SPEC contribuyentes
-  verifican la parte que les corresponde.
-- La carpeta del módulo expresa propiedad de código y no obliga a desplegar un proceso independiente.
-- Una cifra de aceptación no se cambia implícitamente. Los cambios de requisito y las decisiones
-  técnicas deben registrarse en los documentos correspondientes.
+Una SPEC define comportamiento y aceptación; un módulo encapsula una responsabilidad; una unidad
+desplegable posee runtime, configuración, salud y release. Core contiene varios módulos. Chat y Media
+tienen fronteras propias por carga y fallo. Integración y accesibilidad son trabajo transversal.
+
+Cada módulo escribe mediante su repositorio. Dentro de Core se permiten FK, transacciones locales y
+vistas de lectura publicadas con columnas explícitas; ningún proceso externo consulta sus tablas.
+Los DTO públicos excluyen credenciales, email privado y secretos.
+
+Una decisión aceptada define la solución; el cumplimiento se demuestra con evidencia de implementación.
+Las tecnologías candidatas se seleccionan mediante ADR antes de incorporarlas. Los criterios de entrega
+siguen abiertos hasta comprobarlos; un diagrama no acredita una prueba ejecutada.

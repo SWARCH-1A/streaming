@@ -1,35 +1,57 @@
-# Mapa de módulos y especificaciones P1
+# Mapa de responsabilidades P1
 
-Este mapa enlaza la responsabilidad normativa con las carpetas del repositorio. Lee
-[AGENTS.md](../AGENTS.md) antes de editar y la [SPEC correspondiente](spec-p1/README.md) antes de
-implementar. La ubicación del código define propiedad lógica, no una decisión de proceso o contenedor.
+El proyecto Plane es STREAMING. Las SPEC y módulos usan las responsabilidades de esta tabla;
+los módulos Core son agrupaciones funcionales dentro de un único proceso, no servicios separados.
+Una asignación personal no cambia la frontera arquitectónica.
 
-| SPEC | Módulo | Responsabilidad P1 | Backend | Interfaz |
-| --- | --- | --- | --- | --- |
-| [SPEC-01 Identidad y autorización](spec-p1/spec_01_auth.md) | identity | Registro, autenticación, sesión, principal y autorización por propiedad | services/identity/ | apps/web/modules/identity/ |
-| [SPEC-02 Perfil público](spec-p1/spec_02_profile.md) | profile | Nombre visible, biografía y avatar | services/profile/ | apps/web/modules/profile/ |
-| [SPEC-03 Canal público y propiedad](spec-p1/spec_03_channel.md) | channels | Canal público, descripción, banner, estado y vínculo con su propietario | services/channels/ | apps/web/modules/channels/ |
-| [SPEC-04 Sesión en vivo e integración multimedia](spec-p1/spec_04_stream.md) | streaming | Configuración del stream, sesiones, ingestión, reproducción, leases y ciclo de vida | services/streaming/ | apps/web/modules/streaming/ |
-| [SPEC-05 Chat en vivo y eventos para Replay](spec-p1/spec_05_chat.md) | chat | Sala por sesión, lectura, escritura autenticada, persistencia y eventos listos para replay futuro | services/chat/ | apps/web/modules/chat/ |
-| [SPEC-06 Catálogo de categorías y etiquetas](spec-p1/spec_06_tax.md) | taxonomy | Vocabulario controlado y filtros de transmisiones LIVE | services/taxonomy/ | apps/web/modules/taxonomy/ |
-| [SPEC-07 Descubrimiento](spec-p1/spec_07_disc.md) | discovery | Listado, búsqueda y filtros de canales y transmisiones LIVE | services/discovery/ | apps/web/modules/discovery/ |
-| [SPEC-08 Accesibilidad del recorrido](spec-p1/spec_08_a11y.md) | accessibility | Criterios transversales de accesibilidad en el recorrido web P1 | Sin servicio propio | apps/web/accessibility/ y las vistas de cada módulo |
-| [SPEC-09 Integración transversal](spec-p1/spec_09_int.md) | integration | Coordinación, límites compartidos y aceptación integrada | Sin servicio de dominio | apps/web/shell/, contracts/, infra/ y tests compartidas |
-| [SPEC-10 Contratos API, propiedad de datos y errores](spec-p1/spec_10_int.md) | integration | Interfaces, ownership, autenticación, errores y evolución de contratos | contracts/ | tests/contracts/ |
-| [SPEC-11 Flujos de sesión y eventos](spec-p1/spec_11_int.md) | integration | Secuencias y eventos que coordinan dominios | contracts/ | tests/integration/ |
-| [SPEC-12 Shell web y reverse proxy](spec-p1/spec_12_int.md) | integration | Rutas, shell, WebSocket, HLS, RTMP y entrada de API | apps/web/shell/ e infra/reverse-proxy/ | tests/integration/ |
-| [SPEC-13 Despliegue integrado y E2E](spec-p1/spec_13_int.md) | integration | Arranque reproducible, health, reinicio, carga y recorrido integrado | infra/ | tests/e2e/ |
+| SPEC | Módulo Plane / responsabilidad | Unidad y ubicación | UI |
+| --- | --- | --- | --- |
+| SPEC-01 | Core / Cuentas: autenticación y perfil | services/core; cuentas | apps/web/modules/accounts |
+| SPEC-03 | Core / Canales y seguimiento | services/core; canales | apps/web/modules/channels |
+| SPEC-04 | Core / Emisiones | services/core; control, metadata, cupos, reloj y leases | apps/web/modules/streaming |
+| SPEC-05 | Chat | services/chat; mensajes, cuota, secuencia, historial y tiempo real | apps/web/modules/chat |
+| SPEC-06 | Core / Catálogo | services/core; categorías, etiquetas y tombstones | apps/web/modules/taxonomy |
+| SPEC-07 | Core / Consultas y descubrimiento | services/core; lecturas SQL, filtros y ranking; GraphQL público | apps/web/modules/discovery |
+| SPEC-08 | Web / Accesibilidad | apps/web/accessibility y todas las vistas | Criterios transversales |
+| SPEC-09 | Integración | contracts, infra, shell y evidencia compartida | apps/web/shell |
+| SPEC-10 | Integración: contratos y datos | contracts/generated y tests/contracts | Contratos para consumidores |
+| SPEC-11 | Integración: flujos | tests/integration | Registro local, Core–Chat y Core–Media |
+| SPEC-12 | Integración: Web y proxy | apps/web/shell, infra/reverse-proxy | Rutas, auth, HTTP/WS/HLS |
+| SPEC-13 | Integración: despliegue y evidencia | infra/local, tests/e2e | Recorrido y perfil de carga |
 
-## Límites entre módulos
+## Capacidades futuras
 
-- Identity es la fuente de autoridad para identidad y handle. Profile y Channels no almacenan
-  credenciales ni se convierten en autoridad del handle.
-- Cada dominio posee sus propios datos. Las interacciones entre dominios usan los contratos de
-  [datos e interfaces](contratos_modelo_datos.md) y [flujos](integracion_sistema_p1.md); no se accede a
-  tablas privadas ajenas.
-- Accessibility no es un servicio backend ni una autorización general para editar todas las vistas.
-  Las tareas sobre pantallas concretas deben nombrar también los módulos que se modificarán.
-- Integration no es un servicio de dominio. Su carpeta agrupa la composición compartida, artefactos
-  generados, infraestructura y pruebas entre componentes; no contiene lógica interna de otros dominios.
-- VOD, subtítulos y demás capacidades futuras permanecen en el catálogo y [fases futuras](fases_futuras.md).
-  Que queden fuera de P1 no autoriza a borrarlas ni a implementarlas en una iteración P1.
+| Módulo Plane | Dueño inicial y alcance |
+| --- | --- |
+| Core / Monetización | RF-038…RF-045: planes, pagos, suscripciones y acceso premium en un módulo cohesivo Core. Proveedor/adaptador por ADR de la fase. |
+| Media / Procesamiento audiovisual | RTMP/HLS en P1; RF-027…RF-030, RF-056…RF-062 y RF-063…RF-065: procesamiento de calidades, grabación y pistas, con metadatos/permiso Core. |
+
+Las otras capacidades y dependencias se definen en [fases futuras](fases_futuras.md) y el catálogo;
+su planificación no crea procesos ni tablas por anticipación. Una SPEC futura se define al priorizar
+su capacidad. Seguimiento, moderación, VOD, notificaciones y watch party tienen dueño inicial allí.
+
+## Propiedad
+
+Cuentas, Canales, Catálogo, Emisiones y Consultas comparten build, seguridad y PostgreSQL Core.
+Registro cuenta/perfil/canal usa una transacción. Cada módulo escribe por su repositorio; las lecturas
+compuestas usan vistas publicadas, columnas explícitas y FK locales. Chat posee su almacén y Media el
+flujo audiovisual. Ningún proceso externo consulta bases privadas. Integración no posee casos de uso
+de negocio. RNF y evidencia se relacionan en la matriz de trazabilidad.
+
+## Definición de módulos de trabajo
+
+Los nombres y descripciones de esta tabla definen las agrupaciones de Plane. Las agrupaciones Core
+comparten proceso y stack; las de capacidades futuras organizan trabajo sin adelantarlas en P1.
+
+| Módulo | Definición |
+| --- | --- |
+| Core / Cuentas | Autenticación y perfil público dentro de Core. RF-001…RF-003, RF-005…RF-007 en P1; recuperación de contraseña RF-004 futura. Registro cuenta/perfil/canal en una transacción PostgreSQL; sesión opaca, CSRF, cuotas, edición y avatar. Java/Spring y seguridad comunes de Core; interfaces locales, sin servicio Profile ni provisión remota. SPEC-01. |
+| Core / Canales y seguimiento | Módulo interno Core: un canal por cuenta, descripción/portada, propiedad y página pública compuesta localmente. RF-008…RF-012 y SPEC-03 en P1; seguimiento RF-014…RF-016 y listado VOD RF-013 futuros. Creación en la transacción de registro; FK y PostgreSQL Core. No proceso, base ni stack propios. |
+| Core / Emisiones | Módulo interno Core: configuración y metadata, cupos, estado de emisión, reloj/reconexión y viewer leases. RF-017…RF-026, SPEC-04. streamId estable y sessionId por emisión; PREPARING/LIVE/RECONNECT_GRACE/ENDED basados en evidencia Media. Java/Spring/PostgreSQL Core; interfaces locales de Cuentas/Canales/Catálogo. Contratos privados con Media y contexto/outbox de sesión hacia Chat. |
+| Core / Catálogo | Módulo interno Core: categorías, etiquetas, IDs estables, valores activos, tombstones y versión. RF-066…RF-069, SPEC-06. PostgreSQL Core, FK y validación local de Emisiones/Consultas; GET /api/taxonomy para Web. Sin servicio/base propios. Accesibilidad pertenece a Web y sus vistas; subtítulos son capacidad futura Core/Media. |
+| Core / Consultas y descubrimiento | Módulo de lectura Core: RF-070…RF-073, SPEC-07. Canales LIVE/OFFLINE y streams PLAYABLE, búsqueda parcial, filtros, ranking y frescura. GraphQL /api/discovery/graphql con SQL/vistas públicas locales y consultas acotadas. Sin runtime Kotlin, Redis ni índice distribuido en P1. Búsqueda/filtros VOD RF-074…RF-075 futuros; índice especializado solo con necesidad medida y reconstrucción definida. |
+| Chat | Servicio independiente: salas por sessionId, mensajes, WebSocket, historial, dedupe, secuencia, cuota global por cuenta y entrega recuperable. RF-031…RF-035, SPEC-05 en P1; moderación RF-036…RF-037 y Replay futuros en el mismo dueño. Lectura anónima; un contexto Core por mensaje nuevo, sin autorización cacheada. Go/MongoDB candidatos sujetos a ADR; persistencia antes de ACK, cuota/orden/fan-out consistentes entre réplicas. Caída Chat no corta HLS. |
+| Integración | Trabajo transversal de contratos, propiedad de datos, flujos Core–Chat/Media, Web/proxy, despliegue, recuperación y evidencia E2E. SPEC-09 y sus hijos SPEC-10…SPEC-13. Mantiene coherencia y restricciones SQL/NoSQL, lenguajes y conectores. No es servicio ni orquestador de casos de uso; la lógica permanece en el dueño del dominio. |
+| Core / Monetización | Capacidad futura RF-038…RF-045: planes, pagos, suscripciones y derechos premium como módulo cohesivo Core. Proveedor/adaptador, moneda, cancelación/devolución y reconciliación por SPEC/ADR de la fase. Intentos/webhooks firmados e idempotentes; estado local transaccional. No implementado en P1 ni stacks/servicios separados por pagos, suscripciones y permisos. Extraer conjuntamente solo con evidencia operativa/escala/release. |
+| Media / Procesamiento audiovisual | Unidad multimedia: ingesta RTMP, HLS, señales y verificación de reproducción en P1, con control de negocio Core según SPEC-04. Calidades RF-027…RF-030, captura/procesado VOD RF-056…RF-062 y pistas RF-063…RF-065 futuras. Metadata, catálogo y acceso pertenecen a Core. Motor/adaptador por ADR; workers pesados se separan de ingest cuando lo justifiquen carga/fallo. Sin servicio por calidad o idioma. |
+| Web / Accesibilidad | Criterios transversales de la única aplicación Web: teclado, semántica, foco, contraste y control de autodesplazamiento Chat. SPEC-08 y RNF-035…RNF-036; aplica a formularios, canal, player, chat y búsqueda. Comparte responsable de Catálogo por asignación del equipo, sin mezclar sus fronteras. No servicio backend ni microfrontend. Subtítulos RF-063…RF-065 son una capacidad futura de Core/Media. |
