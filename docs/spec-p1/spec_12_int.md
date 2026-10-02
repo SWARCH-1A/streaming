@@ -73,7 +73,7 @@ Como usuario final, quiero recorrer registro, canal, emisión, chat y búsqueda 
 
 ## 7. Diseño técnico y configuración
 
-Una Web y un build; shell registra rutas/globales, componentes/tokens y errores por vista. Canal por handle consume un bootstrap Core compuesto; player y chat se montan desde sessionId. Proxy enruta por prefijos a Core/Chat/Media, sin auth de negocio ni saga; bloquea /internal y sobrescribe forwarding. Paths API no caen al fallback SPA. TLS, CSRF, límite multipart, WS Upgrade/Origin y HLS range/cache definidos en documento frontend.
+Una Web y un build; código en apps/web/src, módulos en src/modules/{accounts,channels,streaming,chat,taxonomy,discovery}, shell en src/shell y utilidades compartidas en src/accessibility. Shell registra rutas/globales, componentes/tokens y errores por vista. Canal por handle consume un bootstrap Core compuesto; player y chat se montan desde sessionId. Proxy enruta por prefijos a Core/Chat/Media, sin auth de negocio ni saga; bloquea /internal y sobrescribe forwarding. Paths API no caen al fallback SPA. TLS, CSRF, límite multipart, WS Upgrade/Origin y HLS range/cache definidos en documento frontend.
 
 ## 8. Dependencias y contratos de integración
 

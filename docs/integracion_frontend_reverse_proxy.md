@@ -41,7 +41,9 @@ cookie, X-Session-Credential, streamKey, token de lease o Idempotency-Key en log
 
 services/core contiene Cuentas, Canales, Catálogo, Emisiones y Consultas, con build, seguridad y
 configuración comunes. services/chat contiene Chat; infra/media configura el motor y su adaptador.
-apps/web tiene un build y módulos internos. contracts/generated contiene artefactos generados;
+apps/web tiene un build y código en src/: modules/accounts, channels, streaming, chat, taxonomy y
+discovery; shell compone rutas y accessibility contiene utilidades compartidas. No crear aplicaciones
+por módulo. El framework/entry/build Web se concreta por ADR. contracts/generated contiene artefactos generados;
 infra mantiene configuración y tests/ la evidencia compartida. El mapa_sdd_p1 define la propiedad.
 
 ## Puertos y configuración
@@ -51,8 +53,14 @@ Bases en red privada y volumen de imágenes persistente. El runbook de cada unid
 comando y health; las reservas de componentes pendientes se concretan al implementarlos.
 
 Una configuración/env de ejemplo central por unidad desplegable; no secreto por módulo Core ni
-client HTTP a localhost para comunicar módulos locales. Core comparte security/CSRF y sesión opaca.
+cliente HTTP a localhost para comunicar módulos locales. Core comparte security/CSRF y sesión opaca.
 Chat valida sesión con contexto Core, no estado de sesión conservado en el navegador.
+
+Core ejecutable usa CORE_DB_URL/USER/PASSWORD, CORE_RATE_LIMIT_HMAC_SECRET, CORE_SECURE_COOKIE,
+WEB_ORIGIN y PROFILE_AVATAR_STORAGE/PUBLIC_BASE. El [runbook Core](../services/core/README.md)
+y [Compose local](../infra/local/README.md) contienen comandos, health y volúmenes. El backend directo
+ignora headers forwarded; al implementar el proxy se configurará confianza únicamente en sus
+IP/redes y se verificará la cuota por IP antes de habilitar ese despliegue.
 
 ## Reglas de evolución
 

@@ -24,3 +24,13 @@ locales y lecturas SQL publicadas por los módulos; entre procesos, contratos de
 Consulta el [mapa de responsabilidades](docs/mapa_sdd_p1.md), las
 [SPEC P1](docs/spec-p1/README.md), los [contratos](docs/contratos_modelo_datos.md)
 y las [fases futuras](docs/fases_futuras.md). [AGENTS.md](AGENTS.md) define las reglas de trabajo.
+
+## Implementación y ejecución
+
+[Core](services/core/README.md) implementa registro transaccional de cuenta/perfil/canal, sesiones,
+perfil/avatares y bootstrap público inicial. [Compose local](infra/local/README.md) inicia Core y
+PostgreSQL con volumen persistente. Pruebas: `services/core/mvnw -f services/core/pom.xml test` y
+`services/core/mvnw -f services/core/pom.xml verify -P integration` (Docker para PostgreSQL aislado).
+
+Edición/portada de canal, Emisiones, Catálogo, Consultas, Chat, Media y Web siguen pendientes.
+[Web](apps/web/README.md) organiza su esqueleto en `src/modules`, `src/shell` y `src/accessibility`.

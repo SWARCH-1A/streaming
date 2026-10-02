@@ -6,17 +6,17 @@ Una asignación personal no cambia la frontera arquitectónica.
 
 | SPEC | Módulo Plane / responsabilidad | Unidad y ubicación | UI |
 | --- | --- | --- | --- |
-| SPEC-01 | Core / Cuentas: autenticación y perfil | services/core; cuentas | apps/web/modules/accounts |
-| SPEC-03 | Core / Canales y seguimiento | services/core; canales | apps/web/modules/channels |
-| SPEC-04 | Core / Emisiones | services/core; control, metadata, cupos, reloj y leases | apps/web/modules/streaming |
-| SPEC-05 | Chat | services/chat; mensajes, cuota, secuencia, historial y tiempo real | apps/web/modules/chat |
-| SPEC-06 | Core / Catálogo | services/core; categorías, etiquetas y tombstones | apps/web/modules/taxonomy |
-| SPEC-07 | Core / Consultas y descubrimiento | services/core; lecturas SQL, filtros y ranking; GraphQL público | apps/web/modules/discovery |
-| SPEC-08 | Web / Accesibilidad | apps/web/accessibility y todas las vistas | Criterios transversales |
-| SPEC-09 | Integración | contracts, infra, shell y evidencia compartida | apps/web/shell |
+| SPEC-01 | Core / Cuentas: autenticación y perfil | services/core; cuentas | apps/web/src/modules/accounts |
+| SPEC-03 | Core / Canales y seguimiento | services/core; canales | apps/web/src/modules/channels |
+| SPEC-04 | Core / Emisiones | services/core; control, metadata, cupos, reloj y leases | apps/web/src/modules/streaming |
+| SPEC-05 | Chat | services/chat; mensajes, cuota, secuencia, historial y tiempo real | apps/web/src/modules/chat |
+| SPEC-06 | Core / Catálogo | services/core; categorías, etiquetas y tombstones | apps/web/src/modules/taxonomy |
+| SPEC-07 | Core / Consultas y descubrimiento | services/core; lecturas SQL, filtros y ranking; GraphQL público | apps/web/src/modules/discovery |
+| SPEC-08 | Web / Accesibilidad | apps/web/src/accessibility y todas las vistas | Criterios transversales |
+| SPEC-09 | Integración | contracts, infra, shell y evidencia compartida | apps/web/src/shell |
 | SPEC-10 | Integración: contratos y datos | contracts/generated y tests/contracts | Contratos para consumidores |
 | SPEC-11 | Integración: flujos | tests/integration | Registro local, Core–Chat y Core–Media |
-| SPEC-12 | Integración: Web y proxy | apps/web/shell, infra/reverse-proxy | Rutas, auth, HTTP/WS/HLS |
+| SPEC-12 | Integración: Web y proxy | apps/web/src/shell, infra/reverse-proxy | Rutas, auth, HTTP/WS/HLS |
 | SPEC-13 | Integración: despliegue y evidencia | infra/local, tests/e2e | Recorrido y perfil de carga |
 
 ## Capacidades futuras

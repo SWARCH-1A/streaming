@@ -17,18 +17,19 @@ docs/ es la definición vigente. Usa exclusivamente MCP de Plane y proyecto STRE
 
 | Módulo | Unidad | SPEC | UI |
 | --- | --- | --- | --- |
-| accounts | Core: autenticación, sesión y perfil | SPEC-01 | modules/accounts |
-| channels | Core: canal y propiedad | SPEC-03 | modules/channels |
-| streaming | Core: emisión, cupos, clock y leases; contrato Media | SPEC-04 | modules/streaming |
-| taxonomy | Core: categorías y etiquetas | SPEC-06 | modules/taxonomy |
-| discovery | Core: consultas y GraphQL | SPEC-07 | modules/discovery |
-| chat | Chat: mensajes, cuota, secuencia, historial y realtime | SPEC-05 | modules/chat |
-| accessibility | Web y criterios de todas las vistas afectadas | SPEC-08 | accessibility y vistas |
-| integration | Shell, contracts, infra y pruebas compartidas | SPEC-09…SPEC-13 | shell |
+| accounts | Core: autenticación, sesión y perfil | SPEC-01 | src/modules/accounts |
+| channels | Core: canal y propiedad | SPEC-03 | src/modules/channels |
+| streaming | Core: emisión, cupos, clock y leases; contrato Media | SPEC-04 | src/modules/streaming |
+| taxonomy | Core: categorías y etiquetas | SPEC-06 | src/modules/taxonomy |
+| discovery | Core: consultas y GraphQL | SPEC-07 | src/modules/discovery |
+| chat | Chat: mensajes, cuota, secuencia, historial y realtime | SPEC-05 | src/modules/chat |
+| accessibility | Web y criterios de todas las vistas afectadas | SPEC-08 | src/accessibility y vistas |
+| integration | Shell, contracts, infra y pruebas compartidas | SPEC-09…SPEC-13 | src/shell |
 
 Core se ubica en services/core; Chat en services/chat; Media en infra/media; UI bajo apps/web.
-La consolidación de fuentes existentes en services/identity y services/profile se hace únicamente
-en una tarea de implementación asignada. No crear otro runtime por módulo de Core.
+Las responsabilidades de autenticación y perfil viven en services/core/src/main/java/streaming/core/accounts.
+Web organiza módulos bajo apps/web/src/modules, shell y accesibilidad bajo apps/web/src.
+No crear otro runtime por módulo de Core.
 Pruebas locales junto al módulo; contratos/integración/E2E compartidos bajo tests/ según alcance.
 
 ## Límites de implementación
