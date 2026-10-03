@@ -19,23 +19,22 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import streaming.core.channels.application.ChannelStore.Channel;
 import streaming.core.channels.application.ChannelStore.Upload;
-import streaming.core.accounts.identity.application.IdentityApplicationService;
-import streaming.core.accounts.identity.application.IdentityApplicationService.SessionView;
+import streaming.core.channels.application.AccountAuthentication.Principal;
 import streaming.core.channels.application.ChannelQueries.ChannelView;
 import streaming.core.channels.domain.ChannelRules;
 
 @Service
 public class ChannelApplicationService {
     private static final SecureRandom RANDOM=new SecureRandom();
-    private final ChannelStore channels; private final IdentityApplicationService identity; private final BannerStorage banners; private final String bannerPublicBase;
-    public ChannelApplicationService(ChannelStore channels,IdentityApplicationService identity,BannerStorage banners,
+    private final ChannelStore channels; private final AccountAuthentication authentication; private final BannerStorage banners; private final String bannerPublicBase;
+    public ChannelApplicationService(ChannelStore channels,AccountAuthentication authentication,BannerStorage banners,
             @Value("${channels.banner-public-base-url:/api/channels/banners}") String bannerPublicBase) {
-        this.channels=channels; this.identity=identity; this.banners=banners; this.bannerPublicBase=bannerPublicBase.replaceAll("/$","");
+        this.channels=channels; this.authentication=authentication; this.banners=banners; this.bannerPublicBase=bannerPublicBase.replaceAll("/$","");
     }
-    public SessionView requirePrincipal(String credential) {
-        return identity.introspect(credential).orElseThrow(()->new ChannelException(HttpStatus.UNAUTHORIZED,"AUTH_REQUIRED","Se requiere una sesión activa."));
+    public Principal requirePrincipal(String credential) {
+        return authentication.introspect(credential).orElseThrow(()->new ChannelException(HttpStatus.UNAUTHORIZED,"AUTH_REQUIRED","Se requiere una sesión activa."));
     }
-    public UploadResponse upload(SessionView principal,String channelId,byte[] bytes) {
+    public UploadResponse upload(Principal principal,String channelId,byte[] bytes) {
         if(!ChannelRules.isExternalId(channelId)) throw notFound();
         requireOwner(principal,channels.find(channelId).orElseThrow(ChannelApplicationService::notFound));
         BannerStorage.StoredBanner stored=banners.saveTemporary(bytes);
@@ -46,7 +45,7 @@ public class ChannelApplicationService {
     }
     /** Partial update over the latest persisted row; the row lock serializes concurrent PATCH requests. */
     @Transactional
-    public ChannelView patch(SessionView principal,String channelId,JsonNode body) {
+    public ChannelView patch(Principal principal,String channelId,JsonNode body) {
         if(body==null || !body.isObject() || body.isEmpty()) throw invalid("Se requiere al menos un campo editable.");
         Set<String> allowed=Set.of("description","bannerUploadId");
         for(String name:body.propertyNames()) if(!allowed.contains(name)) throw invalid("El canal solo permite editar description y bannerUploadId.");
@@ -105,7 +104,7 @@ public class ChannelApplicationService {
             }
         }
     }
-    private static void requireOwner(SessionView principal,Channel channel) {
+    private static void requireOwner(Principal principal,Channel channel) {
         if(!channel.ownerUserId().equals(principal.userId())) throw new ChannelException(HttpStatus.FORBIDDEN,"CHANNEL_FORBIDDEN","Solo el propietario puede modificar el canal.");
     }
     private ChannelView view(Channel c) { return new ChannelView(c.channelId(),c.ownerUserId(),c.description(),bannerUri(c.bannerKey()),c.version()); }
