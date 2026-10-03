@@ -1,56 +1,61 @@
-# ADR-002: Persistencia y almacenamiento de avatares del módulo Profile
+# ADR-002: Perfil público y almacenamiento de avatares en Cuentas
 
 - Estado: aceptada
-- Fecha: 2026-09-29
-- Responsable: Profile
-- SDD/contratos afectados: SPEC-02 (RF-006, RF-007 y RNF-032; CA-01–CA-07); SPEC-10 (propiedad de datos, API y errores); SPEC-13 (persistencia del volumen en despliegue); contratos de lectura/edición Profile e `IdentityPublicChanged`/`ProfilePublicChanged`.
+- Fecha: 2026-10-01
+- Responsable: Core / Cuentas
+- SPEC/contratos afectados: SPEC-01 (RF-006, RF-007, RNF-032), SPEC-03, SPEC-10 y SPEC-13; perfil público, edición self y objetos avatar.
 
 ## Contexto
 
-Profile es dueño de `displayName`, `bio`, avatar y versión del perfil. `userId` y `handle` son autoridad de Identity; el perfil solo guarda `userId` como referencia externa, sin FK ni acceso a la base privada de Identity. Canales es dueño de la descripción y portada del canal. Los datos públicos no pueden incluir email, contraseña, credenciales ni sesión.
+Perfil pertenece a Cuentas en Core y posee displayName, bio, avatarUri y profileVersion. La cuenta
+posee email/handle/credenciales; Canales posee descripción y portada. Compartir proceso y PostgreSQL
+permite crear el perfil inicial con la cuenta y validar sesión localmente, manteniendo DTO públicos
+distintos de datos privados.
 
-SPEC-02 P1 permite consultar y editar nombre visible, biografía y avatar, no permite cambiar handle y fija JPEG/PNG/GIF hasta 10 MB. El ADR obligatorio de SPEC-02 debe resolver almacenamiento local compatible con despliegue reproducible frente a S3/MinIO, formato de URL y eliminación/reemplazo. El módulo existente usa Java 25, Spring Boot 4.1.1, Spring Security, PostgreSQL 18, Flyway y un directorio configurable `PROFILE_AVATAR_STORAGE`.
+P1 admite avatar opcional JPEG/PNG/GIF hasta 10 MB y al menos 200×200 px. Nombre visible y bio son
+editables; el handle permanece inmutable. Debe conservarse el objeto anterior ante fallo de reemplazo.
 
 ## Decisión
 
-1. **Plataforma:** mantener el baseline de Java 25, Spring Boot 4.1.1 y Maven Wrapper que usa Identity. Spring Security valida la identidad llamando a la introspección privada de Identity en cada operación protegida; no se duplica autenticación ni se conserva una copia de credenciales.
-2. **Datos estructurados:** PostgreSQL 18 y Flyway; Profile es dueño del esquema `profile` y de las tablas de perfil, permisos de upload y outbox. `userId` es texto/ID externo, sin FK entre dominios. Si una proyección aún no existe, se aplica el fallback público previsto en SPEC-02 mediante lookup de Identity; Identity inaccesible produce `503`, no `404`.
-3. **Archivos:** para P1, guardar avatares en un directorio externo al contenedor, configurado por `PROFILE_AVATAR_STORAGE` y montado como volumen persistente. Separar `pending/` y `public/`. La imagen no se guarda como blob en PostgreSQL. Los archivos reciben claves UUID aleatorias e inmutables con extensión derivada del formato real; no se usan nombres de archivo proporcionados por el usuario.
-4. **Validación:** inspeccionar y decodificar los bytes en el servidor; aceptar solo JPEG/PNG/GIF, hasta 10 MB y con límite defensivo de dimensiones/píxeles. La extensión o `Content-Type` aportados por el cliente no prueban el formato.
-5. **URL pública:** guardar la referencia lógica/URI con clave opaca y servir el archivo por `GET /api/profile/avatars/{key}`. El prefijo público se configura (`PROFILE_AVATAR_PUBLIC_BASE`); por defecto es `/api/profile/avatars`. La URI nunca revela ruta absoluta, raíz del volumen o nombre original. Las claves son inmutables para que un cambio genere una URL nueva y cada objeto publicado pueda servirse con caché pública de larga duración (un año en la implementación actual) sin que una sustitución deje una imagen vieja bajo la misma URL.
-6. **Carga, reemplazo y retiro:** upload crea archivo pendiente y permiso de un solo uso (hash de `uploadId`, asociado al usuario, vence a los 15 minutos). PATCH consume el permiso, valida que corresponda al dueño, publica el nuevo objeto y confirma la nueva referencia en la transacción de PostgreSQL. Si falla la actualización, se elimina el objeto nuevo publicado y se conserva el avatar anterior. Tras commit se elimina el temporal y, cuando se reemplaza o retira avatar, se elimina el objeto anterior; un proceso periódico limpia uploads vencidos.
-7. **Límite de escalamiento:** la elección del directorio local requiere un volumen persistente. Para más de una réplica de Profile, todas deben usar un almacenamiento compartido con garantías de lectura/escritura compatibles o el módulo debe migrar a S3/MinIO mediante un nuevo adaptador/ADR. No se asume que el disco efímero de un contenedor sea persistente ni compartido.
-8. **Eventos:** guardar `ProfilePublicChanged` en outbox dentro de la transacción de perfil. La selección de transporte, dispatcher, ACK y reintentos de entrega es decisión de Integración y permanece fuera de este ADR.
+1. Usar Java/Spring y PostgreSQL Core de ADR-001. Tabla de perfil con FK a cuenta, permisos de upload ligados al propietario y repositorio encapsulado; registro crea displayName=handle, bio vacía, avatar nulo y versión 0. Validación de sesión por interfaz local de Cuentas.
+2. PATCH parcial serializado por usuario; omisión conserva, bio:null limpia y avatarUploadId:null retira. Solo cambios efectivos incrementan versión. Canal/Consultas leen DTO/vista pública local; Chat recibe snapshot del autor en su contexto y conserva el de mensajes anteriores.
+3. Guardar archivos en directorio externo al contenedor, configurable mediante PROFILE_AVATAR_STORAGE y montado como volumen persistente. Separar pending/ y public/. Clave UUID inmutable y extensión del formato real; no usar nombres de archivo del cliente ni guardar imagen como blob SQL.
+4. Inspeccionar/decodificar bytes; JPEG/PNG/GIF real <=10 MB y ancho/alto >=200 px. Límite defensivo de píxeles/dimensiones. Content-Type y extensión del cliente no prueban formato.
+5. Upload crea temporal y permiso de un uso: hash de uploadId, dueño y vencimiento 15 min. PATCH valida/consume permiso y publica objeto nuevo antes del commit de referencia SQL. Rollback elimina el objeto nuevo; tras commit limpia temporal y retira objeto anterior cuando corresponde. Reconciliación periódica elimina temporales vencidos/huérfanos sin borrar objetos referenciados.
+6. URI pública GET /api/profile/avatars/{key}, prefijo PROFILE_AVATAR_PUBLIC_BASE (default /api/profile/avatars). Clave opaca y caché de larga duración con URL nueva en cada reemplazo; no revelar ruta física/nombre original. La política de caché debe contemplar privacidad y retiro antes de introducir borrado definitivo de cuentas.
+7. Una réplica Core en P1. Varias réplicas requieren volumen compartido consistente o adaptador S3/MinIO seleccionado por ADR; disco efímero no es persistencia. Backup de PostgreSQL y objetos como conjunto recuperable.
 
 ## Opciones consideradas
 
-| Decisión | Opción elegida | Alternativas y motivo para no elegirlas en P1 |
-| --- | --- | --- |
-| Lenguaje/framework | Java + Spring Boot, igual que Identity | Un stack diferente podría cumplir la API, pero añadiría otro runtime, seguridad y operación sin una necesidad de Profile; compartir lenguaje no comparte modelos ni bases de datos. |
-| Datos de perfil | PostgreSQL 18 con esquema propiedad de Profile | Documentos NoSQL simplificarían algunos objetos, pero este modelo pequeño tiene campos acotados, unicidad/relación lógica con su propietario y actualización coordinada con outbox. La obligación global de incluir NoSQL debe resolverse en el sistema donde exista un caso de uso real, no duplicando aquí los datos de identidad. |
-| Archivos | Volumen de archivos externo y persistente | Guardar bytes en PostgreSQL mezcla contenido grande con datos transaccionales y aumenta copias/lecturas de la base. S3/MinIO separa mejor almacenamiento de objetos y facilita varias réplicas, pero añade servicio, credenciales, configuración y operación; queda como siguiente opción si se exige Profile multi-réplica. |
-| URL y ciclo de vida | URI configurable con clave UUID inmutable; temporal → publicado → referencia DB → limpieza posterior | Nombre original o ruta física filtra datos y permite colisiones/traversal. Sobrescribir una URL estable complica cachés y puede mostrar contenido antiguo. Eliminar primero la imagen actual puede dejar el perfil sin avatar si falla el cambio de DB; por eso primero se publica el nuevo objeto y se elimina el viejo tras commit. |
+| Opción | Evaluación |
+| --- | --- |
+| Perfil SQL dentro de Cuentas | Elegida: relación 1:1, defaults de registro y lectura/edición local. |
+| Perfil en servicio/NoSQL separado | Obliga a activación y lookup remoto; el uso NoSQL de sistema se asigna al historial Chat. |
+| Volumen persistente | Elegido para P1: objetos y URI sin proveedor adicional; requiere respaldo/reconciliación. |
+| Blob PostgreSQL | Aumenta tamaño y costo de lectura/backups transaccionales; separa peor los archivos. |
+| S3/MinIO | Facilita varias réplicas y objetos; requiere servicio, credenciales y operación. Evolución del adaptador si el volumen deja de cumplir. |
+| Sobrescribir URL o usar nombre original | Complica caché, colisiones y seguridad; se eligen claves UUID inmutables. |
 
 ## Consecuencias
 
-**Beneficios:** ownership claro entre Identity, Profile y Channels; metadatos y archivos se despliegan reproduciblemente sin imponer proveedor externo; los límites de formato/tamaño son comprobables en servidor; la clave inmutable simplifica caché y evita depender del nombre del usuario; fallos de DB al reemplazar conservan el avatar previo.
+Perfil no introduce fallo de red independiente ni replica identidad. Archivos y SQL no forman una
+transacción única: el orden, compensación local y reconciliación conservan el anterior y reparan
+huérfanos tras crash. Un volumen perdido puede romper URI persistidas; respaldo/restauración deben
+verificar checksums y referencias. El contrato de almacenamiento permite cambiar adaptador preservando
+claves o publicando URI nuevas antes de retirar objetos originales.
 
-**Costos y fallos:** el almacenamiento es otra unidad persistente que debe respaldarse junto con PostgreSQL; perder o no montar el volumen puede romper URI ya guardadas. En más de una réplica, un volumen local no compartido puede producir respuestas inconsistentes. El cambio de archivo y la transacción SQL no son una sola transacción distribuida; el orden de publicación, compensación, borrado posterior y limpieza evita la mayoría de estados parciales, pero fallos de proceso pueden dejar archivos huérfanos que requieren reconciliación periódica.
-
-**Compatibilidad:** las rutas REST y el modelo público de SPEC-02 siguen independientes del framework. Los consumidores obtienen el avatar mediante URI, sin acceso al disco de Profile. `userId` sigue siendo referencia opaca; no se introduce una FK ni una consulta directa a Identity. El fallback para perfil ACTIVE no materializado y los 404 indistinguibles para estados no activos se mantienen.
-
-**Requisitos globales:** PostgreSQL cubre la parte SQL del módulo, pero este ADR no declara satisfecho el requisito global de NoSQL ni los requisitos de lenguajes, conectores o procesos de SPEC-13. Integración conserva esas decisiones. La separación de Profile en su propio proceso facilita reinicio independiente, pero el almacenamiento de archivos debe seguir persistente al reiniciarlo.
-
-**Migración/lock-in:** el contrato `AvatarStorage` separa lógica de aplicación y adaptador de archivos. Una migración futura a S3/MinIO debe copiar objetos conservando claves o publicar URIs nuevas, validar checksums, cambiar configuración/base pública y retirar el volumen solo tras confirmar que no quedan referencias activas.
+Los lectores Core consultan el perfil localmente. El snapshot Chat es histórico;
+editar perfil no cambia los autores de mensajes ya persistidos. Fallo SQL es 503, no usuario inexistente.
 
 ## Verificación
 
-- Comprobar los casos de SPEC-02: GET público no filtra campos privados, PATCH solo permite editar al principal, handle no cambia, fallback activo, 404 uniforme para inactivo/inexistente y 503 ante caída de Identity.
-- Rechazar bytes vacíos, formatos no permitidos, imágenes falsas y archivos sobre 10 MB; verificar límites de píxeles. Confirmar upload de un uso y expiración a los 15 minutos.
-- Forzar errores antes y después de publicar archivo y durante commit: el perfil anterior debe continuar válido ante fallo, los objetos huérfanos deben limpiarse y el reemplazo exitoso debe eliminar el viejo solo tras commit.
-- Reiniciar Profile y su contenedor manteniendo el volumen; las URI existentes deben seguir resolviendo. Verificar que un despliegue con más de una réplica use el mismo almacenamiento consistente antes de habilitarlo.
-- Evidencia registrada al preparar este ADR: la suite unitaria Profile (10 pruebas) pasó en la verificación previa del repositorio; no hay evidencia de prueba integrada con volumen/Compose en ese momento porque Docker Engine no estaba disponible.
+Consulta público/self y privacidad, acceso propio/ajeno, campos permitidos, PATCH parcial/no-op,
+validación de formato/tamaño/píxeles/dimensiones, permiso de un uso/expiry y concurrencia de reemplazos.
+Inyectar fallos de archivo/SQL/commit y reinicio: conservar referencia anterior ante rollback y recuperar
+huérfanos. Reiniciar con volumen persistente y comprobar URI; probar almacenamiento compartido antes
+de habilitar varias réplicas.
 
-## Revisión
+## Condiciones para cambiar la decisión
 
-Profile revisará esta decisión antes de ejecutar más de una réplica, cuando el volumen compartido no cumpla disponibilidad/latencia, cuando el tamaño/retención de medios lo justifique, o ante una política que requiera URLs firmadas, CDN o reglas de acceso distintas. El dueño de Profile decide el adaptador; Integración aprueba los cambios de montaje, proxy, URL pública y despliegue; un cambio de semántica pública requiere actualizar SPEC-02/contratos y registrar ADR sustitutivo.
+Core/Cuentas cambia adaptador ante múltiples réplicas, límites de volumen/latencia o política de acceso,
+CDN o retención. Coordinar URL/proxy/montajes y restore con Integración y consumidores.

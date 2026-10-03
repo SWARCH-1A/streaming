@@ -8,7 +8,7 @@
 
 Define RF-031…RF-035 y cubre lectura/envío/distribución vinculados a una sesión. Debe fallar de forma aislada respecto al video y conservar datos para Chat Replay futuro.
 
-## 2. Estado del sistema y brecha
+## 2. Definición del componente
 
 La moderación avanzada (RF-036 y RF-037) queda fuera de P1; esta iteración no implementa bloqueo ni eliminación de mensajes.
 
@@ -68,58 +68,42 @@ Como espectador, quiero leer mensajes de la sesión en vivo; como usuario autent
 
 - CA-04 — quien entra recibe como máximo últimos 50 mensajes de la sesión, no mensajes de otra sesión; abrir WS antes del backlog y fusionar por sequence no deja hueco ni duplicado visible.
 
-- CA-05 — durante pérdida de fuente menor a 30 s la sala continúa; enviar un mensaje válido cerca del segundo 29 usa una muestra fresca y se acepta si cumple las demás validaciones; al cerrar sesión se vuelve read-only y rechaza writes.
+- CA-05 — durante pérdida de fuente menor a 30 s la sala continúa; enviar un mensaje válido cerca del segundo 29 usa el contexto autorizado vigente y se acepta si cumple las demás validaciones; al terminar la emisión la sala se vuelve read-only y rechaza envíos nuevos.
 
 - CA-06 — fallo de Chat no detiene un playback ya disponible; UI muestra chat no disponible y deshabilita composer.
 
 - CA-07 — un evento persistido contiene campos para autor, sessionId y posición temporal; mensajes no incluyen HTML ejecutable ni secretos.
-- CA-08 — si Profile falla o expira, el mensaje válido se acepta con el handle de Identity y avatar nulo; si Identity no valida la sesión, el mensaje se rechaza como `IDENTITY_UNAVAILABLE`, y si no hay estado de sesión/timeline válido de Streaming se rechaza como `STREAMING_UNAVAILABLE` o `TIMELINE_UNAVAILABLE`. Todos son frames WebSocket después del Upgrade; ningún fallo escribe o distribuye un mensaje rechazado.
+- CA-08 — contexto Core valida sesión y autor/estado/timeline localmente. Sin personalización usa handle/avatar nulo; Core inaccesible CORE_UNAVAILABLE, sesión inválida AUTH_REQUIRED, envío nuevo en ENDED CHAT_READ_ONLY, timeline inválido TIMELINE_UNAVAILABLE. Son frames tras Upgrade; rechazado no persiste. No timeout de Profile remoto.
 
 ## 7. Diseño técnico y datos
 
-- Propiedad: Chat posee MessageId, sessionId, userId, authorDisplayName snapshot, body, serverCreatedAt, streamOffsetMs y sequence; `ChatMessageCreated` usa `aggregateId=chat-session:{sessionId}` y esa sequence monotónica. El catálogo completo se persiste separado del buffer reciente.
+Chat permanece servicio independiente por conexiones largas, fan-out, historial y aislamiento de HLS. Posee mensajes, dedupe, secuencia por sesión, cuota global por cuenta y broadcast; no credenciales/usuarios maestros. Go/MongoDB son candidatos, no selección acreditada ni implementación.
 
-- WebSocket es el transporte P1 único de distribución y envío en `/realtime/chat/sessions/{sessionId}`; REST `GET /api/chat/sessions/{sessionId}/messages?limit=50` sirve backlog. El cliente abre WS, espera `chat.ready`, pide el backlog y combina por sequence; esto evita el hueco entre historial y eventos live. El contrato fija auth, Origin, errores, orden, reconexión e intervalos de heartbeat.
+Por mensaje nuevo: validar texto, solicitar una sola vez contexto Core autenticado (principal vigente + autor público + estado/timeline), aplicar dedupe/cuota y persistir antes del ACK. El contexto no se cachea para otros envíos. Core no procesa mensajes ni decide secuencias; Chat no recorre Identity/Profile/Streaming por red. Revocación/fin posteriores a autorización no revierten operación en vuelo, dentro del presupuesto máximo de 500 ms; nuevas autorizaciones se rechazan.
 
-- Separar buffer de 50 mensajes de persistencia de eventos para VOD futuro. No incluir storage NoSQL por inercia; justificar acceso, TTL y consulta temporal.
+Conservar WS antes de historial y fusionar por sequence; buffer cincuenta separado del historial persistente. Índices únicos de dedupe y sequence, consulta por sessionId/offset; asignación/commit/cuota consistentes entre réplicas. Persistencia→broadcast requiere mecanismo durable para recovery tras crash, no simple envío después de guardar sin recuperador.
 
-- Chat acepta la sala y publica `chat.ready` solo desde LIVE; durante RECONNECT_GRACE permite leer/escribir; ENDED permite lectura (`READ_ONLY`) y rechaza writes. PREPARING falla con `409 CHAT_NOT_OPEN`.
+El contexto autenticado expone writeAllowed/denialCode: dedupe puede recuperar ACK de un mensaje
+previo aun con sala ENDED, sin consumir cuota ni escribir. Nuevo envío exige writeAllowed. Reusar
+clientMessageId con otro texto canónico da MESSAGE_ID_CONFLICT.
 
-- `userId`, displayName/avatar y hora/sequence/offset nunca se aceptan desde payload como autoridad; en cada send Chat valida la cookie por HTTPS/TLS a `POST /internal/identity/sessions/introspect` sobre red privada sin cachear; userId/handle vienen del principal Identity, perfil snapshot de Profile, tiempos/offset/sequence del servidor.
+Estado de sala recibe notificaciones Core de sesión deduplicadas y se reconcilia por snapshot; eventos no autorizan writes. Nuevos envíos siempre consultan autoridad. Un evento ENDED atrasado no abre una sesión vieja. Lectura de sala conocida/ENDED puede seguir sin Core; sala desconocida requiere snapshot. Origin validado también para anónimos; no es identidad.
 
-- Si Profile no responde, Chat acepta el mensaje usando el handle canónico del principal como `authorDisplayName` y `avatarUri=null`; no falla el envío ni detiene playback. El snapshot almacenado no cambia cuando se recupere Profile o se edite el perfil.
-
-- Streaming publica muestras al menos cada segundo durante LIVE y toda RECONNECT_GRACE; Chat usa la última muestra recibida en 3 s, la extrapola con reloj monotónico local y guarda su `sessionVersion` como `timelineSampleVersion`. Si falta una muestra fresca, responde al `message.send` con frame WebSocket `error` de code `TIMELINE_UNAVAILABLE`, sin persistir ni distribuir; el cliente reintenta con el mismo `clientMessageId` al recibir una muestra nueva. Nunca acepta offset del cliente. El offset es aproximado, coordenada de sesión futura, no timestamp del cliente ni prueba de que P1 ya graba VOD.
+Retención/supresión de moderación y consultas replay tendrán el mismo dueño Chat. P1 no implementa esos RF futuros ni un servicio Replay aparte.
 
 ## 8. Dependencias y contratos de integración
 
-- Identity para introspección de sesión y principal por cada envío autenticado; si falla la dependencia durante un mensaje, Chat rechaza con frame WebSocket `error`/`IDENTITY_UNAVAILABLE` y no acepta identidad no validada. Si falla antes del Upgrade, el handshake devuelve HTTP 503.
-
-- Streaming para sessionId, start/end, grace state y offset multimedia; su indisponibilidad durante un envío rechaza con frame `STREAMING_UNAVAILABLE` (la falta de sample fresco usa `TIMELINE_UNAVAILABLE`).
-
-- Profile para displayName/avatar visible; si no responde, se usa el handle de Identity y avatar nulo.
-
-- Frontend player y shell web para websocket upgrade/ruta del proxy.
-
-- VOD futuro consume export/history sin acoplarse a tablas internas.
+Única dependencia de negocio de Chat: Core. message-context autorizado incluye usuario/autor/timeline; GET snapshot abre/reconcilia sala; session-events recibe cambios durables. Core caído bloquea nuevas escrituras con frame CORE_UNAVAILABLE, no lectura de historia ya conocida. Proxy permite Upgrade/Origin/cookie, Media no depende de Chat.
 
 ## 9. Decisiones y preguntas abiertas
 
-**Decisiones:** login para escribir; anónimo para leer; 50 mensajes recientes; texto NFC recortado de hasta 500 puntos de código Unicode; 1 mensaje por cuenta en cualquier ventana móvil global de 1000 ms, sin ráfaga; 20 msg/s agregado objetivo; deduplicación por clientMessageId mientras se retenga el mensaje; persistencia temporal para replay futuro; chat read-only al cerrar sesión.
+**Decisiones:** login para escribir; anónimo para leer; 50 mensajes recientes; texto NFC recortado de hasta 500 puntos de código Unicode; 1 mensaje por cuenta en cualquier ventana móvil global de 1000 ms, sin ráfaga; 20 msg/s agregado objetivo; deduplicación por clientMessageId mientras se retenga el mensaje; persistencia temporal para replay futuro; chat read-only al terminar la emisión.
 
 **Abierto:** no hay preguntas de producto bloqueantes. La persona responsable decide librería/implementación WS y persistencia en ADR sin alterar los contratos visibles.
 
 ## 10. Verificación
 
-- lectura anónima y denegación de escritura; normalización, límites 500/501 puntos de código, vacío/espacios y cuota móvil 1000 ms.
-
-- broadcast p95 <1 s con carga objetivo; orden de mensajes y recuperación de conexión.
-
-- backlog último 50 aislado por sessionId; conexión WS antes de backlog; deduplicación/reorden por sequence; campos de Chat Replay y offsets verificables, incluyendo error por muestra stale.
-
-- caída/timeout de Profile mantiene envío con snapshot fallback handle + avatar nulo; caída/timeout de Identity rechaza sin persistir. Durante prueba de 20 mensajes/s informar hasta 20 introspecciones/s y 20 lookups Profile/s, sus p95 y errores.
-
-- fallo de chat deja playback disponible; al término chat queda read-only; XSS/string rendering seguro.
+Lectura anónima/envío protegido, Unicode 500/501, cuota global 1000 ms entre salas/réplicas, dedupe y ACK durable, recuperación broadcast tras crash, WS→historial sin huecos; p95 <1 s a 20 msg/s. Logout/fin en autorización posterior, snapshot antes de fin con operación en vuelo acotada, CORE_UNAVAILABLE sin persistencia; perfiles por defecto desde contexto sin dependencia remota. HLS continúa al caer Chat.
 
 ## 11. Esfuerzo, riesgos y consecuencias
 

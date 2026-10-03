@@ -1,34 +1,36 @@
 # STREAMING
 
-Repositorio principal del proyecto académico STREAMING. Contiene el código, los contratos generados,
-la configuración compartida y la documentación normativa necesaria para implementar la primera
-iteración.
+Plataforma académica de transmisión en vivo. La primera iteración incluye cuentas, canales,
+emisiones RTMP/HLS, chat, catálogo, descubrimiento y accesibilidad. Las capacidades futuras
+conservan su alcance en el catálogo y el plan de evolución.
 
-## Fuente normativa
+La definición vigente está en [docs/README.md](docs/README.md). Los requisitos, contratos,
+SPEC y ADR del repositorio son la fuente normativa; Plane registra el trabajo del proyecto STREAMING.
 
-La documentación canónica vive en `docs/`. Empieza por [docs/README.md](docs/README.md), que indica
-el orden de lectura, alcance, contratos y decisiones. El trabajo de implementación debe seguir
-[AGENTS.md](AGENTS.md): cada encargo se asigna a un módulo y ese módulo tiene rutas propias para
-backend, frontend y pruebas.
+## Arquitectura
 
-La versión 0 de esta documentación define el alcance P1 y las capacidades futuras conservadas. Las
-decisiones de implementación pendientes se registran en ADR dentro de `docs/adr/` antes de tratarse
-como aprobadas.
+| Unidad | Responsabilidad |
+| --- | --- |
+| Core | Java/Spring y PostgreSQL: Cuentas (autenticación y perfil), Canales, Catálogo, Emisiones y Consultas. Un build, seguridad común y transacciones locales. |
+| Chat | Salas, mensajes, historial, cuota global, secuencia y distribución WebSocket; persistencia propia. |
+| Media | Ingesta RTMP, reproducción HLS y procesamiento audiovisual; adaptador al control de emisiones Core. |
+| Web | Una aplicación y un build, con módulos internos de UI y accesibilidad. |
+| Reverse proxy | Entrada HTTPS y encaminamiento hacia Core, Chat, Media y Web. |
 
-## Módulos
+Las fronteras y sus consecuencias están en [ADR-003](docs/adr/ADR-003-servicios-cohesivos.md).
+El registro confirma cuenta, perfil y canal en una transacción. Dentro de Core se usan interfaces
+locales y lecturas SQL publicadas por los módulos; entre procesos, contratos de red explícitos.
 
-| Módulo | SPEC primaria | Backend | Frontend |
-| --- | --- | --- | --- |
-| Identidad | SPEC-01 | `services/identity/` | `apps/web/modules/identity/` |
-| Perfil | SPEC-02 | `services/profile/` | `apps/web/modules/profile/` |
-| Canales | SPEC-03 | `services/channels/` | `apps/web/modules/channels/` |
-| Streaming | SPEC-04 | `services/streaming/` | `apps/web/modules/streaming/` |
-| Chat | SPEC-05 | `services/chat/` | `apps/web/modules/chat/` |
-| Taxonomía | SPEC-06 | `services/taxonomy/` | `apps/web/modules/taxonomy/` |
-| Descubrimiento | SPEC-07 | `services/discovery/` | `apps/web/modules/discovery/` |
-| Accesibilidad | SPEC-08 | Sin servicio propio | `apps/web/accessibility/` y criterios aplicados en la UI |
-| Integración | SPEC-09 a SPEC-13 | Sin servicio de dominio | Shell, contratos, infraestructura y pruebas integradas |
+Consulta el [mapa de responsabilidades](docs/mapa_sdd_p1.md), las
+[SPEC P1](docs/spec-p1/README.md), los [contratos](docs/contratos_modelo_datos.md)
+y las [fases futuras](docs/fases_futuras.md). [AGENTS.md](AGENTS.md) define las reglas de trabajo.
 
-La estructura define propiedad lógica del código, no obliga a desplegar un proceso por carpeta. La
-topología, herramientas y tecnologías que siguen abiertas se deciden mediante ADR y deben respetar
-los contratos vigentes.
+## Implementación y ejecución
+
+[Core](services/core/README.md) implementa registro transaccional de cuenta/perfil/canal, sesiones,
+perfil/avatares, edición/portadas de canal y bootstrap público compuesto. [Compose local](infra/local/README.md) inicia Core y
+PostgreSQL con volumen persistente. Pruebas: `services/core/mvnw -f services/core/pom.xml test` y
+`services/core/mvnw -f services/core/pom.xml verify -P integration` (Docker para PostgreSQL aislado).
+
+Emisiones y su composición en el canal, Catálogo, Consultas, Chat, Media y Web siguen pendientes.
+[Web](apps/web/README.md) organiza su esqueleto en `src/modules`, `src/shell` y `src/accessibility`.

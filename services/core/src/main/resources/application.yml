@@ -1,0 +1,37 @@
+server:
+  port: ${PORT:8081}
+  forward-headers-strategy: none
+spring:
+  application:
+    name: core
+  datasource:
+    url: ${CORE_DB_URL:jdbc:postgresql://localhost:5432/core}
+    username: ${CORE_DB_USER:core}
+    password: ${CORE_DB_PASSWORD}
+  flyway:
+    schemas: core,identity,profile,channels
+    default-schema: core
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+core:
+  cookie-name: stream_session
+  secure-cookie: ${CORE_SECURE_COOKIE:false}
+  public-origin: ${WEB_ORIGIN:http://localhost:3000}
+  rate-limit-hmac-secret: ${CORE_RATE_LIMIT_HMAC_SECRET}
+profile:
+  storage-root: ${PROFILE_AVATAR_STORAGE}
+  avatar-public-base-url: ${PROFILE_AVATAR_PUBLIC_BASE:/api/profile/avatars}
+channels:
+  storage-root: ${CHANNELS_BANNER_STORAGE}
+  banner-public-base-url: ${CHANNELS_BANNER_PUBLIC_BASE:/api/channels/banners}

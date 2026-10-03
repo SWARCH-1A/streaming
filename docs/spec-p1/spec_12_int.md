@@ -8,7 +8,7 @@
 
 Define la integración del frontend web de los módulos P1 con el shell común y reverse proxy, de modo que cada módulo pueda contribuir sin romper navegación, auth, paths o playback. Hijo de SPEC-09.
 
-## 2. Estado del sistema y brecha
+## 2. Definición del componente
 
 El monorepo modular y las carpetas propietarias ya están definidos. Los puertos y la selección técnica del shell/proxy se completan en ADR sin alterar las rutas y reglas de integración especificadas aquí.
 
@@ -28,7 +28,7 @@ Como usuario final, quiero recorrer registro, canal, emisión, chat y búsqueda 
 
 - WebSocket Upgrade para Chat y rutas de entrega HLS por HTTP. Listener RTMP aparte, no presentado como HTTP.
 
-- Configuración dev reproducible sin fijar framework ni estrategia de microfrontend.
+- Configuración dev reproducible por unidad y una Web integrada; no microfrontend por módulo.
 
 ### Fuera de P1
 
@@ -38,11 +38,11 @@ Como usuario final, quiero recorrer registro, canal, emisión, chat y búsqueda 
 
 - Un shell registra rutas globales; los módulos no cambian router/config compartido unilateralmente.
 
-- Preferir mismo origen HTTPS para reducir complejidad de CORS/cookies; Identity decide sesión segura por ADR.
+- Mismo origen HTTPS para CORS/cookies; Cuentas define sesión y CSRF según ADR-001.
 
 ## 5. Contrato de interfaz web
 
-- Rutas web P1: `/`, `/register`, `/login`, `/channels/{handle}`, `/search?q=...` y `/watch/{streamId}`. Shell resuelve el handle con Identity y compone Channels/Profile/Streaming; watch obtiene sessionId para Chat.
+- Rutas web P1: `/`, `/register`, `/login`, `/channels/{handle}`, `/search?q=...` y `/watch/{streamId}`. Canal consume `GET /api/channels/by-handle/{handle}`: Core compone canal, handle, perfil y estado de emisión localmente. Watch usa el snapshot público de stream/sesión; ambos montan Chat desde sessionId.
 
 - Shell consume interfaces UI/versionadas; módulo publica ruta/entry, estados y dependencias, sin compartir store privado.
 
@@ -60,7 +60,7 @@ Como usuario final, quiero recorrer registro, canal, emisión, chat y búsqueda 
 
 - **CA-03:** shell integra vistas de identidad, perfil, canal, player, chat y búsqueda manteniendo navegación y boundary de error por módulo.
 
-- **CA-04:** WS acepta Upgrade solo en `/realtime/chat/sessions/{sessionId}`, verifica credencial vigente y Origin web configurado, admite lectura anónima/escritura autenticada y heartbeat/timeout; chat desconectado no detiene HLS.
+- **CA-04:** WS acepta Upgrade solo en `/realtime/chat/sessions/{sessionId}` y verifica Origin web configurado para todos los clientes. Admite lectura anónima; cada envío requiere contexto Core con credencial vigente. Heartbeat/timeout y error de Chat no detienen HLS.
 
 - **CA-05:** playlist/segmentos bajo `/hls/{sessionId}/*` solo se ofrecen como playback cuando availability=PLAYABLE; content types/rango/cache se documentan; solicitud→primer frame cumple máximo 5 s bajo perfil P1 de SPEC-13.
 
@@ -68,36 +68,20 @@ Como usuario final, quiero recorrer registro, canal, emisión, chat y búsqueda 
 
 - **CA-07:** rutas integradas pasan criterios de teclado, foco, mensajes y semántica de SPEC-08.
 
-- **CA-08:** módulo ejecutable en modo local; shell muestra fallback identificable si upstream cae.
-- **CA-09:** tras resolver un handle a identidad ACTIVE, 404 de Channels por proyección pendiente se reintenta a 100/250/500/1000 ms bajo deadline total de 2 s. Agotado, se muestra un estado de activación/reintento explícito, no 404 permanente. Para identidad no activa o desconocida se conserva el 404 indistinguible.
+- **CA-08:** Web integrada ejecutable en modo local; muestra fallback por vista y unidad upstream real si cae.
+- **CA-09:** canal por handle usa bootstrap local Core; ACTIVE ya tiene canal/perfil desde commit, sin reintentos por atraso de proyección. Inexistente/no activo 404 uniforme y Core no disponible error explícito, nunca página “activándose” por una frontera eliminada.
 
 ## 7. Diseño técnico y configuración
 
-- Rutas de API y proxy quedan especificadas en `integracion_frontend_reverse_proxy.md`: `/api/streams/{streamId}`, `/api/streams/sessions/{sessionId}`, `/api/streams/sessions/{sessionId}/viewer-leases`, `/api/chat/sessions/{sessionId}/messages`, `/realtime/chat/sessions/{sessionId}` y `/hls/{sessionId}/*`. La tabla central es la fuente única y no hay dos rutas de chat con distinta semántica.
-
-- Tabla inicial separa shell, APIs HTTP, WebSocket, HLS y RTMP. Hostnames/puertos quedan como parámetros hasta ADR.
-
-- Config de route paths es fuente única reutilizada por proxy, shell y compose/env; actualizar juntas en cada cambio.
-
-- Navegador usa la cookie opaca `HttpOnly; Secure; SameSite=Lax` definida por Identity; mutaciones pasan la protección CSRF definida en ADR. Handshake WS compara Origin con el origen web configurado; proxy no transforma identidad ni valida ownership.
-
-- Frontend integrado, paquetes compartidos acotados y microfrontend son opciones; comparar independencia de build, fallos runtime y complejidad.
-
-- Monorepo modular P1; carpetas por dominio y ownership explícito. Una futura separación multirepo necesita decisión explícita y contratos versionados.
+Una Web y un build; código en apps/web/src, módulos en src/modules/{accounts,channels,streaming,chat,taxonomy,discovery}, shell en src/shell y utilidades compartidas en src/accessibility. Shell registra rutas/globales, componentes/tokens y errores por vista. Canal por handle consume un bootstrap Core compuesto; player y chat se montan desde sessionId. Proxy enruta por prefijos a Core/Chat/Media, sin auth de negocio ni saga; bloquea /internal y sobrescribe forwarding. Paths API no caen al fallback SPA. TLS, CSRF, límite multipart, WS Upgrade/Origin y HLS range/cache definidos en documento frontend.
 
 ## 8. Dependencias y contratos de integración
 
-- Consume contratos SPEC-10 y flujos de auth/session/events SPEC-11.
-
-- Identity publica login/session/logout; Channels/Profile canal/perfil; Streaming playback/status y callbacks internos no expuestos al browser; Taxonomy values; Discovery list; Chat WebSocket/history.
-
-- Proxy/deploy consume tabla de procesos/health de SPEC-13.
-
-- Registrar path/puerto con el owner antes de añadirlo a configuración compartida.
+Web consume APIs Core y Chat/HLS; módulos UI no requieren procesos propios. Proxy tabla única coherente con contratos; Media listener RTMP separado de HTTP. Backend protege sesiones y propiedad; frontend nunca decide owner ni estado LIVE.
 
 ## 9. Decisiones y preguntas abiertas
 
-**Acordado:** shell común, rutas directas, reverse proxy, mismo origen preferido, cookie de sesión, WS/media documentados y monorepo modular. **No bloqueante:** puertos, hostname, mecanismo CSRF y composición frontend se resuelven entre responsables por ADR.
+Web integrada y mismo origen HTTPS. Stacks y librerías Web se seleccionan mediante ADR. La ruta por handle compone datos públicos dentro de Core.
 
 ## 10. Verificación
 

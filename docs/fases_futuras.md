@@ -1,41 +1,62 @@
-# Fases futuras y capacidades preservadas
+# Evolución y responsabilidades futuras
 
-**Alcance:** requisitos y capacidades fuera de P1 definidos en el catálogo de esta versión. Esta página
-resume las dependencias que deben conservarse al construir los contratos actuales.
+**Fuente de alcance:** catálogo RF/RNF; **topología base:** ADR-003.
+P2/P3/Futuro conservan la prioridad del catálogo. Esta matriz asigna dueños iniciales y dependencias;
+no adelanta funcionalidades ni convierte cada tema en un servicio desplegable. Las SPEC de capacidades
+futuras deben resolver sus políticas antes de implementar, conservando la prioridad y alcance del catálogo.
 
-## Capacidades fuera de P1
+## Matriz de capacidades
 
-| Dominio | Requisitos | Alcance a conservar / habilitadores P1 |
-| --- | --- | --- |
-| Recuperación y endurecimiento de identidad | RF-004; RNF-025…RNF-032 | Verificación de email, recuperación/restablecimiento, políticas avanzadas de credencial y roles. P1 debe evitar acoplar perfil público a credenciales. |
-| Seguimiento | RF-014…RF-016 | Seguir/dejar de seguir y consultar canales seguidos. Eventos de inicio pueden habilitar notificaciones futuras, pero P1 no añade seguimiento. |
-| Calidad/transcoding | RF-027…RF-030 | Variantes, selección manual/automática, información a streamer/espectador. P1 entrega una reproducción funcional; manifest/codec adaptativo no presupone ABR completo. |
-| Moderación de chat | RF-036…RF-037 | Eliminar mensajes y bloquear usuarios; los eventos de Chat P1 necesitan ID estable y política futura para suprimir mensajes moderados del replay. |
-| Suscripciones y premium | RF-038…RF-045 | Productos/precios, suscripción, estado, acceso premium y elementos exclusivos. Requiere autorización/entitlement y pago con estados/idempotencia. |
-| Watch party | RF-046…RF-051 | Sesiones con varios streams, acceso, sincronía, límites y metadatos por canal. El diseño debe distinguir un layout multivideo de una mezcla/transcodificación audiovisual real. |
-| Notificaciones | RF-052…RF-055 | Notificar inicio de canal seguido, bandeja, leído y preferencias. Depende de seguimiento y eventos fiables, no de polling indiscriminado. |
-| VOD | RF-013, RF-056…RF-062, RF-074…RF-075 | Retención, asociación a canal/origen, catálogo, reproducción, edición/eliminación, duración/metadatos, búsqueda por título y filtro por categoría/etiqueta sobre VOD. Guardar `sessionId` y eventos de chat en P1 prepara origen y Chat Replay; no implica almacenar video. |
-| Chat Replay | derivado acordado del chat futuro | Reproducir mensajes sincronizados con VOD. Acordar retención, timezone/offset, edición/borrado de moderación, privacidad y relación de borrado del VOD. |
-| Subtítulos | RF-063…RF-065 | Son opcionales para fases posteriores; P1 no exige carga, selección, activación ni pistas. Mantener player no acoplado a un único mecanismo de accesibilidad. |
-| Administración | RF-076…RF-079 | Consulta/operación administrativa con autorización diferenciada y audit log. No crear privilegio admin implícito en P1. |
+| Capacidad / RF | Dueño inicial | Flujo y consistencia | Cuándo justificar otra unidad |
+| --- | --- | --- | --- |
+| Recuperación de contraseña RF-004 | Cuentas en Core | Identidad, token de un uso/expiración y cambio de credencial en SQL; email asíncrono por adaptador de entrega | SSO/federación o proveedor externo con necesidad real; perfil permanece local aunque credenciales pasen a IdP |
+| Seguimiento RF-014…016 | Canales/comunidad en Core | Relación única followerUserId–channelId; FK SQL; follow/unfollow idempotentes | Volumen de grafo/lecturas demostrado y contrato que elimine joins en caliente |
+| Calidad/transcoding RF-027…030 | Media; selección/metadata en Emisiones Core | Job audiovisual y rendiciones en Media, perfil/estado de job en Core; player selecciona variantes publicadas | Worker pesado separado de ingest si CPU, cola y fallo lo justifican; no servicio por cada calidad |
+| Moderación RF-036…037 | Chat | Tombstone de mensaje, bloqueo por ámbito y auditoría dentro del dueño de mensajes; live y replay aplican misma supresión | No extraer “moderación” de sus mensajes; detección automática costosa puede ser worker que propone decisiones |
+| Suscripciones/premium RF-038…045 | Monetización como módulo cohesivo Core, cuando se priorice | Producto/precio, suscripción, pago y entitlement explícitos; webhook firmado/deduplicado por providerEventId; estado local transaccional e intentos de proveedor asíncronos | Riesgo operativo, pagos/contabilidad, equipo/release independientes o aislamiento de cumplimiento; extraer pagos/suscripciones/entitlements juntos primero |
+| Watch party RF-046…051 | Sesiones de grupo como módulo Core; Media/Chat colaboran por contratos | Membresía y política de acceso en una transacción local; referencias a streamId/sessionId; sincronización según SPEC futura | Servicio de sincronización solo si frecuencia/fan-out supera al API normal; el compositor audiovisual, si existe, pertenece a Media |
+| Notificaciones RF-052…055 y RNF-020 | Módulo/worker de notificaciones junto a Core inicialmente | Core decide destinatarios por follow/preferencias y crea intento por evento+destinatario; entrega fuera del camino LIVE; bandeja/leído durables | Volumen/reintentos/proveedores requieren escala y operación independientes. Worker separable con inbox/dedupe; nunca fuente de verdad de follow |
+| VOD RF-013, RF-056…062, RF-074…075 | Biblioteca de contenido en Core; captura/procesado en Media | Media publica artefacto/job; Core posee vodId, origen sessionId, metadata, visibilidad y catálogo; publicación solo tras objeto válido | Transcoding/captura pueden usar workers separados; biblioteca no necesita un servicio “VOD metadata” ni otra búsqueda de inicio |
+| Chat Replay derivado futuro | Chat posee mensajes/consulta; Core posee vínculo VOD–sessionId y política de acceso | Player solicita ventana temporal/cursor a Chat con autorización del VOD; no copia tablas ni reinterpreta moderación; Media/Core publican mapping de offset a medio | Un índice/worker de consulta si se demuestra necesidad; replay y moderación comparten dueño y supresiones |
+| Subtítulos RF-063…065 | Biblioteca/Emisiones Core para metadata/autorización; Media para pistas/procesado | Pistas versionadas asociadas a VOD/stream; validación/publicación y acceso heredan política del contenido | Transcripción automática costosa como worker; no servicio de negocio por idioma o control del player |
+| Administración RF-076…079 | Cada módulo mantiene sus operaciones privilegiadas; shell administrativo común | Roles/permiso en Cuentas, autorización en proveedor, auditoría por operación; UI compone pantallas | No servicio “Admin” dueño de todas las tablas. Analítica masiva puede usar proyección de solo lectura |
+| Descubrimiento sobre VOD/follow/futuro | Consultas en Core | Lecturas SQL paginadas, activos visibles y permisos del contenido; índice solo si se mide cuello de botella | Motor externo/servicio de índice reconstruible por outbox+snapshot consistente con watermark; nunca autoridad de contenido/acceso |
 
-Las clasificaciones P2/P3/Futuro definitivas son las del catálogo. Esta lista describe temas y
-dependencias, no establece el orden de iteraciones.
+RF-049 pide mostrar streams simultáneamente: eso se cumple inicialmente con varios reproductores.
+No exige mezcla audiovisual; si se solicita luego un stream combinado, registrar ese nuevo alcance y
+su costo en Media, sin atribuirlo al catálogo actual. Pagos requieren proveedor,
+moneda, cancelación, devolución y reconciliación antes de implementar. Retención de VOD/chat, privacidad,
+suspensión/borrado de cuenta y sincronía de pistas se decidirán en la fase correspondiente; no se inventan TTL en P1.
 
-## Decisiones de compatibilidad a proteger desde P1
+## Habilitadores mínimos que sí corresponden a P1
 
-- Identidad publica `userId`/handle estable; Profile conserva snapshots de nombre visible para contenido
-  histórico donde corresponda.
-- Cada emisión tiene `streamId` y cada ejecución una `sessionId`; al reconectar dentro de 30 s se
-  conserva sessionId; una nueva ejecución recibe una nueva sesión.
-- Eventos de chat incluyen ID, sesión y posición relativa al stream; un VOD podrá exportar/consultar
-  por sesión sin acceso directo a tablas privadas.
-- API de Taxonomy utiliza IDs controlados en vez de texto libre para categoría/tag.
-- Canales distinguen descripción/banner de perfil/avatar/nombre y de stream/VOD.
-- Los contratos públicos permiten búsqueda futura de VOD sin incluirlo en resultados P1.
+IDs opacos de cuenta/canal/stream/sesión/mensaje; handle inmutable; metadata versionada; timeline de
+sesión y snapshot de autor en Chat; formatos públicos sin credenciales; repositorios encapsulados,
+FK locales; mensajes ordenados/deduplicados; callbacks Media idempotentes; outbox únicamente para
+cambios de sesión que cruzan a Chat. No se construyen bus universal, entitlement engine, grabación,
+export API de replay ni tablas vacías de todas las futuras capacidades.
 
-## Puerta para priorizar una fase
+## Flujos futuros sin coordinador global
 
-Antes de incluir una capacidad futura en P1, actualizar sus RF, casos de aceptación, datos/ERD, errores,
-contratos, seguridad/privacidad, métricas y ADR. Confirmar dependencias con módulos consumidores y la
-política de migración para los datos existentes.
+- **Inicio y notificación:** Core confirma LIVE → outbox del módulo Emisiones → worker de notificación
+  resuelve followers/preferencias y deduplica entrega. Fallo de entrega nunca revierte LIVE.
+- **Compra y acceso:** Monetización registra intento → proveedor → webhook/reconciliación → actualiza
+  pago/suscripción/entitlement en su transacción. El proveedor de contenido consulta una política explícita;
+  no recorre cuentas→pagos→suscripciones→premium como servicios separados por solicitud.
+- **Publicar VOD:** job Media termina → Core valida objeto y publica biblioteca → consulta local lo
+  descubre. Chat consulta por sesión al reproducir; un borrado genera trabajo idempotente en Media/Chat,
+  con tombstone de visibilidad inmediato en Core y limpieza observable, sin prometer transacción global.
+- **Administrar:** la UI llama al dueño de la operación; Core/Chat verifican permisos y auditan. El shell
+  administrativo no modifica directamente bases ni se convierte en motor de workflows.
+
+## Puerta obligatoria para extraer un servicio
+
+Un ADR nuevo debe demostrar: capacidad cohesiva y dueño único; invariante transaccional que no queda
+partido sin explicación; demanda de escala/fallo/release distinta medida; consulta sin joins de red
+por fila; costo operativo de DB/TLS/secretos/backups/on-call; protocolo y presupuesto de latencia;
+compatibilidad/migración/rollback; snapshot completo y watermark para reconstrucción si usa proyecciones;
+idempotencia y recuperación del único dueño del workflow. Si la extracción exige un coordinador que
+conozca internamente a todos los participantes, revisar primero la frontera.
+
+Separación de infraestructura (worker, proceso de cómputo, réplica) no implica inventar otro dominio.
+La plataforma debe poder evolucionar por módulos y adaptadores antes de distribuir datos por necesidad futura imaginada.

@@ -8,7 +8,7 @@
 
 Define los criterios RNF-033…RNF-036 aplicables a navegación, formularios, reproductor, estado de emisión y chat. El alcance acordado incluye accesibilidad de la interfaz aunque subtítulos quedan fuera de P1.
 
-## 2. Estado del sistema y brecha
+## 2. Definición del componente
 
 Esta SPEC convierte las expectativas de teclado y semántica en controles verificables por cada dominio y en una matriz de verificación P1.
 
@@ -107,4 +107,4 @@ Como usuario con distintas capacidades y formas de interacción, quiero navegar 
 
 ## 11. Esfuerzo, riesgos y consecuencias
 
-**Esfuerzo:** M. **Riesgos:** tratar accesibilidad como acabado, mensajes que interrumpan lectura, foco perdido en microfrontends e imágenes sin contexto. **Consecuencia:** no se incluye aún accesibilidad de pistas de subtítulos/transcripción.
+**Esfuerzo:** M. **Riesgos:** tratar accesibilidad como acabado, mensajes que interrumpan lectura, foco perdido entre vistas de la Web integrada e imágenes sin contexto. **Consecuencia:** no se incluye aún accesibilidad de pistas de subtítulos/transcripción.

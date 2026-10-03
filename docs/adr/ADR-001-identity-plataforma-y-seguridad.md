@@ -1,57 +1,61 @@
-# ADR-001: Plataforma y modelo de seguridad del módulo Identity
+# ADR-001: Plataforma Core y seguridad de Cuentas
 
 - Estado: aceptada
-- Fecha: 2026-09-29
-- Responsable: Identity
-- SDD/contratos afectados: SPEC-01 (RF-001–RF-003 y RF-005; CA-01–CA-10); SPEC-10 (contratos API, propiedad de datos, autenticación y errores); SPEC-13 (contribución al despliegue); contratos de introspección de sesión, lookup público e `IdentityPublicChanged`.
+- Fecha: 2026-10-01
+- Responsable: Core / Cuentas
+- SPEC/contratos afectados: SPEC-01, SPEC-03, SPEC-04, SPEC-10, SPEC-11, SPEC-13; cuenta, registro, sesión, autorización y contexto Chat.
 
 ## Contexto
 
-Identity es la autoridad de `userId`, email y handle canónicos, hash de contraseña, estado de la cuenta y sesiones. Sus consumidores —Profile, Channels, Streaming y Chat— no deben leer sus tablas ni validar credenciales por cuenta propia. Las lecturas protegidas deben comprobar el estado de sesión vigente en cada operación para que el logout tenga efecto inmediato.
+Cuentas controla userId, email/handle canónicos, contraseña, sesiones y perfil público. Canales,
+Catálogo, Emisiones y Consultas comparten Core. Registro debe confirmar cuenta, perfil y canal juntos;
+logout debe impedir toda autorización posterior. Los DTO públicos excluyen datos privados.
 
-SPEC-01 fija las reglas de producto P1: email y handle únicos; handle inmutable; contraseña de 12–128 puntos de código Unicode sin recorte ni normalización; registro PENDING/ACTIVE/EXPIRED con idempotencia y plazo máximo de 24 horas; el registro no inicia sesión; cookie de sesión opaca de 24 horas sin extensión; revocación inmediata; introspección privada sin caché; CSRF y límites de intentos concretos. Recuperación de contraseña, verificación de correo y roles avanzados están fuera de P1. Este ADR selecciona medios técnicos para implementar esas reglas; no las modifica.
-
-La implementación en `services/identity` ya usa Java 25, Spring Boot 4.1.1, Spring Security, JDBC, Flyway, PostgreSQL y Argon2id. Perfil ya consume la introspección privada con autenticación de servicio. El ADR registra esas decisiones y deja explícitos sus límites de integración.
+La entrega requiere SQL, uso justificado de NoSQL, dos procesos propios de lógica y tres lenguajes.
+Estas restricciones son de sistema y no obligan a introducir otro stack por módulo Core.
 
 ## Decisión
 
-1. **Lenguaje y framework:** Java 25 y Spring Boot 4.1.1; Spring Security para filtros, autorización y CSRF. Se conserva Maven Wrapper para builds reproducibles sin exigir una instalación global de Maven. La API sigue siendo REST/JSON y los contratos no exponen clases Java.
-2. **Persistencia:** PostgreSQL 18 como almacenamiento autoritativo. Identity posee el esquema `identity`; Flyway aplica cambios versionados. Las cuentas, reservas idempotentes, sesiones, contadores de abuso y outbox se guardan en tablas del módulo. Ningún consumidor consulta estas tablas.
-3. **Contraseñas:** Argon2id mediante `Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8()` de Spring Security y proveedor criptográfico Bouncy Castle. Solo se persiste el hash con parámetros; nunca la contraseña reversible ni el valor recibido en logs.
-4. **Sesiones:** credencial opaca criptográficamente aleatoria de al menos 256 bits, enviada exclusivamente en cookie host-only `stream_session` (`Path=/`, `HttpOnly`, `SameSite=Lax`, `Secure` en despliegues HTTPS). PostgreSQL conserva únicamente SHA-256 de la credencial. La sesión expira a las 24 horas desde el login, no se extiende por actividad y se revoca al cerrar sesión. Cada servicio protegido llama a introspección en cada operación, sin caché.
-5. **CSRF:** `CookieCsrfTokenRepository` de Spring Security, cookie CSRF legible por el cliente y header `X-XSRF-TOKEN`; `SameSite=Lax` y `Secure` según el entorno. La cookie de sesión permanece `HttpOnly`. Los orígenes CORS se configuran en lista permitida.
-6. **Autenticación servicio-a-servicio:** token opaco distinto por consumidor, configurado como secreto fuera del código, sobre red privada HTTPS/TLS. Identity compara el secreto en tiempo constante y conserva el nombre del consumidor para aplicar la credencial correcta. La implementación actual transmite el nombre y el secreto en `X-Service-Name` y `X-Service-Token`; la credencial de sesión recibida para introspección va en `X-Session-Credential`. No se reenvía la cookie al consumidor.
-7. **Límites deliberados:** la autenticación de usuario no será JWT en P1; no se añade Redis; no se decide aquí el transporte ni el dispatcher de eventos del outbox. La recuperación de contraseña y los roles avanzados siguen fuera del alcance especificado para P1. La autorización P1 valida identidad y propiedad.
+1. Java 25, Spring Boot 4.1.1, Maven Wrapper, Spring Security, JDBC, Flyway y PostgreSQL 18 para Core. Un build, cadena de seguridad y gestor de transacciones. Los módulos internos usan interfaces locales y repositorios encapsulados.
+2. Registro transaccional de cuenta ACTIVE, perfil default, canal inicial y resultado idempotente. FK locales y unicidad en base; rollback total ante fallo. UUID de idempotencia, hash SHA-256 de la clave y fingerprint HMAC del payload; resultado exitoso retenido treinta días. Registro no inicia sesión.
+3. Argon2id mediante Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8(), con Bouncy Castle. Guardar hash y parámetros; no contraseña reversible, body de credenciales ni secretos en logs. Contraseña exacta de 12–128 puntos de código, sin recorte/normalización.
+4. Sesión opaca aleatoria de al menos 256 bits; PostgreSQL guarda solo SHA-256. Cookie host-only stream_session, Path=/, HttpOnly, SameSite=Lax y Secure en HTTPS. Vida fija 24 h, sin extensión. Logout revoca en persistencia; cada operación protegida consulta estado vigente localmente.
+5. CSRF de Spring Security mediante CookieCsrfTokenRepository, CsrfTokenRequestAttributeHandler y header X-XSRF-TOKEN; el endpoint CSRF publica nombre de header y token utilizable por la Web. La cookie de sesión permanece HttpOnly. CORS con orígenes permitidos; CORS y SameSite no sustituyen CSRF. Una cadena cubre identity, profile y los otros módulos Core, incluyendo PATCH/multipart.
+6. Límites SQL autoritativos: cinco fallos login/identificador y cincuenta/IP en 15 min; diez operaciones de registro nuevas/IP/hora. Respuesta 429 con Retry-After; reintento idempotente no duplica consumo. Confiar solo en IP observada por proxy configurado.
+7. Entre procesos, TLS privado y secreto distinto por consumidor/ruta, con comparación en tiempo constante y autorización de la operación. Headers X-Service-Name y X-Service-Token; Chat transmite la credencial de sesión en X-Session-Credential al contexto Core. No se registra ni persiste esa credencial en Chat. /internal/* queda bloqueado en entrada pública.
+8. Chat solicita un contexto por nuevo mensaje; Core resuelve sesión, autor y emisión localmente. No caché de permisos ni HTTP entre módulos Core. No JWT, Redis de sesiones, servidor OAuth o broker como requisito P1.
 
 ## Opciones consideradas
 
-| Decisión | Opción elegida | Alternativas y motivo para no elegirlas en P1 |
-| --- | --- | --- |
-| Lenguaje/framework | Java + Spring Boot/Security | Kotlin comparte JVM y Spring, pero no aporta una necesidad funcional y añade otra convención al equipo. Node.js/NestJS también serviría para REST, pero duplicaría runtime y modelo de seguridad sin beneficio para este módulo. |
-| Datos/sesión | PostgreSQL y sesión opaca persistida | JWT reduciría la consulta de sesión, pero una revocación inmediata exigiría consultar estado o mantener una denylist, recuperando el costo de estado adicional. Redis sería otro servicio operativo y una fuente de estado que no se necesita: PostgreSQL ya es requerido y conserva sesiones, idempotencia y límites de forma durable. |
-| Hash de contraseña | Argon2id | BCrypt y PBKDF2 son alternativas conocidas y disponibles; se elige Argon2id por su resistencia configurable en memoria y porque existe soporte en Spring Security. No se almacena texto plano ni se cifra la contraseña de forma reversible. |
-| CSRF | Repositorio cookie-token de Spring Security | Un mecanismo artesanal o un token ligado a sesión requeriría más código propio. El repositorio elegido encaja con cliente web y cookie de sesión; el cliente debe reenviar el token en el header acordado. CORS por sí solo no reemplaza CSRF. |
-| Auth interna | Secreto estático por servicio sobre HTTPS privado | mTLS u OAuth2 Client Credentials pueden aportar identidad/rotación más administrada, pero incorporan PKI o un servidor de autorización y operación adicional para P1. Una clave global compartida sería más simple pero ampliaría el impacto de filtración; por eso se usa una distinta por consumidor. |
+| Opción | Evaluación |
+| --- | --- |
+| Java/Spring/PostgreSQL compartidos por Core | Elegida: reutiliza plataforma y resuelve invariantes mediante transacciones/FK. |
+| Stacks o bases distintos para autenticación y perfil | Añaden contratos, fallos parciales y operación a entidades que se crean juntas. |
+| JWT sin estado | No permite revocación inmediata; denylist o introspección recupera dependencia de estado. |
+| Redis de sesiones/cuotas | Posible ante carga medida; añade persistencia y operación sin necesidad demostrada en P1. |
+| BCrypt/PBKDF2 | Alternativas disponibles; Argon2id aporta costo de memoria configurable y soporte en Spring Security. |
+| mTLS/OAuth de servicios | Posible evolución de identidad/rotación; PKI o servidor adicional no se justifican en P1. |
 
 ## Consecuencias
 
-**Beneficios:** el módulo y sus consumidores mantienen una frontera HTTP explícita; Identity conserva propiedad exclusiva de credenciales/sesiones; PostgreSQL permite transacciones e idempotencia durables; el logout se refleja en la siguiente introspección; el formato de sesión no acopla clientes o servicios a JWT ni a tablas compartidas.
+Registro y publicación tienen integridad local; seguridad común evita cookies y validaciones
+incompatibles. Core tiene disponibilidad y release comunes. Chat depende de Core para nuevos envíos:
+indisponibilidad produce CORE_UNAVAILABLE y falla cerrado. Una operación ya autorizada puede confirmar
+dentro del presupuesto acotado del contrato; logout no revierte commits en vuelo.
 
-**Costos y fallos:** cada operación protegida depende de Identity y añade latencia/red; si Identity no está disponible, los consumidores deben fallar cerrados con `503 IDENTITY_UNAVAILABLE`. PostgreSQL debe protegerse, respaldarse y limpiarse según retención. Las credenciales internas estáticas requieren secretos únicos, almacenamiento seguro y rotación coordinada; HTTPS/TLS y aislamiento de red son obligatorios fuera del entorno local.
-
-**Compatibilidad:** se mantienen la semántica pública, los estados, expiraciones y errores definidos por SPEC-01. Profile ya usa introspección y los headers internos documentados; Channels debe usar la credencial de servicio al aprovisionar y reconciliar cuentas. Streaming y Chat deben usar introspección antes de operaciones protegidas. Ningún consumidor debe importar modelos Java o tablas de Identity.
-
-**Despliegue y requisitos globales:** este ADR selecciona SQL para Identity y no pretende resolver el requisito global de un uso justificado de NoSQL, tres lenguajes, dos tipos de conectores HTTP u otros procesos independientes de SPEC-13. Esas decisiones pertenecen al sistema/integración. El outbox conserva eventos durablemente, pero el broker/dispatcher/ACK no queda decidido aquí.
-
-**Migración/lock-in:** Flyway registra las migraciones; sustituir PostgreSQL exige migrar cuentas, sesiones y contadores sin exponer secretos. Cambiar el formato de sesión o el hash de contraseña requeriría un periodo de compatibilidad o forzar nuevos logins. Argon2id permite actualizar parámetros al validar credenciales.
+PostgreSQL requiere backups y limpieza de sesiones, resultados y cuotas. Los secretos internos
+requieren rotación por consumidor. La réplica Core usa la misma autoridad SQL de sesión/cuota;
+no se admiten contadores independientes por réplica. Cambiar hash/sesión exige compatibilidad o nuevos
+logins. Flyway versiona cambios; no modificar checksums aplicados para ocultar discrepancias.
 
 ## Verificación
 
-- Verificar los casos y límites normativos de SPEC-01: registro y reintentos, conflictos genéricos, PENDING/EXPIRED, cero sesiones al registrar, login, cookie de 24 h, logout con introspección inmediatamente inactiva, acceso propio/ajeno, rate limits y ausencia de secretos en respuestas/logs.
-- Verificar que PostgreSQL parte de migración limpia, conserva estado tras reinicio y rechaza duplicados mediante restricciones; comprobar que consumidores no requieren lectura de `identity.*`.
-- Verificar llamadas privadas con credencial de cada consumidor, rechazo de token incorrecto y comportamiento fail-closed/503 cuando Identity no responde; verificar HTTPS en despliegue.
-- Evidencia registrada al preparar este ADR: suites unitarias de Identity (8 pruebas) y Profile (10 pruebas) pasaron en la verificación previa del repositorio. No se verificó el flujo integrado con PostgreSQL/Compose en ese momento porque Docker Engine no estaba disponible; los criterios de despliegue e integración anteriores permanecen pendientes de evidencia E2E.
+Comprobar registro concurrente y rollback entre escrituras, recuperación tras respuesta perdida,
+unicidad, login/logout/expiry/cuotas, cookie, CSRF para todas las mutaciones y rechazo de acceso ajeno.
+Inspeccionar DTO/logs y rechazo de tokens internos incorrectos o fuera de su ruta. Contexto Chat tras
+logout debe rechazar; la caída Core no admite mensajes. Evidencia SQL/reinicio en SPEC-13.
 
-## Revisión
+## Condiciones para cambiar la decisión
 
-Identity revisará esta decisión si la introspección no cumple el objetivo de latencia acordado, el volumen requiere escalar sesiones o rate limits fuera de PostgreSQL, aparece una necesidad real de SSO/federación o la rotación estática de secretos resulta insuficiente. El cambio debe conservar la expiración de 24 h y la revocación inmediata, salvo cambio explícito de SPEC. El equipo de integración revisará compatibilidad de los headers/secreto con cada consumidor antes de habilitarlo en su entorno; una discrepancia de contrato requiere actualizar la especificación y registrar la decisión sustitutiva.
+Reevaluar ante SSO/federación, carga de sesiones/cuotas medida, cambio de revocación o necesidad de
+rotación administrada. Core/Cuentas coordina contratos con Chat, Media y Web antes de adoptar cambios.
