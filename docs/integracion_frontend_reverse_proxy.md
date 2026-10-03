@@ -43,14 +43,16 @@ services/core contiene Cuentas, Canales, Catálogo, Emisiones y Consultas, con b
 configuración comunes. services/chat contiene Chat; infra/media configura el motor y su adaptador.
 apps/web tiene un build y código en src/: modules/accounts, channels, streaming, chat, taxonomy y
 discovery; shell compone rutas y accessibility contiene utilidades compartidas. No crear aplicaciones
-por módulo. El framework/entry/build Web se concreta por ADR. contracts/generated contiene artefactos generados;
+por módulo. ADR-006 selecciona React/TypeScript/SWC y pnpm; `src/main.tsx` inicia la SPA. Esta base usa
+datos de demostración y no acredita integraciones HTTP/WS/HLS. contracts/generated contiene artefactos generados;
 infra mantiene configuración y tests/ la evidencia compartida. El mapa_sdd_p1 define la propiedad.
 
 ## Puertos y configuración
 
 Core usa 8081, Chat reserva 8085 y Web reserva 3000. Los listeners HLS/RTMP se fijan en ADR multimedia.
 Bases en red privada y volumen de imágenes persistente. El runbook de cada unidad declara variables,
-comando y health; las reservas de componentes pendientes se concretan al implementarlos.
+comando y health; Web ejecuta `pnpm dev` en apps/web, en 127.0.0.1:3000; `pnpm build` genera dist y
+`pnpm preview` sirve esa salida en el mismo puerto. Las reservas pendientes se concretan al implementarlas.
 
 Una configuración/env de ejemplo central por unidad desplegable; no secreto por módulo Core ni
 cliente HTTP a localhost para comunicar módulos locales. Core comparte security/CSRF y sesión opaca.

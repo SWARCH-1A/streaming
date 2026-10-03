@@ -81,7 +81,8 @@ Web consume APIs Core y Chat/HLS; módulos UI no requieren procesos propios. Pro
 
 ## 9. Decisiones y preguntas abiertas
 
-Web integrada y mismo origen HTTPS. Stacks y librerías Web se seleccionan mediante ADR. La ruta por handle compone datos públicos dentro de Core.
+Web integrada y mismo origen HTTPS. ADR-006 selecciona la base Web React/TypeScript/SWC con pnpm.
+Las vistas locales usan mocks; auth, proxy, HTTP/WS/HLS y CA integrados siguen pendientes. La ruta por handle compone datos públicos dentro de Core.
 
 ## 10. Verificación
 

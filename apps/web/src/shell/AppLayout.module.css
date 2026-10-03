@@ -1,0 +1,84 @@
+.skip {
+  position: fixed;
+  top: -100px;
+  left: 1rem;
+  z-index: 100;
+  padding: 0.75rem 1rem;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+}
+.skip:focus {
+  top: 1rem;
+}
+.sidebar {
+  position: fixed;
+  top: var(--header-height);
+  bottom: 0;
+  left: 0;
+  width: var(--sidebar-width);
+  overflow-y: auto;
+}
+.main {
+  margin-left: var(--sidebar-width);
+  padding: 2rem;
+  min-height: calc(100vh - var(--header-height) - 4rem);
+  max-width: 2100px;
+}
+.footer {
+  margin-left: var(--sidebar-width);
+  padding: 1.5rem 2rem;
+  color: var(--color-muted);
+  font-size: 0.6875rem;
+  letter-spacing: 0.03em;
+}
+.footer span {
+  margin: 0 0.5rem;
+  color: var(--color-primary-soft);
+}
+.drawer {
+  margin: 0;
+  padding: 0;
+  max-height: 100dvh;
+  height: 100dvh;
+  width: min(320px, 90vw);
+  max-width: 90vw;
+  background: var(--color-panel);
+  color: var(--color-text);
+  border: 0;
+}
+.drawer::backdrop {
+  background: rgb(0 0 0 / 65%);
+  backdrop-filter: blur(3px);
+}
+.drawerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+}
+.drawerHeader h2 {
+  font-size: 1rem;
+}
+.drawer > aside {
+  height: auto;
+  min-height: calc(100dvh - 60px);
+}
+@media (max-width: 1050px) {
+  .sidebar {
+    display: none;
+  }
+  .main,
+  .footer {
+    margin-left: 0;
+  }
+}
+@media (max-width: 600px) {
+  .main {
+    padding: 1.25rem 1rem;
+  }
+  .footer {
+    padding: 1.5rem 1rem;
+  }
+}

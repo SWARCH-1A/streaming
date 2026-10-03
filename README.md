@@ -32,5 +32,9 @@ perfil/avatares, edición/portadas de canal y bootstrap público compuesto. [Com
 PostgreSQL con volumen persistente. Pruebas: `services/core/mvnw -f services/core/pom.xml test` y
 `services/core/mvnw -f services/core/pom.xml verify -P integration` (Docker para PostgreSQL aislado).
 
-Emisiones y su composición en el canal, Catálogo, Consultas, Chat, Media y Web siguen pendientes.
-[Web](apps/web/README.md) organiza su esqueleto en `src/modules`, `src/shell` y `src/accessibility`.
+Emisiones y su composición en el canal, Catálogo, Consultas, Chat y Media siguen pendientes.
+[Web](apps/web/README.md) tiene una base React/TypeScript/SWC ejecutable con pnpm, diseño de Stitch,
+componentes atómicos y tests; organiza su esqueleto en `src/modules`, `src/shell` y
+`src/accessibility`. Sus vistas usan datos de demostración; las integraciones HTTP/WS/HLS y
+autorización real siguen pendientes. Ejecutar desde `apps/web`: `pnpm install --frozen-lockfile` y
+`pnpm dev` (puerto 3000). Calidad: `pnpm check`; navegador: `pnpm test:e2e`.
