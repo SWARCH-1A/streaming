@@ -26,13 +26,17 @@ services:
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
       PROFILE_AVATAR_STORAGE: /data/avatars
       PROFILE_AVATAR_PUBLIC_BASE: /api/profile/avatars
+      CHANNELS_BANNER_STORAGE: /data/banners
+      CHANNELS_BANNER_PUBLIC_BASE: /api/channels/banners
     ports:
       - "127.0.0.1:${CORE_PORT:-8081}:8081"
     volumes:
       - core-avatars:/data/avatars
+      - core-banners:/data/banners
     depends_on:
       postgres:
         condition: service_healthy
 volumes:
   core-postgres:
   core-avatars:
+  core-banners:

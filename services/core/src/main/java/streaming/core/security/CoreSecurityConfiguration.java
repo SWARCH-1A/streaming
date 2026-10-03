@@ -36,10 +36,11 @@ public class CoreSecurityConfiguration {
                     .requestMatchers(HttpMethod.GET,"/api/identity/registrations/**","/api/identity/public/**",
                             "/api/identity/csrf","/api/profile/csrf","/api/profile/me","/api/profile/users/**",
                             "/api/profile/avatars/**","/api/channels/by-handle/*","/api/channels/by-owner/*",
+                            "/api/channels/csrf","/api/channels/banners/*",
                             "/actuator/health","/actuator/health/**","/actuator/info").permitAll()
                     .requestMatchers(HttpMethod.POST,"/api/identity/registrations","/api/identity/sessions",
-                            "/api/profile/me/avatar-uploads").permitAll()
-                    .requestMatchers(HttpMethod.PATCH,"/api/profile/me").permitAll()
+                            "/api/profile/me/avatar-uploads","/api/channels/*/banner-uploads").permitAll()
+                    .requestMatchers(HttpMethod.PATCH,"/api/profile/me","/api/channels/*").permitAll()
                     .requestMatchers(HttpMethod.DELETE,"/api/identity/sessions/current").permitAll()
                     .anyRequest().denyAll())
             .exceptionHandling(e->e.accessDeniedHandler((request,response,error)-> {

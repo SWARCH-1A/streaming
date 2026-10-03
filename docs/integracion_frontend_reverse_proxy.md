@@ -57,7 +57,7 @@ cliente HTTP a localhost para comunicar módulos locales. Core comparte security
 Chat valida sesión con contexto Core, no estado de sesión conservado en el navegador.
 
 Core ejecutable usa CORE_DB_URL/USER/PASSWORD, CORE_RATE_LIMIT_HMAC_SECRET, CORE_SECURE_COOKIE,
-WEB_ORIGIN y PROFILE_AVATAR_STORAGE/PUBLIC_BASE. El [runbook Core](../services/core/README.md)
+WEB_ORIGIN, PROFILE_AVATAR_STORAGE/PUBLIC_BASE y CHANNELS_BANNER_STORAGE/PUBLIC_BASE. El [runbook Core](../services/core/README.md)
 y [Compose local](../infra/local/README.md) contienen comandos, health y volúmenes. El backend directo
 ignora headers forwarded; al implementar el proxy se configurará confianza únicamente en sus
 IP/redes y se verificará la cuota por IP antes de habilitar ese despliegue.

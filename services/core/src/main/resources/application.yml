@@ -32,3 +32,6 @@ core:
 profile:
   storage-root: ${PROFILE_AVATAR_STORAGE}
   avatar-public-base-url: ${PROFILE_AVATAR_PUBLIC_BASE:/api/profile/avatars}
+channels:
+  storage-root: ${CHANNELS_BANNER_STORAGE}
+  banner-public-base-url: ${CHANNELS_BANNER_PUBLIC_BASE:/api/channels/banners}

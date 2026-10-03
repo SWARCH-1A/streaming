@@ -15,9 +15,10 @@ curl http://localhost:8081/actuator/health
 Las credenciales permanecen en `.env` ignorado. Core escucha en localhost:8081 y PostgreSQL en
 localhost:5440; cambiar CORE_PORT/CORE_DB_PORT evita conflictos. Para Maven en el host, usar
 `CORE_DB_URL=jdbc:postgresql://localhost:5440/core` y las mismas variables; no correr Maven y el
-contenedor Core en el mismo puerto.
+contenedor Core en el mismo puerto. Exportar PROFILE_AVATAR_STORAGE y CHANNELS_BANNER_STORAGE
+con directorios persistentes distintos al ejecutar Maven fuera del contenedor.
 
-Volúmenes separados para SQL y avatares; `down` conserva datos:
+Volúmenes separados para SQL, avatares y portadas; `down` conserva datos:
 
 ```sh
 docker compose --env-file infra/local/.env -p streaming-core -f infra/local/compose.core.yaml down

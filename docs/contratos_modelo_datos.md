@@ -65,6 +65,7 @@ Las interfaces requieren schema neutro, correlación y presupuesto acotado.
 | GET /api/channels/by-owner/{userId} | Core / Web | Canal de cuenta activa; sin gate de evento |
 | GET /api/channels/by-handle/{handle} | Core / Web | Canal + handle + perfil compuestos localmente; bootstrap incluye stream actual con estado de Emisiones |
 | PATCH /api/channels/{channelId}; POST /api/channels/{channelId}/banner-uploads | Core / Web | Propietario; descripción/banner, versión y reglas de imagen |
+| GET /api/channels/banners/{key}; GET /api/channels/csrf | Core / Web | Objeto público inmutable; token de la misma seguridad CSRF Core |
 | GET /api/taxonomy | Core / Web | IDs/labels activos y versión; validación interna sin API remota |
 | POST/GET /api/channels/{channelId}/streams; PATCH /api/streams/{streamId} | Core / Web | Una configuración persistente; valida catálogo/owner localmente |
 | POST /api/streams/{streamId}/ingest-keys/rotate | Core / Web | Solo sin sesión activa; secreto una vez |
@@ -147,6 +148,17 @@ Core obtiene todos los campos localmente, sin solicitudes HTTP por módulo ni da
 Handle se busca sin distinguir mayúsculas; inexistente/no activo da 404 uniforme, fallo Core/SQL 503.
 Web usa el handle devuelto para redirigir casing a URL canónica con 308 y monta player/Chat desde
 stream/sessionId. No entregar entidades de cuenta/ORM ni ejecutar un join entre servicios en el shell.
+
+PATCH canal permite solo description (hasta 500 puntos de código; null limpia a cadena vacía) y
+bannerUploadId (null retira). Campos omitidos se conservan; cuerpo vacío o campo ajeno da 400
+VALIDATION_ERROR. Valida sesión local y propietario, bloquea la fila y aumenta channelVersion una
+vez por cambio real; no-op/error conserva datos y versión. Responde los campos de channel del
+bootstrap. Upload multipart file devuelve 201 {uploadId,expiresAtUtc}, ligado a owner/channel,
+un uso y 15 min; JPEG/PNG/GIF reales <=10 MB. 1200×480 es una recomendación, sin mínimo obligatorio;
+límite defensivo de 40 MP. Publicar antes de commit, conservar archivo anterior ante rollback y
+reconciliar objetos sin referencias después de una gracia de un día. Las portadas se sirven en
+/api/channels/banners/{key}. Cuenta/canal desconocidos dan 404; otro usuario 403, sin sesión 401,
+CSRF inválido 403, carga inválida 400 INVALID_BANNER (413 si excede el límite HTTP).
 
 ## Semántica de emisión y reloj
 

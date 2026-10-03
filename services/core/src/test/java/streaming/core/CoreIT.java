@@ -48,16 +48,20 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class CoreIT {
     @Container static final PostgreSQLContainer POSTGRES=new PostgreSQLContainer("postgres:18-alpine");
     @TempDir static Path avatars;
+    @TempDir static Path banners;
     @DynamicPropertySource static void properties(DynamicPropertyRegistry properties) {
         properties.add("spring.datasource.url",POSTGRES::getJdbcUrl);
         properties.add("spring.datasource.username",POSTGRES::getUsername);
         properties.add("spring.datasource.password",POSTGRES::getPassword);
         properties.add("core.rate-limit-hmac-secret",()->"integration-only-secret-at-least-32-bytes");
         properties.add("profile.storage-root",()->avatars.toString());
+        properties.add("channels.storage-root",()->banners.toString());
     }
 
     @Autowired IdentityApplicationService accounts;
     @Autowired ProfileApplicationService profiles;
+    @Autowired streaming.core.channels.application.ChannelApplicationService channels;
+    @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
     @Autowired JdbcClient jdbc;
     @Autowired ObjectMapper json;
     @Value("${local.server.port}") int port;
@@ -235,8 +239,115 @@ class CoreIT {
         assertThat(profiles.readAvatar(key)).containsExactly(image);
     }
 
+    @Test void channelEditsUseCoreSessionCsrfOwnershipAndFreshPublicComposition() throws Exception {
+        var account=register(UUID.randomUUID(),"channel@example.test","channel_01");
+        var other=register(UUID.randomUUID(),"stranger@example.test","stranger_01");
+        String path="/api/channels/"+account.channelId();
+        obtainCsrf();
+        assertThat(request("PATCH",path,Map.of("description","Hello"),true).statusCode()).isEqualTo(401);
+        assertThat(request("POST","/api/identity/sessions",Map.of("login","stranger_01","password",PASSWORD),true).statusCode()).isEqualTo(200);
+        assertThat(request("PATCH",path,Map.of("description","Hello"),true).statusCode()).isEqualTo(403);
+        request("DELETE","/api/identity/sessions/current",null,true);
+        request("POST","/api/identity/sessions",Map.of("login","channel_01","password",PASSWORD),true);
+        assertThat(request("PATCH",path,Map.of("description","Hello"),false).statusCode()).isEqualTo(403);
+        assertThat(request("PATCH",path,Map.of("description","Hello"),true).statusCode()).isEqualTo(200);
+        assertThat(request("PATCH",path,Map.of("description","x".repeat(501)),true).statusCode()).isEqualTo(400);
+        assertThat(request("PATCH",path,Map.of("ownerUserId",other.userId()),true).statusCode()).isEqualTo(400);
+        var bootstrap=json.readTree(request("GET","/api/channels/by-handle/CHANNEL_01",null,false).body());
+        assertThat(bootstrap.get("channel").get("description").asText()).isEqualTo("Hello");
+        assertThat(bootstrap.get("channel").get("channelVersion").asLong()).isEqualTo(1);
+        assertThat(bootstrap.get("stream").isNull()).isTrue();
+        assertThat(request("GET","/api/channels/by-owner/"+account.userId(),null,false).body()).isEqualTo(json.writeValueAsString(bootstrap));
+        request("DELETE","/api/identity/sessions/current",null,true);
+        assertThat(request("PATCH",path,Map.of("description","Revoked"),true).statusCode()).isEqualTo(401);
+        assertThat(request("GET","/api/channels/csrf",null,false).statusCode()).isEqualTo(200);
+        for(String retired:List.of("/internal/channels/provision","/internal/channels/provisions/old","/internal/channels/stream-events")) {
+            assertThat(request("POST",retired,Map.of(),true).statusCode()).isEqualTo(403);
+            assertThat(request("GET",retired,null,false).statusCode()).isEqualTo(403);
+        }
+    }
+
+    @Test void channelPatchesSerializeDifferentFieldsAndKeepVersionOnNoOpOrInvalidInput() throws Exception {
+        var account=register(UUID.randomUUID(),"parallel@example.test","parallel_01");
+        var owner=new streaming.core.accounts.identity.application.IdentityApplicationService.SessionView(account.userId(),"parallel_01",null);
+        assertThat(channels.patch(owner,account.channelId(),json.readTree("{\"description\":null}")).channelVersion()).isZero();
+        var upload=channels.upload(owner,account.channelId(),png());
+        var barrier=new CyclicBarrier(2);
+        try(var executor=Executors.newFixedThreadPool(2)) {
+            var description=executor.submit(()->{ barrier.await(); return channels.patch(owner,account.channelId(),json.valueToTree(Map.of("description","😀".repeat(500)))); });
+            var banner=executor.submit(()->{ barrier.await(); return channels.patch(owner,account.channelId(),json.valueToTree(Map.of("bannerUploadId",upload.uploadId()))); });
+            description.get(); banner.get();
+        }
+        var bootstrap=json.readTree(request("GET","/api/channels/by-handle/parallel_01",null,false).body());
+        assertThat(bootstrap.get("channel").get("description").asText()).isEqualTo("😀".repeat(500));
+        assertThat(bootstrap.get("channel").get("bannerUri").asText()).startsWith("/api/channels/banners/");
+        assertThat(bootstrap.get("channel").get("channelVersion").asLong()).isEqualTo(2);
+        assertThat(channels.patch(owner,account.channelId(),json.valueToTree(Map.of("description","😀".repeat(500)))).channelVersion()).isEqualTo(2);
+        assertThatThrownBy(()->channels.patch(owner,account.channelId(),json.readTree("{}"))).isInstanceOf(streaming.core.channels.application.ChannelException.class);
+    }
+
+    @Test void channelBannerUploadsAreOwnerBoundSingleUseExpiringAndRollbackSafe() throws Exception {
+        var account=register(UUID.randomUUID(),"banner@example.test","banner_01");
+        var other=register(UUID.randomUUID(),"bannerother@example.test","banner_other");
+        var owner=new streaming.core.accounts.identity.application.IdentityApplicationService.SessionView(account.userId(),"banner_01",null);
+        var stranger=new streaming.core.accounts.identity.application.IdentityApplicationService.SessionView(other.userId(),"banner_other",null);
+        var first=channels.upload(owner,account.channelId(),png());
+        var patch=json.valueToTree(Map.of("bannerUploadId",first.uploadId()));
+        assertThatThrownBy(()->channels.upload(stranger,account.channelId(),png())).isInstanceOf(streaming.core.channels.application.ChannelException.class);
+        assertThatThrownBy(()->channels.patch(stranger,other.channelId(),patch)).isInstanceOf(streaming.core.channels.application.ChannelException.class);
+        var previous=channels.patch(owner,account.channelId(),patch);
+        var publicImage=request("GET",previous.bannerUri(),null,false);
+        assertThat(publicImage.statusCode()).isEqualTo(200);
+        assertThat(publicImage.headers().firstValue("Content-Type").orElseThrow()).isEqualTo("image/png");
+        assertThatThrownBy(()->channels.patch(owner,account.channelId(),patch)).isInstanceOf(streaming.core.channels.application.ChannelException.class);
+        var next=channels.upload(owner,account.channelId(),png());
+        var nextPatch=json.valueToTree(Map.of("bannerUploadId",next.uploadId()));
+        String key=jdbc.sql("SELECT object_key FROM channels.banner_uploads").query(String.class).single();
+        jdbc.sql("ALTER TABLE channels.channels ADD CONSTRAINT test_reject_channel_update CHECK(channel_version<=1)").update();
+        try { assertThatThrownBy(()->channels.patch(owner,account.channelId(),nextPatch)).isInstanceOf(DataIntegrityViolationException.class); }
+        finally { jdbc.sql("ALTER TABLE channels.channels DROP CONSTRAINT test_reject_channel_update").update(); }
+        assertThat(Files.exists(banners.resolve("public").resolve(key))).isFalse();
+        assertThat(count("channels.banner_uploads")).isEqualTo(1);
+        // Rollback after the repository write also restores the permission and retains the old object.
+        var transaction=new org.springframework.transaction.support.TransactionTemplate(transactions);
+        assertThatThrownBy(()->transaction.execute(status->{
+            channels.patch(owner,account.channelId(),nextPatch);
+            throw new IllegalStateException("rollback after write");
+        })).isInstanceOf(IllegalStateException.class);
+        assertThat(Files.exists(banners.resolve("public").resolve(key))).isFalse();
+        assertThat(request("GET",previous.bannerUri(),null,false).statusCode()).isEqualTo(200);
+        var replaced=channels.patch(owner,account.channelId(),nextPatch);
+        assertThat(replaced.channelVersion()).isEqualTo(2);
+        assertThat(request("GET",previous.bannerUri(),null,false).statusCode()).isEqualTo(404);
+        assertThat(request("GET",replaced.bannerUri(),null,false).statusCode()).isEqualTo(200);
+        var expired=channels.upload(owner,account.channelId(),png());
+        jdbc.sql("UPDATE channels.banner_uploads SET created_at_utc=now()-interval '1 hour',expires_at_utc=now()-interval '1 minute'").update();
+        assertThatThrownBy(()->channels.patch(owner,account.channelId(),json.valueToTree(Map.of("bannerUploadId",expired.uploadId())))).isInstanceOf(streaming.core.channels.application.ChannelException.class);
+        channels.purgeExpiredUploads();
+        assertThat(count("channels.banner_uploads")).isZero();
+        assertThat(channels.patch(owner,account.channelId(),json.readTree("{\"bannerUploadId\":null}")).bannerUri()).isNull();
+        assertThat(request("GET",replaced.bannerUri(),null,false).statusCode()).isEqualTo(404);
+    }
+
+    @Test void channelBannerMultipartUsesSharedSecurityAndDecodedImages() throws Exception {
+        var account=register(UUID.randomUUID(),"multipart@example.test","multipart_01");
+        obtainCsrf();
+        request("POST","/api/identity/sessions",Map.of("login","multipart_01","password",PASSWORD),true);
+        String boundary="channel-boundary";
+        var bytes=new ByteArrayOutputStream();
+        bytes.write(("--"+boundary+"\r\nContent-Disposition: form-data; name=\"file\"; filename=\"banner.png\"\r\nContent-Type: image/png\r\n\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        bytes.write(png());
+        bytes.write(("\r\n--"+boundary+"--\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        var upload=browser.send(HttpRequest.newBuilder(uri("/api/channels/"+account.channelId()+"/banner-uploads"))
+                .header("X-XSRF-TOKEN",csrf).header("Content-Type","multipart/form-data; boundary="+boundary)
+                .POST(HttpRequest.BodyPublishers.ofByteArray(bytes.toByteArray())).build(),HttpResponse.BodyHandlers.ofString());
+        assertThat(upload.statusCode()).isEqualTo(201);
+        String uploadId=json.readTree(upload.body()).get("uploadId").asText();
+        assertThat(request("PATCH","/api/channels/"+account.channelId(),Map.of("bannerUploadId",uploadId),true).statusCode()).isEqualTo(200);
+    }
+
     @Test void csrfCorrelationAndCorsCoverEveryMutationAndRetiredInternalRouteIsDenied() throws Exception {
-        for(String path:List.of("/api/identity/registrations","/api/identity/sessions","/api/profile/me/avatar-uploads")) {
+        for(String path:List.of("/api/identity/registrations","/api/identity/sessions","/api/profile/me/avatar-uploads","/api/channels/chn_test/banner-uploads")) {
             var response=request("POST",path,Map.of(),false);
             assertThat(response.statusCode()).isEqualTo(403);
             assertThat(json.readTree(response.body()).get("requestId").asText()).isEqualTo(response.headers().firstValue("X-Request-Id").orElseThrow());

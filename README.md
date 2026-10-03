@@ -28,9 +28,9 @@ y las [fases futuras](docs/fases_futuras.md). [AGENTS.md](AGENTS.md) define las 
 ## Implementación y ejecución
 
 [Core](services/core/README.md) implementa registro transaccional de cuenta/perfil/canal, sesiones,
-perfil/avatares y bootstrap público inicial. [Compose local](infra/local/README.md) inicia Core y
+perfil/avatares, edición/portadas de canal y bootstrap público compuesto. [Compose local](infra/local/README.md) inicia Core y
 PostgreSQL con volumen persistente. Pruebas: `services/core/mvnw -f services/core/pom.xml test` y
 `services/core/mvnw -f services/core/pom.xml verify -P integration` (Docker para PostgreSQL aislado).
 
-Edición/portada de canal, Emisiones, Catálogo, Consultas, Chat, Media y Web siguen pendientes.
+Emisiones y su composición en el canal, Catálogo, Consultas, Chat, Media y Web siguen pendientes.
 [Web](apps/web/README.md) organiza su esqueleto en `src/modules`, `src/shell` y `src/accessibility`.

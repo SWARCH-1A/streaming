@@ -44,7 +44,8 @@ public class CoreErrorHandler {
     }
     @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
     ResponseEntity<ErrorBody> tooLarge(HttpServletRequest request) {
-        return response(HttpStatus.PAYLOAD_TOO_LARGE,"INVALID_AVATAR","La carga excede el límite permitido.",request);
+        String code=request.getRequestURI().startsWith("/api/channels/")?"INVALID_BANNER":"INVALID_AVATAR";
+        return response(HttpStatus.PAYLOAD_TOO_LARGE,code,"La carga excede el límite permitido.",request);
     }
     @ExceptionHandler(Exception.class)
     ResponseEntity<ErrorBody> unexpected(HttpServletRequest request) {
