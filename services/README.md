@@ -1,6 +1,6 @@
-# Servicios de dominio
+# Backend
 
-Cada subcarpeta contiene la lógica backend del dominio indicado. La carpeta define ownership de código,
-no obliga a usar un proceso o contenedor independiente. Un despliegue puede agrupar módulos solo si
-cumple las restricciones y límites de SPEC-09…SPEC-13. Usa contratos publicados para comunicarte con
-otros módulos; no accedas directamente a sus almacenes.
+[Core](core/README.md) contiene Cuentas, Canales, Catálogo, Emisiones y Consultas en un build Java/Spring
+con PostgreSQL y seguridad comunes. Cada módulo conserva repositorios e interfaces publicados.
+[Chat](chat/README.md) es la unidad independiente de mensajes y tiempo real, pendiente de implementación.
+Media vive en infra/media. El mapa vigente está en [docs](../docs/mapa_sdd_p1.md).

@@ -6,11 +6,11 @@
 
 ## 1. Contexto y problema
 
-SPEC transversal padre de SPEC-10 a SPEC-13. Define coordinación y evidencia de integración para P1, manteniendo contratos entre Identity, Profile, Channels, Streaming, Chat, Taxonomy, Discovery y la web. Evita que cada equipo improvise rutas, datos o secuencias incompatibles.
+SPEC transversal padre de SPEC-10 a SPEC-13. Define coordinación y evidencia de integración para P1, manteniendo contratos entre Core, Chat, Media y Web y las interfaces locales de los módulos Core. Evita que cada equipo improvise rutas, datos o secuencias incompatibles.
 
-## 2. Estado del sistema y brecha
+## 2. Definición del componente
 
-Los dominios P1 y sus responsabilidades están definidos. Esta SPEC coordina los contratos, límites de integración, configuración compartida y evidencia del sistema integrado. La frontera del código por carpeta no determina por sí misma qué procesos se despliegan.
+ADR-003 define Core modular, Chat y Media. Las SPEC organizan responsabilidades y evidencia. Integración define contratos, infraestructura y verificación; no es un proceso de negocio.
 
 ## 3. Historia de usuario
 
@@ -19,38 +19,17 @@ Como equipo que integra componentes independientes, queremos una arquitectura co
 ## 4. Alcance
 
 ### Dentro de P1
-
-- Coordinar cuatro especificaciones hijas: **SPEC-10** contratos API/ownership/errores; **SPEC-11** flujos y eventos; **SPEC-12** shell web y reverse proxy; **SPEC-13** despliegue integrado y E2E.
-
-- Publicar matriz proveedor/consumidor, límites C&C, conectores y ownership; hacer visibles versiones, fallos y criterios de integración.
-
-- Conservar las restricciones de la entrega: frontend web, dos procesos lógicos como mínimo, SQL+NoSQL justificadas, dos tipos HTTP, tres lenguajes generales y contenedores/reinicio independiente/despliegue reproducible.
-
-- Establecer aceptación de integración entre dominios, trazabilidad RNF con una SPEC primaria y SPEC contribuyentes, evidencia consolidada y documentación autocontenida en el repositorio.
+SPEC-10 contratos/fronteras, SPEC-11 transacción local y cruces reales Core–Chat/Media, SPEC-12 Web/proxy, SPEC-13 entrega integrada. Trazabilidad, mapas, estado de implementación, SQL/NoSQL/lenguajes/conectores y decisiones revisables.
 
 ### Fuera de P1
+Un servicio Integration, gateway de reglas, saga central, microfrontends, bus universal, HA productiva o capacidades futuras anticipadas.
 
-- Reemplazar decisiones de producto o escoger lenguaje/framework/DB de cada dominio.
-
-- Alta disponibilidad productiva, CDN global, microfrontend obligatorio o plataforma de CI/CD completa.
-
-### Supuestos acordados
-
-- El dueño de cada módulo decide y justifica tecnología mediante ADR; el módulo Integration coordina contratos sin implementar dominio ajeno.
-
-- El monorepo modular está establecido para este proyecto; una separación futura en varios repositorios requiere decisión explícita, contratos versionados y despliegue reproducible.
-
-- Esta especificación forma parte de la documentación normativa versionada junto con el software.
+### Supuestos
+Stack por unidad desplegable, modularidad local y una Web; ADR de selección antes de declarar tecnologías aceptadas. Las restricciones del curso se conservan.
 
 ## 5. Requisitos de integración
 
-- Todo límite identifica propietario, proveedor, consumidor, autoridad de dato, protocolo, auth, versión, error, timeout y resiliencia.
-
-- La interacción de cuenta/canal inicial, sesión y media, sala Chat, taxonomía, proyección de Discovery, perfil público, conteo de espectadores, shell, proxy y despliegue aparece en SDD hijos.
-
-- Ningún módulo lee/escribe tablas de otro. Fallo de Chat/Discovery no interrumpe reproducción disponible. Eventos y reproyecciones son idempotentes y observables.
-
-- SPEC-10…SPEC-13 mantienen responsabilidades distintas bajo el ámbito de integración transversal; cada una es verificable de forma independiente.
+Todo salto real especifica proveedor/dueño/consumidor/auth/deadline/recovery. Dentro de Core interfaces de aplicación, un gestor de transacciones, escritura por dueño y read models SQL revisados; no HTTP ni prohibición indiscriminada de FK. No tablas compartidas entre servicios. Fallo Chat no afecta Media; nueva escritura Chat depende de Core. Ningún componente Integration se hace dueño de workflows de negocio.
 
 ## 6. Criterios de aceptación
 
@@ -80,19 +59,11 @@ Como equipo que integra componentes independientes, queremos una arquitectura co
 
 ## 8. Dependencias y contratos de integración
 
-- **SPEC-10:** APIs, auth, datos, errores y evolución de contratos.
-
-- **SPEC-11:** secuencias de Identity/Channel, media/Session/Chat/Discovery, metadata y viewer count.
-
-- **SPEC-12:** contrato de shell, rutas y reglas de reverse proxy para HTTP, WebSocket, HLS y listener RTMP.
-
-- **SPEC-13:** procesos/containers, health, configuración, observabilidad, reinicio y E2E/carga.
-
-- Estos SDD consumen SDDs funcionales por dominio; no los reemplazan ni cambian prioridades acordadas.
+SPEC-10 define APIs públicas/internas públicas y privadas; SPEC-11 registro local, sesión Media y Chat; SPEC-12 tabla única de upstreams; SPEC-13 topología/evidencia. Los RF permanecen en sus SPEC funcionales y la matriz RNF conserva responsables.
 
 ## 9. Decisiones y preguntas abiertas
 
-**Acordado:** cuatro especificaciones subordinadas SPEC-10…SPEC-13, P1 integrado, autonomía tecnológica con ADR, monorepo modular, datos propiedad por dominio y requisitos de despliegue de la asignatura. **No bloqueante:** los responsables concretan herramienta/tecnología, paths/puertos, timeouts, herramienta de despliegue y evidencia de demo en sus ADR, con revisión de consumidores.
+Arquitectura en ADR-003; selección de Chat/Web/Media y artefactos de despliegue pendientes. No fijar stacks diferentes para cada módulo Core ni contabilizar un candidato como evidencia.
 
 ## 10. Verificación
 

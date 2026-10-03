@@ -6,11 +6,11 @@
 
 ## 1. Contexto y problema
 
-Define RF-008…RF-012, que separa canal de cuenta, perfil y sesión multimedia. Un canal representa la presencia pública del propietario y proyecta el estado real de Streaming.
+RF-008…RF-012 definen canal, propiedad, presentación y consulta LIVE. Cuenta, perfil y canal son entidades diferentes, pero su registro y presentación pertenecen al núcleo Core y no necesitan servicios separados.
 
-## 2. Estado del sistema y brecha
+## 2. Definición del componente
 
-Seguimiento (RF-014…RF-016) queda fuera de P1. Channels publica información del canal y proyecta los estados definidos por Identity y Streaming; los contratos entre esos dominios se encuentran en SPEC-10 y SPEC-11.
+Canales pertenece a Core, crea el canal en la transacción de registro y ofrece una composición pública por handle. Seguimiento y VOD son capacidades futuras.
 
 ## 3. Historia de usuario
 
@@ -20,7 +20,7 @@ Como visitante o propietario, quiero consultar y mantener la página del canal, 
 
 ### Dentro de P1
 
-- Crear idempotentemente exactamente un canal por `ownerUserId` al completar registro. El canal no posee ni modifica handle; la ruta se resuelve con el handle canónico de Identity.
+- Crear exactamente un canal por `ownerUserId` en la transacción del registro. El canal no posee ni modifica handle; la ruta se resuelve con el handle canónico de Identity.
 
 - Editar descripción e imagen de portada del canal. Portada opcional, JPEG/PNG/GIF, máximo 10 MB, tamaño recomendado 1200×480 px.
 
@@ -36,7 +36,7 @@ Como visitante o propietario, quiero consultar y mantener la página del canal, 
 
 ### Supuestos acordados
 
-- Streaming es fuente autoritativa de estado de sesión; Channels puede mantener una proyección de lectura.
+- Streaming es fuente autoritativa de estado de sesión; Canales consulta el estado local de Emisiones en Core.
 
 - La portada pertenece al canal; avatar/nombre visible pertenecen a Profile.
 
@@ -54,58 +54,32 @@ Como visitante o propietario, quiero consultar y mantener la página del canal, 
 
 ## 6. Criterios de aceptación
 
-- CA-01 — al completarse registro ACTIVE existe exactamente un canal por `ownerUserId`; repetir solicitud de provisión devuelve el mismo `channelId`. Handle se resuelve en Identity, no como dato autoritativo de Channels.
-
-- CA-02 — propietario cambia descripción/portada; usuario distinto recibe 403; inválidos conservan valor anterior.
-
-- CA-03 — visitante abre `/channels/{handle}`; el shell resuelve handle canónico en Identity y muestra nombre visible/avatar desde Profile, descripción/portada desde Channels y estado/disponibilidad actual.
-
-- CA-04 — el estado se actualiza dentro de 5 segundos tras evento/confirmación de Streaming.
-
-- CA-05 — LIVE muestra el stream activo; OFFLINE muestra estado offline sin inventar VOD.
-
-- CA-06 — lectura de canal solo resuelve cuenta ACTIVE; PENDING/EXPIRED y userId inexistente reciben el mismo 404. `channelVersion` inicia en 0, sube exactamente uno por cambio persistido efectivo de descripción/portada y no cambia en PATCH sin diferencias; `ChannelProvisioned` y lecturas incluyen su valor.
-- CA-07 — un PATCH parcial actualiza atómicamente el estado más reciente; cambios concurrentes aceptados en campos distintos se conservan y para el mismo campo prevalece el commit serializado más reciente. Una validación o persistencia fallida no incrementa versión ni reemplaza campos.
-- CA-08 — Channels persiste registrationId único junto al canal y acepta creación solo si la cerca atómica confirma `serverNow < pendingUntilUtc`; vencido devuelve `410 REGISTRATION_EXPIRED`. Si Identity pierde la respuesta, lookup por registrationId tras el deadline devuelve PROVISIONED o ABSENT terminal y asegura que ninguna creación en vuelo se confirmará después. Identity puede borrar solo por registrationId; retry devuelve 204 si ya no existe. Nunca reactiva ni publica EXPIRED.
-- CA-09 — lecturas públicas requieren identidad ACTIVE. Al resolver un handle a ACTIVE, si `GET /api/channels/by-owner/{userId}` aún responde 404 porque la proyección no procesó `IdentityPublicChanged`, shell reintenta tras 100/250/500/1000 ms dentro de 2 s; después muestra estado temporal “canal activándose” con acción manual de reintento, no 404 definitivo. PENDING/EXPIRED siguen dando el mismo 404 indistinguible.
+- CA-01: registro confirmado crea exactamente un canal por cuenta en la misma transacción; retry conserva channelId. FK y UNIQUE ownerUserId, no provisión HTTP.
+- CA-02: owner edita descripción/banner; otro usuario 403, inválido conserva anterior.
+- CA-03: /channels/{handle} usa GET /api/channels/by-handle/{handle}, composición local de canal, handle y perfil; bootstrap agrega estado/stream desde Emisiones. No join Identity→Profile→Channels en navegador.
+- CA-04: cambio de disponibilidad confirmado por Emisiones aparece en <=5 s; lectura Core del estado local, sin proyección de activación.
+- CA-05: LIVE muestra sesión PLAYABLE; gracia indica reconectando, OFFLINE no inventa VOD.
+- CA-06: cuentas activas publicables desde commit, inexistente/no activo 404 uniforme; channelVersion inicia 0 y sube solo por cambio real.
+- CA-07: PATCH parcial sobre estado más reciente, serializado; campos distintos concurrentes se conservan, mismo campo último commit. Error no cambia versión/datos.
+- CA-08: rollback de registro no deja cuenta/canal parcial; respuesta perdida tras commit recupera IDs. No compensation worker ni cerca remota de 24 h.
+- CA-09: después de ACTIVE el canal existe y se consulta; sin atraso de publicación entre módulos. Fallo de Core/SQL es indisponibilidad explícita.
 
 ## 7. Diseño técnico y datos
 
-- Propiedad: `channelId`, `ownerUserId`, `description`, banner URI, createdAt/updatedAt. Identity es fuente autoritativa de handle; Channels consume `ownerUserId` y solo puede mantener un alias de búsqueda derivado/versionado si su implementación lo necesita. El alias nunca acepta escrituras como dueño ni resuelve conflictos contra Identity. Los datos de Profile y Stream no se duplican como fuentes de verdad.
-- `IdentityPublicChanged` activa la proyección consultable; antes de ese evento un canal provisionado no es visible y GET devuelve el mismo 404 que PENDING/EXPIRED. Channels guarda registrationId con la provisión y publica `ChannelProvisioned` durable por outbox/equivalente. Identity que pierde el compare-and-set por vencimiento consulta estado por registrationId y ejecuta DELETE idempotente por esa misma clave.
-
-- `POST /internal/channels/provision` es invocable solo por Identity mediante HTTPS/TLS con autenticación de servicio en red privada; es idempotente por `registrationId` y devuelve el mismo `channelId` al repetir. `GET/DELETE /internal/channels/provisions/{registrationId}` dan estado/reparación aun si Identity no recibió el channelId. No se enrutan por el proxy público. La consulta del shell resuelve `/channels/{handle}` vía Identity y luego obtiene Channels por `ownerUserId`, componiendo perfil y sesión.
-
-- Registro cross-module debe ser idempotente y no exponer canal huérfano; elegir transacción local/evento/reconciliación en ADR.
-
-- ADR: estrategia de proyección de estado, persistencia relacional/cache y ruta estable del canal.
+Canales posee channelId/ownerUserId/description/banner/version; cuenta posee handle y perfil. FK local hacia cuenta, UNIQUE ownerUserId. Edición por su repositorio; consultas de canal pueden usar read model SQL revisado con perfil/metadata/estado. Banner opcional JPEG/PNG/GIF <=10 MB, recomendado 1200×480; upload owner/channel ligado, un uso, 15 min. No guardar nombre visible o estado como otra autoridad.
 
 ## 8. Dependencias y contratos de integración
 
-- Identity inicia provisión de canal al registrar cuenta; requiere `ownerUserId`. Identity conserva el handle canónico y comparte handle solo para resolver URL; Channels no decide unicidad.
-
-- Profile aporta displayName/avatar.
-
-- Streaming publica streamId/channelId/status/title/category/viewerCount; Channels no controla ingestión.
-
-- Frontend y reverse proxy deben compartir ruta de canal basada en handle estable.
+Registro local Cuentas→Canales participa en una transacción; Emisiones valida dueño localmente y provee estado vigente. Catálogo/Discovery también son módulos Core. Chat/Media no leen las tablas de canal. Frontend consume bootstrap público compuesto.
 
 ## 9. Decisiones y preguntas abiertas
 
-**Decisiones:** un canal por cuenta, creado automáticamente; handle URL estable; Channels posee descripción/portada y proyecta el estado cuyo dueño es Streaming; RF-012 cubre streams LIVE y RF-013 el catálogo VOD futuro.
-
-**Abierto:** no hay preguntas de producto bloqueantes. La persona responsable debe registrar el ADR y cerrar los detalles de implementación listados en Diseño.
+Un canal por cuenta, handle inmutable y publicación inmediata tras commit. Las consultas públicas se componen dentro de Core.
 
 ## 10. Verificación
 
-- registro repetido y provisión de canal sin duplicados.
-
-- lectura pública y edición de propietario frente a denegación a otro usuario.
-
-- proyección de LIVE/OFFLINE y SLA de frescura 5 s.
-
-- validación de imágenes y página sin datos no disponibles.
+Registro/rollback/retry 1:1, own/other/anonymous, consulta handle normalizado, edición parcial concurrente/no-op, imágenes, estados PLAYABLE/gracia/OFFLINE y ausencia de email/hash/secreto.
 
 ## 11. Esfuerzo, riesgos y consecuencias
 
-**Esfuerzo:** M. **Riesgos:** provisión inconsistente distribuida, doble fuente de verdad de estado, URL/handle no estable y acoplamiento a la base de Streaming. **Consecuencia:** no implementar capacidades explícitamente fuera de P1.
+**Riesgos:** conservar IDs al consolidar, URI de banner y composición pública sin secretos. La frontera de proceso de Channels no aporta aislamiento independiente en el diseño Core.

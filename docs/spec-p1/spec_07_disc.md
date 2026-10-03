@@ -8,7 +8,7 @@
 
 Define RF-070…RF-073: encontrar canales y emisiones actuales. Separa búsqueda de canal público de búsqueda/filtros de streams LIVE para que OFFLINE no desaparezca de la búsqueda de canales.
 
-## 2. Estado del sistema y brecha
+## 2. Definición del componente
 
 El catálogo y el registro de decisiones fijan el alcance P1. La semántica del API y los datos consultados están en los contratos del proyecto.
 
@@ -54,52 +54,28 @@ Como espectador, quiero descubrir streams activos por popularidad, título, cate
 
 ## 6. Criterios de aceptación
 
-- **CA-01:** un stream reproducible con más espectadores antecede a otro con menos; empate de viewerCount ordena `startedAtUtc DESC`, luego `streamId ASC`. La paginación conserva esta clave total y declara snapshot/cursor.
-
-- **CA-02:** consulta de canales devuelve resultados LIVE y OFFLINE y estado sin exponer email u otros datos privados.
-
-- **CA-03:** búsqueda de canal y título coincide con subcadena en cualquier posición y no distingue mayúsculas.
-
-- **CA-04:** búsqueda de título/filtro no incluye OFFLINE, RECONNECTING, ENDED ni VOD; un fixture de LIVE con categoría/tag coincide solo cuando su ID iguala el filtro y los LIVE con otro valor quedan excluidos.
-
-- **CA-05:** categoría/tag desconocido o inactivo produce un error del campo `streams` con `extensions.code=INVALID_FILTER` y `extensions.httpStatus=422`; no se interpreta como texto libre. Si la consulta incluye una categoría y un tag, ambos filtros se aplican con AND.
-
-- **CA-06:** las consultas de lista/búsqueda aplican RNF-011: p95 ≤ 2 s bajo la carga objetivo del prototipo; la respuesta está paginada y no devuelve resultados ilimitados.
-- **CA-07:** si una categoría/tag asociado a una configuración existente se vuelve inactivo, Discovery conserva y reconstruye su label para esa metadata; no incluye ese valor en el catálogo de filtros activos ni acepta ese ID como filtro.
-- **CA-08:** GraphQL rechaza antes de ejecutar aliases, fragments, introspection, más de 50 filas por conexión, costo agregado mayor a 100 o body mayor a 16 KiB; rate limit acepta 600 requests/IP/60 s con burst 20 y reporta 429/Retry-After. El perfil de carga nominal de 3 consultas/s por una misma IP queda por debajo del límite.
-- **CA-09:** `ChannelProvisioned` por sí solo nunca crea un resultado público ni permite que un canal PENDING/EXPIRED aparezca en `channels`. Solo después de `IdentityPublicChanged` para una identidad ACTIVE, Discovery confirma userId/handle con Identity, obtiene el canal y perfil públicos y crea el documento de canal aunque esté OFFLINE. Si llegan primero cambios/versiones del canal, se reconcilian sin hacer visible el canal antes de la activación; reordenar provisión, activación y cambios no crea duplicados ni expone una cuenta pendiente.
-- **CA-10:** Discovery recibe `ViewerCountChanged` con eventId, streamId, sessionId, streamGeneration, countVersion, viewerCount y observedAtUtc desde `aggregateId=viewer-count:{sessionId}`. Solo aplica countVersion mayor a la sesión/generación vigente; recuento cambia en la consulta dentro de 5 s bajo operación normal, se conserva el último valor para ranking con `viewerCountFresh=false` después de 5 s sin snapshot, y un evento de sesión ENDED no la resucita. Al reconstruir, carga el snapshot de la sesión en Streaming.
+- CA-01: ranking viewerCount DESC, startedAtUtc DESC, streamId ASC; paginación con snapshot/cursor estable.
+- CA-02: canales activos públicos LIVE/OFFLINE/RECONNECTING, sin datos privados.
+- CA-03: coincidencia parcial NFKC/case-insensitive preserva acentos.
+- CA-04: título/filtros solo PLAYABLE, excluyen OFFLINE/gracia/ENDED/VOD; IDs exactos.
+- CA-05: ID desconocido/inactivo INVALID_FILTER/422 como error de campo; categoría y un tag AND.
+- CA-06: p95 <=2 s en perfil P1, resultados paginados.
+- CA-07: tombstone conserva label de asociación existente; no seleccionable como filtro.
+- CA-08: rechazar forma/costo GraphQL (aliases/fragments/introspection, >50 filas/conexión, >100 agregado, >16 KiB), 600 req/IP/60 s burst20, 429/Retry-After. IP confiable de proxy.
+- CA-09: commit de registro es puerta de visibilidad; cuenta/perfil/canal aparecen juntos, nunca PENDING/parcial. Lectura desde SQL Core, sin replicación entre módulos.
+- CA-10: estado/conteo/metadata se consultan localmente; frescura refleja observación de Emisiones, no atraso de índice. Cambio <=5 s, viewerCountFresh=false >5 s; ENDED no se publica como PLAYABLE.
 
 ## 7. Diseño técnico y datos
 
-- Discovery es dueño de índice/proyección de consulta, no de canales, streams, conteo ni taxonomía de origen.
-
-- Mantener documentos de canal por cada canal ACTIVE aunque esté OFFLINE, separados de documentos de emisión LIVE/PLAYABLE por sesión. La metadata/título/categoría/tags autoritativos viven en StreamConfig/streamId y se preservan entre sesiones. `channelVersion` monotónica proviene de Channels; metadataVersion y sessionVersion provienen de Streaming.
-
-- Usar `IdentityPublicChanged` como única puerta de publicación de una identidad y sus recursos. Solo después del evento, consultar `GET /api/identity/public/users/{userId}`, Channels y Profile para crear el documento público de canal; `ChannelProvisioned` es interno y no se consume como señal de publicación. Channels aporta channelId; Profile displayName/avatar; Streaming sesión/metadata/viewers; Taxonomy labels por lookup interno, incluido tombstone inactivo si ya está asociado. Ninguno expone email ni información privada.
-
-- Aplicar `ChannelChanged` solo a un documento cuya identidad ya fue activada; un cambio recibido antes de la activación puede quedar pendiente de reconciliación, pero no debe crear una fila pública.
-- Contrato GraphQL sobre HTTP/JSON usa `POST /api/discovery/graphql`, con consultas `streams` y `channels`; el schema, variables, normalización, paginación, filtros combinables, campos, frescura y errores están definidos en `contratos_modelo_datos.md`.
-- Aplicar el límite de forma uniforme; el reverse proxy confía solo en su propia IP reenviada y elimina headers de forwarding suministrados por navegador.
-
-- Evitar saltos de páginas inestables cuando cambie viewerCount; el responsable selecciona cursor/snapshot y registra trade-off en ADR.
+Discovery es módulo de consultas Core, sin autoridad de escritura de negocio ni almacén independiente. GraphQL se conserva en /api/discovery/graphql; resolvers usan SQL/vistas/read models revisados, sin N+1 de red. DTO públicos no proyectan credenciales. Consultas paginadas y acotadas, cursor atado a filtro/snapshot; si se materializa snapshot de ranking local, declarar retención/expiry. Discovery usa SQL Core en P1. Índices SQL se eligen con medición; un índice especializado futuro exige ADR y reconstrucción completa con watermark.
 
 ## 8. Dependencias y contratos de integración
 
-- Identity aporta userId/handle canónico al activar la cuenta y para reconciliación; Channels aporta channelId y Profile displayName/avatar. Ninguno expone información privada.
-
-- Streaming aporta sesiones LIVE, título, categoría, tags, fecha inicio y viewerCount, con señal autoritativa de reproducibilidad.
-- Streaming publica snapshots de conteo al cambiar (coalescidos a máximo uno por segundo), al iniciar PLAYABLE y cada 5 s; Discovery versiona por countVersion y lleva frescura separada de statusFresh.
-
-- Taxonomy valida/describe categorías y etiquetas.
-
-- Frontend y reverse proxy comparten ruta API, parámetros URL y comportamiento de error/empty/loading.
-
-- Si una dependencia está atrasada/no disponible, indicar la frescura y degradar la consulta según política del contrato; no presentar OFFLINE como LIVE.
+Lecturas locales de Cuentas/Canales/Emisiones/Catálogo. Estado Media es validado por Emisiones; snapshot de conteo deriva de leases Core. Web consume GraphQL; proxy sobrescribe IP. Excepción de consulta afecta endpoint; caída de Core afecta todas sus APIs, se documenta ese alcance.
 
 ## 9. Decisiones y preguntas abiertas
 
-**Acordado:** listado reproducible por viewerCount DESC, tie-break startedAtUtc DESC y streamId ASC; búsqueda parcial de handle/displayName y título; canales LIVE/OFFLINE/RECONNECTING con estado; títulos/filtros solo sobre sesiones PLAYABLE; VOD excluido de P1. Categoría+un tag se combinan por AND y no hay selección simultánea de varios tags. El documento de canal solo se publica tras activación ACTIVE en Identity; `ChannelProvisioned` no basta. Cursor/snapshot e índice se eligen por ADR sin alterar este orden lógico.
+GraphQL, búsqueda, filtros, ranking, frescura y límites según el contrato. Publicación desde commit local, sin activación por evento ni runtime independiente.
 
 ## 10. Verificación
 

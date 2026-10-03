@@ -11,7 +11,7 @@ Describir la necesidad del usuario, su origen y el problema que resuelve. Distin
 decisiones acordadas y de propuestas. No inventar citas de reuniones. Referenciar el catálogo y las
 especificaciones arquitectónicas normativas de `docs/`.
 
-## 2. Estado del sistema y brecha
+## 2. Definición del componente
 
 Indicar qué existe en el repositorio y qué debe construirse o integrarse. Si todavía no existe
 implementación, decirlo explícitamente. Incluir los componentes, pantallas y contratos afectados sin
@@ -61,9 +61,11 @@ recorrido nominal, límites, errores y permisos. Cada RF debe tener al menos un 
 Este diseño fija contratos y responsabilidades; las tecnologías concretas siguen siendo propuesta
 hasta que la persona responsable del módulo registre y justifique su ADR.
 
-- **Ubicación arquitectónica:** componentes, responsabilidades, estilo y conectores.
+- **Ubicación arquitectónica:** unidad desplegable y módulo interno; identificar fronteras y autoridad de datos.
+  Justificar cualquier nueva frontera por carga, fallo, invariantes y costo operativo, no por nombre de SPEC.
 - **Propiedad de datos:** entidades/atributos que administra el módulo; incluir diagrama ER o esquema
-  cuando aplique. No leer ni escribir directamente las tablas privadas de otro módulo.
+  cuando aplique. Escritura mediante repositorio dueño; FK y lecturas SQL compuestas revisadas dentro de Core.
+  Ningún otro servicio lee/escribe esas tablas.
 - **Interfaz backend:** operaciones, rutas, métodos, esquemas de petición/respuesta, autenticación,
   códigos de error, idempotencia y paginación cuando aplique.
 - **Eventos o tiempo real:** nombre, productor, consumidor, identificador, orden, marcas de tiempo,
@@ -80,7 +82,7 @@ hasta que la persona responsable del módulo registre y justifique su ADR.
 | … | … | … | … |
 
 Indicar dirección de llamadas, autoridad de cada dato, autenticación entre componentes, timeouts,
-reintentos y cómo se evita el acoplamiento al lenguaje o almacenamiento de otro módulo.
+reintentos y cómo se evita el acoplamiento al lenguaje o almacenamiento privado de otra unidad desplegable; indicar interfaz local cuando no exista salto de red.
 
 ## 9. Decisiones y preguntas abiertas
 

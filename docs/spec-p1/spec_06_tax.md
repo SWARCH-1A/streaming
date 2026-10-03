@@ -8,7 +8,7 @@
 
 Define RF-066…RF-069: vocabulario controlado para clasificar emisiones y permitir consultas consistentes de streams LIVE. La selección de taxonomía es compartida con Streaming y Discovery.
 
-## 2. Estado del sistema y brecha
+## 2. Definición del componente
 
 La semilla y sus reglas aparecen completas en el catálogo local. Taxonomy ofrece los valores activos y las reglas de asociación que usan Streaming y Discovery.
 
@@ -38,7 +38,7 @@ Como streamer, quiero escoger una categoría y etiquetas reconocibles para mi em
 
 - La semilla es estática/controlada en P1 y es compartida por todos los consumidores.
 
-- Streaming es autoridad de la asociación actual entre sesión y metadatos; Taxonomía administra definiciones/vocabulario y expone IDs/valores.
+- Emisiones es autoridad de las asociaciones de categoría/etiquetas de StreamConfig; Taxonomía administra definiciones/vocabulario y expone IDs/valores.
 
 ## 5. Requisitos funcionales
 
@@ -67,23 +67,11 @@ Como streamer, quiero escoger una categoría y etiquetas reconocibles para mi em
 
 ## 7. Diseño técnico y datos
 
-- Definir entidades Category(categoryId, name, active) y Tag(tagId, name, active), y la asignación vigente streamId→category/tags con integridad local. Los IDs no se reutilizan ni borran; al desactivar, conservar el último label como tombstone mientras sea referenciado.
-
-- Un solo propietario por entidad; no permitir que Discovery o Streaming escriban el catálogo directamente. Streaming es autoridad de metadatos de emisión y Taxonomy autoridad de catálogo.
-
-- Publicar un contrato de lectura para catálogo y criterios de filtrado; versión, normalización/case folding y formato de IDs quedan en contrato.
-
-- `GET /api/taxonomy` devuelve ID estable, label, active=true y catalogVersion; `GET /internal/taxonomy/values/{valueId}` permite a Streaming/Discovery resolver también un valor inactivo ya referenciado. El owner actualiza catalogVersion de manera monotónica. No elegir almacén por anticipado: el owner selecciona seed/configuración o persistencia por ADR, pero la extensión server-side no requiere modificar el cliente.
+Catálogo es módulo Core, SQL con IDs/labels/activo/catalogVersion, API pública GET /api/taxonomy e interfaz local CatalogValues.find para tombstones. FK locales relacionan metadata; dueño de catálogo escribe vocabulario y Emisiones escribe asociaciones. Desactivar no borra IDs/labels referenciados; IDs enviados explícitamente deben estar activos, omitidos se preservan. Añadir datos servidor no requiere rebuild de Web. No proceso/DB propio ni lookup HTTP interno.
 
 ## 8. Dependencias y contratos de integración
 
-- Streaming valida y persiste asociaciones enviando IDs de catálogo; Taxonomy ofrece IDs y valores válidos.
-
-- Discovery consume IDs y etiquetas legibles y pide resultados LIVE; no debe consultar tablas privadas de Streaming/Taxonomy.
-
-- Frontend carga categorías/etiquetas del contrato de catálogo y muestra errores de valor inactivo o límite excedido.
-
-- Si catálogo no responde, las ediciones no aceptan valores que no puedan validarse; una emisión ya activa conserva metadatos válidos previos.
+Emisiones valida IDs dentro del caso de uso/transacción local; Discovery lee catálogo/metadata por SQL revisado. Frontend obtiene opciones por API, sin hardcode de etiquetas. Fallo SQL/Core falla explícitamente; no disponibilidad ficticia de Taxonomy independiente.
 
 ## 9. Decisiones y preguntas abiertas
 
@@ -91,15 +79,7 @@ Como streamer, quiero escoger una categoría y etiquetas reconocibles para mi em
 
 ## 10. Verificación
 
-- Contrato de catálogo incluye exactamente semilla aprobada y IDs estables.
-
-- Pruebas de cero, cinco y seis etiquetas, categoría única/ausente/inactiva y duplicados.
-
-- Pruebas de filtros solo LIVE, cambio midstream y fallo del servicio de catálogo.
-
-- Desactivación de valor referenciado: no selección nueva, metadata previa intacta y label disponible tras reconstruir Discovery.
-
-- Pruebas de consumidor aseguran que Discovery y Streaming no dependen de tablas ajenas.
+Semilla siete categorías/ocho tags; 0/5/6 tags, categorías ausentes/inactivas y dedupe; filtros PLAYABLE exactos y AND, edición LIVE y tombstones; nueva opción servidor sin rebuild Web. Revisar dueño de escritura y FK local, no pruebas de un servicio Taxonomy remoto.
 
 ## 11. Esfuerzo, riesgos y consecuencias
 

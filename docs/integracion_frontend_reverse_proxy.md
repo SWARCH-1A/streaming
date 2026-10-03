@@ -1,133 +1,70 @@
-# Frontend, reverse proxy y repositorios
+# Web, reverse proxy y organización — arquitectura
 
-**Estado:** convención de integración para el monorepo modular P1.
+**Arquitectura:** ADR-003.
 
-## Objetivo
+## Web como una aplicación
 
-Permitir que cada equipo de módulo implemente y despliegue su parte sin romper la navegación, contratos
-ni arranque de los demás. El frontend es una aplicación web con un shell dueño del layout, rutas
-globales, navegación común y tratamiento de errores; los módulos aportan rutas/vistas acordadas.
+Un shell, un build y módulos internos de UI; no microfrontends por SPEC. Shell posee rutas, layout,
+componentes/tokens, sesión común, foco y límites de error. Vistas aportan loading/empty/error/denegado
+sin ocultar el player por caída de Chat. Campos internos de backend no se comparten como stores/ORM.
+Accesibilidad se aplica según SPEC-08 en cada vista, sin servicio “Accessibility”.
 
-## Estructura del repositorio
+/ y /search consultan GraphQL Discovery de Core. /register y /login conservan formularios y CSRF;
+registro confirma cuenta/canal o error, sin polling PENDING nuevo. /channels/{handle}
+consume un bootstrap Core compuesto, no Identity→Channels→Profile→Streaming desde Web. Handle
+case-insensitive se canonicaliza con 308. /watch/{streamId} obtiene bootstrap y monta HLS + Chat por
+sessionId; RECONNECTING informa pérdida temporal sin anunciar playback confirmado.
 
-El repositorio STREAMING es el monorepo modular de trabajo. Las carpetas expresan ownership lógico;
-no fijan por sí solas la cantidad de procesos o contenedores.
+## Tabla única de rutas
 
-```text
-streaming/
-  AGENTS.md
-  apps/web/shell/
-  apps/web/accessibility/
-  apps/web/modules/<domain>/
-  services/identity/       # ubicación lógica, no framework impuesto
-  services/profile/
-  services/channels/
-  services/streaming/
-  services/chat/
-  services/taxonomy/
-  services/discovery/
-  contracts/generated/
-  infra/reverse-proxy/
-  infra/local/
-  infra/media/
-  tests/contracts/
-  tests/integration/
-  tests/e2e/
-  docs/                     # requisitos, SPEC, contratos, decisiones y ADR
-```
+| Ruta pública | Unidad | Reglas |
+| --- | --- | --- |
+| / y rutas SPA válidas | Web | Fallback solo para navegación, nunca /api ni /internal |
+| /api/identity/* | Core | Cookie/CSRF/idempotencia/correlación; registro transaccional |
+| /api/profile/* | Core | Perfil self/público, multipart <=10 MB + overhead, avatar público |
+| /api/channels/* | Core | Canal/por handle/por owner, edición/banner/configuración streams; sin split de upstream por sufijo |
+| /api/streams/* | Core | Configuración/sesión/metadata/leases y stop; secretos excluidos de lectura pública |
+| /api/taxonomy | Core | Catálogo público/versionado |
+| /api/discovery/graphql | Core | GraphQL de consultas locales, límites de costo/cuerpo/rate |
+| /api/chat/sessions/*/messages | Chat | Historial 1–50, anónimo, orden y snapshotSequence |
+| /realtime/chat/sessions/{sessionId} | Chat | Upgrade, cookie, Origin permitido incluso para anónimos; errores WS correctos |
+| /hls/{sessionId}/* | Media | Playlist/segmentos, content type/range/cache; manifest publicado solo al confirmar PLAYABLE |
+| /internal/* | Bloqueada (404/deny) | Ninguna ruta privada se expone por el listener web |
+| Listener RTMP | Media | Puerto TCP dedicado, no fingir ruta HTTP |
 
-Las rutas completas y reglas de asignación están en el README raíz y AGENTS.md. Si el equipo decide
-separar repositorios en el futuro, deberá registrar la decisión, versionar contratos y conservar una
-fuente de configuración compatible para shell, proxy y despliegue.
+Los mensajes HTTP privados Core–Chat y Core–Media viajan en TLS y credenciales distintas por consumidor/
+operación. Proxy no autentica usuario ni interpreta reglas de dominio. Sobrescribir X-Forwarded-For/
+X-Real-IP del cliente con IP observada; backend confía solo en proxy configurado. No imprimir body,
+cookie, X-Session-Credential, streamKey, token de lease o Idempotency-Key en logs.
 
-## Contrato de frontend
+## Organización del repositorio
 
-- Solo el shell registra rutas top-level, navegación, autenticación compartida, tokens visuales,
-  telemetría y límite de error por módulo.
-- Una ruta de módulo se agrega mediante acuerdo y revisión del shell; un módulo no debe cambiar
-  enrutamiento global, dependencias de otro módulo ni estilos globales sin ADR/revisión.
-- Cada vista implementa estados loading, vacío, error, permiso denegado y datos; accesibilidad se
-  verifica según [SPEC-08](spec-p1/spec_08_a11y.md).
-- Componentes reutilizables publican API estable y evitan compartir stores internos. Propiedades y
-  eventos frontend usan tipos de contrato/versionados, no clases de backend compartidas.
-- Una caída de Chat no debe ocultar video; una caída de Discovery no debe bloquear visita directa al
-  canal; renderizar fallback por frontera.
-- La selección de microfrontend vs build integrado queda abierta; Integration documenta alternativas
-  y registra la decisión en un ADR antes de implementarla.
+services/core contiene Cuentas, Canales, Catálogo, Emisiones y Consultas, con build, seguridad y
+configuración comunes. services/chat contiene Chat; infra/media configura el motor y su adaptador.
+apps/web tiene un build y código en src/: modules/accounts, channels, streaming, chat, taxonomy y
+discovery; shell compone rutas y accessibility contiene utilidades compartidas. No crear aplicaciones
+por módulo. El framework/entry/build Web se concreta por ADR. contracts/generated contiene artefactos generados;
+infra mantiene configuración y tests/ la evidencia compartida. El mapa_sdd_p1 define la propiedad.
 
-## Rutas web visibles
+## Puertos y configuración
 
-- `/` muestra browse/discovery; `/search?q=...` busca canales/títulos.
-- `/register` y `/login` abren Identity; el registro PENDING muestra estado reintentable y nunca sesión.
-- `/channels/{handle}` es una URL por handle canónico de Identity; shell resuelve Identity→ownerUserId→Channels/Profile/Streaming. Si Identity confirma ACTIVE pero Channels aún responde 404 por retraso de proyección, el shell reintenta a los 100/250/500/1000 ms dentro de un deadline total de 2 s; agotado el plazo muestra estado transitorio y acción manual de reintento, no una página 404. Profile sirve fallback con handle para usuarios ACTIVE.
-- `/watch/{streamId}` carga bootstrap del stream, player, metadata y Chat por sessionId. Durante RECONNECTING muestra estado sin inventar una reproducción disponible.
+Core usa 8081, Chat reserva 8085 y Web reserva 3000. Los listeners HLS/RTMP se fijan en ADR multimedia.
+Bases en red privada y volumen de imágenes persistente. El runbook de cada unidad declara variables,
+comando y health; las reservas de componentes pendientes se concretan al implementarlos.
 
-## Tabla de rutas de reverse proxy
+Una configuración/env de ejemplo central por unidad desplegable; no secreto por módulo Core ni
+cliente HTTP a localhost para comunicar módulos locales. Core comparte security/CSRF y sesión opaca.
+Chat valida sesión con contexto Core, no estado de sesión conservado en el navegador.
 
-Prefijos y puertos son placeholders para que el equipo los complete en conjunto y mantenga una sola
-fuente de configuración. Preferir un mismo origen HTTPS para simplificar cookies/CORS.
+Core ejecutable usa CORE_DB_URL/USER/PASSWORD, CORE_RATE_LIMIT_HMAC_SECRET, CORE_SECURE_COOKIE,
+WEB_ORIGIN y PROFILE_AVATAR_STORAGE/PUBLIC_BASE. El [runbook Core](../services/core/README.md)
+y [Compose local](../infra/local/README.md) contienen comandos, health y volúmenes. El backend directo
+ignora headers forwarded; al implementar el proxy se configurará confianza únicamente en sus
+IP/redes y se verificará la cuota por IP antes de habilitar ese despliegue.
 
-| Host/path público | Upstream lógico | Tipo | Requisito |
-| --- | --- | --- | --- |
-| `/` | `web-shell:<WEB_PORT>` | HTTP | fallback solo a rutas SPA válidas; no interceptar rutas API faltantes como HTML |
-| `/api/identity/*` | `identity:<PORT>` | REST/HTTP | conservar `Authorization`/cookie acordado y request ID |
-| `/api/profile/*` | `profile:<PORT>` | REST/HTTP | límites de carga de avatar, timeouts |
-| `/api/channels/*/streams` | `streaming:<PORT>` | REST/HTTP | ruta específica con precedencia sobre `/api/channels/*`; crea/lee StreamConfig, no Channel |
-| `/api/channels/*` | `channels:<PORT>` | REST/HTTP | GET por owner y PATCH parcial por channelId; handle no es propiedad de Channels; provisión queda fuera de rutas públicas |
-| `/api/streams/*` | `streaming:<PORT>` | REST/HTTP | lectura stream/sesión, metadata propietaria y leases/heartbeat de viewers |
-| `/api/chat/sessions/*/messages` | `chat:<PORT>` | REST/HTTP | historial por sessionId, máximo 50 mensajes recientes y orden ascendente; ruta REST necesaria además de WebSocket |
-| `/api/taxonomy/*` | `taxonomy:<PORT>` | REST/HTTP | valores cacheables con invalidación/versionado |
-| `/api/discovery/graphql` | `discovery:<PORT>` | GraphQL sobre HTTP/JSON | queries `streams` y `channels`, un categoryId/tagId, limit/cursor/freshness; límites de complejidad/rate de contrato |
-| `/realtime/chat/sessions/{sessionId}` | `chat:<WS_PORT>` | WebSocket Upgrade | ruta canónica; conserva Upgrade/auth/Origin configurado; lectura anónima, escritura autenticada |
-| `/hls/{sessionId}/*` | `media-server:<MEDIA_PORT>` | HTTP | playlist/segmentos HLS por sessionId; content types/rango/cache; URL solo si availability=PLAYABLE |
-| listener RTMP | entrada multimedia | RTMP/TCP | listener dedicado; no fingir que es una ruta HTTP |
-| `POST /internal/streaming/ingest/authorize` | media adapter → Streaming privado | HTTPS/TLS interno autenticado | autorizar streamKey, reservar slot y obtener sessionId/sourceGeneration; no publicar en el proxy web |
-| `POST /internal/streaming/sessions/{sessionId}/source-connected` | media adapter → Streaming privado | HTTPS/TLS interno autenticado | callback durable e idempotente; no se enruta por el proxy web |
-| `POST /internal/streaming/sessions/{sessionId}/playback-ready` | media adapter → Streaming privado | HTTPS/TLS interno autenticado | callback durable e idempotente con playbackPath validada; no se enruta por el proxy web |
-| `POST /internal/streaming/sessions/{sessionId}/source-lost` | media adapter → Streaming privado | HTTPS/TLS interno autenticado | callback durable e idempotente; no se enruta por el proxy web |
-| `POST /internal/channels/provision` | Identity → Channels privados | HTTPS/TLS interno autenticado | provisión vinculada a registrationId; no se enruta por el proxy web |
-| `GET/DELETE /internal/channels/provisions/{registrationId}` | Identity → Channels privados | HTTPS/TLS interno autenticado | reconciliación/compensación idempotente por registrationId; no se enruta por el proxy web |
-| `/internal/identity/*`, `/internal/channels/*`, `/internal/taxonomy/*`, `/internal/streaming/*` | servicios internos | HTTPS/TLS interno autenticado | tráfico de servicio a servicio; reverse proxy público responde 404/deny para cualquier `/internal/*`, nunca enruta rutas privadas |
+## Reglas de evolución
 
-Las reglas se evalúan por ruta más específica antes que por prefijo genérico: `/api/channels/*/streams`
-siempre llega a Streaming aunque comparta el prefijo `/api/channels/*` con Channels. Los paths
-`/internal/*` se bloquea en el listener público; la red privada no sustituye HTTPS/TLS para mover
-cookies, claves RTMP u otras credenciales entre servicios. La cabecera de IP reenviada que recibe
-Discovery la sobrescribe el proxy con la IP observada del cliente; valores `X-Forwarded-For` y
-`X-Real-IP` aportados directamente por el cliente no se conservan. El path definitivo se sincroniza con los contratos
-y el router del shell. Ningún navegador accede a puertos internos de servicio o de base de datos.
-
-## Puertos de desarrollo y configuración
-
-Cada módulo registra en su README: puerto local, comando de arranque, health path, variables no
-secretas, dependencias, paths consumidos/producidos, build y test commands, y configuración del
-reverse proxy. Una tabla central evita duplicados:
-
-| Proceso/módulo | Puerto interno | Health | Comando | Responsable |
-| --- | --- | --- | --- | --- |
-| Shell web | Pendiente | Pendiente | Pendiente | Pendiente |
-| APIs de dominio | Pendiente por módulo | Pendiente | Pendiente | Pendiente |
-| Chat tiempo real | Pendiente | Pendiente | Pendiente | Pendiente |
-| Media ingest/delivery | Pendiente | Pendiente | Pendiente | Pendiente |
-| SQL y NoSQL | Solo red interna | Pendiente | Perfil de contenedores | Pendiente |
-
-No duplicar nombres de variables, credenciales o puertos en cada servicio; definir `.env.example`
-central sin valores secretos y configuración por entorno. Los secretos no se versionan.
-
-## Reglas de cambio seguro
-
-1. Abrir PR en la organización acordada; revisión por dueño de módulo/carpeta.
-2. Cambiar primero contrato/schema y agregar ejemplo; avisar consumidores ante cambio incompatible.
-3. Evitar actualización mayor de dependencia base, router global o estilo compartido junto con feature
-   de módulo sin revisión explícita.
-4. No consultar ni escribir la base de otro dominio. Compartir identificadores y contrato.
-5. Mantener scripts de build/desarrollo reproducibles, lockfiles, health checks y ejemplos de datos.
-6. Cambio de host/path/protocolo o puerto implica actualizar proxy, shell, README y prueba consumidor.
-7. `docker compose` es un candidato cómodo, no requisito tecnológico. El ADR de despliegue debe
-   justificar la herramienta que el equipo elija.
-
-## Revisión de topología
-
-El monorepo modular está seleccionado para P1. Una futura separación en varios repositorios requiere
-una decisión explícita que considere frecuencia de release, aislamiento de permisos, herramientas,
-dueños, CI y entrega del prototipo completo; deberá preservar contratos publicados.
+Cambiar path/schema/auth exige actualizar inventario, SPEC consumidores y tabla de proxy. Cambios
+incompatibles tienen transición explícita; no esconder excepciones en gateway. La futura extracción
+de una API de Core debe cumplir la puerta de fases_futuras, incluyendo costo/consistencia/migración.
+Un motor de despliegue inicia procesos, no coordina casos de uso de negocio.

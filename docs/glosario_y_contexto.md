@@ -16,8 +16,8 @@ pagos, VOD, moderación avanzada, subtítulos y otras capacidades se conservan f
   del stream propio, inicia/finaliza emisión.
 - **Responsable de módulo:** persona que el equipo asigna para decidir e implementar su módulo y registrar
   ADRs.
-- **Consumidor/proveedor:** los dominios se intercambian datos mediante el contrato publicado por el
-  proveedor; no comparten esquema de persistencia.
+- **Consumidor/proveedor:** entre unidades desplegables se intercambian datos mediante contrato neutral; dentro
+  de Core se usan interfaces locales y esquema SQL con FK/lecturas compuestas revisadas.
 
 ## Términos normativos
 
@@ -29,7 +29,7 @@ pagos, VOD, moderación avanzada, subtítulos y otras capacidades se conservan f
 | Channel | Página pública propiedad de una cuenta; tiene descripción y banner. Un canal por cuenta en P1. |
 | Stream | La emisión/contenido lógico asociado a un canal; en P1 describe metadata y reproducción LIVE. |
 | Stream session / sessionId | Una ejecución temporal concreta de un stream. Se conserva durante reconexión menor a 30 s; nuevo inicio posterior crea otro ID. |
-| LIVE | Estado visible solo cuando la fuente genera medio que el espectador puede reproducir. |
+| LIVE | Estado interno con HLS reproducible confirmado. El estado público LIVE del canal incluye RECONNECT_GRACE, con availability=RECONNECTING. |
 | RECONNECT_GRACE | Período de hasta 30 s sin fuente reproducible durante el cual se conserva sessionId y chat; el público sigue considerando esa emisión actual. |
 | OFFLINE/ENDED | No existe sesión que cumpla la regla LIVE/grace; chat ya no acepta mensajes y una próxima emisión obtiene nuevo sessionId. |
 | Metadata | Título, una categoría y entre cero y cinco etiquetas de catálogo; streamer puede editarlas durante LIVE. |
@@ -40,7 +40,10 @@ pagos, VOD, moderación avanzada, subtítulos y otras capacidades se conservan f
 | Chat Replay | Futuro comportamiento que sincroniza eventos de chat con una reproducción VOD. P1 guarda datos temporales mínimos, pero no almacena/reproduce VOD. |
 | VOD | Contenido de una transmisión pasada almacenado para reproducirse bajo demanda; todo VOD está fuera de P1. |
 | Reverse proxy | Componente de entrada que enruta HTTPS, API, WebSocket y media a upstreams definidos; no posee lógica de dominio. |
-| Módulo | Agrupación de código y responsabilidades por dominio; no equivale necesariamente a proceso, servicio o contenedor. |
+| Módulo | Responsabilidad interna con repositorio/interfaz; puede compartir proceso y transacción con otros módulos Core. |
+| Core | Núcleo de negocio modular: cuentas, canales, catálogo, control de emisiones y consultas; un proceso y PostgreSQL. |
+| Servicio desplegable | Runtime/release/health/escala propios; solo Core, Chat y Media como unidades backend. |
+| Integration | Trabajo de contratos/configuración/evidencia; no servicio de negocio ni coordinador global. |
 | SDD | Especificación de diseño de software con once secciones; agrupa requisitos de responsabilidad coherente. |
 | RF/RNF | Requisito funcional/no funcional; `RF-NNN` y `RNF-NNN` son IDs globales definidos en `catalogo_requisitos.md`. |
 | P1 | Prioridad de la primera iteración acordada por el equipo y registrada en el catálogo y decisiones. |
@@ -62,7 +65,7 @@ Una sola categoría, cero a cinco tags, una sesión activa por canal, máximo ci
 plataforma, cinco streams concurrentes/100 viewers para perfil de prueba global, veinte mensajes por
 segundo agregados durante diez minutos, cincuenta mensajes de historial inicial, 500 puntos de código
 Unicode por mensaje, como máximo un envío por cuenta en toda ventana móvil de 1000 ms (sin ráfaga),
-P95 chat menor a un segundo, API P95 menor a dos segundos, reproducción inicia en cinco segundos,
+P95 chat menor a un segundo, API P95 ≤2 segundos, reproducción inicia en ≤5 segundos,
 estado de canal se actualiza en cinco segundos y
 conteo expira a los treinta segundos sin heartbeat. El catálogo especifica dominio y método de
 verificación para cada límite.

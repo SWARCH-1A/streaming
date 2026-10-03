@@ -6,9 +6,9 @@
 
 ## 1. Contexto y problema
 
-Especifica cómo intercambian datos los módulos P1 sin compartir tablas, clases internas o decisiones tecnológicas. Es hijo de SPEC-09 y fija el acuerdo proveedor/consumidor para APIs y esquemas.
+Define contratos de red entre Web/Core/Chat/Media y límites locales Core. No convierte cada responsabilidad funcional en un servicio ni impide integridad referencial local.
 
-## 2. Estado del sistema y brecha
+## 2. Definición del componente
 
 Los límites lógicos, las rutas canónicas P1, el payload mínimo de las operaciones críticas y los errores/fallos observables están especificados en el inventario autocontenido `contratos_modelo_datos.md`. OpenAPI/JSON Schema/AsyncAPI y las herramientas de validación se seleccionan mediante ADR, sin cambiar el contrato semántico.
 
@@ -19,40 +19,17 @@ Como responsable o consumidor de un módulo, quiero interfaces versionadas, esqu
 ## 4. Alcance
 
 ### Dentro de P1
-
-- Contrato de lectura/escritura entre Identity, Profile, Channels, Streaming, Chat, Taxonomy y Discovery; registrar proveedor, consumidor y dato autoritativo.
-
-- Definir formato HTTP/JSON, IDs opacos, fecha UTC, request/correlation ID, autenticación/autorización y matriz de errores por operación.
-
-- Definir versionado compatible, paginación/búsqueda, límites y comportamiento ante timeout, duplicado, 401, 403, 404, 409, 422, 429 y 5xx según aplique.
-
-- En eventos, fijar `aggregateId` namespaced por flujo: `identity:{userId}`, `profile:{userId}`, `channel:{channelId}`, `stream:{streamId}`, `session:{sessionId}`, `viewer-count:{sessionId}` y `chat-session:{sessionId}`. `sequence` crece solo dentro del agregado; las versiones de dominio correspondientes la definen según `contratos_modelo_datos.md`, y ningún consumidor compara valores entre aggregateIds distintos.
-
-- Incluir ejemplos de request/response y payload/event schemas sin compartir entidades de una base privada.
+Inventario de métodos/path/mensajes, schemas neutros, errores, IDs/versiones, seguridad, paginación y compatibilidad. Distinguir API externa, contrato entre procesos e interfaz de aplicación local. Publicar las interfaces locales Core y los contratos Core–Chat/Media.
 
 ### Fuera de P1
+Contratos de capacidades futuras aún no priorizadas o una plataforma universal de gateway/broker.
 
-- Imponer una misma herramienta, framework, librería de cliente, broker o API gateway a todos los dominios; la interfaz de Discovery sí queda definida como GraphQL en su contrato P1.
-
-- Contratos de pagos, suscripciones, VOD, administración, moderación avanzada y subtítulos.
-
-### Supuestos acordados
-
-- La persona dueña de módulo elige herramienta y registra ADR compatible con este límite lógico.
-
-- Un ID de otro módulo es una referencia de contrato, no una foreign key cross-database ni autorización para consultar su tabla.
-
-- La interfaz pública de Discovery usa GraphQL sobre HTTP/JSON; esto no impone GraphQL a los otros dominios ni selecciona su framework o lenguaje.
+### Supuestos
+GraphQL Discovery público se conserva dentro de Core; REST/WS no requieren frameworks distintos por módulo. FK locales son válidas, cross-database no.
 
 ## 5. Requisitos de integración
 
-- Cada operación publicada especifica método/ruta o mensaje, actor, auth, petición/respuesta, errores, idempotencia, límite, latencia objetivo y dueño del dato.
-
-- Identity emite principal/userId opaco; Profile no recibe credenciales; Channels separa perfil público, descripción/banner y estado de Streaming; Taxonomy devuelve IDs controlados.
-
-- Streaming es autoridad de sesión, metadata LIVE y viewerCount; Chat de eventos de mensaje; Discovery de su proyección reconstruible.
-
-- Respuestas públicas excluyen email, contraseña/hash, sesión/token privado y datos internos de autorización.
+Un dueño por escritura; interfaces locales/Core y DTO/read models públicos. Cuentas autentica, Catálogo valida IDs, Emisiones controla estado/cupos/timeline, Chat controla mensajes/orden/cuota. Todos los payload públicos excluyen secretos/email; no compartir clases internas entre procesos. Idempotencia se define por operación, no se promete exactamente una vez en red.
 
 ## 6. Criterios de aceptación
 
@@ -70,29 +47,15 @@ Como responsable o consumidor de un módulo, quiero interfaces versionadas, esqu
 
 ## 7. Diseño técnico y datos
 
-- Contrato neutral recomienda OpenAPI para HTTP y JSON Schema/AsyncAPI para eventos como candidatos; el dueño selecciona e incluye ADR.
-
-- Envelope de error propuesto: code estable, mensaje seguro, fieldErrors opcionales y requestId; status HTTP diferenciado por operación.
-
-- IDs opacos, UTC, UTF-8 y tamaños máximos; canonicalización de email/handle, búsqueda Unicode, autenticación y errores están definidos en el contrato transversal.
-
-- Usar puertos/adaptadores o cliente generado con contrato; no compartir repositorios/modelos ORM entre dominios.
-
-- Credenciales viajan por canal seguro; no se registran en logs; contratos no imprimen token ni stream key.
+Fuente semántica única contratos_modelo_datos.md; artefactos generados según ADR de herramienta. Cambio incompatible identifica transición/migración/retiro. Core usa puertos/adaptadores locales, repositorios privados y FK; Chat/Media consumen schemas HTTP neutros. Los criterios de aceptación requieren evidencia ejecutable.
 
 ## 8. Dependencias y contratos de integración
 
-- Depende de SPEC-01 a SPEC-08; cada SPEC sigue siendo dueño de su funcionalidad de dominio.
-
-- Identity, Profile, Channels, Streaming, Taxonomy y Chat usan las interfaces HTTP/JSON o WebSocket de cada contrato. Discovery usa GraphQL sobre HTTP/JSON según la decisión existente de su módulo; su endpoint y schema están definidos en el contrato transversal.
-
-- La fuente canónica de ruta, schemas de ejemplo, propiedad, auth, errores, idempotencia, orden y frescura es `contratos_modelo_datos.md`. SPEC-11 gobierna secuencia/eventos; SPEC-12 gobierna shell/proxy; SPEC-13 gobierna despliegue y verificación integrada.
-
-- Una dependencia lenta falla con timeout acotado y error traducido; consultas/proyecciones declaran frescura. No bloquear reproducción por chat o discovery.
+SPEC-01, SPEC-03…SPEC-08 aportan comportamiento; SPEC-11 secuencia; SPEC-12 proxy; SPEC-13 evidencia. Core–Chat usa contexto/snapshot/evento de sesión; Core–Media autorización/callbacks/control técnico. Las interfaces de Cuentas/Canales/Catálogo/Consultas son locales a Core.
 
 ## 9. Decisiones y preguntas abiertas
 
-**Acordado:** contratos independientes de lenguaje/almacenamiento; rutas P1 canónicas; ownership por módulo; compatibilidad; WebSocket para Chat; schemas neutrales y errores estructurados. **ADR técnico:** la herramienta para materializar schemas, timeout numérico por operación y delivery de eventos, siempre respetando los límites semánticos de los contratos documentados y revisados por ambos extremos.
+Preservar contratos públicos donde no contradigan topología; registrar cambios de registro/lectura compuesta/contexto Chat. Materialización y evaluación de presupuestos pendientes, sin un stack arbitrario por módulo.
 
 ## 10. Verificación
 

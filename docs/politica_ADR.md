@@ -2,7 +2,9 @@
 
 ## Quién decide
 
-La persona responsable del módulo puede seleccionar su lenguaje, framework, almacenamiento y librerías.
+La persona responsable de la unidad desplegable coordina lenguaje, framework, almacenamiento y librerías
+con los responsables de sus módulos internos. Core usa un stack/transacción compartidos; un módulo
+no introduce otro runtime/DB ni frontera HTTP por iniciativa local.
 La decisión se acepta cuando cumple los contratos del sistema y restricciones de la asignatura,
 documenta alternativas y consecuencias, y no rompe a consumidores. El SDD especifica la obligación y
 la interfaz; el ADR registra la selección concreta y su motivo.
@@ -54,7 +56,8 @@ Señales que justificarían revisar la elección y quién la revisa.
 Compartir ADR con módulos consumidores cuando cambie su contrato; dejar sus observaciones registradas.
 Una selección tecnológica de módulo no debe:
 
-- exigir acceso a la base privada de otro módulo;
+- exigir acceso de otro servicio a una base privada; dentro de Core se permiten FK y lecturas SQL
+  compuestas revisadas, preservando dueño de escritura/repositorios;
 - imponer su lenguaje o tipos internos como contrato;
 - requerir que el shell del frontend incorpore una excepción global no justificada;
 - impedir una prueba integrada y despliegue reproducible;
@@ -63,3 +66,15 @@ Una selección tecnológica de módulo no debe:
 
 Las decisiones del equipo van en ADR separado de decisiones de producto. Una opción de este catálogo
 o de un SDD marcada como candidata no se vuelve selección aprobada por aparecer en el texto.
+
+## Definición y evidencia
+
+Mantener una definición vigente por decisión; evitar instrucciones contradictorias en ADR, SPEC y
+contratos. La aceptación de un ADR fija la solución; las pruebas demuestran su implementación.
+Documentar tecnologías candidatas como tales. Al implementar, actualizar rutas, configuración y
+evidencia en el mismo cambio. Antes de extraer una unidad, cumplir los criterios de fases_futuras.md.
+Los informes de revisión, notas de auditoría y archivos temporales quedan fuera de los commits.
+
+Las lecturas SQL entre módulos Core usan vistas/proyecciones de lectura publicadas por el dueño,
+columnas explícitas y permisos de solo lectura; no acceso irrestricto a tablas privadas. Son contrato
+local versionado/revisado según RNF-041/042 y excluyen credenciales/secretos.
