@@ -19,6 +19,12 @@ pub(super) struct PathSource {
     pub kind: String,
 }
 
+#[derive(Deserialize)]
+pub(super) struct SessionStatus {
+    pub status: String,
+    pub availability: String,
+}
+
 impl MediaState {
     pub(super) async fn media_path(&self, path: &str) -> Result<Option<PathInfo>, ()> {
         let response = self
@@ -98,6 +104,9 @@ impl MediaState {
         }
     }
     pub(super) async fn session_status(&self, session: &str) -> Result<String, ()> {
+        self.session_state(session).await.map(|value| value.status)
+    }
+    pub(super) async fn session_state(&self, session: &str) -> Result<SessionStatus, ()> {
         let response = self
             .client
             .get(format!(
@@ -108,22 +117,21 @@ impl MediaState {
             .await
             .map_err(|_| ())?;
         if response.status() == StatusCode::NOT_FOUND {
-            return Ok("ENDED".to_owned());
+            return Ok(SessionStatus {
+                status: "ENDED".to_owned(),
+                availability: "OFFLINE".to_owned(),
+            });
         }
         if response.status() != StatusCode::OK {
             return Err(());
         }
-        #[derive(Deserialize)]
-        struct Status {
-            status: String,
-        }
-        let value: Status = serde_json::from_slice(
+        let value: SessionStatus = serde_json::from_slice(
             &crate::adapters::outbound::http_body::limited(response, 65536).await?,
         )
         .map_err(|_| ())?;
         if !matches!(value.status.as_str(), "PREPARING" | "LIVE" | "ENDED") {
             return Err(());
         }
-        Ok(value.status)
+        Ok(value)
     }
 }

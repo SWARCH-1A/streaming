@@ -1,6 +1,6 @@
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::{Path, State, rejection::JsonRejection},
     http::{HeaderMap, StatusCode, header::CACHE_CONTROL},
     response::{IntoResponse, Response},
 };
@@ -67,7 +67,7 @@ pub(super) async fn create<I, C, T, R, G, S>(
     Path(channel_id): Path<String>,
     headers: HeaderMap,
     request_id: Option<axum::Extension<RequestId>>,
-    Json(request): Json<CreateStreamConfigBody>,
+    request: Result<Json<CreateStreamConfigBody>, JsonRejection>,
 ) -> Response
 where
     I: crate::application::ports::identity::IdentityGateway
@@ -82,6 +82,17 @@ where
     let request_id = request_id
         .map(|axum::Extension(id)| id.0)
         .unwrap_or_else(|| "req_unavailable".to_owned());
+    let request = match request {
+        Ok(Json(request)) => request,
+        Err(rejection) => {
+            return api_error(
+                rejection.status(),
+                "INVALID_STREAM_CONFIG",
+                "The stream configuration body is invalid.",
+                request_id,
+            );
+        }
+    };
     let Some(cookie_name) = state.session_cookie_name.as_deref() else {
         return api_error(
             StatusCode::SERVICE_UNAVAILABLE,
@@ -404,7 +415,7 @@ pub(super) async fn patch<I, C, T, R, G, S>(
     Path(stream_id): Path<String>,
     headers: HeaderMap,
     request_id: Option<axum::Extension<RequestId>>,
-    Json(request): Json<PatchStreamMetadataBody>,
+    request: Result<Json<PatchStreamMetadataBody>, JsonRejection>,
 ) -> Response
 where
     I: crate::application::ports::identity::IdentityGateway
@@ -419,6 +430,17 @@ where
     let request_id = request_id
         .map(|axum::Extension(id)| id.0)
         .unwrap_or_else(|| "req_unavailable".to_owned());
+    let request = match request {
+        Ok(Json(request)) => request,
+        Err(rejection) => {
+            return api_error(
+                rejection.status(),
+                "INVALID_STREAM_METADATA",
+                "The stream metadata body is invalid.",
+                request_id,
+            );
+        }
+    };
     let Some(cookie_name) = state.session_cookie_name.as_deref() else {
         return api_error(
             StatusCode::SERVICE_UNAVAILABLE,

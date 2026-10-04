@@ -250,9 +250,11 @@ async fn hls(
         &format!("Bearer {}", state.config.streaming_token),
     );
     if !internal {
-        match state.session_status(&session).await {
-            Ok(status) if status == "LIVE" => {}
-            Ok(status) if status == "ENDED" => return error(StatusCode::GONE, "SESSION_ENDED"),
+        match state.session_state(&session).await {
+            Ok(value) if value.status == "LIVE" && value.availability == "PLAYABLE" => {}
+            Ok(value) if value.status == "ENDED" => {
+                return error(StatusCode::GONE, "SESSION_ENDED");
+            }
             Ok(_) => return error(StatusCode::SERVICE_UNAVAILABLE, "PLAYBACK_NOT_READY"),
             Err(_) => return error(StatusCode::SERVICE_UNAVAILABLE, "STREAMING_UNAVAILABLE"),
         }

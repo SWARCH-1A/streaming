@@ -39,7 +39,7 @@ async fn delivery_loop(state: Arc<MediaState>, mut shutdown: watch::Receiver<boo
     }
 }
 
-async fn observe_sources(state: &MediaState) -> Result<(), ()> {
+pub(super) async fn observe_sources(state: &MediaState) -> Result<(), ()> {
     let sources = state.repository.active_sources().await.map_err(|_| ())?;
     let observations = futures_util::stream::iter(sources)
         .map(|source| async move {
@@ -125,7 +125,7 @@ async fn observe_sources(state: &MediaState) -> Result<(), ()> {
                         }
                     }
                 }
-                Ok(false) | Err(()) if source.connected_at.is_some() => {
+                Ok(false) if source.connected_at.is_some() => {
                     state
                         .repository
                         .observe(&source, "source-lost")
@@ -145,6 +145,9 @@ async fn observe_sources(state: &MediaState) -> Result<(), ()> {
                         .await
                         .map_err(|_| ())?;
                 }
+                // A failed Control API read is not evidence of source loss.
+                // Report degraded reconciliation and retry on the next pass.
+                Err(()) => return Err(()),
                 _ => {}
             }
             Ok::<(), ()>(())

@@ -42,6 +42,8 @@ curl --fail http://localhost:8080/health/ready
 
 Los valores de Compose son fixtures de desarrollo. Solo inicia componentes propios de SPEC-04; las URLs Core/Chat se configuran para conectar esos extremos en integración. Una emisión ya autorizada no depende del ACK de Discovery/Chat.
 
+El job `media-db-init` crea el rol y la base privada Media si no existen. Cada ejecución actualiza la contraseña del rol con `MEDIA_DATABASE_PASSWORD`, conservando la base y los datos del volumen persistente.
+
 | Listener | Exposición del Compose | Uso |
 | --- | --- | --- |
 | Streaming 8080 | `127.0.0.1:8080` | API pública y health |

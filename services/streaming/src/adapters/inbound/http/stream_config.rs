@@ -99,3 +99,6 @@ where
         .layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES))
         .with_state(state)
 }
+
+#[cfg(test)]
+mod tests;
