@@ -62,26 +62,26 @@ Como espectador, quiero descubrir streams activos por popularidad, título, cate
 - CA-06: p95 <=2 s en perfil P1, resultados paginados.
 - CA-07: tombstone conserva label de asociación existente; no seleccionable como filtro.
 - CA-08: rechazar forma/costo GraphQL (aliases/fragments/introspection, >50 filas/conexión, >100 agregado, >16 KiB), 600 req/IP/60 s burst20, 429/Retry-After. IP confiable de proxy.
-- CA-09: commit de registro es puerta de visibilidad; cuenta/perfil/canal aparecen juntos, nunca PENDING/parcial. Lectura desde SQL Core, sin replicación entre módulos.
-- CA-10: estado/conteo/metadata se consultan localmente; frescura refleja observación de Emisiones, no atraso de índice. Cambio <=5 s, viewerCountFresh=false >5 s; ENDED no se publica como PLAYABLE.
+- CA-09: commit de registro es puerta de visibilidad; cuenta/perfil/canal aparecen juntos, nunca PENDING/parcial. Lectura local de cuentas/canales desde SQL Core; publicación del canal no depende de eventos Streaming.
+- CA-10: estado/conteo/metadata provienen de la proyección pública Streaming aplicada en SQL Core. Cambio <=5 s con presupuesto observación/publicación <=2 s y entrega/aplicación <=3 s. viewerCountFresh=false si observación >5 s; estado no confirmado/fuera de frescura se excluye de streams y se muestra UNKNOWN en canales. ENDED no es PLAYABLE; inbox/versiones y snapshot con watermark permiten recuperación comprobable.
 
 ## 7. Diseño técnico y datos
 
-Discovery es módulo de consultas Core, sin autoridad de escritura de negocio ni almacén independiente. GraphQL se conserva en /api/discovery/graphql; resolvers usan SQL/vistas/read models revisados, sin N+1 de red. DTO públicos no proyectan credenciales. Consultas paginadas y acotadas, cursor atado a filtro/snapshot; si se materializa snapshot de ranking local, declarar retención/expiry. Discovery usa SQL Core en P1. Índices SQL se eligen con medición; un índice especializado futuro exige ADR y reconstrucción completa con watermark.
+Discovery es módulo de consultas Core, sin autoridad de escritura de negocio. Posee inbox y tablas SQL de proyección pública de Streaming en PostgreSQL Core. GraphQL se conserva en /api/discovery/graphql; resolvers usan SQL/vistas/read models revisados, sin N+1 de red. DTO públicos no proyectan credenciales. Consultas paginadas y acotadas, cursor atado a filtro/snapshot; si se materializa snapshot de ranking local, declarar retención/expiry. Discovery combina la proyección Streaming con Cuentas/Canales/Catálogo locales; no consulta bases privadas ni HTTP por fila. Outbox/inbox, frescura y reconstrucción consistente se definen en contratos. Índices SQL se eligen con medición; un índice especializado futuro exige ADR y reconstrucción completa con watermark.
 
 ## 8. Dependencias y contratos de integración
 
-Lecturas locales de Cuentas/Canales/Emisiones/Catálogo. Estado Media es validado por Emisiones; snapshot de conteo deriva de leases Core. Web consume GraphQL; proxy sobrescribe IP. Excepción de consulta afecta endpoint; caída de Core afecta todas sus APIs, se documenta ese alcance.
+Lecturas locales de Cuentas/Canales/Catálogo y proyección recibida de Streaming Rust. Estado Media y conteo de leases son autoridad Streaming; solo datos públicos llegan por eventos. Web consume GraphQL; proxy sobrescribe IP. Excepción de consulta afecta endpoint; caída de Core afecta todas sus APIs, se documenta ese alcance.
 
 ## 9. Decisiones y preguntas abiertas
 
-GraphQL, búsqueda, filtros, ranking, frescura y límites según el contrato. Publicación desde commit local, sin activación por evento ni runtime independiente.
+GraphQL, búsqueda, filtros, ranking, frescura y límites según el contrato. Canal visible desde commit local; datos de emisión mediante snapshots versionados de Streaming. Discovery permanece dentro de Core según ADR-005.
 
 ## 10. Verificación
 
 - Datos de fixture con LIVE/OFFLINE, categorías/tags, títulos con subcadenas y contadores con empates.
 
-- Pruebas de comportamiento anónimo, normalización, combinaciones de filtros, estado actualizado y exclusión de VOD.
+- Pruebas de comportamiento anónimo, normalización, combinaciones de filtros, estado actualizado y exclusión de VOD; duplicados/desorden/conflictos, caída del productor/consumidor, atraso y reconstrucción concurrente de proyección con watermark.
 
 - Validar el schema GraphQL, límites/errores, paginación, empates y payload sin campos privados.
 
