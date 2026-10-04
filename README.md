@@ -32,5 +32,8 @@ perfil/avatares, edición/portadas de canal y bootstrap público compuesto. [Com
 PostgreSQL con volumen persistente. Pruebas: `services/core/mvnw -f services/core/pom.xml test` y
 `services/core/mvnw -f services/core/pom.xml verify -P integration` (Docker para PostgreSQL aislado).
 
-Emisiones y su composición en el canal, Catálogo, Consultas, Chat, Media y Web siguen pendientes.
+[Chat](services/chat/README.md) (Go y Redis) implementa salas efímeras, historial, WebSocket, cuota,
+deduplicación y eventos de sesión. Pruebas: `go test ./...` en `services/chat`.
+
+Emisiones y su composición en el canal, Catálogo, Consultas, Media y Web siguen pendientes.
 [Web](apps/web/README.md) organiza su esqueleto en `src/modules`, `src/shell` y `src/accessibility`.

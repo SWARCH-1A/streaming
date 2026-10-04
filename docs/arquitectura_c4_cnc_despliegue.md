@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | Web | Una aplicación y un build; rutas, formularios, player, chat y accesibilidad. Lenguaje candidato TypeScript; selección pendiente de ADR frontend. | Interfaz de usuario; los módulos de UI no son microfrontends. |
 | Core | Núcleo modular Java/Spring: cuentas (autenticación y perfil), canales, catálogo, control de emisiones y consultas de descubrimiento. Una base PostgreSQL, un gestor de transacciones, un release. | Cuenta–perfil–canal y canal–configuración–catálogo requieren integridad local. La carga P1 no justifica distribuirlos. |
-| Chat | Servicio de tiempo real; salas, mensajes, deduplicación, cuota global por cuenta, secuencias, historial y moderación/replay futuros. Go y MongoDB son candidatos compatibles con los requisitos; selección pendiente de ADR Chat. | Conexiones largas, fan-out, carga y fallo independientes del video y las APIs de negocio; uso NoSQL real para historial por sesión. |
+| Chat | Servicio de tiempo real; salas, mensajes, deduplicación, cuota global por cuenta, secuencias, historial y moderación/replay futuros. Go y Redis según [ADR-006](adr/ADR-006-chat-go-redis-efimero.md); chat efímero por sesión. | Conexiones largas, fan-out, carga y fallo independientes del video y las APIs de negocio; uso NoSQL real (Redis) para mensajes, cuota, dedupe y secuencia por sesión. |
 | Media | Ingesta RTMP, HLS, detección de fuente, validación de reproducción y adaptación al contrato de Core. | Procesamiento audiovisual, ancho de banda, códecs y reinicio diferentes. No posee usuarios, sesiones de negocio ni permisos. Motor aún candidato: ADR multimedia pendiente. |
 | Reverse proxy | Entrada HTTPS, encaminamiento, límites de transporte, Upgrade WS, forwarding confiable. | Infraestructura; no compone reglas de negocio ni coordina transacciones. |
 
@@ -36,7 +36,7 @@ flowchart LR
   C -->|HTTPS: detener fuente / verificar HLS| M
   C --> DB[(PostgreSQL: negocio)]
   C --> A[(Volumen de avatares / banners)]
-  CH --> N[(MongoDB: mensajes y estado de Chat)]
+  CH --> N[(Redis: mensajes efímeros y estado de Chat)]
 ```
 
 Dentro de Core, cuentas incluye Identity y Profile como responsabilidades internas; Canales,
@@ -44,7 +44,7 @@ Catálogo, Emisiones y Consultas son módulos. Una llamada local usa una interfa
 secretos de servicio, colas ni proyecciones de activación. Los repositorios permanecen encapsulados.
 Una consulta pública de Core puede usar joins/vistas SQL revisados para leer información de varios
 módulos; solo el dueño escribe sus tablas. Las claves foráneas dentro de PostgreSQL son deseables.
-Chat nunca lee PostgreSQL; Core nunca lee MongoDB. No hay transacciones entre ambos almacenes.
+Chat nunca lee PostgreSQL; Core nunca lee Redis de Chat. No hay transacciones entre ambos almacenes.
 
 ## Invariantes y coordinación
 
@@ -66,7 +66,7 @@ Chat nunca lee PostgreSQL; Core nunca lee MongoDB. No hay transacciones entre am
 
 ## Despliegue y aislamiento
 
-Topología: proxy, Web, Core, Chat, Media, PostgreSQL y MongoDB. Core monta el volumen de
+Topología: proxy, Web, Core, Chat, Media, PostgreSQL y Redis (Chat, con AOF). Core monta el volumen de
 imágenes; Media necesita su almacenamiento de segmentos. Solo HTTPS web y listener RTMP son públicos.
 Core escucha por defecto en 8081; Chat reserva 8085; Web reserva 3000. Los listeners HLS/RTMP finales
 se fijarán en ADR multimedia. `/internal/*` no es accesible por el listener público; servicios usan TLS
@@ -76,8 +76,8 @@ Core agrupa su reinicio, build y disponibilidad. No se promete reiniciar Profile
 Chat se escala independientemente; Media se dimensiona por bitrate/CPU. Más de una réplica Core exige
 volumen compartido de imágenes y coordinación SQL del control de sesión; no basta replicar contenedores.
 P1 parte de una réplica por proceso; los ejercicios de capacidad se diseñan antes de declarar RNF-015/016.
-Una réplica adicional de Chat requiere orden por sala, dedupe y cuota compartidos; MongoDB por sí solo
-no distribuye WebSockets. La implementación deberá demostrar partición/propietario de sala y fan-out.
+Una réplica adicional de Chat requiere orden por sala, dedupe y cuota compartidos: los resuelve el
+script atómico en Redis y cada réplica lee el Redis Stream de la sala para su fan-out (ADR-006).
 
 Si Core cae, las APIs y nuevas autorizaciones de Chat/RTMP fallan cerradas; Media puede continuar una
 reproducción existente mientras conserva la fuente, sin afirmar garantía de disponibilidad infinita.

@@ -37,7 +37,7 @@ pagos, VOD, moderación avanzada, subtítulos y otras capacidades se conservan f
 | Tag/etiqueta | Valor opcional controlado para describir una emisión; máximo cinco. P1 inicia con ocho valores semilla. |
 | Viewer/playback session | Reproducción abierta, anónima o autenticada, contada una vez al hacerse reproducible y expirada tras 30 s sin heartbeat. No equivale a usuario de chat. |
 | Chat room | Sala asociada a un único sessionId. Lectura anónima, escritura autenticada; read-only tras fin de sesión. |
-| Chat Replay | Futuro comportamiento que sincroniza eventos de chat con una reproducción VOD. P1 guarda datos temporales mínimos, pero no almacena/reproduce VOD. |
+| Chat Replay | Futuro comportamiento que sincroniza eventos de chat con una reproducción VOD. P1 no conserva el chat tras la retención de 5 minutos posterior al fin ni almacena/reproduce VOD. |
 | VOD | Contenido de una transmisión pasada almacenado para reproducirse bajo demanda; todo VOD está fuera de P1. |
 | Reverse proxy | Componente de entrada que enruta HTTPS, API, WebSocket y media a upstreams definidos; no posee lógica de dominio. |
 | Módulo | Responsabilidad interna con repositorio/interfaz; puede compartir proceso y transacción con otros módulos Core. |

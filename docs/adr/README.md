@@ -6,6 +6,7 @@
 | [ADR-002](ADR-002-profile-persistencia-y-avatar.md) | Aceptada | Perfil público en Cuentas y avatares en volumen persistente con URI inmutables/reconciliación. |
 | [ADR-003](ADR-003-servicios-cohesivos.md) | Aceptada | Fronteras Core, Chat, Media y Web; responsabilidad local y condiciones de extracción. |
 | [ADR-004](ADR-004-canales-en-core.md) | Aceptada | Edición/portadas de Canales en Core, sesión local y retiro de provisión/proyección remota. |
+| [ADR-006](ADR-006-chat-go-redis-efimero.md) | Aceptada | Chat en Go con Redis efímero: script atómico, AOF, Stream como outbox y retención de 5 min tras el fin. |
 
-La selección de Chat, Web, motor/adaptador Media y herramientas de despliegue se registra conforme
+La selección de Web, motor/adaptador Media y herramientas de despliegue se registra conforme
 a la [política ADR](../politica_ADR.md). Las alternativas candidatas requieren decisión del responsable.

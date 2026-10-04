@@ -5,12 +5,12 @@ Cada criterio se cierra con evidencia de implementación y ejecución.
 | Puerta | Acción antes de aceptar | Dueño / impacto |
 | --- | --- | --- |
 | Registro local | Implementar transacción cuenta/perfil/canal/idempotencia y FK; rollback/retry tras perder respuesta | Cuentas/Canales Core; publicación solo tras commit |
-| Stack por proceso | Confirmar lenguajes generales en artefactos reales y uso NoSQL justificado; Java, Web TypeScript/Chat Go/MongoDB candidatos | Responsables Web/Chat/Core; no seleccionar stack distinto por módulo local |
+| Stack por proceso | Confirmar lenguajes generales en artefactos reales y uso NoSQL justificado; Java; Chat Go/Redis (ADR-006); Web TypeScript candidato | Responsables Web/Chat/Core; no seleccionar stack distinto por módulo local |
 | Dos conectores HTTP | Evidenciar REST/GraphQL/WS y confirmación docente de al menos dos tipos | SPEC-13; no declarar RNF-006 cerrado por un diagrama |
 | Contexto Chat | Schema neutro, TLS/servicio/Origin/cookie, revocación y estado/timeline locales; medir presupuesto 400ms/commit<=500ms y carrera de operaciones en vuelo | Core/Chat; p95 de entrega <1s, sin auth cacheada |
 | Mensajes durables y escalado | Dedupe/secuencia/cuota por cuenta consistentes, persistencia antes de ACK y broadcast recuperable; propietario/fan-out por sala entre réplicas | Chat; no contador independiente por réplica ni ACK perdido |
 | Outbox de sesión | SQL Core→inbox Chat, HTTP idempotente, backoff/alerta/dead-letter, reparación snapshot; capacidad/retención operativa definida | Emisiones/Chat; sin broker obligatorio |
-| Recuperación total Chat | Snapshot paginado con watermark para sesiones o backup/inventario durable; lookups de IDs conocidos no reconstruyen pérdida total | Core/Chat; antes de afirmar RNF-050 completo |
+| Recuperación total Chat | Chat es efímero (ADR-006): AOF conserva mensajes con ACK ante reinicio de Redis; una pérdida total del almacén vacía salas activas y el estado se repara por snapshot | Core/Chat; antes de afirmar RNF-050 completo |
 | Media y códecs | Selección motor/adaptador, señal real/callbacks/sourceGeneration/path, stop y prueba RTMP→HLS | Media/Emisiones; LIVE nunca simulado |
 | Reloj/reinicio | Una sola gracia, timer/callback serializados, recuperación de restante o ENDED; multi-réplica requiere fencing/transferencia | Emisiones Core; una réplica inicial no elimina concurrencia |
 | Callbacks/DLQ Media | ACK durable/dedupe, retry2s/calendario15min/alerta30s/dead-letter sin TTL, umbral de capacidad/redrive probado | Media/Core; no pérdida silenciosa |

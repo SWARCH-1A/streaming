@@ -1,0 +1,32 @@
+# Chat y su Redis. Se combina con compose.core.yaml para resolver core:8081 en la misma red.
+services:
+  chat-redis:
+    image: redis:8-alpine
+    # AOF con fsync por escritura: un mensaje con ACK sobrevive a un reinicio de Redis.
+    # noeviction: Redis nunca descarta mensajes por memoria; la limpieza la hacen los TTL de sala.
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "always", "--save", "", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - chat-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+  chat:
+    build:
+      context: ../../services/chat
+    environment:
+      CHAT_REDIS_URL: redis://chat-redis:6379/0
+      CHAT_ALLOWED_ORIGINS: ${WEB_ORIGIN:-http://localhost:3000}
+      CHAT_CORE_BASE_URL: ${CHAT_CORE_BASE_URL:-http://core:8081}
+      CHAT_CORE_SERVICE_TOKEN: ${CHAT_CORE_SERVICE_TOKEN:?Define CHAT_CORE_SERVICE_TOKEN}
+      CHAT_SESSION_EVENTS_TOKEN: ${CHAT_SESSION_EVENTS_TOKEN:?Define CHAT_SESSION_EVENTS_TOKEN}
+      CHAT_ENDED_RETENTION: ${CHAT_ENDED_RETENTION:-5m}
+    ports:
+      - "127.0.0.1:${CHAT_PORT:-8085}:8085"
+      - "127.0.0.1:${CHAT_INTERNAL_PORT:-8086}:8086"
+    depends_on:
+      chat-redis:
+        condition: service_healthy
+volumes:
+  chat-redis:

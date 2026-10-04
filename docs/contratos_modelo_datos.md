@@ -19,7 +19,7 @@ erDiagram
 
 ACCOUNT, PROFILE, CHANNEL, CATEGORY, TAG, STREAM_CONFIG, STREAM_SESSION y VIEWER_LEASE están en
 PostgreSQL Core: sus referencias internas usan FK y operaciones locales. CHAT_MESSAGE pertenece a
-Chat/NoSQL: sessionId y userId allí son referencias opacas por contrato, sin FK entre bases.
+Chat/Redis y es efímero: sessionId y userId allí son referencias opacas por contrato, sin FK entre bases.
 Discovery es una consulta/vista, no otra entidad autoritativa ni base de proyecciones distribuida.
 
 | Dueño de escritura | Entidades | Lectores |
@@ -29,7 +29,7 @@ Discovery es una consulta/vista, no otra entidad autoritativa ni base de proyecc
 | Canales dentro de Core | channelId, ownerUserId, descripción/banner y channelVersion | Consultas públicas locales, módulo Emisiones |
 | Catálogo dentro de Core | categorías/tags con IDs, estado y catalogVersion | Emisiones y consultas, mediante FK/lecturas revisadas |
 | Emisiones dentro de Core | StreamConfig, secretos ingest, sesiones, cupos, clocks y leases/conteo | Consultas/player, contexto Chat y contratos Media |
-| Chat | mensajes, secuencia por sala, dedupe y cuota por cuenta | Web, replay/moderación futuros a través del dueño |
+| Chat | mensajes efímeros por sesión, secuencia por sala, dedupe y cuota por cuenta | Web, replay/moderación futuros a través del dueño |
 | Media | fuente, segmentos/manifiestos y señales técnicas | Core valida disponibilidad; HLS hacia player |
 
 Cada repositorio escribe solo tablas de su módulo. Los casos de uso locales coordinan interfaces de
@@ -72,10 +72,10 @@ Las interfaces requieren schema neutro, correlación y presupuesto acotado.
 | GET /api/streams/{streamId}; GET/DELETE /api/streams/sessions/{sessionId} | Core / Web/player | Metadata/estado público y stop owner; no ingest secret |
 | POST /api/streams/sessions/{sessionId}/viewer-leases; PUT /api/streams/viewer-leases/{leaseId}/heartbeat; DELETE /api/streams/viewer-leases/{leaseId} | Core / player | Lease anónimo de servidor, heartbeat 10 s, vencimiento 30 s |
 | POST /api/discovery/graphql | Core / Web | streams/channels, filtros/ranking/paginación locales; schema conservado abajo |
-| GET /api/chat/sessions/{sessionId}/messages; WS /realtime/chat/sessions/{sessionId} | Chat / Web | Historial 1–50, eventos/ACK, anónimo lee, autenticado escribe |
-| POST /internal/core/chat/message-context | Core / Chat | Una autorización nueva por mensaje lógico: sesión usuario + estado emisión + autor + timeline; sin caché de permisos |
-| GET /internal/core/chat/sessions/{sessionId} | Core / Chat | Snapshot de existencia/estado/generación y timeline para abrir/reconciliar sala; sin identidad privada |
-| POST /internal/chat/session-events | Chat / Core | Notificación durable idempotente de estado de emisión; no autoriza escrituras |
+| GET /api/chat/sessions/{sessionId}/messages; WS /realtime/chat/sessions/{sessionId} | Chat / Web | Historial 1–50, eventos/ACK, anónimo lee, autenticado escribe; chat efímero |
+| POST /internal/core/chat/message-context | Core / Chat | Una autorización nueva por mensaje lógico: sesión usuario + autor locales + estado/timeline de Streaming; sin caché de permisos |
+| GET /internal/core/chat/sessions/{sessionId} | Core / Chat | Snapshot de existencia/estado/generación y timeline (delegado a Streaming) para abrir/reconciliar sala; sin identidad privada |
+| POST /internal/chat/session-events | Chat / Streaming | Notificación durable idempotente de estado de emisión; no autoriza escrituras |
 | POST /internal/streaming/ingest/authorize | Core / adaptador Media | streamKey e ingestAttemptId; reserva idempotente de cupo, owner/catálogo locales |
 | POST /internal/streaming/sessions/{sessionId}/source-connected; /playback-ready; /source-lost | Core / adaptador Media | ACK durable, generaciones/eventId/path validados; detalle conservado abajo |
 
@@ -312,81 +312,102 @@ contra eventos de ciclo de vida de otra base.
 
 ## Chat REST, WebSocket y contexto autorizado
 
-GET messages acepta limit entero 1–50 (default 50), últimos N por sesión en sequence ascendente y
-snapshotSequence. Anónimo puede leer. Abrir WS y esperar chat.ready antes del historial; fusionar por
-(sessionId,sequence), sin huecos/duplicado visible. PREPARING devuelve 409 CHAT_NOT_OPEN; LIVE/gracia
-sala OPEN; ENDED READ_ONLY. Desconexión de Chat no interrumpe HLS. Origin WS debe ser el origen web
+GET messages acepta limit entero 1–50 (default 50) y responde
+{sessionId,roomStatus,snapshotSequence,items:[message]} con los últimos N de la sesión en sequence
+ascendente; snapshotSequence es el último sequence asignado en la misma lectura atómica. Anónimo puede
+leer. Abrir WS y esperar chat.ready antes del historial; fusionar por (sessionId,sequence), sin
+huecos/duplicado visible. PREPARING devuelve 409 CHAT_NOT_OPEN; LIVE/gracia sala OPEN; ENDED
+READ_ONLY. Desconexión de Chat no interrumpe HLS. Origin WS debe ser exactamente un origen web
 configurado, también para anónimos; cookie no es suficiente para aceptar un Origin no permitido.
+
+Frames servidor: {type:"chat.ready",sessionId,roomStatus,lastSequence} tras registrar la conexión;
+{type:"message.created",message}; {type:"message.accepted",clientMessageId,messageId,sessionId,
+sequence,serverCreatedAtUtc} solo al emisor; {type:"chat.status",sessionId,roomStatus} cuando la
+sala cambia (p. ej. READ_ONLY). message = {messageId,sessionId,sequence,author:{userId,handle,
+displayName,avatarUri},text,serverCreatedAtUtc,streamOffsetMs,streamGeneration}.
 
 Cliente envía {type:"message.send",clientMessageId:UUID,text}. Normalizar NFC, recortar whitespace
 Unicode, 1–500 puntos de código; nunca HTML ejecutable. No aceptar userId/autor/hora/offset/sequence
 de cliente. Cuota global por cuenta: un mensaje aceptado en toda ventana móvil 1000 ms, sin burst.
-Dedupe (sessionId,userId,clientMessageId) mientras se retenga el mensaje; repetido devuelve mismo ACK.
+Dedupe (sessionId,userId,clientMessageId) mientras se retenga la sala; repetido devuelve mismo ACK.
 Verificar sesión vigente antes de recuperar un ACK para no revelar datos a credencial revocada.
 
 Para cada mensaje nuevo validado, Chat llama una sola vez a POST /internal/core/chat/message-context
 con {sessionId,clientMessageId} y X-Session-Credential (cookie opaca), X-Service-Name:chat y token privado.
-Core valida sesión de usuario vigente, obtiene estado de emisión/timeline y autor por interfaces/lecturas
-locales. Solo LIVE/gracia habilita writeAllowed=true; ENDED devuelve contexto autenticado con
+Core valida sesión de usuario vigente y autor localmente y obtiene estado/timeline actual de Streaming.
+Solo LIVE/gracia habilita writeAllowed=true; ENDED devuelve contexto autenticado con
 writeAllowed=false y denialCode=CHAT_READ_ONLY, PREPARING con CHAT_NOT_OPEN. Esto permite recuperar
 un ACK previo sin autorizar una escritura nueva después del fin. Devuelve {userId,handle,displayName,avatarUri,profileVersion,sessionId,streamGeneration,
 sessionVersion,availability,authorizedAtUtc,timelinePositionMs,timelineSampleVersion,writeAllowed,denialCode}. Esta última
 versión equivale al sessionVersion del snapshot. Sin perfil personalizado, displayName=handle/avatar=null;
-no existe una dependencia Profile HTTP cuyo timeout deba tolerarse.
+no existe una dependencia Profile HTTP cuyo timeout deba tolerarse. Errores de Core usan el envelope
+REST: Chat conserva los códigos STREAMING_UNAVAILABLE, TIMELINE_UNAVAILABLE y AUTH_REQUIRED; 401 es
+AUTH_REQUIRED, 404 SESSION_NOT_FOUND y cualquier otro fallo o timeout CORE_UNAVAILABLE.
 
-No cachear contexto para nuevos envíos. Cuota y persistencia pertenecen a Chat, no al endpoint Core.
+No cachear contexto para nuevos envíos. Cuota y almacenamiento pertenecen a Chat, no al endpoint Core.
 Chat, con el userId confiable, busca primero un resultado de dedupe existente: lo retorna aunque
 writeAllowed=false; si no hay resultado, verifica writeAllowed antes de cuota/commit. El mismo
 clientMessageId con texto canónico distinto produce MESSAGE_ID_CONFLICT, no otro mensaje.
 El contexto no es token reusable por el navegador ni permiso para otros mensajes/sesiones. Presupuestos
-objetivo a validar con carga: connect <=100 ms, respuesta <=300 ms, total <=400 ms; sin retry automático
-del comando de envío. Si Core no responde, frame CORE_UNAVAILABLE y cero persistencia; sesión inválida
-AUTH_REQUIRED; envío nuevo ENDED CHAT_READ_ONLY; PREPARING CHAT_NOT_OPEN; timeline inválido TIMELINE_UNAVAILABLE.
+objetivo a validar con carga: connect <=100 ms, total <=400 ms (hop Core→Streaming <=200 ms); sin retry
+automático del comando de envío. Si Core no responde, frame CORE_UNAVAILABLE y cero persistencia;
+Streaming inaccesible STREAMING_UNAVAILABLE; sesión inválida AUTH_REQUIRED; envío nuevo ENDED
+CHAT_READ_ONLY; PREPARING CHAT_NOT_OPEN; timeline inválido o ausente TIMELINE_UNAVAILABLE.
 El timeout elegido debe revisarse con evidencia, manteniendo p95 de entrega Chat <1 s ni ocultar errores.
 
-Chat asigna hora de persistencia y conserva el offset del snapshot autorizado (no inventa un reloj del
-cliente). Rechaza contexto si el round-trip más tiempo hasta intentar persistir supera 500 ms, usando
+Chat asigna hora de servidor y conserva el offset del contexto autorizado (no inventa un reloj del
+cliente). Rechaza contexto si el round-trip más tiempo hasta intentar guardar supera 500 ms, usando
 monotónico local; devuelve TIMELINE_UNAVAILABLE y permite reintento con mismo clientMessageId. No
 extrapola permisos. Una escritura ya autorizada antes de logout/ENDED puede confirmar dentro de ese
-presupuesto; toda autorización posterior observa revocación/fin. Esta carrera de operación en vuelo
-es explícita: no se promete transacción distribuida Core–Chat ni revocación retroactiva de commits.
+presupuesto si Chat aún no observó ENDED; toda autorización posterior observa revocación/fin. Esta
+carrera de operación en vuelo es explícita: no se promete transacción distribuida Core–Chat ni
+revocación retroactiva de commits.
 
-Chat persiste mensaje, dedupe, secuencia y efecto de cuota atómicamente antes del ACK; transacción o
-mecanismo equivalente probado en el almacén elegido. Índices requeridos: único (sessionId,sequence),
-único (sessionId,userId,clientMessageId), historial/ventana (sessionId,streamOffsetMs,sequence).
-El diseño final corregirá índices/tipos según motor; no persistir credencial de usuario. MongoDB es
-candidato, no evidencia de NoSQL implementado. Historial duradero es distinto del buffer de cincuenta;
-retención/privacidad futura se define antes de limpiar mensajes de replay.
+Chat guarda mensaje, dedupe, secuencia y efecto de cuota atómicamente antes del ACK mediante un script
+Redis ([ADR-006](adr/ADR-006-chat-go-redis-efimero.md)), con AOF y fsync por escritura. Unicidad:
+(sessionId,sequence) por el ID del Stream y (sessionId,userId,clientMessageId) por el hash de dedupe.
+No persistir credencial de usuario. El chat es efímero: al conocer ENDED, la sala queda READ_ONLY y
+todas sus claves expiran a los 5 minutos; después el historial está vacío. Cada sala retiene como
+máximo los últimos 1000 mensajes.
 
-message.accepted al emisor incluye clientMessageId,messageId,sessionId,sequence,serverCreatedAtUtc;
 message.created publica snapshot del autor/texto/offset a conectados. Dedupe también en cliente.
-Una falla después de commit antes de broadcast se recupera con outbox/dispatcher de Chat o mecanismo
-durable equivalente: nunca ACK de mensaje que se puede perder silenciosamente. Entrega de red puede
-repetirse y no es exactly-once. Replica/fan-out necesita propietario/orden de sala y cuota compartida;
-no basta otra instancia con contadores en memoria.
+El Redis Stream de la sala es el outbox: cada réplica con conectados lo lee, así que una falla después
+de commit antes de broadcast no pierde la entrega. Nunca ACK de mensaje que se puede perder
+silenciosamente. Entrega de red puede repetirse y no es exactly-once. Cuota, orden y dedupe se
+comparten en Redis entre réplicas; no hay contadores en memoria.
 
-Errores tras Upgrade son frame {type:"error",clientMessageId,code,retryAfterMs?}; antes del Upgrade
-son HTTP. RATE_LIMITED expone retryAfterMs. No convertir error de Core en anonimato aceptado ni en 404.
-GET snapshot privado de sesión al abrir/reconciliar incluye estado, generaciones, versión y timeline,
-sin identidad privada. Historia de sala ya conocida ENDED puede leerse sin Core mientras Chat conserva
-su estado; apertura de sesión desconocida con Core caído falla 503, no “sala vacía”.
+Errores tras Upgrade son frame {type:"error",clientMessageId,code,message,retryAfterMs?}; antes del
+Upgrade son HTTP con envelope REST: Origin no permitido 403 ORIGIN_NOT_ALLOWED, sesión inexistente
+404 SESSION_NOT_FOUND, PREPARING 409 CHAT_NOT_OPEN, Core/Streaming/Redis caídos 503. Códigos de
+frame: AUTH_REQUIRED, CHAT_READ_ONLY, CHAT_NOT_OPEN, CORE_UNAVAILABLE, STREAMING_UNAVAILABLE,
+TIMELINE_UNAVAILABLE, RATE_LIMITED (con retryAfterMs), MESSAGE_ID_CONFLICT, MESSAGE_EMPTY,
+MESSAGE_TOO_LONG, VALIDATION_ERROR y CHAT_UNAVAILABLE (almacén Chat caído, sin ACK). No convertir error
+de Core en anonimato aceptado ni en 404.
+
+GET snapshot privado /internal/core/chat/sessions/{sessionId} al abrir/reconciliar responde
+{sessionId,streamId,streamGeneration,sessionVersion,status,availability,timelinePositionMs}, sin
+identidad privada; sesión inexistente 404. Historia de sala ya conocida ENDED puede leerse sin Core
+mientras Chat conserva su estado; apertura de sesión desconocida con Core caído falla 503, no "sala vacía".
 
 ## Único flujo de eventos de negocio entre procesos P1
 
-Core guarda cambios de sesión destinados a Chat en outbox SQL dentro del commit. Dispatcher llama
-POST /internal/chat/session-events con {eventId,eventType,schemaVersion,aggregateId,sequence,
-occurredAtUtc,producer:"core",payload:{streamId,sessionId,streamGeneration,sessionVersion,status,
-availability}}. aggregateId=session:{sessionId}, sequence=sessionVersion. Chat ACK después de inbox
-persistida; aplica generación mayor y versión mayor dentro de esa sesión. Se deduplica eventId;
-reutilizar ID/payload distinto da 409. Duplicado no reabre ni duplica sala. Estado de escritura siempre
-se consulta a Core por contexto, así que un evento tardío no concede permiso.
+Streaming guarda cambios de sesión destinados a Chat en un outbox durable dentro del commit.
+Dispatcher llama POST /internal/chat/session-events con X-Service-Name:streaming, X-Service-Token y
+{eventId,eventType,schemaVersion,aggregateId,sequence,occurredAtUtc,producer:"streaming",
+payload:{streamId,sessionId,streamGeneration,sessionVersion,status,availability}}.
+aggregateId=session:{sessionId}, sequence=sessionVersion. Chat registra la inbox y aplica el estado en
+la misma operación atómica antes del ACK: primer evento 202 {accepted:true,duplicate:false,eventId};
+reintento idéntico 200 con duplicate=true; versión o generación vieja 202 con ignored=true y
+reason STALE_VERSION; reutilizar ID con payload distinto 409 EVENT_ID_CONFLICT; credencial inválida
+401; payload inválido 400. Aplica generación mayor y versión mayor dentro de esa sesión; READ_ONLY es
+terminal. Duplicado no reabre ni duplica sala. Estado de escritura siempre se consulta a Core por
+contexto, así que un evento tardío no concede permiso. Chat retiene eventIds 24 h.
 
 Timeout por intento 1 s; retry de red/408/429/5xx con backoff 1/2/5/10 s, luego 10 s, hasta 15 min;
 respetar Retry-After, alerta deduplicada al atraso >5 s. Al agotar/permanente, retener en dead-letter
 durable para redrive con mismo ID; no TTL automático ni pérdida silenciosa. GET snapshot repara
-estado de sala conocida al reconectar; Core conserva outbox sin ACK y un snapshot de sesiones por IDs.
-Para recuperar tras pérdida total de Chat, implementar enumeración paginada privada de sesiones con
-watermark/snapshot antes de declarar reconstrucción automática; no simularla con lookups puntuales.
+estado de sala conocida al reconectar. Como el chat es efímero, una pérdida total del almacén Chat
+vacía las salas activas; su estado se recupera por snapshot al reconectar los clientes.
 Un broker futuro requiere ADR y un problema medido; no bus universal inicial.
 
 ## Errores, compatibilidad y fronteras
@@ -400,10 +421,12 @@ de retiro. Clases de aplicación locales no se publican como contrato entre leng
 
 ## Chat Replay futuro
 
-Chat conserva mensaje/sesión/autor snapshot/texto/timestamp/sequence/offset y supresiones futuras.
-Core conserva vínculo VOD–sesión y política de acceso. Media/Core publican mapping temporal al VOD;
-Chat sirve ventanas/cursor por contrato cuando la fase lo implemente, sin copia de tablas ni un servicio
-Replay separado de moderación. Retención, borrado y sincronía se acordarán en esa fase.
+P1 no conserva el chat después de la retención de 5 minutos posterior al fin
+([ADR-006](adr/ADR-006-chat-go-redis-efimero.md)). Una fase de Replay deberá definir, en un ADR del
+dueño Chat, dónde persistir mensaje/sesión/autor snapshot/texto/timestamp/sequence/offset y
+supresiones futuras. Core conserva vínculo VOD–sesión y política de acceso; Media/Core publican
+mapping temporal al VOD. Chat servirá ventanas/cursor por contrato, sin copia de tablas ni un
+servicio Replay separado de moderación.
 
 ## Contratos de consulta y reglas de filtros
 
