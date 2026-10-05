@@ -73,7 +73,6 @@ Como espectador, quiero leer mensajes de la sesión en vivo; como usuario autent
 - CA-06 — fallo de Chat no detiene un playback ya disponible; UI muestra chat no disponible y deshabilita composer.
 
 - CA-07 — un mensaje guardado contiene campos para autor, sessionId y posición temporal; mensajes no incluyen HTML ejecutable ni secretos.
-
 - CA-08 — contexto Core valida sesión/autor localmente y obtiene estado/timeline actual desde Streaming; jamás autoriza desde Discovery. Sin personalización usa handle/avatar nulo; Core inaccesible CORE_UNAVAILABLE, Streaming inaccesible STREAMING_UNAVAILABLE, sesión inválida AUTH_REQUIRED, envío nuevo en ENDED CHAT_READ_ONLY, timeline inválido TIMELINE_UNAVAILABLE. Son frames tras Upgrade; rechazado no persiste. No timeout de Profile remoto.
 
 ## 7. Diseño técnico y datos

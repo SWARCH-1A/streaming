@@ -42,7 +42,7 @@ Como usuario final, quiero recorrer registro, canal, emisión, chat y búsqueda 
 
 ## 5. Contrato de interfaz web
 
-- Rutas web P1: `/`, `/register`, `/login`, `/channels/{handle}`, `/search?q=...` y `/watch/{streamId}`. Canal consume `GET /api/channels/by-handle/{handle}`: Core compone canal, handle, perfil y estado de emisión localmente. Watch usa el snapshot público de stream/sesión; ambos montan Chat desde sessionId.
+- Rutas web P1: `/`, `/register`, `/login`, `/channels/{handle}`, `/search?q=...` y `/watch/{streamId}`. Canal consume `GET /api/channels/by-handle/{handle}`: Core compone canal/handle/perfil locales y batch público autoritativo Streaming; si este falla, conserva canal con estado UNKNOWN. Watch usa el snapshot público de stream/sesión; ambos montan Chat desde sessionId.
 
 - Shell consume interfaces UI/versionadas; módulo publica ruta/entry, estados y dependencias, sin compartir store privado.
 
@@ -69,19 +69,19 @@ Como usuario final, quiero recorrer registro, canal, emisión, chat y búsqueda 
 - **CA-07:** rutas integradas pasan criterios de teclado, foco, mensajes y semántica de SPEC-08.
 
 - **CA-08:** Web integrada ejecutable en modo local; muestra fallback por vista y unidad upstream real si cae.
-- **CA-09:** canal por handle usa bootstrap local Core; ACTIVE ya tiene canal/perfil desde commit, sin reintentos por atraso de proyección. Inexistente/no activo 404 uniforme y Core no disponible error explícito, nunca página “activándose” por una frontera eliminada.
+- **CA-09:** canal por handle usa bootstrap Core; ACTIVE ya tiene canal/perfil desde commit. Inexistente/no activo 404 uniforme; Core no disponible error explícito; Streaming no disponible conserva canal/perfil con streamStatusFresh=false/UNKNOWN.
 
 ## 7. Diseño técnico y configuración
 
-Una Web y un build; código en apps/web/src, módulos en src/modules/{accounts,channels,streaming,chat,taxonomy,discovery}, shell en src/shell y utilidades compartidas en src/accessibility. Shell registra rutas/globales, componentes/tokens y errores por vista. Canal por handle consume un bootstrap Core compuesto; player y chat se montan desde sessionId. Proxy enruta por prefijos a Core/Chat/Media, sin auth de negocio ni saga; bloquea /internal y sobrescribe forwarding. Paths API no caen al fallback SPA. TLS, CSRF, límite multipart, WS Upgrade/Origin y HLS range/cache definidos en documento frontend.
+Una Web y un build; código en apps/web/src, módulos en src/modules/{accounts,channels,streaming,chat,taxonomy,discovery}, shell en src/shell y utilidades compartidas en src/accessibility. Shell registra rutas/globales, componentes/tokens y errores por vista. Canal por handle consume un bootstrap Core compuesto; player y chat se montan desde sessionId. Proxy enruta a Core/Streaming/Chat/Media; POST/GET /api/channels/{channelId}/streams es regla exacta Streaming previa al prefijo Canales, sin auth de negocio ni saga; bloquea /internal y sobrescribe forwarding. Paths API no caen al fallback SPA. TLS, CSRF, límite multipart, WS Upgrade/Origin y HLS range/cache definidos en documento frontend.
 
 ## 8. Dependencias y contratos de integración
 
-Web consume APIs Core y Chat/HLS; módulos UI no requieren procesos propios. Proxy tabla única coherente con contratos; Media listener RTMP separado de HTTP. Backend protege sesiones y propiedad; frontend nunca decide owner ni estado LIVE.
+Web consume APIs Core/Streaming y Chat/HLS; módulos UI no requieren procesos propios. Proxy tabla única coherente con contratos; Media listener RTMP separado de HTTP. Backend protege sesiones y propiedad; frontend nunca decide owner ni estado LIVE.
 
 ## 9. Decisiones y preguntas abiertas
 
-Web integrada y mismo origen HTTPS. Stacks y librerías Web se seleccionan mediante ADR. La ruta por handle compone datos públicos dentro de Core.
+Web integrada y mismo origen HTTPS. Stacks y librerías Web se seleccionan mediante ADR. La ruta por handle compone datos locales Core y snapshot público Streaming; Discovery consulta proyección SQL local.
 
 ## 10. Verificación
 

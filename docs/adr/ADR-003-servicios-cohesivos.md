@@ -1,6 +1,6 @@
 # ADR-003: Core modular, Chat y Media como fronteras desplegables
 
-- Estado: aceptada
+- Estado: sustituida por [ADR-005](ADR-005-streaming-rust-y-proyeccion-discovery.md)
 - Fecha: 2026-10-01
 - Responsable: Core, Chat, Media e Integración
 - SPEC/contratos afectados: SPEC-01, SPEC-03…SPEC-13; matriz RNF, arquitectura, contratos y fases futuras.

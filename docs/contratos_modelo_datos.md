@@ -1,6 +1,6 @@
 # Contratos y modelo de datos
 
-**Arquitectura:** Core, Chat y Media según ADR-003.
+**Arquitectura:** Core, Streaming, Chat y Media según ADR-005.
 **Regla:** APIs de red solo entre unidades de ejecución. Interfaces locales y FK dentro de Core.
 
 ## Propiedad y modelo lógico
@@ -17,20 +17,18 @@ erDiagram
   STREAM_SESSION ||--o{ CHAT_MESSAGE : references_by_contract
 ```
 
-ACCOUNT, PROFILE, CHANNEL, CATEGORY, TAG, STREAM_CONFIG, STREAM_SESSION y VIEWER_LEASE están en
-PostgreSQL Core: sus referencias internas usan FK y operaciones locales. CHAT_MESSAGE pertenece a
-Chat/Redis y es efímero: sessionId y userId allí son referencias opacas por contrato, sin FK entre bases.
-Discovery es una consulta/vista, no otra entidad autoritativa ni base de proyecciones distribuida.
+ACCOUNT, PROFILE, CHANNEL, CATEGORY y TAG están en PostgreSQL Core, con FK locales. STREAM_CONFIG, STREAM_SESSION y VIEWER_LEASE pertenecen al PostgreSQL privado de Streaming Rust. Las líneas entre CHANNEL/CATEGORY/TAG y STREAM_CONFIG representan referencias opacas de contrato, no FK entre bases. CHAT_MESSAGE pertenece a Chat/NoSQL. Discovery posee inbox y tablas de proyección pública de emisión en Core; no es autoridad de estado, metadata, permisos ni conteo.
 
 | Dueño de escritura | Entidades | Lectores |
 | --- | --- | --- |
 | Cuentas/Identity dentro de Core | userId, email/handle canónicos, hash, sesión, operaciones idempotentes | Interfaces locales, DTO públicos; nunca email/hash/sesión en respuestas públicas |
 | Cuentas/Profile dentro de Core | displayName, bio, avatar y profileVersion | Canal/consultas locales; Chat recibe snapshot autorizado |
-| Canales dentro de Core | channelId, ownerUserId, descripción/banner y channelVersion | Consultas públicas locales, módulo Emisiones |
-| Catálogo dentro de Core | categorías/tags con IDs, estado y catalogVersion | Emisiones y consultas, mediante FK/lecturas revisadas |
-| Emisiones dentro de Core | StreamConfig, secretos ingest, sesiones, cupos, clocks y leases/conteo | Consultas/player, contexto Chat y contratos Media |
-| Chat | mensajes efímeros por sesión, secuencia por sala, dedupe y cuota por cuenta | Web, replay/moderación futuros a través del dueño |
-| Media | fuente, segmentos/manifiestos y señales técnicas | Core valida disponibilidad; HLS hacia player |
+| Canales dentro de Core | channelId, ownerUserId, descripción/banner y channelVersion | Consultas locales; contexto de owner Core para Streaming |
+| Catálogo dentro de Core | categorías/tags con IDs, estado y catalogVersion | Consultas locales; contexto tipado y resolución de tombstones para Streaming |
+| Streaming Rust | StreamConfig, secretos ingest, sesiones, cupos, clocks y leases/conteo | Consultas/player, contexto Chat y contratos Media |
+| Discovery en Core | inbox y proyección pública de emisiones | GraphQL; reconstruible desde Streaming |
+| Chat | mensajes, secuencia por sala, dedupe y cuota por cuenta | Web, replay/moderación futuros a través del dueño |
+| Media | fuente, segmentos/manifiestos y señales técnicas | Streaming valida disponibilidad; HLS hacia player |
 
 Cada repositorio escribe solo tablas de su módulo. Los casos de uso locales coordinan interfaces de
 aplicación con una transacción Core; un read model local puede realizar joins SQL revisados. Ningún
@@ -63,23 +61,30 @@ Las interfaces requieren schema neutro, correlación y presupuesto acotado.
 | GET /api/profile/users/{userId}; GET/PATCH /api/profile/me | Core / Web | Perfil público y edición self; validación local de sesión |
 | POST /api/profile/me/avatar-uploads; GET /api/profile/avatars/{key} | Core / Web | Upload de un uso y objeto público inmutable |
 | GET /api/channels/by-owner/{userId} | Core / Web | Canal de cuenta activa; sin gate de evento |
-| GET /api/channels/by-handle/{handle} | Core / Web | Canal + handle + perfil compuestos localmente; bootstrap incluye stream actual con estado de Emisiones |
+| GET /api/channels/by-handle/{handle} | Core / Web | Canal + handle + perfil compuestos localmente; bootstrap incluye stream actual con estado autoritativo Streaming |
 | PATCH /api/channels/{channelId}; POST /api/channels/{channelId}/banner-uploads | Core / Web | Propietario; descripción/banner, versión y reglas de imagen |
 | GET /api/channels/banners/{key}; GET /api/channels/csrf | Core / Web | Objeto público inmutable; token de la misma seguridad CSRF Core |
-| GET /api/taxonomy | Core / Web | IDs/labels activos y versión; validación interna sin API remota |
-| POST/GET /api/channels/{channelId}/streams; PATCH /api/streams/{streamId} | Core / Web | Una configuración persistente; valida catálogo/owner localmente |
-| POST /api/streams/{streamId}/ingest-keys/rotate | Core / Web | Solo sin sesión activa; secreto una vez |
-| GET /api/streams/{streamId}; GET/DELETE /api/streams/sessions/{sessionId} | Core / Web/player | Metadata/estado público y stop owner; no ingest secret |
-| POST /api/streams/sessions/{sessionId}/viewer-leases; PUT /api/streams/viewer-leases/{leaseId}/heartbeat; DELETE /api/streams/viewer-leases/{leaseId} | Core / player | Lease anónimo de servidor, heartbeat 10 s, vencimiento 30 s |
+| GET /api/taxonomy | Core / Web | IDs/labels activos y versión; validación local para Core y contexto privado para Streaming |
+| POST/GET /api/channels/{channelId}/streams; PATCH /api/streams/{streamId} | Streaming / Web | Configuración persistente; contexto nuevo Core valida identidad/owner/catálogo |
+| POST /api/streams/{streamId}/ingest-keys/rotate | Streaming / Web | Solo sin sesión activa; secreto una vez |
+| GET /api/streams/{streamId}; GET/DELETE /api/streams/sessions/{sessionId} | Streaming / Web/player | Metadata/estado autoritativo y stop owner; no ingest secret |
+| POST /api/streams/sessions/{sessionId}/viewer-leases; PUT /api/streams/viewer-leases/{leaseId}/heartbeat; DELETE /api/streams/viewer-leases/{leaseId} | Streaming / player | Lease anónimo de servidor, heartbeat 10 s, vencimiento 30 s |
 | POST /api/discovery/graphql | Core / Web | streams/channels, filtros/ranking/paginación locales; schema conservado abajo |
-| GET /api/chat/sessions/{sessionId}/messages; WS /realtime/chat/sessions/{sessionId} | Chat / Web | Historial 1–50, eventos/ACK, anónimo lee, autenticado escribe; chat efímero |
-| POST /internal/core/chat/message-context | Core / Chat | Una autorización nueva por mensaje lógico: sesión usuario + autor locales + estado/timeline de Streaming; sin caché de permisos |
-| GET /internal/core/chat/sessions/{sessionId} | Core / Chat | Snapshot de existencia/estado/generación y timeline (delegado a Streaming) para abrir/reconciliar sala; sin identidad privada |
+| GET /api/chat/sessions/{sessionId}/messages; WS /realtime/chat/sessions/{sessionId} | Chat / Web | Historial 1–50, eventos/ACK, anónimo lee, autenticado escribe |
+| POST /internal/core/chat/message-context | Core / Chat | Una autorización nueva por mensaje lógico: sesión usuario + estado emisión + autor + timeline; sin caché de permisos |
+| GET /internal/core/chat/sessions/{sessionId} | Core / Chat | Snapshot de existencia/estado/generación y timeline para abrir/reconciliar sala; sin identidad privada |
 | POST /internal/chat/session-events | Chat / Streaming | Notificación durable idempotente de estado de emisión; no autoriza escrituras |
-| POST /internal/streaming/ingest/authorize | Core / adaptador Media | streamKey e ingestAttemptId; reserva idempotente de cupo, owner/catálogo locales |
-| POST /internal/streaming/sessions/{sessionId}/source-connected; /playback-ready; /source-lost | Core / adaptador Media | ACK durable, generaciones/eventId/path validados; detalle conservado abajo |
+| POST /internal/streaming/ingest/authorize | Streaming / adaptador Media | streamKey e ingestAttemptId; reserva idempotente de cupo en Streaming tras configuración autorizada |
+| POST /internal/streaming/sessions/{sessionId}/source-connected; /playback-ready; /source-lost | Streaming / adaptador Media | ACK durable, generaciones/eventId/path validados; detalle abajo |
+| POST /internal/core/streaming/owner-context | Core / Streaming | Identidad/owner y catálogo tipado por comando; sin permiso cacheado |
+| POST /internal/core/streaming/catalog-values | Core / Streaming | Resolución batch de IDs/labels/tombstones; no autoriza cambios |
+| GET /internal/streaming/sessions/{sessionId}/context | Streaming / Core | Estado/timeline actual para Chat, sin identidad/credenciales |
+| POST /internal/streaming/channels/snapshots | Streaming / Core | Bootstrap público batch por channelId; ausencia explícita y sesión actual |
+| POST /internal/core/discovery/stream-events | Core / Streaming | Inbox durable de snapshots públicos versionados; no autoridad de negocio |
+| POST /internal/streaming/discovery/snapshots | Streaming / Core | Corte consistente paginado de configuraciones con watermark; reconstrucción |
 
-`/internal/*` usa TLS privado y token específico por consumidor/ruta; listener público lo bloquea.
+`/internal/*` usa TLS privado y credenciales específicas por consumidor con permisos explícitos
+por ruta; una credencial puede tener varias rutas autorizadas. El listener público lo bloquea.
 Los módulos Core usan interfaces locales; no publican eventos de replicación interna ni requieren
 provisión HTTP de canal. Los outboxes se reservan para efectos entre procesos.
 
@@ -133,18 +138,17 @@ Respuesta 201 {uploadId,expiresAtUtc}, ligado al usuario, un uso, vence 15 min. 
 inmutable, no ruta física/nombre original. Reemplazo publica objeto nuevo antes de commit; fallo conserva
 anterior; borrar antiguo/temporales después de commit y reconciliar huérfanos periódicamente.
 
-`GET /api/channels/by-handle/{handle}` devuelve 200 con un DTO de composición local:
+`GET /api/channels/by-handle/{handle}` devuelve 200 con un DTO de composición pública:
 
 ```json
-{"channel":{"channelId":"chn_…","ownerUserId":"usr_…","description":"","bannerUri":null,"channelVersion":0},"handle":"caster_01","profile":{"userId":"usr_…","displayName":"caster_01","bio":"","avatarUri":null,"updatedAtUtc":"2026-10-01T20:00:00Z","profileVersion":0},"stream":null}
+{"channel":{"channelId":"chn_…","ownerUserId":"usr_…","description":"","bannerUri":null,"channelVersion":0},"handle":"caster_01","profile":{"userId":"usr_…","displayName":"caster_01","bio":"","avatarUri":null,"updatedAtUtc":"2026-10-01T20:00:00Z","profileVersion":0},"stream":null,"streamStatusFresh":true,"availability":"OFFLINE"}
 ```
 
 channel contiene exactamente los campos del ejemplo; description inicial vacía y bannerUri nulo.
-profile tiene el mismo contrato que GET perfil público. stream es null si no hay configuración;
-si existe, contiene el snapshot público de `GET /api/streams/{streamId}` y un campo session con
-el snapshot de `GET /api/streams/sessions/{sessionId}` (null antes de la primera emisión).
+profile tiene el mismo contrato que GET perfil público. streamStatusFresh/availability son campos obligatorios del bootstrap: snapshot confirmado usa su disponibilidad y true; ausencia confirmada de configuración usa OFFLINE/true. stream es null si no hay configuración;
+si existe, contiene el snapshot público autoritativo obtenido por Core mediante batch de canales Streaming y un campo session con el snapshot de sesión/timeline (null antes de la primera emisión).
 Session ENDED conserva su identidad y availability=OFFLINE; playbackUrl es null fuera de PLAYABLE.
-Core obtiene todos los campos localmente, sin solicitudes HTTP por módulo ni datos de ingestión.
+Core obtiene cuenta/perfil/canal localmente y hace una consulta batch de snapshots públicos a Streaming para este bootstrap. Una respuesta confirma ausencia/configuración/sesión; falla Streaming devuelve stream:null, streamStatusFresh:false y availability:UNKNOWN, conservando el canal/perfil. No se interpreta el fallo como OFFLINE. Discovery no usa este batch por fila.
 Handle se busca sin distinguir mayúsculas; inexistente/no activo da 404 uniforme, fallo Core/SQL 503.
 Web usa el handle devuelto para redirigir casing a URL canónica con 308 y monta player/Chat desde
 stream/sessionId. No entregar entidades de cuenta/ORM ni ejecutar un join entre servicios en el shell.
@@ -162,10 +166,10 @@ CSRF inválido 403, carga inválida 400 INVALID_BANNER (413 si excede el límite
 
 ## Semántica de emisión y reloj
 
-Core controla PREPARING, LIVE, RECONNECT_GRACE, ENDED; disponibilidad PLAYABLE, RECONNECTING, OFFLINE.
+Streaming controla PREPARING, LIVE, RECONNECT_GRACE, ENDED; disponibilidad PLAYABLE, RECONNECTING, OFFLINE.
 LIVE requiere HLS confirmado; PREPARING máximo 30 s. Cupo global cinco y uno por canal cuenta
 PREPARING/LIVE/gracia, se reserva atómicamente en SQL; sexto rechazo controlado. P1 una réplica de
-Core no requiere consenso distribuido, pero timers/callbacks concurren: serializar transiciones con
+Streaming no requiere consenso distribuido, pero timers/callbacks concurren: serializar transiciones con
 estado/generaciones y bloqueo/CAS SQL. Una pérdida abre una única gracia de 30 s; reconexión gana solo
 con HLS validado antes de 30 s. UTC deadline es informativo; propietario vigente usa monotónico.
 Reinicio no da nueva gracia: recuperar restante mediante estrategia durable probada o terminar sesión.
@@ -200,6 +204,13 @@ Todas las horas son UTC con `Z`, los IDs son opacos y los errores usan `{code, m
 requestId}`.
 
 **Taxonomy.** `GET /api/taxonomy` devuelve IDs estables activos y versión del conjunto; el cliente no crea IDs:
+
+Core implementa este catálogo en PostgreSQL/Flyway V3, conservando V1/V2. IDs semilla fijos
+`cat_`/`tag_` más 32 hexadecimales; orden por nombre NFKC/minúsculas (`Locale.ROOT`) e ID.
+Versión y valores de cada respuesta comparten una sentencia SQL. GET permite acceso anónimo,
+usa `Cache-Control: no-cache` y no publica ETag. Fallo SQL: `503 CORE_UNAVAILABLE`, nunca listas
+vacías de sustitución. `CatalogValues.find` es la interfaz local para tombstones;
+`CatalogContexts` y `CatalogSelections` publican resolución y validación tipada.
 
 ```json
 {"catalogVersion":12,"categories":[{"id":"cat_…","name":"Conversación","active":true}],"tags":[{"id":"tag_…","name":"Español","active":true}]}
@@ -259,8 +270,7 @@ completo y actualiza atómicamente antes de RTMP o durante LIVE; éxito devuelve
 Omitir un campo conserva su valor aunque su asociación vigente haya sido desactivada; si el cliente
 envía `categoryId` o `tagIds`, todos los IDs enviados deben seguir activos. `tagIds:[]` elimina todas
 las etiquetas; categoryId no se puede limpiar. Un patch vacío da 422 `EMPTY_PATCH`. Cambiar título/categoría/tags no
-cambia sessionId ni reloj del timeline; al guardar, Core confirma metadataVersion nuevo; las siguientes lecturas locales de canal y
-Discovery consultan el commit y lo reflejan dentro del máximo de 5 s, sin evento de replicación.
+cambia sessionId ni reloj del timeline; al guardar, Streaming confirma metadataVersion nuevo y outbox de proyección; lecturas autoritativas ven el commit y Discovery refleja la versión dentro de 5 s mediante inbox.
 
 **Error común.** Ejemplo de error de campo sin filtrar datos privados:
 
@@ -303,112 +313,133 @@ ordenar Discovery y mostrar audiencia aproximada; no controla autorización, pag
 mitigación antiabuso más fuerte (por ejemplo, telemetría de entrega HLS firmada y rate limits en edge)
 queda fuera de P1 y debe acordarse antes de usar la métrica para decisiones económicas o de seguridad.
 
-Core calcula el conteo desde leases no vencidos y conserva `countVersion`/`observedAtUtc` en su
-módulo de emisiones. Una lectura SQL de Discovery usa ese valor, no espera `ViewerCountChanged`.
-Actualizar/agrupar el snapshot como máximo cada segundo y observarlo al menos cada 5 s conserva la
-frescura de RNF; `viewerCountFresh=false` si la observación supera 5 s. ENDED invalida leases y excluye
-el stream en la misma autoridad. No se necesita reconstruir un índice Discovery ni comparar conteos
-contra eventos de ciclo de vida de otra base.
+Streaming calcula el conteo desde leases vigentes y conserva countVersion/observedAtUtc en su SQL. Cambios se agrupan como máximo 1/s; observación/publicación <=2 s en perfil normal y entrega/aplicación <=3 s para frescura total <=5 s. StreamDiscoverySnapshot transporta el snapshot público hacia la proyección Core. ENDED invalida leases en Streaming; su snapshot elimina la elegibilidad reproducible. Conteo observado >5 s se marca viewerCountFresh=false. La proyección requiere dedupe, versiones y reconstrucción conforme a la sección de eventos; countVersion nunca se compara con sessionVersion.
 
 ## Chat REST, WebSocket y contexto autorizado
 
-GET messages acepta limit entero 1–50 (default 50) y responde
-{sessionId,roomStatus,snapshotSequence,items:[message]} con los últimos N de la sesión en sequence
-ascendente; snapshotSequence es el último sequence asignado en la misma lectura atómica. Anónimo puede
-leer. Abrir WS y esperar chat.ready antes del historial; fusionar por (sessionId,sequence), sin
-huecos/duplicado visible. PREPARING devuelve 409 CHAT_NOT_OPEN; LIVE/gracia sala OPEN; ENDED
-READ_ONLY. Desconexión de Chat no interrumpe HLS. Origin WS debe ser exactamente un origen web
+GET messages acepta limit entero 1–50 (default 50), últimos N por sesión en sequence ascendente y
+snapshotSequence. Anónimo puede leer. Abrir WS y esperar chat.ready antes del historial; fusionar por
+(sessionId,sequence), sin huecos/duplicado visible. PREPARING devuelve 409 CHAT_NOT_OPEN; LIVE/gracia
+sala OPEN; ENDED READ_ONLY. Desconexión de Chat no interrumpe HLS. Origin WS debe ser el origen web
 configurado, también para anónimos; cookie no es suficiente para aceptar un Origin no permitido.
-
-Frames servidor: {type:"chat.ready",sessionId,roomStatus,lastSequence} tras registrar la conexión;
-{type:"message.created",message}; {type:"message.accepted",clientMessageId,messageId,sessionId,
-sequence,serverCreatedAtUtc} solo al emisor; {type:"chat.status",sessionId,roomStatus} cuando la
-sala cambia (p. ej. READ_ONLY). message = {messageId,sessionId,sequence,author:{userId,handle,
-displayName,avatarUri},text,serverCreatedAtUtc,streamOffsetMs,streamGeneration}.
 
 Cliente envía {type:"message.send",clientMessageId:UUID,text}. Normalizar NFC, recortar whitespace
 Unicode, 1–500 puntos de código; nunca HTML ejecutable. No aceptar userId/autor/hora/offset/sequence
 de cliente. Cuota global por cuenta: un mensaje aceptado en toda ventana móvil 1000 ms, sin burst.
-Dedupe (sessionId,userId,clientMessageId) mientras se retenga la sala; repetido devuelve mismo ACK.
+Dedupe (sessionId,userId,clientMessageId) mientras se retenga el mensaje; repetido devuelve mismo ACK.
 Verificar sesión vigente antes de recuperar un ACK para no revelar datos a credencial revocada.
 
 Para cada mensaje nuevo validado, Chat llama una sola vez a POST /internal/core/chat/message-context
 con {sessionId,clientMessageId} y X-Session-Credential (cookie opaca), X-Service-Name:chat y token privado.
-Core valida sesión de usuario vigente y autor localmente y obtiene estado/timeline actual de Streaming.
-Solo LIVE/gracia habilita writeAllowed=true; ENDED devuelve contexto autenticado con
+Core valida sesión de usuario y autor localmente; consulta GET /internal/streaming/sessions/{sessionId}/context para el estado/timeline autoritativo de cada mensaje. No lee la proyección Discovery para autorizar. Solo LIVE/gracia habilita writeAllowed=true; ENDED devuelve contexto autenticado con
 writeAllowed=false y denialCode=CHAT_READ_ONLY, PREPARING con CHAT_NOT_OPEN. Esto permite recuperar
 un ACK previo sin autorizar una escritura nueva después del fin. Devuelve {userId,handle,displayName,avatarUri,profileVersion,sessionId,streamGeneration,
 sessionVersion,availability,authorizedAtUtc,timelinePositionMs,timelineSampleVersion,writeAllowed,denialCode}. Esta última
 versión equivale al sessionVersion del snapshot. Sin perfil personalizado, displayName=handle/avatar=null;
-no existe una dependencia Profile HTTP cuyo timeout deba tolerarse. Errores de Core usan el envelope
-REST: Chat conserva los códigos STREAMING_UNAVAILABLE, TIMELINE_UNAVAILABLE y AUTH_REQUIRED; 401 es
-AUTH_REQUIRED, 404 SESSION_NOT_FOUND y cualquier otro fallo o timeout CORE_UNAVAILABLE.
+no existe una dependencia Profile HTTP cuyo timeout deba tolerarse.
 
-No cachear contexto para nuevos envíos. Cuota y almacenamiento pertenecen a Chat, no al endpoint Core.
+No cachear contexto para nuevos envíos. Cuota y persistencia pertenecen a Chat, no al endpoint Core.
 Chat, con el userId confiable, busca primero un resultado de dedupe existente: lo retorna aunque
 writeAllowed=false; si no hay resultado, verifica writeAllowed antes de cuota/commit. El mismo
 clientMessageId con texto canónico distinto produce MESSAGE_ID_CONFLICT, no otro mensaje.
 El contexto no es token reusable por el navegador ni permiso para otros mensajes/sesiones. Presupuestos
-objetivo a validar con carga: connect <=100 ms, total <=400 ms (hop Core→Streaming <=200 ms); sin retry
-automático del comando de envío. Si Core no responde, frame CORE_UNAVAILABLE y cero persistencia;
-Streaming inaccesible STREAMING_UNAVAILABLE; sesión inválida AUTH_REQUIRED; envío nuevo ENDED
-CHAT_READ_ONLY; PREPARING CHAT_NOT_OPEN; timeline inválido o ausente TIMELINE_UNAVAILABLE.
+objetivo a validar con carga: connect <=100 ms, respuesta <=300 ms, total <=400 ms; sin retry automático
+del comando de envío. El hop Core→Streaming tiene presupuesto total <=200 ms incluido en esos 400 ms; falla/timeout devuelve STREAMING_UNAVAILABLE y cero persistencia de mensaje nuevo. Si Core no responde, frame CORE_UNAVAILABLE y cero persistencia; sesión inválida
+AUTH_REQUIRED; envío nuevo ENDED CHAT_READ_ONLY; PREPARING CHAT_NOT_OPEN; timeline inválido TIMELINE_UNAVAILABLE.
 El timeout elegido debe revisarse con evidencia, manteniendo p95 de entrega Chat <1 s ni ocultar errores.
 
-Chat asigna hora de servidor y conserva el offset del contexto autorizado (no inventa un reloj del
-cliente). Rechaza contexto si el round-trip más tiempo hasta intentar guardar supera 500 ms, usando
+Chat asigna hora de persistencia y conserva el offset del snapshot autorizado (no inventa un reloj del
+cliente). Rechaza contexto si el round-trip más tiempo hasta intentar persistir supera 500 ms, usando
 monotónico local; devuelve TIMELINE_UNAVAILABLE y permite reintento con mismo clientMessageId. No
 extrapola permisos. Una escritura ya autorizada antes de logout/ENDED puede confirmar dentro de ese
-presupuesto si Chat aún no observó ENDED; toda autorización posterior observa revocación/fin. Esta
-carrera de operación en vuelo es explícita: no se promete transacción distribuida Core–Chat ni
-revocación retroactiva de commits.
+presupuesto; toda autorización posterior observa revocación/fin. Esta carrera de operación en vuelo
+es explícita: no se promete transacción distribuida Core–Chat ni revocación retroactiva de commits.
 
-Chat guarda mensaje, dedupe, secuencia y efecto de cuota atómicamente antes del ACK mediante un script
-Redis ([ADR-006](adr/ADR-006-chat-go-redis-efimero.md)), con AOF y fsync por escritura. Unicidad:
-(sessionId,sequence) por el ID del Stream y (sessionId,userId,clientMessageId) por el hash de dedupe.
-No persistir credencial de usuario. El chat es efímero: al conocer ENDED, la sala queda READ_ONLY y
-todas sus claves expiran a los 5 minutos; después el historial está vacío. Cada sala retiene como
-máximo los últimos 1000 mensajes.
+Chat persiste mensaje, dedupe, secuencia y efecto de cuota atómicamente antes del ACK; transacción o
+mecanismo equivalente probado en el almacén elegido. Índices requeridos: único (sessionId,sequence),
+único (sessionId,userId,clientMessageId), historial/ventana (sessionId,streamOffsetMs,sequence).
+El diseño final corregirá índices/tipos según motor; no persistir credencial de usuario. MongoDB es
+candidato, no evidencia de NoSQL implementado. Historial duradero es distinto del buffer de cincuenta;
+retención/privacidad futura se define antes de limpiar mensajes de replay.
 
+message.accepted al emisor incluye clientMessageId,messageId,sessionId,sequence,serverCreatedAtUtc;
 message.created publica snapshot del autor/texto/offset a conectados. Dedupe también en cliente.
-El Redis Stream de la sala es el outbox: cada réplica con conectados lo lee, así que una falla después
-de commit antes de broadcast no pierde la entrega. Nunca ACK de mensaje que se puede perder
-silenciosamente. Entrega de red puede repetirse y no es exactly-once. Cuota, orden y dedupe se
-comparten en Redis entre réplicas; no hay contadores en memoria.
+Una falla después de commit antes de broadcast se recupera con outbox/dispatcher de Chat o mecanismo
+durable equivalente: nunca ACK de mensaje que se puede perder silenciosamente. Entrega de red puede
+repetirse y no es exactly-once. Replica/fan-out necesita propietario/orden de sala y cuota compartida;
+no basta otra instancia con contadores en memoria.
 
-Errores tras Upgrade son frame {type:"error",clientMessageId,code,message,retryAfterMs?}; antes del
-Upgrade son HTTP con envelope REST: Origin no permitido 403 ORIGIN_NOT_ALLOWED, sesión inexistente
-404 SESSION_NOT_FOUND, PREPARING 409 CHAT_NOT_OPEN, Core/Streaming/Redis caídos 503. Códigos de
-frame: AUTH_REQUIRED, CHAT_READ_ONLY, CHAT_NOT_OPEN, CORE_UNAVAILABLE, STREAMING_UNAVAILABLE,
-TIMELINE_UNAVAILABLE, RATE_LIMITED (con retryAfterMs), MESSAGE_ID_CONFLICT, MESSAGE_EMPTY,
-MESSAGE_TOO_LONG, VALIDATION_ERROR y CHAT_UNAVAILABLE (almacén Chat caído, sin ACK). No convertir error
-de Core en anonimato aceptado ni en 404.
+Errores tras Upgrade son frame {type:"error",clientMessageId,code,retryAfterMs?}; antes del Upgrade
+son HTTP. RATE_LIMITED expone retryAfterMs. No convertir error de Core en anonimato aceptado ni en 404.
+GET snapshot privado de sesión al abrir/reconciliar incluye estado, generaciones, versión y timeline,
+sin identidad privada. Historia de sala ya conocida ENDED puede leerse sin Core mientras Chat conserva
+su estado; apertura de sesión desconocida con Core o Streaming caído falla 503, no “sala vacía”.
 
-GET snapshot privado /internal/core/chat/sessions/{sessionId} al abrir/reconciliar responde
-{sessionId,streamId,streamGeneration,sessionVersion,status,availability,timelinePositionMs}, sin
-identidad privada; sesión inexistente 404. Historia de sala ya conocida ENDED puede leerse sin Core
-mientras Chat conserva su estado; apertura de sesión desconocida con Core caído falla 503, no "sala vacía".
+## Eventos durables entre procesos P1
 
-## Único flujo de eventos de negocio entre procesos P1
-
-Streaming guarda cambios de sesión destinados a Chat en un outbox durable dentro del commit.
-Dispatcher llama POST /internal/chat/session-events con X-Service-Name:streaming, X-Service-Token y
-{eventId,eventType,schemaVersion,aggregateId,sequence,occurredAtUtc,producer:"streaming",
-payload:{streamId,sessionId,streamGeneration,sessionVersion,status,availability}}.
-aggregateId=session:{sessionId}, sequence=sessionVersion. Chat registra la inbox y aplica el estado en
-la misma operación atómica antes del ACK: primer evento 202 {accepted:true,duplicate:false,eventId};
-reintento idéntico 200 con duplicate=true; versión o generación vieja 202 con ignored=true y
-reason STALE_VERSION; reutilizar ID con payload distinto 409 EVENT_ID_CONFLICT; credencial inválida
-401; payload inválido 400. Aplica generación mayor y versión mayor dentro de esa sesión; READ_ONLY es
-terminal. Duplicado no reabre ni duplica sala. Estado de escritura siempre se consulta a Core por
-contexto, así que un evento tardío no concede permiso. Chat retiene eventIds 24 h.
+Streaming guarda cambios de sesión destinados a Chat en outbox SQL dentro del commit. Dispatcher llama
+POST /internal/chat/session-events con {eventId,eventType,schemaVersion,aggregateId,sequence,
+occurredAtUtc,producer:"streaming",payload:{streamId,sessionId,streamGeneration,sessionVersion,status,
+availability}}. aggregateId=session:{sessionId}, sequence=sessionVersion. Chat ACK después de inbox
+persistida; aplica generación mayor y versión mayor dentro de esa sesión. Se deduplica eventId;
+reutilizar ID/payload distinto da 409. Duplicado no reabre ni duplica sala. Estado de escritura siempre
+se consulta a Core por contexto, así que un evento tardío no concede permiso.
 
 Timeout por intento 1 s; retry de red/408/429/5xx con backoff 1/2/5/10 s, luego 10 s, hasta 15 min;
 respetar Retry-After, alerta deduplicada al atraso >5 s. Al agotar/permanente, retener en dead-letter
 durable para redrive con mismo ID; no TTL automático ni pérdida silenciosa. GET snapshot repara
-estado de sala conocida al reconectar. Como el chat es efímero, una pérdida total del almacén Chat
-vacía las salas activas; su estado se recupera por snapshot al reconectar los clientes.
+estado de sala conocida al reconectar; Streaming conserva outbox sin ACK y un snapshot de sesiones por IDs. Core delega snapshots de sala a Streaming; no usa Discovery como permiso.
+Para recuperar tras pérdida total de Chat, implementar enumeración paginada privada de sesiones con
+watermark/snapshot antes de declarar reconstrucción automática; no simularla con lookups puntuales.
 Un broker futuro requiere ADR y un problema medido; no bus universal inicial.
+
+## Contextos privados Core–Streaming
+
+Las rutas Core usan TLS privado y X-Service-Name:streaming/X-Service-Token con permiso por ruta. `CORE_STREAMING_SERVICE_TOKEN` autoriza únicamente los POST `owner-context` y `catalog-values`, y coincide con `STREAMING_CORE_SERVICE_TOKEN` del cliente Rust. La credencial opcional y distinta `CORE_STREAMING_CATALOG_SERVICE_TOKEN` autoriza solo el POST `catalog-values`; usarla en `owner-context` devuelve `401 SERVICE_UNAUTHORIZED` incluso con sesión válida. No hay permisos implícitos sobre otras rutas. Streaming transmite la cookie opaca en X-Session-Credential solo durante la llamada; no se persiste, registra ni incluye en fingerprint/eventos. Rutas privadas Streaming usan TLS y Authorization: Bearer específico por consumidor/operación. El proxy público bloquea /internal/*.
+
+**Owner context.** POST /internal/core/streaming/owner-context acepta {commandId:UUID,operation,channelId,categoryId?,tagIds?}, con operation en CREATE_CONFIG/PATCH_METADATA/ROTATE_KEY/STOP_SESSION. Core valida sesión vigente/cuenta activa y propiedad usando sus módulos locales. IDs presentes deben existir, estar activos y ser del tipo CATEGORY/TAG correspondiente; 0–5 tags distintos. CREATE exige categoría; PATCH solo valida campos explícitos. Core devuelve {commandId,operation,userId,channelId,authorizedAtUtc,catalogVersion,category?,tags?}; valores tienen {id,kind,name,active}. Otro owner 403, sesión inválida 401, desconocido 404, IDs inválidos 422, Core caído 503/timeout 504. Core nunca genera ni recibe streamKey.
+
+Streaming verifica que el contexto corresponde al comando/canal, no acepta owner del cliente y confirma en <=1 s desde comenzar la consulta usando monotónico local. Timeout/contexto vencido falla cerrado sin mutación; no cachear contextos entre comandos ni reintentar ciegamente. Rotación/stop resuelven primero el channelId desde su recurso persistido. Una revocación/inactivación posterior a autorización puede coincidir con un commit dentro de ese segundo; la siguiente autorización rechaza. No hay lock o transacción entre Core y Streaming.
+
+**Labels/tombstones.** POST /internal/core/streaming/catalog-values acepta {ids:[ID]} hasta 50 y devuelve {catalogVersion,values:[{id,kind,name,active}]}, incluidos tombstones de IDs asociados. Streaming conserva labels asociados en sus datos para lectura pública ante caída Core. Desactivar no borra ID/último label; un PATCH de título conserva asociaciones inactivadas y una edición explícita requiere contexto activo. No reinterpretar CATEGORY como TAG ni generar vocabulario propio.
+
+Detalles del proveedor Core: batch de 1–50 entradas; IDs no vacíos de hasta 64 caracteres.
+Se deduplican IDs exactos conservando la primera aparición; un ID desconocido rechaza todo el
+batch con `422 INVALID_TAXONOMY`/`fieldErrors.ids`, sin éxito parcial. Los IDs de categorías y tags
+son disjuntos: un registro SQL interno de identidad/tipo con clave única los reserva al insertar,
+en la misma transacción, incluyendo valores inactivos. No se impone un prefijo al consumidor.
+Categoría explícita nula/vacía es inválida; `tagIds: []` es válido y `null` no.
+Owner context deduplica tags antes del máximo de cinco; campos ausentes no aparecen en la respuesta.
+El cliente Rust envía selecciones sin duplicados. Las dos respuestas privadas usan `no-store`.
+Credencial de servicio ausente/incorrecta: 401; entrada por puerto público: 404 aun con token válido.
+JSON/operación/commandId malformados: 400; error SQL: 503. El envelope conserva
+`code,message,requestId,fieldErrors`, sin SQL ni secretos. Configuración/TLS en el runbook Core.
+
+**Sesión para Chat.** GET /internal/streaming/sessions/{sessionId}/context devuelve {streamId,sessionId,streamGeneration,sessionVersion,status,availability,timelinePositionMs,timelineSampledAtUtc}; reloj actual del owner, sin permiso de usuario. PREPARING y ENDED son respuestas de estado, no una sesión LIVE inventada; desconocida 404, owner/clock no verificable 503. Core compone writeAllowed y autor solo para el mensaje solicitado. El contexto Core se entrega después de esas lecturas, con presupuesto agregado de Chat; no hay atomicidad entre revocación Core y fin Streaming.
+
+**Bootstrap canal.** POST /internal/streaming/channels/snapshots acepta {channelIds:[ID]} hasta 50; devuelve un resultado por ID con {channelId,configured,stream,session,observedAtUtc}. configured=false confirma ausencia; si true, stream/session siguen los DTO públicos autoritativos de Streaming, sin secretos. Core usa batch de un canal para bootstrap y preserva cuenta/perfil/canal ante falla Streaming con streamStatusFresh=false/availability=UNKNOWN. Discovery hace búsqueda/ranking sobre proyección SQL, sin llamadas por fila.
+
+## Proyección pública Streaming → Discovery
+
+POST /internal/core/discovery/stream-events recibe el envelope {eventId,eventType:"StreamDiscoverySnapshot",schemaVersion:1,aggregateId:"stream:<streamId>",sequence:projectionVersion,occurredAtUtc,producer:"streaming",payload}. El payload completo es:
+
+```json
+{"streamId":"str_example","channelId":"chn_example","projectionVersion":7,"discoveryPosition":41,"metadataVersion":3,"title":"Conversación","category":{"id":"cat_example","name":"Conversación"},"tags":[],"sessionId":"ses_example","streamGeneration":2,"sessionVersion":4,"status":"LIVE","availability":"PLAYABLE","startedAtUtc":"2026-10-03T20:00:00Z","stateObservedAtUtc":"2026-10-03T20:00:02Z","viewerCount":8,"countVersion":5,"viewerCountObservedAtUtc":"2026-10-03T20:00:02Z"}
+```
+
+Antes de primera sesión: sessionId/sessionVersion/startedAtUtc son null, generación 0, OFFLINE/OFFLINE y conteo 0. ENDED conserva sessionId/generaciones/versiones, availability=OFFLINE y conteo 0. RECONNECT_GRACE se proyecta como status=LIVE/availability=RECONNECTING. No payload contiene ingest key/hash/endpoint privado, user email, credencial, lease token, permisos ni timeline periódico.
+
+Streaming guarda configuración/estado/conteo y la intención de snapshot en la misma transacción. Cambios de metadata/estado producen snapshot; para todas las configuraciones se observa/publica también sin cambios con cadencia <=2 s, incluidos OFFLINE/ENDED. Conteo cambia como máximo 1/s y se observa con margen <=2 s; sin sesión activa se observa cero. projectionVersion crece por stream en cada snapshot, independientemente de metadataVersion/sessionVersion/countVersion. discoveryPosition crece globalmente en orden de commits, serializado con fila SQL de secuencia transaccional; no usar una secuencia SQL asignada antes de commit como watermark. La outbox tiene delivery/ACK independiente por consumidor.
+
+Core valida envelope/IDs/tipos/versiones y guarda inbox+payload antes de responder 202; mismo eventId/payload devuelve 200; ID reutilizado con contenido distinto 409; inválido 422. Aplicación SQL e indicador procesado son atómicos. Solo projectionVersion mayor reemplaza toda la fila; duplicados/versiones viejas se ignoran sin regresión. Igual versión con contenido distinto es conflicto observable y DLQ. Canal aún no resuelto conserva inbox pendiente, no inventa cuenta/canal ni bloquea su registro. Core combina proyección con los datos públicos locales y reconoce catálogo/tombstones; no modifica autoridad Streaming.
+
+En el perfil normal, desde commit de cambio hasta consulta visible <=5 s: observación/publicación <=2 s y transporte/aplicación <=3 s. statusFresh usa stateObservedAtUtc y solo es true si edad <=5 s; viewerCountFresh usa viewerCountObservedAtUtc con el mismo límite. Guardar received/appliedAtUtc no rejuvenece observaciones del productor. La ausencia de fila de una configuración no acredita OFFLINE: channels devuelve UNKNOWN/statusFresh=false; ningún registro necesita esperar una proyección. Un corte completo confirma ausencia solo a capturedAtUtc y pierde frescura a los 5 s; la reconciliación de ausencia también debe sostener el presupuesto normal sin HTTP por fila. Atraso/desconexión excluye filas no confirmadas de streams y muestra availability=UNKNOWN en channels, nunca OFFLINE inventado. Las filas ENDED no son reproducibles aunque un snapshot viejo llegue después. Medir edad de snapshot/cola, procesamiento y lag; alerta deduplicada cuando supera 5 s.
+
+Entrega HTTPS: timeout 1 s; red/408/429/5xx reintenta 1/2/5/10 s y luego cada 10 s, respeta Retry-After y conserva eventId/payload durante 15 min. Cualquier 2xx confirma aceptación durable, no garantiza aplicación. 409/422 u otro 4xx permanente o ventana agotada pasan a DLQ durable sin TTL/retry automático; operador redrive con mismo ID/payload y nueva ventana o cierre justificado. Reconciliación puede restaurar una fila desde un snapshot más nuevo sin fabricar un ACK del delivery fallido. Caída de Discovery no bloquea LIVE/HLS ni entrega de lifecycle a Chat.
+
+**Reconstrucción/reconciliación.** POST /internal/streaming/discovery/snapshots acepta {limit:1..50,cursor?}. Primera página materializa un corte consistente de todas las configuraciones públicas y última sesión, incluidos OFFLINE/ENDED; responde {snapshotId,watermark,capturedAtUtc,expiresAtUtc,items,nextCursor}. Cursor opaco ligado a snapshotId/limit; siguientes páginas comparten el mismo corte y watermark. El snapshot dura 5 min; vencido 410 SNAPSHOT_EXPIRED obliga a comenzar otro corte. watermark es discoveryPosition del mismo corte SQL, nunca posición de un evento sin commit.
+
+Core primero habilita recepción durable de eventos y arma staging con las páginas. Aplica eventos con discoveryPosition>watermark, respetando projectionVersion y conservando los más nuevos ya recibidos; filas ausentes solo se retiran dentro de ese corte, nunca por página vacía o timeout. Publica atómicamente la proyección reconciliada, con inbox/cursor de aplicación persistidos; recepción continúa durante rebuild. Reconstrucción fallida conserva la proyección anterior y su frescura real. Snapshot expirado reinicia sin perder inbox. Reconciliación periódica, incluida confirmación de ausencia de configuración, no debe exceder el presupuesto normal ni afirmar frescura desde una copia vieja. La aceptación incluye actualizaciones/ENDED concurrentes, respuesta perdida, duplicados, desorden y reinicio de consumidor.
 
 ## Errores, compatibilidad y fronteras
 
@@ -421,19 +452,17 @@ de retiro. Clases de aplicación locales no se publican como contrato entre leng
 
 ## Chat Replay futuro
 
-P1 no conserva el chat después de la retención de 5 minutos posterior al fin
-([ADR-006](adr/ADR-006-chat-go-redis-efimero.md)). Una fase de Replay deberá definir, en un ADR del
-dueño Chat, dónde persistir mensaje/sesión/autor snapshot/texto/timestamp/sequence/offset y
-supresiones futuras. Core conserva vínculo VOD–sesión y política de acceso; Media/Core publican
-mapping temporal al VOD. Chat servirá ventanas/cursor por contrato, sin copia de tablas ni un
-servicio Replay separado de moderación.
+Chat conserva mensaje/sesión/autor snapshot/texto/timestamp/sequence/offset y supresiones futuras.
+Core conserva vínculo VOD–sesión y política de acceso. Media/Core publican mapping temporal al VOD;
+Chat sirve ventanas/cursor por contrato cuando la fase lo implemente, sin copia de tablas ni un servicio
+Replay separado de moderación. Retención, borrado y sincronía se acordarán en esa fase.
 
 ## Contratos de consulta y reglas de filtros
 
 Discovery expone una única entrada `POST /api/discovery/graphql` con Content-Type
 `application/json`; el body contiene `query`, `operationName` y `variables`. El shell usa consultas
 GraphQL versionadas por el módulo; P1 requiere las operaciones `streams` y `channels` con la semántica
-de abajo. GraphQL es la interfaz pública conservada; los resolvers son consultas locales dentro de Core.
+de abajo. GraphQL es la interfaz pública conservada; resolvers combinan proyección pública Streaming y datos locales de Core mediante SQL acotado.
 No se mantiene un runtime Kotlin separado ni llamadas HTTP por fila. La librería concreta requiere ADR.
 
 ```graphql

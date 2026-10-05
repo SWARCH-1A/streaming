@@ -52,7 +52,7 @@ roles administrativos y portada del canal. Recuperación de contraseña se defin
 - CA-05: propietario edita su recurso; otro usuario no puede. Perfil self obtiene el userId del principal, sin aceptar propietario enviado por el cliente.
 - CA-06: password no reversible ni en logs/respuestas; solo hash de sesión en servidor. Perfil/lookup/canal públicos excluyen email, hash y credenciales; inexistente/no activo da 404 uniforme. Fallo SQL devuelve 503.
 - CA-07: cinco fallos de login/identificador/15 min y cincuenta/IP/15 min; diez claves nuevas de registro/IP/hora. 429 RATE_LIMITED con Retry-After; reintento de la misma clave no consume otra operación; sin bloqueo permanente.
-- CA-08: módulos Core validan sesión localmente; Chat obtiene un contexto por mensaje sin caché de permisos. Core caído devuelve CORE_UNAVAILABLE sin persistir mensajes nuevos.
+- CA-08: módulos Core validan sesión localmente; Chat obtiene un contexto por mensaje sin caché de permisos. Core caído devuelve CORE_UNAVAILABLE sin persistir mensajes nuevos; Streaming valida comandos de owner mediante contexto privado Core y falla cerrado si no responde.
 - CA-09: perfil inicial visible en el commit: displayName=handle, bio vacía, avatar nulo y profileVersion=0. No requiere proyecciones ni eventos de activación.
 - CA-10: PATCH solo permite displayName de 1–50 caracteres, bio hasta 300 y avatarUploadId; campos omitidos se conservan, bio:null limpia y avatarUploadId:null retira avatar. PATCH vacío se rechaza; no-op conserva versión; cambio real incrementa profileVersion. El handle no cambia.
 - CA-11: avatar JPEG/PNG/GIF decodificado real, <=10 MB y ancho/alto >=200 px. Inválido conserva el avatar anterior. Upload ligado al propietario, un uso y vencimiento de 15 min.
@@ -73,14 +73,13 @@ compartido o adaptador de almacenamiento de objetos mediante ADR.
 
 ## 8. Dependencias y contratos
 
-Canales crea el canal inicial mediante interfaz local y comparte la transacción. Emisiones valida
-principal/propiedad localmente. Canal y Consultas leen DTO/vistas públicas sin credenciales. Chat obtiene
-principal, snapshot público y estado/timeline en un contexto Core; no consulta un servicio Profile.
+Canales crea el canal inicial mediante interfaz local y comparte la transacción. Streaming Rust solicita contexto Core nuevo por comando protegido; Cuentas/Canales/Catálogo lo validan localmente en Core. Canal y Consultas leen DTO/vistas públicas sin credenciales. Chat obtiene
+principal y snapshot público local, más estado/timeline Streaming en un contexto Core; no consulta un servicio Profile.
 Las rutas /api/identity/* y /api/profile/* están definidas en contratos_modelo_datos.md.
 
 ## 9. Decisiones y preguntas abiertas
 
-Autenticación y perfil pertenecen a Cuentas, según ADR-003. La verificación de email y recuperación de
+Autenticación y perfil pertenecen a Cuentas, según ADR-005. La verificación de email y recuperación de
 contraseña quedan fuera de P1. No se introduce JWT ni una dependencia de red para validar módulos Core.
 
 ## 10. Verificación

@@ -41,8 +41,8 @@ pagos, VOD, moderación avanzada, subtítulos y otras capacidades se conservan f
 | VOD | Contenido de una transmisión pasada almacenado para reproducirse bajo demanda; todo VOD está fuera de P1. |
 | Reverse proxy | Componente de entrada que enruta HTTPS, API, WebSocket y media a upstreams definidos; no posee lógica de dominio. |
 | Módulo | Responsabilidad interna con repositorio/interfaz; puede compartir proceso y transacción con otros módulos Core. |
-| Core | Núcleo de negocio modular: cuentas, canales, catálogo, control de emisiones y consultas; un proceso y PostgreSQL. |
-| Servicio desplegable | Runtime/release/health/escala propios; solo Core, Chat y Media como unidades backend. |
+| Core | Núcleo de negocio modular: cuentas, canales, catálogo y Discovery; un proceso y PostgreSQL con proyección pública Streaming. |
+| Servicio desplegable | Runtime/release/health/escala propios; Core, Streaming Rust, Chat y Media como unidades backend. |
 | Integration | Trabajo de contratos/configuración/evidencia; no servicio de negocio ni coordinador global. |
 | SDD | Especificación de diseño de software con once secciones; agrupa requisitos de responsabilidad coherente. |
 | RF/RNF | Requisito funcional/no funcional; `RF-NNN` y `RNF-NNN` son IDs globales definidos en `catalogo_requisitos.md`. |

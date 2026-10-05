@@ -1,0 +1,9 @@
+# Isolated local development only. Port 8082 is reachable on the Compose network,
+# never published to the host. Streaming joins this network and uses http://core:8082.
+services:
+  core:
+    environment:
+      CORE_INTERNAL_ENABLED: "true"
+      CORE_INTERNAL_PORT: "8082"
+      CORE_INTERNAL_DEVELOPMENT_HTTP: "true"
+      CORE_STREAMING_SERVICE_TOKEN: ${CORE_STREAMING_SERVICE_TOKEN:?Run init-env.ps1}
