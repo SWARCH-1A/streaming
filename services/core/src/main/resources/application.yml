@@ -9,7 +9,7 @@ spring:
     username: ${CORE_DB_USER:core}
     password: ${CORE_DB_PASSWORD}
   flyway:
-    schemas: core,identity,profile,channels,taxonomy
+    schemas: core,identity,profile,channels,taxonomy,watchparty
     default-schema: core
   servlet:
     multipart:
@@ -43,3 +43,7 @@ profile:
 channels:
   storage-root: ${CHANNELS_BANNER_STORAGE}
   banner-public-base-url: ${CHANNELS_BANNER_PUBLIC_BASE:/api/channels/banners}
+watchparty:
+  streaming-base-url: ${WATCHPARTY_STREAMING_BASE_URL:http://localhost:8080}
+  streaming-connect-timeout: PT1S
+  streaming-read-timeout: PT2S

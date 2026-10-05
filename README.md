@@ -11,7 +11,7 @@ SPEC y ADR del repositorio son la fuente normativa; Plane registra el trabajo de
 
 | Unidad | Responsabilidad |
 | --- | --- |
-| Core | Java/Spring y PostgreSQL: Cuentas (autenticación y perfil), Canales, Catálogo y Discovery con proyección de emisiones. Un build, seguridad común y transacciones locales. |
+| Core | Java/Spring y PostgreSQL: Cuentas (autenticación y perfil), Canales, Catálogo y Discovery con proyección de emisiones, y Watch Party (capacidad futura, SPEC-14). Un build, seguridad común y transacciones locales. |
 | Streaming | Rust y PostgreSQL privado: configuración, claves, sesiones, cupos, clock, leases y outbox hacia Discovery/Chat. |
 | Chat | Salas, mensajes, historial, cuota global, secuencia y distribución WebSocket; persistencia propia. |
 | Media | Ingesta RTMP, reproducción HLS y procesamiento audiovisual; adaptador Rust al control de Streaming. |

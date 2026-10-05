@@ -26,6 +26,7 @@ sessionId; RECONNECTING informa pérdida temporal sin anunciar playback confirma
 | /api/channels/* | Core | Canal/por handle/por owner, edición/banner/CSRF |
 | /api/streams/* | Streaming | Configuración/sesión/metadata/leases y stop; secretos excluidos de lectura pública |
 | /api/taxonomy | Core | Catálogo público/versionado |
+| /api/watch-parties/* | Core | Sesiones de visualización conjunta (SPEC-14); cookie/CSRF; el código de acceso no se registra en logs |
 | /api/discovery/graphql | Core | GraphQL SQL local con proyección pública Streaming, límites de costo/cuerpo/rate |
 | /api/chat/sessions/*/messages | Chat | Historial 1–50, anónimo, orden y snapshotSequence |
 | /realtime/chat/sessions/{sessionId} | Chat | Upgrade, cookie, Origin permitido incluso para anónimos; errores WS correctos |
