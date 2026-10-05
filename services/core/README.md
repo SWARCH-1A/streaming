@@ -18,6 +18,7 @@ Código bajo `src/main/java/streaming/core`:
 - `channels`: creación inicial transaccional, edición propia, portadas y bootstrap público por handle/owner, con vistas SQL públicas de Cuentas.
 - `taxonomy`: catálogo público activo/versionado, semilla SQL, tombstones y validación local de IDs.
 - `discovery`: proyección/consultas pendientes. Streaming vive en su servicio Rust (PR #7).
+- `watchparty`: sesiones de visualización conjunta (capacidad futura, SPEC-14): hasta 4 transmisiones, código de acceso con hash y lectura del estado en Streaming. Ver su [README](src/main/java/streaming/core/watchparty/README.md).
 - `security`, `api`: infraestructura común, sin orquestación de casos de uso de dominio.
 
 El registro pertenece a Cuentas: abre una transacción y llama interfaces locales de inicialización
@@ -48,6 +49,7 @@ completo de SPEC-03/P1 siguen pendientes. El contexto privado de propietario est
 | PROFILE_AVATAR_PUBLIC_BASE | URI de avatar; default /api/profile/avatars |
 | CHANNELS_BANNER_STORAGE | Obligatoria; directorio persistente de portadas, separado de avatares |
 | CHANNELS_BANNER_PUBLIC_BASE | URI de portada; default /api/channels/banners |
+| WATCHPARTY_STREAMING_BASE_URL | Base HTTP de la API pública de Streaming que consulta Watch Party; default http://localhost:8080. Dentro de Compose debe apuntar al servicio Streaming; los timeouts son 1 s de conexión y 2 s de lectura |
 
 Una réplica Core. Varias requieren almacenamiento de imágenes compartido consistente o nuevo adaptador
 por ADR. El contenedor usa UID 10001 y volúmenes `/data/avatars` y `/data/banners`. Persistir PostgreSQL y objetos juntos;
@@ -130,7 +132,7 @@ y Discovery cuando se implementen. Las pruebas del proveedor no cierran esa acep
 ## Base nueva e historiales anteriores
 
 `db/migration/V1__core.sql` es el baseline de una **base nueva**. El historial Flyway se ubica en
-schema `core`; las tablas tienen schemas `identity`, `profile`, `channels` y `taxonomy`.
+schema `core`; las tablas tienen schemas `identity`, `profile`, `channels`, `taxonomy` y `watchparty`.
 `V2__channel_editing_and_banners.sql` amplía la descripción a 500 caracteres y agrega clave/permisos
 de portada; se aplica tanto a bases nuevas como a una base Core con V1 sin modificar su checksum.
 `V3__taxonomy_catalog.sql` agrega categorías, etiquetas, versión y vistas públicas, con IDs semilla estables;
@@ -142,6 +144,8 @@ evoluciona mediante una migración nueva revisada; no modificar migraciones apli
 Las migraciones V1 de
 los ejecutables anteriores no se concatenan ni se cambian sobre una base aplicada. Flyway debe
 rechazar schemas no vacíos sin historial Core; no activar baseline-on-migrate ni ejecutar clean.
+`V5__watchparty.sql` crea el esquema `watchparty` (sesiones, miembros y transmisiones referenciadas) y se aplica sobre V4 sin
+modificar V1–V4 ni sus datos.
 
 Si existen datos de los prototipos anteriores, el traslado se hace como una migración de datos
 explícita antes del cambio de despliegue:

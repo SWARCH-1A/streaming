@@ -38,11 +38,14 @@ public class CoreSecurityConfiguration {
                             "/api/identity/csrf","/api/profile/csrf","/api/profile/me","/api/profile/users/**",
                             "/api/profile/avatars/**","/api/channels/by-handle/*","/api/channels/by-owner/*",
                             "/api/channels/csrf","/api/channels/banners/*","/api/taxonomy",
+                            "/api/watch-parties/csrf","/api/watch-parties/*",
                             "/actuator/health","/actuator/health/**","/actuator/info").permitAll()
                     .requestMatchers(HttpMethod.POST,"/api/identity/registrations","/api/identity/sessions",
-                            "/api/profile/me/avatar-uploads","/api/channels/*/banner-uploads").permitAll()
+                            "/api/profile/me/avatar-uploads","/api/channels/*/banner-uploads",
+                            "/api/watch-parties","/api/watch-parties/join","/api/watch-parties/*/streams",
+                            "/api/watch-parties/*/access-code/rotate","/api/watch-parties/*/close").permitAll()
                     .requestMatchers(HttpMethod.PATCH,"/api/profile/me","/api/channels/*").permitAll()
-                    .requestMatchers(HttpMethod.DELETE,"/api/identity/sessions/current").permitAll()
+                    .requestMatchers(HttpMethod.DELETE,"/api/identity/sessions/current","/api/watch-parties/*/streams/*").permitAll()
                     .anyRequest().denyAll())
             .exceptionHandling(e->e.accessDeniedHandler((request,response,error)-> {
                 response.setStatus(403); response.setContentType("application/json");

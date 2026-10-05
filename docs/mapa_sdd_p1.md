@@ -18,12 +18,14 @@ Una asignación personal no cambia la frontera arquitectónica.
 | SPEC-11 | Integración: flujos | tests/integration | Registro local, Core–Streaming, Streaming–Chat y Streaming–Media |
 | SPEC-12 | Integración: Web y proxy | apps/web/src/shell, infra/reverse-proxy | Rutas, auth, HTTP/WS/HLS |
 | SPEC-13 | Integración: despliegue y evidencia | infra/local, tests/e2e | Recorrido y perfil de carga |
+| SPEC-14 | Core / Watch Party (capacidad futura, [SPEC](spec-futuro/spec_14_watch_party.md)) | services/core; watchparty | apps/web/src/modules/watch-party |
 
 ## Capacidades futuras
 
 | Módulo Plane | Dueño inicial y alcance |
 | --- | --- |
 | Core / Monetización | RF-038…RF-045: planes, pagos, suscripciones y acceso premium en un módulo cohesivo Core. Proveedor/adaptador por ADR de la fase. |
+| Core / Watch Party | RF-046…RF-051: sesiones de visualización conjunta (membresía, transmisiones referenciadas, código de acceso) en un módulo Core; el estado de cada transmisión lo lee de Streaming. SPEC-14 y [ADR-007](adr/ADR-007-watch-party-en-core.md). |
 | Media / Procesamiento audiovisual | RTMP/HLS en P1; RF-027…RF-030, RF-056…RF-062 y RF-063…RF-065: procesamiento de calidades, grabación y pistas, con metadata de emisión/control Streaming y biblioteca futura/Core. |
 
 Las otras capacidades y dependencias se definen en [fases futuras](fases_futuras.md) y el catálogo;
@@ -56,5 +58,6 @@ comparten proceso y stack; las de capacidades futuras organizan trabajo sin adel
 | Chat | Servicio independiente: salas por sessionId, mensajes, WebSocket, historial, dedupe, secuencia, cuota global por cuenta y entrega recuperable. RF-031…RF-035, SPEC-05 en P1; moderación RF-036…RF-037 y Replay futuros en el mismo dueño. Lectura anónima; un contexto Core por mensaje nuevo con estado/timeline actual Streaming, y lifecycle Rust; sin autorización cacheada. Go/MongoDB candidatos sujetos a ADR; persistencia antes de ACK, cuota/orden/fan-out consistentes entre réplicas. Caída Chat no corta HLS. |
 | Integración | Trabajo transversal de contratos, propiedad de datos, flujos Core–Streaming, Streaming–Chat/Media, Web/proxy, despliegue, recuperación y evidencia E2E. SPEC-09 y sus hijos SPEC-10…SPEC-13. Mantiene coherencia y restricciones SQL/NoSQL, lenguajes y conectores. No es servicio ni orquestador de casos de uso; la lógica permanece en el dueño del dominio. |
 | Core / Monetización | Capacidad futura RF-038…RF-045: planes, pagos, suscripciones y derechos premium como módulo cohesivo Core. Proveedor/adaptador, moneda, cancelación/devolución y reconciliación por SPEC/ADR de la fase. Intentos/webhooks firmados e idempotentes; estado local transaccional. No implementado en P1 ni stacks/servicios separados por pagos, suscripciones y permisos. Extraer conjuntamente solo con evidencia operativa/escala/release. |
+| Core / Watch Party | Capacidad futura RF-046…RF-051, implementada de forma anticipada como módulo Core `watchparty` (SPEC-14, ADR-007): crear/cerrar una sesión de visualización conjunta, agregar/retirar hasta 4 transmisiones reproducibles, entrar con código de acceso y leer cada transmisión con el estado de Streaming y los datos públicos de su canal. PostgreSQL Core y transacción local; sin runtime, eventos ni sincronización de reproducción. RF-049 se cumple con varios reproductores, sin mezcla audiovisual. |
 | Media / Procesamiento audiovisual | Unidad multimedia: ingesta RTMP, HLS, señales y verificación de reproducción en P1, con control de negocio Streaming Rust según SPEC-04. Calidades RF-027…RF-030, captura/procesado VOD RF-056…RF-062 y pistas RF-063…RF-065 futuras. Metadata de emisión y acceso pertenecen a Streaming; catálogo/identidad a Core. MediaMTX/adaptador Rust por ADR-005; workers pesados se separan de ingest cuando lo justifiquen carga/fallo. Sin servicio por calidad o idioma. |
 | Web / Accesibilidad | Criterios transversales de la única aplicación Web: teclado, semántica, foco, contraste y control de autodesplazamiento Chat. SPEC-08 y RNF-035…RNF-036; aplica a formularios, canal, player, chat y búsqueda. Comparte responsable de Catálogo por asignación del equipo, sin mezclar sus fronteras. No servicio backend ni microfrontend. Subtítulos RF-063…RF-065 son una capacidad futura de Core/Media. |

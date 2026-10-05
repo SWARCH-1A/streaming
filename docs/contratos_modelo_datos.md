@@ -15,7 +15,11 @@ erDiagram
   STREAM_CONFIG ||--o{ STREAM_SESSION : runs
   STREAM_SESSION ||--o{ VIEWER_LEASE : counts
   STREAM_SESSION ||--o{ CHAT_MESSAGE : references_by_contract
+  ACCOUNT ||--o{ WATCH_PARTY : owns
+  WATCH_PARTY ||--o{ WATCH_PARTY_STREAM : lists_by_reference
 ```
+
+WATCH_PARTY y WATCH_PARTY_STREAM (SPEC-14, capacidad futura) están en PostgreSQL Core; WATCH_PARTY_STREAM guarda `streamId`/`channelId` como referencia opaca de contrato, sin FK hacia Streaming.
 
 ACCOUNT, PROFILE, CHANNEL, CATEGORY y TAG están en PostgreSQL Core, con FK locales. STREAM_CONFIG, STREAM_SESSION y VIEWER_LEASE pertenecen al PostgreSQL privado de Streaming Rust. Las líneas entre CHANNEL/CATEGORY/TAG y STREAM_CONFIG representan referencias opacas de contrato, no FK entre bases. CHAT_MESSAGE pertenece a Chat/NoSQL. Discovery posee inbox y tablas de proyección pública de emisión en Core; no es autoridad de estado, metadata, permisos ni conteo.
 
@@ -25,6 +29,7 @@ ACCOUNT, PROFILE, CHANNEL, CATEGORY y TAG están en PostgreSQL Core, con FK loca
 | Cuentas/Profile dentro de Core | displayName, bio, avatar y profileVersion | Canal/consultas locales; Chat recibe snapshot autorizado |
 | Canales dentro de Core | channelId, ownerUserId, descripción/banner y channelVersion | Consultas locales; contexto de owner Core para Streaming |
 | Catálogo dentro de Core | categorías/tags con IDs, estado y catalogVersion | Consultas locales; contexto tipado y resolución de tombstones para Streaming |
+| Watch Party dentro de Core (SPEC-14) | sesión de visualización conjunta, miembros, transmisiones referenciadas y hash del código de acceso | Web; lee estado de transmisión de Streaming y datos públicos de canal por interfaz local |
 | Streaming Rust | StreamConfig, secretos ingest, sesiones, cupos, clocks y leases/conteo | Consultas/player, contexto Chat y contratos Media |
 | Discovery en Core | inbox y proyección pública de emisiones | GraphQL; reconstruible desde Streaming |
 | Chat | mensajes, secuencia por sala, dedupe y cuota por cuenta | Web, replay/moderación futuros a través del dueño |
@@ -65,6 +70,9 @@ Las interfaces requieren schema neutro, correlación y presupuesto acotado.
 | PATCH /api/channels/{channelId}; POST /api/channels/{channelId}/banner-uploads | Core / Web | Propietario; descripción/banner, versión y reglas de imagen |
 | GET /api/channels/banners/{key}; GET /api/channels/csrf | Core / Web | Objeto público inmutable; token de la misma seguridad CSRF Core |
 | GET /api/taxonomy | Core / Web | IDs/labels activos y versión; validación local para Core y contexto privado para Streaming |
+| POST /api/watch-parties; GET /api/watch-parties/{partyId}; POST /api/watch-parties/join | Core / Web | Crear, leer y entrar con código a una sesión de visualización conjunta; sesión por cookie y CSRF; detalle en «Watch Party» |
+| POST /api/watch-parties/{partyId}/streams; DELETE /api/watch-parties/{partyId}/streams/{streamId} | Core / Web | Solo propietario; máximo 4 transmisiones reproducibles verificadas con Streaming; retiro idempotente |
+| POST /api/watch-parties/{partyId}/access-code/rotate; POST /api/watch-parties/{partyId}/close; GET /api/watch-parties/csrf | Core / Web | Propietario rota el código o cierra; token CSRF de la misma seguridad Core |
 | POST/GET /api/channels/{channelId}/streams; PATCH /api/streams/{streamId} | Streaming / Web | Configuración persistente; contexto nuevo Core valida identidad/owner/catálogo |
 | POST /api/streams/{streamId}/ingest-keys/rotate | Streaming / Web | Solo sin sesión activa; secreto una vez |
 | GET /api/streams/{streamId}; GET/DELETE /api/streams/sessions/{sessionId} | Streaming / Web/player | Metadata/estado autoritativo y stop owner; no ingest secret |
@@ -440,6 +448,43 @@ Entrega HTTPS: timeout 1 s; red/408/429/5xx reintenta 1/2/5/10 s y luego cada 10
 **Reconstrucción/reconciliación.** POST /internal/streaming/discovery/snapshots acepta {limit:1..50,cursor?}. Primera página materializa un corte consistente de todas las configuraciones públicas y última sesión, incluidos OFFLINE/ENDED; responde {snapshotId,watermark,capturedAtUtc,expiresAtUtc,items,nextCursor}. Cursor opaco ligado a snapshotId/limit; siguientes páginas comparten el mismo corte y watermark. El snapshot dura 5 min; vencido 410 SNAPSHOT_EXPIRED obliga a comenzar otro corte. watermark es discoveryPosition del mismo corte SQL, nunca posición de un evento sin commit.
 
 Core primero habilita recepción durable de eventos y arma staging con las páginas. Aplica eventos con discoveryPosition>watermark, respetando projectionVersion y conservando los más nuevos ya recibidos; filas ausentes solo se retiran dentro de ese corte, nunca por página vacía o timeout. Publica atómicamente la proyección reconciliada, con inbox/cursor de aplicación persistidos; recepción continúa durante rebuild. Reconstrucción fallida conserva la proyección anterior y su frescura real. Snapshot expirado reinicia sin perder inbox. Reconciliación periódica, incluida confirmación de ausencia de configuración, no debe exceder el presupuesto normal ni afirmar frescura desde una copia vieja. La aceptación incluye actualizaciones/ENDED concurrentes, respuesta perdida, duplicados, desorden y reinicio de consumidor.
+
+## Watch Party (SPEC-14, capacidad futura)
+
+Módulo Core ([ADR-007](adr/ADR-007-watch-party-en-core.md)). Todas las rutas usan la cookie de sesión de Core;
+las mutaciones exigen `X-XSRF-TOKEN` (`GET /api/watch-parties/csrf`). IDs públicos `wp_<32 hex>`.
+El `accessCode` es un secreto opaco de 256 bits: Core guarda solo su SHA-256 y lo devuelve una única vez en la
+creación y en cada rotación. Ningún otro payload lo incluye (`accessCode:null`).
+
+`POST /api/watch-parties` con `{"title":"Final del torneo"}` (1–100 puntos de código, recortado, sin control)
+responde `201` con la sesión. `POST /api/watch-parties/{partyId}/streams` con `{"streamId":"str_…"}` responde
+`201`; `POST /api/watch-parties/join` con `{"accessCode":"…"}`, `POST …/access-code/rotate` y `POST …/close`
+responden `200`; `DELETE …/streams/{streamId}` responde `200` también cuando la transmisión ya no estaba.
+
+```json
+{"partyId":"wp_…","title":"Final del torneo","status":"OPEN","partyVersion":3,"maxStreams":4,"memberCount":2,
+ "isOwner":true,"accessCode":null,
+ "owner":{"userId":"usr_…","handle":"caster_01","displayName":"Caster","avatarUri":null},
+ "streams":[{"streamId":"str_…","addedAtUtc":"2026-10-05T20:00:00Z","title":"En vivo","category":"Conversación",
+   "status":"LIVE","availability":"PLAYABLE","viewerCount":8,"statusFresh":true,
+   "channel":{"channelId":"chn_…","handle":"caster_02","displayName":"Otro canal","avatarUri":null,
+              "description":"…","bannerUri":null}}],
+ "createdAtUtc":"2026-10-05T19:59:00Z","updatedAtUtc":"2026-10-05T20:00:00Z","closedAtUtc":null}
+```
+
+Reglas: máximo 4 transmisiones y sin `streamId` repetido; solo el propietario agrega, retira, rota y cierra
+(`403 WATCH_PARTY_FORBIDDEN` para otro miembro); un no miembro recibe `404 WATCH_PARTY_NOT_FOUND` igual que una
+sesión inexistente; una sesión `CLOSED` responde `409 WATCH_PARTY_CLOSED` a entrar, agregar, retirar y rotar.
+Al agregar, Core consulta la lectura pública de Streaming `GET /api/streams/{streamId}` (sin credenciales,
+timeout acotado) y exige `availability=PLAYABLE`: `409 STREAM_NOT_LIVE` si no lo está, `404 STREAM_NOT_FOUND` si
+no existe o su canal no es conocido, `503 STREAMING_UNAVAILABLE` si no responde; en ningún caso se guarda nada.
+Al leer, consulta en paralelo cada transmisión; si una falla devuelve `status` y `availability` en
+`"UNKNOWN"`, `statusFresh:false` y `title`, `category`, `viewerCount` en `null`, sin ocultar el canal. Una transmisión que
+dejó de ser reproducible permanece con su disponibilidad actual hasta que el propietario la retire.
+Errores adicionales: `AUTH_REQUIRED` (401), `VALIDATION_ERROR` (400), `WATCH_PARTY_FULL` y
+`STREAM_ALREADY_IN_PARTY` (409). `partyVersion` inicia en 0 y sube uno por cambio efectivo de transmisiones,
+estado o código. Los datos de canal y propietario proceden de la interfaz local `ChannelQueries`; la sesión
+solo expone el número de miembros, nunca su identidad.
 
 ## Errores, compatibilidad y fronteras
 

@@ -9,7 +9,7 @@ La documentación ubicada junto al repositorio remite a esta fuente.
 
 1. [Contexto](glosario_y_contexto.md), [decisiones de alcance](decisiones_alcance_p1.md) y [catálogo](catalogo_requisitos.md).
 2. [Arquitectura](arquitectura_c4_cnc_despliegue.md) y [ADR-005](adr/ADR-005-streaming-rust-y-proyeccion-discovery.md): Core, Streaming, Chat, Media, Web y sus fronteras.
-3. [Mapa de responsabilidades](mapa_sdd_p1.md) y [SPEC P1](spec-p1/README.md).
+3. [Mapa de responsabilidades](mapa_sdd_p1.md), [SPEC P1](spec-p1/README.md) y SPEC de capacidades futuras ya especificadas ([SPEC-14 Watch Party](spec-futuro/spec_14_watch_party.md)).
 4. [Contratos y datos](contratos_modelo_datos.md), [flujos](integracion_sistema_p1.md) y [Web/proxy](integracion_frontend_reverse_proxy.md).
 5. [Fases futuras](fases_futuras.md): dueño inicial y condiciones para extraer servicios.
 6. [Matriz RNF](matriz_trazabilidad_rnf.md) y [criterios de entrega P1](puertas_implementacion_p1.md).
