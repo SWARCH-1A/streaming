@@ -48,7 +48,7 @@ Como broadcaster, quiero emitir una señal audiovisual desde mi canal; como espe
 
 ### Supuestos acordados
 
-- El responsable Media selecciona motor/adaptador mediante ADR con comparación de códecs, ingesta, recuperación y latencia.
+- ADR-005 selecciona MediaMTX autogestionado y adaptador técnico Rust. Se verifican configuración/códecs, ingesta, recuperación y latencia antes del despliegue.
 
 - La UI distingue interrupción temporal de estado OFFLINE; el contrato de medio debe informar un manifiesto HLS reproducible.
 
@@ -74,7 +74,7 @@ Como broadcaster, quiero emitir una señal audiovisual desde mi canal; como espe
 
 - CA-03 — desde que el espectador solicita reproducir hasta el primer frame visible transcurren como máximo 5 s en el perfil de red/carga normal documentado por SPEC-13; el umbral es máximo, no percentil.
 
-- CA-04 — pérdida de fuente pone la misma sesión en `RECONNECT_GRACE` durante 30 s; el estado de ciclo sigue activo, availability=RECONNECTING, Channel lo muestra como LIVE · reconectando, Discovery no lo ofrece en resultados reproducibles y Chat conserva lectura/escritura. Core entrega timeline vigente en el contexto autorizado de un envío; un mensaje cercano al segundo 29 se valida contra ese estado. Una reconexión gana solo si MediaPlaybackReady se valida antes del deadline; al medir `elapsed >= 30 s` desde la pérdida con reloj monotónico gana la finalización, transición atómica a ENDED/OFFLINE y callback tardío se ignora. Retorno posterior requiere sessionId nuevo.
+- CA-04 — pérdida de fuente pone la misma sesión en `RECONNECT_GRACE` durante 30 s; el estado de ciclo sigue activo, availability=RECONNECTING, Channel lo muestra como LIVE · reconectando, Discovery no lo ofrece en resultados reproducibles y Chat conserva lectura/escritura. Core obtiene de Streaming el timeline vigente por mensaje y lo incluye en el contexto autorizado; un mensaje cercano al segundo 29 se valida contra ese estado. Una reconexión gana solo si MediaPlaybackReady se valida antes del deadline; al medir `elapsed >= 30 s` desde la pérdida con reloj monotónico gana la finalización, transición atómica a ENDED/OFFLINE y callback tardío se ignora. Retorno posterior requiere sessionId nuevo.
 
 - CA-05 — stop del propietario finaliza inmediatamente y los cambios de estado llegan a consultas en 5 s.
 
@@ -88,31 +88,31 @@ Como broadcaster, quiero emitir una señal audiovisual desde mi canal; como espe
 - CA-10 — nuevas configuraciones y cambios explícitos de categoría/tags solo admiten IDs activos; si un valor actualmente asociado queda inactivo, un patch de título preserva esa asociación y la metadata pública conserva su último label.
 - CA-11 — `viewerCount` es una estimación best-effort de leases de player vigentes, no una medida resistente a bots ni a tráfico automatizado. Discovery puede usarla para ordenar y mostrar popularidad aproximada; P1 no la usa para autorización, cobros, beneficios ni decisiones de seguridad. Antes de asignarle consecuencias económicas o de abuso, se requiere un control antiabuso fuera del alcance de P1.
 - CA-12 — las tres rutas de callback validan el envelope común eventId/streamId/sessionId/streamGeneration/sourceGeneration, auth de servicio, sesión y path HLS. ACK 202 ocurre tras aceptación durable; repetir mismo eventId/payload es idempotente, reuso con payload diferente da 409 y generación vieja se ignora con 200. Timeout por intento 2 s; se reintenta timeout/408/429/5xx tras 100/250/500/1000/2000 ms y luego cada 2 s con el mismo eventId durante un máximo de 15 min desde el primer intento. Cualquier 2xx confirma ACK; 410 SESSION_ENDED cierra como callback obsoleto. 409/422 u otro 4xx permanente pasa a dead-letter y alerta. Si no llega respuesta terminal en 30 s, se alerta una vez por sesión/sourceGeneration y se sigue reintentando hasta 15 min; entonces pasa a dead-letter durable sin reintento automático. El operador la redrivea con el mismo eventId/payload y una nueva ventana de 15 min, o la cierra tras confirmar que es irrecuperable/obsoleta; no expira automáticamente y la capacidad se fija en ADR operativo. Intentos, edad y cola se miden. PlaybackReady solo pasa a PLAYABLE tras comprobar manifiesto y segmento.
-- CA-13 — Emisiones calcula/versiona conteo local de leases; observación al menos cada 5 s, cambios agrupados como máximo 1/s. Discovery consulta SQL, refleja conteo <=5 s y viewerCountFresh=false si observación supera 5 s; ENDED no entra en resultados. No evento ViewerCountChanged ni índice separado.
+- CA-13 — Streaming calcula/versiona conteo de leases en su SQL; cambios agrupados como máximo 1/s. Publica snapshots públicos por outbox e inbox Discovery. En carga normal observación/publicación <=2 s y entrega/aplicación <=3 s, para reflejar cambios <=5 s; viewerCountFresh=false si observación supera 5 s. Discovery excluye ENDED y estado PLAYABLE no confirmado/fuera de frescura. Duplicados/versiones viejas no revierten datos; reconstrucción completa usa snapshot consistente y watermark.
 
 ## 7. Diseño técnico y datos
 
-Emisiones es módulo Core de control de negocio; Media es una unidad separada que transporta/procesa bytes. Propiedad StreamConfig/streamId, StreamSession/sessionId, secreto ingest, cupos/leases/timeline/versiones en SQL. Una categoría y hasta cinco tags se validan localmente en Catálogo con FK/tombstones; owner local en Canales/Cuentas. No red entre esas validaciones.
+Streaming es servicio Rust independiente según ADR-005. Posee StreamConfig/streamId, claves de ingesta, StreamSession/sessionId, cupos, reloj, generaciones, leases y versiones en PostgreSQL privado con pooling. Core conserva Cuentas, Canales, Catálogo y Discovery. Para cada comando protegido Streaming solicita un contexto Core nuevo con identidad, propiedad y validación tipada/activa de categoría/tags presentes; usa IDs opacos y snapshots de labels/tombstones, sin FK entre bases ni permiso cacheado. Una autorización en vuelo tiene presupuesto acotado explícito en contratos.
 
-POST/GET configuración, PATCH metadata/rotación, stop, bootstrap y leases conservan los contratos. Media autoriza ingest y envía callbacks privados idempotentes con ACK durable, eventId/sourceGeneration y path HLS validado. Emisiones verifica manifiesto/segmento antes de LIVE. Una transacción confirma estado y outbox de sesión hacia Chat; consultas Canal/Discovery leen el mismo estado/versiones sin replicación. Timeline se calcula al leer/contextualizar envío, no se publica cada segundo a módulos locales.
+MediaMTX transporta RTMP/LL-HLS; el adaptador Rust autoriza ingest y envía callbacks idempotentes con ACK durable, eventId/sourceGeneration y path HLS validado. Streaming verifica manifiesto/segmento y frame antes de LIVE. Stop confirma ENDED inmediatamente y ordena cortar la fuente. Cupos cinco global/uno por canal se reservan atómicamente en SQL.
 
-Cupo cinco global/uno por canal se reserva atómicamente en SQL. P1 arranca una réplica Core; timers/callbacks concurren bajo bloqueo/CAS. Reinicio no extiende gracia; recuperar restante o terminar. Multi-réplica necesita fencing/clock probado antes de habilitar. El adaptador Media no posee permiso ni sesión de negocio y no se cuenta como lenguaje propio adicional sin evidencia.
+El mismo commit conserva eventos de sesión para Chat y snapshots públicos para la proyección Discovery, con entregas independientes por consumidor. Discovery aplica en Core y combina con datos públicos locales; sus filas no autorizan comandos ni mensajes. Timeline se calcula al leer/contextualizar cada envío; no se replica como muestra periódica. Claves, secretos y datos de identidad privada nunca viajan en eventos.
 
-Tecnología Media se selecciona por ADR según RTMP/HLS/códecs, fuente real, callbacks, recovery y latencia; MediaMTX sigue candidato.
+P1 arranca una réplica Streaming; timers/callbacks concurren bajo bloqueo/CAS. Reinicio no extiende gracia: recuperar restante verificable o terminar. Multi-réplica necesita fencing/enrutamiento/clock probado antes de habilitar. Media no posee sesión de negocio ni permisos.
 
 ## 8. Dependencias y contratos de integración
 
-Core resuelve cuentas/canales/catálogo/consultas localmente. Media recibe autorización de ingest y publica señales técnicas; Core puede verificar HLS/detener fuente. Chat recibe estado por notificación durable y por contexto nuevo en cada envío; su caída no impide LIVE/HLS. Player usa manifest/leases y estados públicos.
+Core publica contexto de owner/catálogo y recibe snapshots públicos en inbox; Discovery usa su proyección SQL. Core consulta estado/timeline autoritativo a Streaming para cada contexto de mensaje Chat. Streaming entrega lifecycle a Chat y recibe señales Media. Web usa GraphQL Core, API Streaming y HLS Media; integration conecta extremos/proxy y verifica contratos después de desarrollo del módulo.
 
 ## 9. Decisiones y preguntas abiertas
 
-**Decisiones:** un streamId/configuración persistente por canal; nueva sessionId por emisión; RTMP/HLS, LIVE solo al confirmar playback, auto-start tras metadata, PREPARING máximo 30 s, máximo cinco sesiones no terminadas, estado/disponibilidad separados, gracia 30 s, lease por player/expiración 30 s; máximo 5 s al primer frame según RNF-012. La tecnología concreta la decide el owner.
+**Decisiones:** un streamId/configuración persistente por canal; nueva sessionId por emisión; RTMP/HLS, LIVE solo al confirmar playback, auto-start tras metadata, PREPARING máximo 30 s, máximo cinco sesiones no terminadas, estado/disponibilidad separados, gracia 30 s, lease por player/expiración 30 s; máximo 5 s al primer frame según RNF-012. Rust/SQLx/PostgreSQL y MediaMTX/LL-HLS aceptados en ADR-005.
 
-**Abierto:** no hay preguntas de producto bloqueantes. La persona responsable debe registrar el ADR y cerrar los detalles de implementación listados en Diseño.
+**Abierto:** no hay preguntas de producto bloqueantes. ADR-005 fija la frontera y tecnología. La entrega durable y capacidad DLQ del adaptador se definen en la [ADR de callbacks Media](https://github.com/SWARCH-1A/streaming/blob/f9dc6d164242b24bdc20e29ceefdc3978b215390/services/streaming/docs/adr/0001-media-callback-delivery.md); la aceptación de recuperación y latencia se rige por los criterios de esta SPEC y SPEC-13.
 
 ## 10. Verificación
 
-State machine real, 29/30/31 s, PREPARING 30 s, callback duplicado/sourceGeneration vieja/ACK perdido, cupos concurrentes, metadata/catálogo/owner locales, HLS primer frame máximo 5 s, cien players/leases por diez min; Core reinicio sin nueva gracia. Medir el timeline proporcionado por el contexto Core.
+State machine real, 29/30/31 s, PREPARING 30 s, callback duplicado/sourceGeneration vieja/ACK perdido, cupos concurrentes, metadata y contexto Core de catálogo/owner, HLS primer frame máximo 5 s, cien players/leases por diez min; Streaming reinicio sin nueva gracia; proyección Discovery con duplicados/desorden/atraso/rebuild. Medir el timeline Streaming proporcionado por el contexto Core.
 
 ## 11. Esfuerzo, riesgos y consecuencias
 

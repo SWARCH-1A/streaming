@@ -67,11 +67,18 @@ Como streamer, quiero escoger una categoría y etiquetas reconocibles para mi em
 
 ## 7. Diseño técnico y datos
 
-Catálogo es módulo Core, SQL con IDs/labels/activo/catalogVersion, API pública GET /api/taxonomy e interfaz local CatalogValues.find para tombstones. FK locales relacionan metadata; dueño de catálogo escribe vocabulario y Emisiones escribe asociaciones. Desactivar no borra IDs/labels referenciados; IDs enviados explícitamente deben estar activos, omitidos se preservan. Añadir datos servidor no requiere rebuild de Web. No proceso/DB propio ni lookup HTTP interno.
+Implementación Core: Spring/JDBC/Flyway existentes; V3 incorpora semilla, versión automática,
+protección de IDs y tombstones sin modificar V1/V2. V4 agrega unicidad global por ID/tipo sin alterar
+V3 ni los datos/versiones existentes; una colisión previa impide migrar sin reparación automática.
+GET usa snapshot SQL único, orden NFKC/minúsculas
+e ID, `Cache-Control: no-cache`, sin ETag. [ADR-006](../adr/ADR-006-taxonomia-en-core.md)
+propone las decisiones de persistencia y seguridad para revisión del equipo.
+
+Catálogo es módulo Core, SQL con IDs/labels/activo/catalogVersion, API pública GET /api/taxonomy e interfaz local CatalogValues.find para tombstones. Catálogo escribe vocabulario Core; Streaming escribe asociaciones en su SQL privado usando validación tipada y snapshots de labels. No hay FK entre bases. Desactivar no borra IDs/labels referenciados; IDs enviados explícitamente deben estar activos, omitidos se preservan. Añadir datos servidor no requiere rebuild de Web. Catálogo no tiene proceso/DB propio. Publica contexto privado y resolución de tombstones para Streaming mediante Core.
 
 ## 8. Dependencias y contratos de integración
 
-Emisiones valida IDs dentro del caso de uso/transacción local; Discovery lee catálogo/metadata por SQL revisado. Frontend obtiene opciones por API, sin hardcode de etiquetas. Fallo SQL/Core falla explícitamente; no disponibilidad ficticia de Taxonomy independiente.
+Streaming solicita contexto Core para validar IDs explícitos activos y del tipo correcto; campos omitidos preservan asociaciones/último label. Discovery combina catálogo local y proyección Streaming por SQL revisado. Frontend obtiene opciones por API, sin hardcode de etiquetas. Fallo SQL/Core falla explícitamente; no disponibilidad ficticia de Taxonomy independiente.
 
 ## 9. Decisiones y preguntas abiertas
 
@@ -79,7 +86,16 @@ Emisiones valida IDs dentro del caso de uso/transacción local; Discovery lee ca
 
 ## 10. Verificación
 
-Semilla siete categorías/ocho tags; 0/5/6 tags, categorías ausentes/inactivas y dedupe; filtros PLAYABLE exactos y AND, edición LIVE y tombstones; nueva opción servidor sin rebuild Web. Revisar dueño de escritura y FK local, no pruebas de un servicio Taxonomy remoto.
+Pruebas del proveedor: `infra/local/test-core.ps1`, Java 25/PostgreSQL 18 en Docker; incluyen HTTPS
+privado, permisos de credenciales por ruta/puerto público, sesión revocada/owner, IDs tipados y
+disjuntos bajo concurrencia, actualización V3→V4, campos omitidos, tombstones y
+fallo SQL correlacionado. El contrato con Rust se comprueba con el runner de
+[tests/contracts](../../tests/contracts/README.md); persistencia con el smoke allí documentado.
+Esto no cierra SPEC-06: Streaming debe demostrar asociaciones/edición LIVE (CA-02/03/05/07),
+Discovery filtros exactos/AND/PLAYABLE y frescura (CA-04/05/07), y Web opciones nuevas sin rebuild
+y accesibilidad (CA-06/SPEC-08). SPEC-08 espera la implementación Web.
+
+Semilla siete categorías/ocho tags; 0/5/6 tags, categorías ausentes/inactivas y dedupe; filtros PLAYABLE exactos y AND, edición LIVE y tombstones; nueva opción servidor sin rebuild Web. Revisar propiedad local de Catálogo y contrato Core–Streaming, sin FK entre bases ni servicio Taxonomy separado.
 
 ## 11. Esfuerzo, riesgos y consecuencias
 
