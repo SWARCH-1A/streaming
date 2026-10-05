@@ -11,13 +11,14 @@ SPEC y ADR del repositorio son la fuente normativa; Plane registra el trabajo de
 
 | Unidad | Responsabilidad |
 | --- | --- |
-| Core | Java/Spring y PostgreSQL: Cuentas (autenticación y perfil), Canales, Catálogo, Emisiones y Consultas. Un build, seguridad común y transacciones locales. |
+| Core | Java/Spring y PostgreSQL: Cuentas (autenticación y perfil), Canales, Catálogo y Discovery con proyección de emisiones. Un build, seguridad común y transacciones locales. |
+| Streaming | Rust y PostgreSQL privado: configuración, claves, sesiones, cupos, clock, leases y outbox hacia Discovery/Chat. |
 | Chat | Salas, mensajes, historial, cuota global, secuencia y distribución WebSocket; persistencia propia. |
-| Media | Ingesta RTMP, reproducción HLS y procesamiento audiovisual; adaptador al control de emisiones Core. |
+| Media | Ingesta RTMP, reproducción HLS y procesamiento audiovisual; adaptador Rust al control de Streaming. |
 | Web | Una aplicación y un build, con módulos internos de UI y accesibilidad. |
-| Reverse proxy | Entrada HTTPS y encaminamiento hacia Core, Chat, Media y Web. |
+| Reverse proxy | Entrada HTTPS y encaminamiento hacia Core, Streaming, Chat, Media y Web. |
 
-Las fronteras y sus consecuencias están en [ADR-003](docs/adr/ADR-003-servicios-cohesivos.md).
+Las fronteras y sus consecuencias están en [ADR-005](docs/adr/ADR-005-streaming-rust-y-proyeccion-discovery.md).
 El registro confirma cuenta, perfil y canal en una transacción. Dentro de Core se usan interfaces
 locales y lecturas SQL publicadas por los módulos; entre procesos, contratos de red explícitos.
 
@@ -27,10 +28,16 @@ y las [fases futuras](docs/fases_futuras.md). [AGENTS.md](AGENTS.md) define las 
 
 ## Implementación y ejecución
 
-[Core](services/core/README.md) implementa registro transaccional de cuenta/perfil/canal, sesiones,
-perfil/avatares, edición/portadas de canal y bootstrap público compuesto. [Compose local](infra/local/README.md) inicia Core y
-PostgreSQL con volumen persistente. Pruebas: `services/core/mvnw -f services/core/pom.xml test` y
-`services/core/mvnw -f services/core/pom.xml verify -P integration` (Docker para PostgreSQL aislado).
+[Core](services/core/README.md) implementa cuentas/perfiles/canales, catálogo SQL público y
+contextos privados de propietario y valores de catálogo. [Compose](infra/local/README.md)
+arranca Core/PostgreSQL; `./infra/local/init-env.ps1` genera configuración local ignorada y
+`./infra/local/test-core.ps1` ejecuta unitarias e integración con Java 25 en Docker.
 
-Emisiones y su composición en el canal, Catálogo, Consultas, Chat, Media y Web siguen pendientes.
-[Web](apps/web/README.md) organiza su esqueleto en `src/modules`, `src/shell` y `src/accessibility`.
+Esta entrega depende del [PR #7 de Streaming](https://github.com/SWARCH-1A/streaming/pull/7).
+La documentación adopta sus fronteras; el servicio Rust se incorpora desde ese PR y no se
+fusiona automáticamente aquí. El [runner de contratos](tests/contracts/README.md) comprueba su
+cliente real contra Core y reinicios con volúmenes persistentes.
+
+Discovery, composición de emisiones en Canales, integración Chat/Web y evidencia E2E siguen
+pendientes. El backend Catálogo no cierra por sí solo RF-066…RF-069 ni SPEC-06.
+[Web](apps/web/README.md) conserva su esqueleto; SPEC-08 espera sus vistas.

@@ -73,13 +73,13 @@ Como espectador, quiero leer mensajes de la sesión en vivo; como usuario autent
 - CA-06 — fallo de Chat no detiene un playback ya disponible; UI muestra chat no disponible y deshabilita composer.
 
 - CA-07 — un evento persistido contiene campos para autor, sessionId y posición temporal; mensajes no incluyen HTML ejecutable ni secretos.
-- CA-08 — contexto Core valida sesión y autor/estado/timeline localmente. Sin personalización usa handle/avatar nulo; Core inaccesible CORE_UNAVAILABLE, sesión inválida AUTH_REQUIRED, envío nuevo en ENDED CHAT_READ_ONLY, timeline inválido TIMELINE_UNAVAILABLE. Son frames tras Upgrade; rechazado no persiste. No timeout de Profile remoto.
+- CA-08 — contexto Core valida sesión/autor localmente y obtiene estado/timeline actual desde Streaming; jamás autoriza desde Discovery. Sin personalización usa handle/avatar nulo; Core inaccesible CORE_UNAVAILABLE, Streaming inaccesible STREAMING_UNAVAILABLE, sesión inválida AUTH_REQUIRED, envío nuevo en ENDED CHAT_READ_ONLY, timeline inválido TIMELINE_UNAVAILABLE. Son frames tras Upgrade; rechazado no persiste. No timeout de Profile remoto.
 
 ## 7. Diseño técnico y datos
 
 Chat permanece servicio independiente por conexiones largas, fan-out, historial y aislamiento de HLS. Posee mensajes, dedupe, secuencia por sesión, cuota global por cuenta y broadcast; no credenciales/usuarios maestros. Go/MongoDB son candidatos, no selección acreditada ni implementación.
 
-Por mensaje nuevo: validar texto, solicitar una sola vez contexto Core autenticado (principal vigente + autor público + estado/timeline), aplicar dedupe/cuota y persistir antes del ACK. El contexto no se cachea para otros envíos. Core no procesa mensajes ni decide secuencias; Chat no recorre Identity/Profile/Streaming por red. Revocación/fin posteriores a autorización no revierten operación en vuelo, dentro del presupuesto máximo de 500 ms; nuevas autorizaciones se rechazan.
+Por mensaje nuevo: validar texto, solicitar una sola vez contexto Core autenticado (principal vigente + autor público + estado/timeline), aplicar dedupe/cuota y persistir antes del ACK. El contexto no se cachea para otros envíos. Core obtiene estado/timeline Streaming dentro del presupuesto total400ms (hop<=200ms). Core no procesa mensajes ni decide secuencias; Chat consume un único contexto autorizado Core. Revocación/fin posteriores a autorización no revierten operación en vuelo, dentro del presupuesto máximo de 500 ms; nuevas autorizaciones se rechazan.
 
 Conservar WS antes de historial y fusionar por sequence; buffer cincuenta separado del historial persistente. Índices únicos de dedupe y sequence, consulta por sessionId/offset; asignación/commit/cuota consistentes entre réplicas. Persistencia→broadcast requiere mecanismo durable para recovery tras crash, no simple envío después de guardar sin recuperador.
 
@@ -87,13 +87,13 @@ El contexto autenticado expone writeAllowed/denialCode: dedupe puede recuperar A
 previo aun con sala ENDED, sin consumir cuota ni escribir. Nuevo envío exige writeAllowed. Reusar
 clientMessageId con otro texto canónico da MESSAGE_ID_CONFLICT.
 
-Estado de sala recibe notificaciones Core de sesión deduplicadas y se reconcilia por snapshot; eventos no autorizan writes. Nuevos envíos siempre consultan autoridad. Un evento ENDED atrasado no abre una sesión vieja. Lectura de sala conocida/ENDED puede seguir sin Core; sala desconocida requiere snapshot. Origin validado también para anónimos; no es identidad.
+Estado de sala recibe notificaciones Streaming de sesión deduplicadas y se reconcilia por snapshot; eventos no autorizan writes. Nuevos envíos siempre consultan autoridad. Un evento ENDED atrasado no abre una sesión vieja. Lectura de sala conocida/ENDED puede seguir sin Core; sala desconocida requiere snapshot. Origin validado también para anónimos; no es identidad.
 
 Retención/supresión de moderación y consultas replay tendrán el mismo dueño Chat. P1 no implementa esos RF futuros ni un servicio Replay aparte.
 
 ## 8. Dependencias y contratos de integración
 
-Única dependencia de negocio de Chat: Core. message-context autorizado incluye usuario/autor/timeline; GET snapshot abre/reconcilia sala; session-events recibe cambios durables. Core caído bloquea nuevas escrituras con frame CORE_UNAVAILABLE, no lectura de historia ya conocida. Proxy permite Upgrade/Origin/cookie, Media no depende de Chat.
+Core compone message-context autorizado con usuario/autor locales y timeline Streaming; GET snapshot Core delega estado autoritativo a Streaming. Streaming publica session-events durables a Chat. Core caído bloquea nuevas escrituras con CORE_UNAVAILABLE, Streaming caído con STREAMING_UNAVAILABLE; historia ya conocida conserva lectura. Proxy permite Upgrade/Origin/cookie, Media no depende de Chat.
 
 ## 9. Decisiones y preguntas abiertas
 
@@ -103,7 +103,7 @@ Retención/supresión de moderación y consultas replay tendrán el mismo dueño
 
 ## 10. Verificación
 
-Lectura anónima/envío protegido, Unicode 500/501, cuota global 1000 ms entre salas/réplicas, dedupe y ACK durable, recuperación broadcast tras crash, WS→historial sin huecos; p95 <1 s a 20 msg/s. Logout/fin en autorización posterior, snapshot antes de fin con operación en vuelo acotada, CORE_UNAVAILABLE sin persistencia; perfiles por defecto desde contexto sin dependencia remota. HLS continúa al caer Chat.
+Lectura anónima/envío protegido, Unicode 500/501, cuota global 1000 ms entre salas/réplicas, dedupe y ACK durable, recuperación broadcast tras crash, WS→historial sin huecos; p95 <1 s a 20 msg/s. Logout/fin en autorización posterior, snapshot antes de fin con operación en vuelo acotada, CORE_UNAVAILABLE/STREAMING_UNAVAILABLE sin persistencia; perfiles por defecto desde contexto sin dependencia remota. HLS continúa al caer Chat.
 
 ## 11. Esfuerzo, riesgos y consecuencias
 

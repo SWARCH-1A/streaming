@@ -36,7 +36,7 @@ Como visitante o propietario, quiero consultar y mantener la página del canal, 
 
 ### Supuestos acordados
 
-- Streaming es fuente autoritativa de estado de sesión; Canales consulta el estado local de Emisiones en Core.
+- Streaming es fuente autoritativa de estado de sesión; el bootstrap Canales consulta un batch público autoritativo Streaming; los listados Discovery consultan la proyección local con frescura explícita.
 
 - La portada pertenece al canal; avatar/nombre visible pertenecen a Profile.
 
@@ -56,8 +56,8 @@ Como visitante o propietario, quiero consultar y mantener la página del canal, 
 
 - CA-01: registro confirmado crea exactamente un canal por cuenta en la misma transacción; retry conserva channelId. FK y UNIQUE ownerUserId, no provisión HTTP.
 - CA-02: owner edita descripción/banner; otro usuario 403, inválido conserva anterior.
-- CA-03: /channels/{handle} usa GET /api/channels/by-handle/{handle}, composición local de canal, handle y perfil; bootstrap agrega estado/stream desde Emisiones. No join Identity→Profile→Channels en navegador.
-- CA-04: cambio de disponibilidad confirmado por Emisiones aparece en <=5 s; lectura Core del estado local, sin proyección de activación.
+- CA-03: /channels/{handle} usa GET /api/channels/by-handle/{handle}, composición local de canal, handle y perfil; bootstrap agrega metadata/estado desde batch Streaming; fallo conserva canal con UNKNOWN. El player consulta directamente la sesión autoritativa. No join Identity→Profile→Channels en navegador.
+- CA-04: cambio de disponibilidad confirmado por Emisiones aparece en <=5 s; proyección de emisiones aplicada en SQL Core; estado no confirmado se marca UNKNOWN, sin demorar publicación de cuenta/canal.
 - CA-05: LIVE muestra sesión PLAYABLE; gracia indica reconectando, OFFLINE no inventa VOD.
 - CA-06: cuentas activas publicables desde commit, inexistente/no activo 404 uniforme; channelVersion inicia 0 y sube solo por cambio real.
 - CA-07: PATCH parcial sobre estado más reciente, serializado; campos distintos concurrentes se conservan, mismo campo último commit. Error no cambia versión/datos.
@@ -66,15 +66,15 @@ Como visitante o propietario, quiero consultar y mantener la página del canal, 
 
 ## 7. Diseño técnico y datos
 
-Canales posee channelId/ownerUserId/description/banner/version; cuenta posee handle y perfil. FK local hacia cuenta, UNIQUE ownerUserId. Edición por su repositorio; consultas de canal pueden usar read model SQL revisado con perfil/metadata/estado. Banner opcional JPEG/PNG/GIF <=10 MB, recomendado 1200×480; upload owner/channel ligado, un uso, 15 min. No guardar nombre visible o estado como otra autoridad.
+Canales posee channelId/ownerUserId/description/banner/version; cuenta posee handle y perfil. FK local hacia cuenta, UNIQUE ownerUserId. Edición por su repositorio; consultas de canal usan read model SQL revisado con perfil y batch público Streaming para metadata/estado; listados Discovery usan proyección pública local. Banner opcional JPEG/PNG/GIF <=10 MB, recomendado 1200×480; upload owner/channel ligado, un uso, 15 min. No guardar nombre visible o estado como otra autoridad.
 
 ## 8. Dependencias y contratos de integración
 
-Registro local Cuentas→Canales participa en una transacción; Emisiones valida dueño localmente y provee estado vigente. Catálogo/Discovery también son módulos Core. Chat/Media no leen las tablas de canal. Frontend consume bootstrap público compuesto.
+Registro local Cuentas→Canales participa en una transacción; Streaming obtiene validación de dueño por contexto privado Core y publica snapshots de emisión; el registro del canal sigue local. Catálogo/Discovery también son módulos Core. Chat/Media no leen las tablas de canal. Frontend consume bootstrap público compuesto.
 
 ## 9. Decisiones y preguntas abiertas
 
-Un canal por cuenta, handle inmutable y publicación inmediata tras commit. Las consultas públicas se componen dentro de Core.
+Un canal por cuenta, handle inmutable y publicación inmediata tras commit. Core compone datos locales con snapshot público Streaming; Discovery usa su proyección SQL.
 
 ## 10. Verificación
 
