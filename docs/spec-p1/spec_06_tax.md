@@ -68,7 +68,9 @@ Como streamer, quiero escoger una categoría y etiquetas reconocibles para mi em
 ## 7. Diseño técnico y datos
 
 Implementación Core: Spring/JDBC/Flyway existentes; V3 incorpora semilla, versión automática,
-protección de IDs y tombstones sin modificar V1/V2. GET usa snapshot SQL único, orden NFKC/minúsculas
+protección de IDs y tombstones sin modificar V1/V2. V4 agrega unicidad global por ID/tipo sin alterar
+V3 ni los datos/versiones existentes; una colisión previa impide migrar sin reparación automática.
+GET usa snapshot SQL único, orden NFKC/minúsculas
 e ID, `Cache-Control: no-cache`, sin ETag. [ADR-006](../adr/ADR-006-taxonomia-en-core.md)
 propone las decisiones de persistencia y seguridad para revisión del equipo.
 
@@ -85,7 +87,8 @@ Streaming solicita contexto Core para validar IDs explícitos activos y del tipo
 ## 10. Verificación
 
 Pruebas del proveedor: `infra/local/test-core.ps1`, Java 25/PostgreSQL 18 en Docker; incluyen HTTPS
-privado, token/puerto público, sesión revocada/owner, IDs tipados, campos omitidos, tombstones y
+privado, permisos de credenciales por ruta/puerto público, sesión revocada/owner, IDs tipados y
+disjuntos bajo concurrencia, actualización V3→V4, campos omitidos, tombstones y
 fallo SQL correlacionado. El contrato con Rust se comprueba con el runner de
 [tests/contracts](../../tests/contracts/README.md); persistencia con el smoke allí documentado.
 Esto no cierra SPEC-06: Streaming debe demostrar asociaciones/edición LIVE (CA-02/03/05/07),

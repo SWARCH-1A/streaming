@@ -3,8 +3,8 @@ param([string]$StreamingRef = 'f9dc6d164242b24bdc20e29ceefdc3978b215390')
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
 $work = Join-Path $repo 'services/core/target/streaming-contract'
-$source = Join-Path $work 'source'
-New-Item -ItemType Directory -Path $source -Force | Out-Null
+. (Join-Path $PSScriptRoot 'prepare-streaming-consumer.ps1')
+$source = Initialize-StreamingConsumer -RepoPath $repo -StreamingRef $StreamingRef
 function Invoke-CheckedDocker {
     & docker @args
     if ($LASTEXITCODE -ne 0) { throw 'Docker contract verification failed; inspect its preceding diagnostics.' }
@@ -14,17 +14,20 @@ function New-FixtureSecret {
     [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
     [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
 }
-$archive = Join-Path $work 'streaming.tar'
-& git -C $repo archive --format=tar --output=$archive $StreamingRef services/streaming
-if ($LASTEXITCODE -ne 0) { throw 'Fetch the PR #7 commit before running this contract test.' }
-& tar -xf $archive -C $source
-if ($LASTEXITCODE -ne 0) { throw 'Cannot unpack the real Streaming consumer.' }
 $crate = Join-Path $source 'tests/contracts/streaming-core'
 New-Item -ItemType Directory -Path $crate -Force | Out-Null
 Copy-Item -Path (Join-Path $PSScriptRoot 'streaming-core/*') -Destination $crate -Recurse -Force
 $envFile = Join-Path $work '.env'
 if (-not (Test-Path -LiteralPath $envFile)) {
     $envText = "CORE_DB_PASSWORD=$(New-FixtureSecret)`nCORE_RATE_LIMIT_HMAC_SECRET=$(New-FixtureSecret)`nCORE_STREAMING_SERVICE_TOKEN=$(New-FixtureSecret)`nCORE_PORT=18081`nCORE_DB_PORT=15440`nCORE_SECURE_COOKIE=false`nWEB_ORIGIN=http://localhost:3000`n"
+    [IO.File]::WriteAllText($envFile, $envText, [Text.UTF8Encoding]::new($false))
+}
+$envText = [IO.File]::ReadAllText($envFile)
+if ($envText -notmatch '(?m)^CORE_STREAMING_CATALOG_SERVICE_TOKEN=[^\r\n]+\r?$') {
+    $entry = 'CORE_STREAMING_CATALOG_SERVICE_TOKEN=' + (New-FixtureSecret)
+    if ($envText -match '(?m)^CORE_STREAMING_CATALOG_SERVICE_TOKEN=(?=\r?$)') {
+        $envText = [regex]::Replace($envText, '(?m)^CORE_STREAMING_CATALOG_SERVICE_TOKEN=(?=\r?$)', $entry)
+    } else { $envText = $envText.TrimEnd() + "`n" + $entry + "`n" }
     [IO.File]::WriteAllText($envFile, $envText, [Text.UTF8Encoding]::new($false))
 }
 $settings = ConvertFrom-StringData ([IO.File]::ReadAllText($envFile))
@@ -54,7 +57,7 @@ try {
     $null = Invoke-RestMethod "$base/api/identity/sessions/current" -Method Delete -WebSession $revoked.web -Headers $revoked.headers
     "INSERT INTO taxonomy.categories(id,name,active) VALUES ('cat_contract_tombstone','Contrato conservado',false) ON CONFLICT (id) DO NOTHING;" | & docker @compose exec -T postgres psql -U core -d core -v ON_ERROR_STOP=1
     if ($LASTEXITCODE -ne 0) { throw 'Could not prepare the isolated tombstone fixture.' }
-    $fixture = @{privateUrl='http://core:8082';publicUrl='http://core:8081';serviceToken=$settings.CORE_STREAMING_SERVICE_TOKEN;userId=$owner.id;channelId=$owner.channel;credential=$owner.credential;strangerCredential=$stranger.credential;revokedCredential=$revoked.credential;categoryId='cat_00000000000000000000000000000001';tagId='tag_00000000000000000000000000000001';tombstoneId='cat_contract_tombstone'}
+    $fixture = @{privateUrl='http://core:8082';publicUrl='http://core:8081';serviceToken=$settings.CORE_STREAMING_SERVICE_TOKEN;catalogServiceToken=$settings.CORE_STREAMING_CATALOG_SERVICE_TOKEN;userId=$owner.id;channelId=$owner.channel;credential=$owner.credential;strangerCredential=$stranger.credential;revokedCredential=$revoked.credential;categoryId='cat_00000000000000000000000000000001';tagId='tag_00000000000000000000000000000001';tombstoneId='cat_contract_tombstone'}
     $fixturePath = Join-Path $work 'fixture.json'
     [IO.File]::WriteAllText($fixturePath, ($fixture | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
     $before = Invoke-RestMethod "$base/api/taxonomy" | ConvertTo-Json -Depth 8 -Compress

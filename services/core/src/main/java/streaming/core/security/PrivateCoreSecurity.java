@@ -20,8 +20,10 @@ public class PrivateCoreSecurity {
                 .sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .requestCache(c->c.disable())
                 .authorizeHttpRequests(a->a
-                        .requestMatchers(HttpMethod.POST,"/internal/core/streaming/owner-context","/internal/core/streaming/catalog-values")
-                        .access((authentication,context)->new AuthorizationDecision(listener.permits(context.getRequest())))
+                        .requestMatchers(HttpMethod.POST,"/internal/core/streaming/owner-context")
+                        .access((authentication,context)->new AuthorizationDecision(listener.permits(context.getRequest(),PrivateCoreListener.Permission.OWNER_CONTEXT)))
+                        .requestMatchers(HttpMethod.POST,"/internal/core/streaming/catalog-values")
+                        .access((authentication,context)->new AuthorizationDecision(listener.permits(context.getRequest(),PrivateCoreListener.Permission.CATALOG_VALUES)))
                         .anyRequest().denyAll())
                 .exceptionHandling(e->e
                         .authenticationEntryPoint((request,response,error)->deny(request,response,listener,json))

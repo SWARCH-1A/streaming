@@ -20,6 +20,7 @@ public class PrivateCoreListener implements WebServerFactoryCustomizer<TomcatSer
     private final String keystore;
     private final String keystorePassword;
     private final byte[] token;
+    private final byte[] catalogToken;
     private Connector connector;
 
     public PrivateCoreListener(@Value("${core.internal.enabled:false}") boolean enabled,
@@ -27,12 +28,17 @@ public class PrivateCoreListener implements WebServerFactoryCustomizer<TomcatSer
             @Value("${core.internal.development-http:false}") boolean developmentHttp,
             @Value("${core.internal.tls-keystore:}") String keystore,
             @Value("${core.internal.tls-keystore-password:}") String keystorePassword,
-            @Value("${core.internal.streaming-service-token:}") String token) {
+            @Value("${core.internal.streaming-service-token:}") String token,
+            @Value("${core.internal.streaming-catalog-service-token:}") String catalogToken) {
         this.enabled=enabled; this.port=port; this.developmentHttp=developmentHttp;
         this.keystore=keystore; this.keystorePassword=keystorePassword;
         this.token=token.getBytes(StandardCharsets.UTF_8);
+        this.catalogToken=catalogToken.getBytes(StandardCharsets.UTF_8);
         if(enabled && (!token.matches("[A-Za-z0-9_-]{32,256}") || port<0 || port>65535))
             throw new IllegalStateException("Private Core requires a valid port and a 32+ character service secret");
+        if(enabled && !catalogToken.isEmpty() && (!catalogToken.matches("[A-Za-z0-9_-]{32,256}")
+                || MessageDigest.isEqual(this.token,this.catalogToken)))
+            throw new IllegalStateException("Private Core requires a distinct 32+ character catalog-only secret when configured");
         if(enabled && !developmentHttp && (keystore.isBlank() || keystorePassword.isBlank()))
             throw new IllegalStateException("Private Core requires a PKCS12 keystore and its password; HTTP must be explicitly enabled for isolated development");
     }
@@ -58,9 +64,18 @@ public class PrivateCoreListener implements WebServerFactoryCustomizer<TomcatSer
 
     public int localPort() { return connector==null?-1:connector.getLocalPort(); }
     public boolean isPrivate(HttpServletRequest request) { return enabled && localPort()>0 && request.getLocalPort()==localPort(); }
-    public boolean permits(HttpServletRequest request) {
+    public enum Permission { OWNER_CONTEXT, CATALOG_VALUES }
+
+    public boolean permits(HttpServletRequest request,Permission permission) {
         if(!isPrivate(request) || !"streaming".equals(request.getHeader("X-Service-Name"))) return false;
         String supplied=request.getHeader("X-Service-Token");
-        return supplied!=null && MessageDigest.isEqual(token,supplied.getBytes(StandardCharsets.UTF_8));
+        if(supplied==null) return false;
+        byte[] candidate=supplied.getBytes(StandardCharsets.UTF_8);
+        boolean full=MessageDigest.isEqual(token,candidate);
+        boolean catalogOnly=catalogToken.length>0 && MessageDigest.isEqual(catalogToken,candidate);
+        return switch(permission) {
+            case OWNER_CONTEXT -> full;
+            case CATALOG_VALUES -> full || catalogOnly;
+        };
     }
 }

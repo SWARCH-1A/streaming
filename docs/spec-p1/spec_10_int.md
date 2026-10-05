@@ -39,6 +39,10 @@ Un dueño por escritura; interfaces locales/Core y DTO/read models públicos. Cu
 
 - **CA-03:** errores estructurados no filtran secretos/stack/SQL e incluyen correlación suficiente.
 
+La autorización privada verifica consumidor y permiso de cada ruta. El token Core–Streaming
+principal permite owner-context y catalog-values; el token adicional limitado al catálogo debe
+recibir 401 en owner-context aun con sesión válida. Ambos reciben 404 en la entrada pública.
+
 - **CA-04:** una solicitud repetida no duplica provisión de canal, sesión, mensaje u operación que el contrato marque idempotente.
 
 - **CA-05:** una modificación incompatible identifica consumidores, transición, coexistencia/versiones y condición de retiro.

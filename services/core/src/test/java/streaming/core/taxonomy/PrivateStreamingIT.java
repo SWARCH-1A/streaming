@@ -39,6 +39,7 @@ class PrivateStreamingIT {
     @Container static final PostgreSQLContainer POSTGRES=new PostgreSQLContainer("postgres:18-alpine");
     @TempDir static Path data;
     static final String TOKEN="fixture_private_streaming_token_32_bytes";
+    static final String CATALOG_TOKEN="fixture_catalog_only_service_token_32_bytes";
     static final String PASSWORD="integration fixture password only";
     static final String CAT="cat_00000000000000000000000000000001";
     static final String TAG="tag_00000000000000000000000000000001";
@@ -63,6 +64,7 @@ class PrivateStreamingIT {
         p.add("core.internal.enabled",()->true);
         p.add("core.internal.port",()->0);
         p.add("core.internal.streaming-service-token",()->TOKEN);
+        p.add("core.internal.streaming-catalog-service-token",()->CATALOG_TOKEN);
         p.add("core.internal.tls-keystore",store::toString);
         p.add("core.internal.tls-keystore-password",()->"fixture-password");
     }
@@ -85,10 +87,10 @@ class PrivateStreamingIT {
     }
 
     @Test void publicPortRejectsPrivateRoutesEvenWithValidTokenAndSpoofedForwarding() throws Exception {
-        for(String path:List.of(OWNER,VALUES)) {
+        for(String path:List.of(OWNER,VALUES)) for(String token:List.of(TOKEN,CATALOG_TOKEN)) {
             var response=client.send(HttpRequest.newBuilder(URI.create("http://localhost:"+publicPort+path))
                     .header("Content-Type","application/json").header("X-Service-Name","streaming")
-                    .header("X-Service-Token",TOKEN).header("X-Session-Credential",owner.credential())
+                    .header("X-Service-Token",token).header("X-Session-Credential",owner.credential())
                     .header("X-Forwarded-Port",Integer.toString(listener.localPort())).header("X-Forwarded-Proto","https")
                     .POST(HttpRequest.BodyPublishers.ofString("{}")).build(),HttpResponse.BodyHandlers.ofString());
             assertThat(response.statusCode()).isEqualTo(404);
@@ -100,6 +102,21 @@ class PrivateStreamingIT {
             for(String token:List.of("","wrong")) assertThat(post(path,"{}",token,"streaming",owner.credential()).statusCode()).isEqualTo(401);
             assertThat(post(path,"{}",TOKEN,"chat",owner.credential()).statusCode()).isEqualTo(401);
         }
+    }
+
+    @ParameterizedTest @ValueSource(strings={"CREATE_CONFIG","PATCH_METADATA","ROTATE_KEY","STOP_SESSION"})
+    void catalogCredentialCannotAuthorizeAnyOwnerOperation(String operation) throws Exception {
+        var response=post(OWNER,command(owner.channel(),operation,",\"categoryId\":\""+CAT+"\""),CATALOG_TOKEN,"streaming",owner.credential());
+        assertThat(response.statusCode()).isEqualTo(401);
+        assertThat(json.readTree(response.body()).get("code").asText()).isEqualTo("SERVICE_UNAUTHORIZED");
+    }
+
+    @Test void catalogCredentialResolvesValuesWithoutSessionButRequiresCorrectServiceAndRoute() throws Exception {
+        String input=json.writeValueAsString(Map.of("ids",List.of(CAT,TAG)));
+        assertThat(post(VALUES,input,CATALOG_TOKEN,"streaming",null).statusCode()).isEqualTo(200);
+        assertThat(post(VALUES,input,CATALOG_TOKEN,"chat",null).statusCode()).isEqualTo(401);
+        assertThat(post("/internal/core/streaming/unknown",input,TOKEN,"streaming",null).statusCode()).isEqualTo(401);
+        assertThat(post("/internal/core/streaming/unknown",input,CATALOG_TOKEN,"streaming",null).statusCode()).isEqualTo(401);
     }
 
     @ParameterizedTest @ValueSource(strings={"CREATE_CONFIG","PATCH_METADATA","ROTATE_KEY","STOP_SESSION"})

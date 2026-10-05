@@ -32,6 +32,16 @@ mod tests {
         let resolved = gateway.resolve_values(vec![category.clone(), tag.clone()]).await
             .map_err(|_| "real gateway rejected active catalog response")?;
         assert_eq!(resolved.len(), 2);
+        let catalog_only = CoreHttpGateway::new(client.clone(), Some(value("privateUrl")?),
+            Some(value("catalogServiceToken")?), Some("stream_session".into()));
+        let catalog_values = catalog_only.resolve_values(vec![category.clone(), tag.clone()]).await
+            .map_err(|_| "catalog-only gateway rejected catalog response")?;
+        assert_eq!(catalog_values.len(), 2);
+        for operation in [OwnerOperation::CreateConfig, OwnerOperation::PatchMetadata,
+            OwnerOperation::RotateKey, OwnerOperation::StopSession] {
+            assert_eq!(catalog_only.authorize(credential("credential")?,
+                request(operation, Some(category.clone()), None)?).await.err(), Some(OwnerContextError::Inactive));
+        }
         let context = gateway.authorize(credential("credential")?, request(OwnerOperation::CreateConfig,
             Some(category.clone()), Some(vec![tag.clone()]))?).await
             .map_err(|_| "real gateway rejected owner context")?;
@@ -66,11 +76,13 @@ mod tests {
         let denied = CoreHttpGateway::new(client.clone(), Some(value("privateUrl")?),
             Some("invalid-service-token".into()), Some("stream_session".into()));
         assert!(denied.authorize(credential("credential")?, request(OwnerOperation::StopSession, None, None)?).await.is_err());
-        for path in ["owner-context", "catalog-values"] {
+        for token in ["serviceToken", "catalogServiceToken"] {
+          for path in ["owner-context", "catalog-values"] {
             let response = client.post(format!("{}/internal/core/streaming/{path}", value("publicUrl")?))
-                .header("X-Service-Name", "streaming").header("X-Service-Token", value("serviceToken")?)
+                .header("X-Service-Name", "streaming").header("X-Service-Token", value(token)?)
                 .json(&serde_json::json!({})).send().await?;
             assert_eq!(response.status(), reqwest::StatusCode::NOT_FOUND);
+          }
         }
         Ok(())
     }

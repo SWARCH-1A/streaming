@@ -30,7 +30,7 @@ categorías/ocho etiquetas, con `catalogVersion=1`. Después de editar código o
 
 Core escucha en `localhost:8081`, PostgreSQL en `localhost:5440`. Cambiar `CORE_PORT`/`CORE_DB_PORT`
 evita conflictos; adaptar las URL de comprobación cuando cambie `CORE_PORT`. Salud adicional:
-`/actuator/health/readiness` y `/actuator/health/liveness`. Flyway conserva V1/V2 aplicadas y agrega V3;
+`/actuator/health/readiness` y `/actuator/health/liveness`. Flyway conserva migraciones aplicadas y agrega V3/V4;
 no se requiere borrar volúmenes para incorporar Catálogo.
 
 ## Configuración local
@@ -58,8 +58,10 @@ Catálogo no añade variables ni credenciales. Web aún no tiene framework ni `.
 
 ### Conexión privada Core–Streaming
 
-`init-env.ps1` agrega `CORE_STREAMING_SERVICE_TOKEN` si falta y conserva los secretos existentes.
-Catálogo sigue usando SQL/Core; este secreto autentica la relación entre procesos. El listener
+`init-env.ps1` agrega `CORE_STREAMING_SERVICE_TOKEN` y `CORE_STREAMING_CATALOG_SERVICE_TOKEN` si faltan
+o están vacíos, y conserva los secretos existentes, incluidos archivos LF/CRLF. Son secretos distintos:
+el primero permite los POST owner-context y catalog-values; el segundo solo catalog-values y es
+opcional para Core. Ambos pertenecen a la relación entre procesos. El listener
 privado está deshabilitado en Compose básico. Para desarrollo aislado se habilita explícitamente:
 
 ```powershell
@@ -70,6 +72,11 @@ Streaming debe unirse a `streaming-core_default`, usar `STREAMING_CORE_BASE_URL=
 `STREAMING_SESSION_COOKIE_NAME=stream_session` y recibir en `STREAMING_CORE_SERVICE_TOKEN` el mismo
 valor privado de `CORE_STREAMING_SERVICE_TOKEN`. No copiarlo a ejemplos ni al chat. El puerto 8082
 no se publica en el host; 8081 rechaza `/internal/*` incluso con token válido.
+
+El cliente Rust actual conserva el token principal porque necesita ambas rutas. No sustituirlo
+por el token limitado al catálogo: los comandos de propietario recibirían 401. La credencial
+opcional vacía queda deshabilitada; un valor inválido o igual al principal impide arrancar la
+entrada privada. Los ejemplos versionados mantienen ambos valores vacíos.
 
 Para TLS, reemplazar el último overlay por `infra/local/compose.core-private-tls.yaml` y añadir
 al `.env` local `CORE_INTERNAL_TLS_KEYSTORE` (ruta absoluta al PKCS12 legible por UID 10001) y

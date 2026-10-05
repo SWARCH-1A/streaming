@@ -37,6 +37,9 @@ Registro cuenta/perfil/canal usa una transacción. Cada módulo escribe por su r
 compuestas usan vistas publicadas, columnas explícitas y FK locales. Discovery posee proyección pública/inbox en Core y recibe snapshots Streaming; no consulta su SQL privado. Chat posee su almacén y Media el
 flujo audiovisual. Ningún proceso externo consulta bases privadas. Integración no posee casos de uso
 de negocio. RNF y evidencia se relacionan en la matriz de trazabilidad.
+Catálogo mantiene el registro SQL interno de IDs/tipos disjuntos, incluidos tombstones. Seguridad
+Core verifica los permisos por ruta de las credenciales Streaming; la credencial limitada a catálogo
+no concede acceso al contexto de propietario de Canales.
 
 ## Definición de módulos de trabajo
 

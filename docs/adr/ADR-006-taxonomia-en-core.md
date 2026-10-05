@@ -18,6 +18,11 @@ declara terminadas las integraciones con consumidores pendientes.
 - Reutilizar JDBC/Flyway y la seguridad Core, sin dependencias nuevas ni runtime/base propios.
   V3 crea el esquema `taxonomy`, `categories`, `tags`, `catalog_state` y vistas públicas con columnas
   `id`, `name`, `active`. V1/V2 permanecen sin cambios.
+- V4 conserva V1–V3 y agrega `taxonomy.value_ids`, registro interno con ID único global y tipo
+  inmutable. Backfill y triggers AFTER INSERT reservan los IDs transaccionalmente; la PK arbitra
+  inserciones concurrentes entre categorías/tags. DELETE/TRUNCATE y cambio de ID/tipo se rechazan.
+  Colisiones preexistentes detienen la migración sin renombrar ni borrar datos; actualizar el
+  esquema no incrementa la versión del catálogo. No se exige un prefijo para IDs existentes.
 - Sembrar siete categorías y ocho etiquetas con IDs opacos fijos `cat_`/`tag_` y 32 caracteres
   hexadecimales. La versión del catálogo inicial es 1. Evolucionar datos mediante migraciones SQL
   revisadas; no añadir una API administrativa ni un archivo de vocabulario en el frontend.
@@ -39,6 +44,10 @@ declara terminadas las integraciones con consumidores pendientes.
   El listener privado requiere TLS con PKCS12; HTTP solo se habilita explícitamente en desarrollo
   aislado. Sus POST no usan cookies/CSRF de navegador; el resto conserva CSRF. La credencial de
   sesión viaja exclusivamente en `X-Session-Credential` y nunca se registra ni persiste.
+- Comprobar permisos de credencial por cada POST: `CORE_STREAMING_SERVICE_TOKEN` conserva ambos
+  contextos para el cliente Rust actual; `CORE_STREAMING_CATALOG_SERVICE_TOKEN`, opcional y
+  distinto, solo resuelve catálogo. El segundo nunca autoriza owner-context, aunque reciba una
+  sesión válida. Credencial adicional inválida o igual a la principal impide habilitar la entrada.
 - Mantener el fallo SQL como `503 CORE_UNAVAILABLE` y las selecciones inválidas como
   `422 INVALID_TAXONOMY` con errores de campo. Discovery adapta sus filtros a `INVALID_FILTER`
   según su contrato GraphQL, sin cambiar la semántica pública del consumidor.
@@ -61,8 +70,9 @@ el contexto remoto no mantiene locks. Una inactivación posterior puede coincidi
 autorizado en vuelo; la siguiente autorización debe rechazarla conforme a ADR-005.
 
 Agregar vocabulario requiere una migración nueva, desplegar Core y volver a consultar la API;
-Web no necesita reconstrucción. Se agrega un secreto por relación de servicios Core–Streaming,
-no un `.env` por módulo. Configuración, TLS, overlays locales y pruebas están en el
+Web no necesita reconstrucción. Las credenciales de la relación Core–Streaming tienen permisos
+explícitos; la principal conserva ambas rutas y la adicional permite acceso solo al catálogo.
+Comparten la configuración Core, sin `.env` por módulo. TLS, overlays locales y pruebas están en el
 [runbook Docker](../../infra/local/README.md); construir la imagen omite pruebas y no acredita
 su resultado. Un error en una migración detiene el arranque; no activar baseline/clean ni editar
 historial aplicado para ocultarlo.

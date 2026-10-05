@@ -30,6 +30,7 @@ core:
     port: ${CORE_INTERNAL_PORT:8082}
     development-http: ${CORE_INTERNAL_DEVELOPMENT_HTTP:false}
     streaming-service-token: ${CORE_STREAMING_SERVICE_TOKEN:}
+    streaming-catalog-service-token: ${CORE_STREAMING_CATALOG_SERVICE_TOKEN:}
     tls-keystore: ${CORE_INTERNAL_TLS_KEYSTORE:}
     tls-keystore-password: ${CORE_INTERNAL_TLS_KEYSTORE_PASSWORD:}
   cookie-name: stream_session

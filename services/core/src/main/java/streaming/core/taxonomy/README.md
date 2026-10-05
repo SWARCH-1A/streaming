@@ -17,6 +17,9 @@ Se deduplican tags antes del máximo de cinco; omitidos se preservan en el consu
 
 V3 crea `taxonomy.categories`, `taxonomy.tags`, `taxonomy.catalog_state`, `taxonomy.public_categories`
 y `taxonomy.public_tags`. Las vistas publican columnas explícitas, incluyendo valores inactivos;
+V4 agrega `taxonomy.value_ids`, reserva única e inmutable de ID/tipo mediante triggers transaccionales.
+Impide duplicados entre las dos tablas sin imponer prefijos ni modificar V3/catalogVersion; si ya
+hay una colisión, la migración se revierte y requiere reconciliación revisada. El registro es interno;
 los consumidores locales usan interfaces/vistas revisadas, nunca escrituras sobre tablas del módulo.
 Nuevos valores o bajas lógicas se incorporan mediante migraciones SQL controladas, sin API CRUD.
 La API usa una consulta SQL para versión/listas y `Cache-Control: no-cache`, sin ETag o caché de proceso.

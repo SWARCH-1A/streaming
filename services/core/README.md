@@ -91,6 +91,7 @@ exigen `X-Service-Name: streaming` y `X-Service-Token`; owner-context requiere a
 | `CORE_INTERNAL_ENABLED` | `false` por defecto; habilita el segundo conector. |
 | `CORE_INTERNAL_PORT` | Puerto privado, 8082; distinto del público, sin publicación al host en Compose. |
 | `CORE_STREAMING_SERVICE_TOKEN` | Secreto aleatorio de 32–256 caracteres URL-safe, obligatorio al habilitar; mismo valor en `STREAMING_CORE_SERVICE_TOKEN`. |
+| `CORE_STREAMING_CATALOG_SERVICE_TOKEN` | Opcional, 32–256 caracteres URL-safe, distinto del anterior. Solo permite POST catalog-values; owner-context devuelve 401. Vacío deshabilita esta credencial. |
 | `CORE_INTERNAL_DEVELOPMENT_HTTP` | `false`; solo el overlay de desarrollo aislado habilita HTTP explícitamente. |
 | `CORE_INTERNAL_TLS_KEYSTORE` | Ruta dentro del proceso al PKCS12 con certificado válido para el hostname privado. |
 | `CORE_INTERNAL_TLS_KEYSTORE_PASSWORD` | Contraseña privada del PKCS12, nunca versionada. |
@@ -133,7 +134,10 @@ schema `core`; las tablas tienen schemas `identity`, `profile`, `channels` y `ta
 `V2__channel_editing_and_banners.sql` amplía la descripción a 500 caracteres y agrega clave/permisos
 de portada; se aplica tanto a bases nuevas como a una base Core con V1 sin modificar su checksum.
 `V3__taxonomy_catalog.sql` agrega categorías, etiquetas, versión y vistas públicas, con IDs semilla estables;
-se aplica a bases nuevas o Core con V2. La semilla no se recrea en cada arranque. El vocabulario se
+se aplica a bases nuevas o Core con V2. `V4__taxonomy_disjoint_ids.sql` reserva IDs/tipos en un registro
+interno único, incluidos tombstones, sin cambiar datos ni catalogVersion. Una colisión preexistente
+detiene la migración completa y requiere reconciliación revisada; no ejecutar repair/clean ni
+renombrar datos automáticamente. La semilla no se recrea en cada arranque. El vocabulario se
 evoluciona mediante una migración nueva revisada; no modificar migraciones aplicadas ni borrar IDs.
 Las migraciones V1 de
 los ejecutables anteriores no se concatenan ni se cambian sobre una base aplicada. Flyway debe

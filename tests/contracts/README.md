@@ -8,6 +8,7 @@ Desde la raíz, con PowerShell 7, Git y Docker Desktop:
 
 ```powershell
 git fetch origin feat/streaming-live-session
+.\tests\contracts\test-runner-helpers.ps1
 .\infra\local\test-core.ps1
 .\tests\contracts\test-streaming-core.ps1
 ```
@@ -17,7 +18,17 @@ El runner fija el commit del PR #7 `f9dc6d164242b24bdc20e29ceefdc3978b215390` (s
 el harness y compila en Rust 1.98 importando `CoreHttpGateway` real, sin reimplementar el cliente.
 Core se construye desde el checkout actual. El harness valida formato/tipos, contexto/operación,
 campos omitidos, owner ajeno, logout, errores 401/403/404/422, tombstones y puerto público cerrado.
+También usa una instancia del mismo cliente con la credencial limitada: resuelve catálogo pero
+rechaza todas las operaciones owner incluso con sesión válida, sin modificar el crate consumidor.
 No requiere instalar Rust, Java o PostgreSQL en Windows.
+
+Antes de cada extracción el helper verifica el commit y genera el archivo; luego reemplaza solo
+`target/streaming-contract/source`, verificando ruta y ausencia de enlaces/reparse points. Así,
+archivos eliminados/renombrados por otro `-StreamingRef` no quedan en la compilación. Las cachés
+Cargo/target y la configuración/volúmenes persistentes permanecen fuera de esa limpieza.
+`test-runner-helpers.ps1` comprueba dos commits reales de un repositorio temporal, referencias
+inválidas, protección de rutas/enlaces y seis escenarios LF/CRLF de inicialización de secretos;
+no necesita Docker ni instala dependencias. Sus fixtures quedan bajo `target` ignorado.
 
 La suite Java prueba las rutas sobre HTTPS real con certificado efímero, además de fallo SQL/503,
 correlación, límites y CSRF público. El harness Rust usa HTTP explícito en la red Docker aislada;
