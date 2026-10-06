@@ -4,7 +4,7 @@ Un ejecutable Java 25 / Spring Boot 4.1.1, Maven Wrapper, PostgreSQL 18, JDBC y 
 Seguridad, CSRF, configuración y gestor de transacciones compartidos. Decisiones:
 [ADR-001](../../docs/adr/ADR-001-identity-plataforma-y-seguridad.md),
 [ADR-002](../../docs/adr/ADR-002-profile-persistencia-y-avatar.md) y
-[ADR-003](../../docs/adr/ADR-003-servicios-cohesivos.md) y
+[ADR-005](../../docs/adr/ADR-005-streaming-rust-y-proyeccion-discovery.md) y
 [ADR-004](../../docs/adr/ADR-004-canales-en-core.md).
 La persistencia y validación de Catálogo se documentan en
 [ADR-006 (propuesta para revisión)](../../docs/adr/ADR-006-taxonomia-en-core.md).
@@ -17,7 +17,8 @@ Código bajo `src/main/java/streaming/core`:
 - `accounts/profile`: perfil, edición propia y archivos/permisos de avatar. Valida sesión localmente.
 - `channels`: creación inicial transaccional, edición propia, portadas y bootstrap público por handle/owner, con vistas SQL públicas de Cuentas.
 - `taxonomy`: catálogo público activo/versionado, semilla SQL, tombstones y validación local de IDs.
-- `discovery`: proyección/consultas pendientes. Streaming vive en su servicio Rust (PR #7).
+- `discovery`: proyección/consultas pendientes; Discovery recibirá proyección pública Streaming.
+- `streaming`: documentación de frontera; control de emisiones en el [servicio Rust](../streaming/README.md). Los contextos privados owner/catálogo están implementados en Core; la composición de estado/timeline Streaming sigue pendiente.
 - `security`, `api`: infraestructura común, sin orquestación de casos de uso de dominio.
 
 El registro pertenece a Cuentas: abre una transacción y llama interfaces locales de inicialización
@@ -29,9 +30,10 @@ Las cuotas se guardan aparte para limitar intentos fallidos.
 No hay HTTP entre estos módulos, worker de provisión, reservas PENDING ni outbox de identidad/perfil.
 La consulta pública compone canal/handle/perfil en una sentencia SQL y devuelve `stream:null`
 para el canal inicial sin configuración. Edición/portada usa la sesión y CSRF de Core; los PATCH
-parciales bloquean la fila y solo incrementan channelVersion por cambios efectivos. Emisiones, su
-composición en el canal y contexto Chat aún no se implementan; RF-011/RF-012 y el cumplimiento
-completo de SPEC-03/P1 siguen pendientes. El contexto privado de propietario está implementado; proyección, inbox/outbox y composición de emisión siguen pendientes.
+parciales bloquean la fila y solo incrementan channelVersion por cambios efectivos. La composición
+de Streaming en el canal, contexto Chat y proyección Discovery aún no se implementan; RF-011/RF-012
+y el cumplimiento completo de SPEC-03/P1 siguen pendientes. El contexto privado de propietario
+está implementado; proyección, inbox/outbox y composición de emisión siguen pendientes.
 
 ## Configuración
 

@@ -33,10 +33,7 @@ contextos privados de propietario y valores de catálogo. [Compose](infra/local/
 arranca Core/PostgreSQL; `./infra/local/init-env.ps1` genera configuración local ignorada y
 `./infra/local/test-core.ps1` ejecuta unitarias e integración con Java 25 en Docker.
 
-Esta entrega depende del [PR #7 de Streaming](https://github.com/SWARCH-1A/streaming/pull/7).
-La documentación adopta sus fronteras; el servicio Rust se incorpora desde ese PR y no se
-fusiona automáticamente aquí. El [runner de contratos](tests/contracts/README.md) comprueba su
-cliente real contra Core y reinicios con volúmenes persistentes.
+[Streaming](services/streaming/README.md) contiene el servicio Rust de control, el adaptador Media y su stack MediaMTX/PostgreSQL. La integración con Core, Chat y Web y la aceptación del sistema se rigen por SPEC-09…SPEC-13. El [runner de contratos](tests/contracts/README.md) comprueba su cliente real contra Core y reinicios con volúmenes persistentes.
 
 Discovery, composición de emisiones en Canales, integración Chat/Web y evidencia E2E siguen
 pendientes. El backend Catálogo no cierra por sí solo RF-066…RF-069 ni SPEC-06.

@@ -12,4 +12,4 @@
 La selección de Chat, Web y herramientas de operación y despliegue se registra conforme
 a la [política ADR](../politica_ADR.md). Las alternativas candidatas requieren decisión del responsable.
 
-La [decisión de entrega durable de callbacks Media](https://github.com/SWARCH-1A/streaming/blob/f9dc6d164242b24bdc20e29ceefdc3978b215390/services/streaming/docs/adr/0001-media-callback-delivery.md) del PR #7 documenta persistencia, reintentos, DLQ y capacidad del adaptador de SPEC-04.
+La [decisión de entrega durable de callbacks Media](../../services/streaming/docs/adr/0001-media-callback-delivery.md) documenta la persistencia, reintentos, DLQ y capacidad del adaptador de SPEC-04.

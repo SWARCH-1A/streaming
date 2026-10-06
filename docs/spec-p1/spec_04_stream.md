@@ -108,7 +108,7 @@ Core publica contexto de owner/catálogo y recibe snapshots públicos en inbox; 
 
 **Decisiones:** un streamId/configuración persistente por canal; nueva sessionId por emisión; RTMP/HLS, LIVE solo al confirmar playback, auto-start tras metadata, PREPARING máximo 30 s, máximo cinco sesiones no terminadas, estado/disponibilidad separados, gracia 30 s, lease por player/expiración 30 s; máximo 5 s al primer frame según RNF-012. Rust/SQLx/PostgreSQL y MediaMTX/LL-HLS aceptados en ADR-005.
 
-**Abierto:** no hay preguntas de producto bloqueantes. ADR-005 fija la frontera y tecnología. La entrega durable y capacidad DLQ del adaptador se definen en la [ADR de callbacks Media](https://github.com/SWARCH-1A/streaming/blob/f9dc6d164242b24bdc20e29ceefdc3978b215390/services/streaming/docs/adr/0001-media-callback-delivery.md); la aceptación de recuperación y latencia se rige por los criterios de esta SPEC y SPEC-13.
+**Abierto:** no hay preguntas de producto bloqueantes. ADR-005 fija la frontera y tecnología. La entrega durable y capacidad DLQ del adaptador se definen en la [ADR de callbacks Media](../../services/streaming/docs/adr/0001-media-callback-delivery.md); la aceptación de recuperación y latencia se rige por los criterios de esta SPEC y SPEC-13.
 
 ## 10. Verificación
 

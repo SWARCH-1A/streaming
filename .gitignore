@@ -31,6 +31,9 @@ Desktop.ini
 .idea/**/shelf/
 .vscode/*.local.json
 
+# Plan local de implementación del módulo Streaming
+/services/streaming/PLAN.md
+
 # Logs, cobertura e informes locales
 *.log
 npm-debug.log*
