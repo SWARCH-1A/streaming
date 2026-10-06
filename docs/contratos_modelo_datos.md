@@ -83,7 +83,8 @@ Las interfaces requieren schema neutro, correlación y presupuesto acotado.
 | POST /internal/core/discovery/stream-events | Core / Streaming | Inbox durable de snapshots públicos versionados; no autoridad de negocio |
 | POST /internal/streaming/discovery/snapshots | Streaming / Core | Corte consistente paginado de configuraciones con watermark; reconstrucción |
 
-`/internal/*` usa TLS privado y token específico por consumidor/ruta; listener público lo bloquea.
+`/internal/*` usa TLS privado y credenciales específicas por consumidor con permisos explícitos
+por ruta; una credencial puede tener varias rutas autorizadas. El listener público lo bloquea.
 Los módulos Core usan interfaces locales; no publican eventos de replicación interna ni requieren
 provisión HTTP de canal. Los outboxes se reservan para efectos entre procesos.
 
@@ -203,6 +204,13 @@ Todas las horas son UTC con `Z`, los IDs son opacos y los errores usan `{code, m
 requestId}`.
 
 **Taxonomy.** `GET /api/taxonomy` devuelve IDs estables activos y versión del conjunto; el cliente no crea IDs:
+
+Core implementa este catálogo en PostgreSQL/Flyway V3, conservando V1/V2. IDs semilla fijos
+`cat_`/`tag_` más 32 hexadecimales; orden por nombre NFKC/minúsculas (`Locale.ROOT`) e ID.
+Versión y valores de cada respuesta comparten una sentencia SQL. GET permite acceso anónimo,
+usa `Cache-Control: no-cache` y no publica ETag. Fallo SQL: `503 CORE_UNAVAILABLE`, nunca listas
+vacías de sustitución. `CatalogValues.find` es la interfaz local para tombstones;
+`CatalogContexts` y `CatalogSelections` publican resolución y validación tipada.
 
 ```json
 {"catalogVersion":12,"categories":[{"id":"cat_…","name":"Conversación","active":true}],"tags":[{"id":"tag_…","name":"Español","active":true}]}
@@ -387,13 +395,25 @@ Un broker futuro requiere ADR y un problema medido; no bus universal inicial.
 
 ## Contextos privados Core–Streaming
 
-Las rutas Core usan TLS privado y X-Service-Name:streaming/X-Service-Token con permiso por ruta. Streaming transmite la cookie opaca en X-Session-Credential solo durante la llamada; no se persiste, registra ni incluye en fingerprint/eventos. Rutas privadas Streaming usan TLS y Authorization: Bearer específico por consumidor/operación. El proxy público bloquea /internal/*.
+Las rutas Core usan TLS privado y X-Service-Name:streaming/X-Service-Token con permiso por ruta. `CORE_STREAMING_SERVICE_TOKEN` autoriza únicamente los POST `owner-context` y `catalog-values`, y coincide con `STREAMING_CORE_SERVICE_TOKEN` del cliente Rust. La credencial opcional y distinta `CORE_STREAMING_CATALOG_SERVICE_TOKEN` autoriza solo el POST `catalog-values`; usarla en `owner-context` devuelve `401 SERVICE_UNAUTHORIZED` incluso con sesión válida. No hay permisos implícitos sobre otras rutas. Streaming transmite la cookie opaca en X-Session-Credential solo durante la llamada; no se persiste, registra ni incluye en fingerprint/eventos. Rutas privadas Streaming usan TLS y Authorization: Bearer específico por consumidor/operación. El proxy público bloquea /internal/*.
 
 **Owner context.** POST /internal/core/streaming/owner-context acepta {commandId:UUID,operation,channelId,categoryId?,tagIds?}, con operation en CREATE_CONFIG/PATCH_METADATA/ROTATE_KEY/STOP_SESSION. Core valida sesión vigente/cuenta activa y propiedad usando sus módulos locales. IDs presentes deben existir, estar activos y ser del tipo CATEGORY/TAG correspondiente; 0–5 tags distintos. CREATE exige categoría; PATCH solo valida campos explícitos. Core devuelve {commandId,operation,userId,channelId,authorizedAtUtc,catalogVersion,category?,tags?}; valores tienen {id,kind,name,active}. Otro owner 403, sesión inválida 401, desconocido 404, IDs inválidos 422, Core caído 503/timeout 504. Core nunca genera ni recibe streamKey.
 
 Streaming verifica que el contexto corresponde al comando/canal, no acepta owner del cliente y confirma en <=1 s desde comenzar la consulta usando monotónico local. Timeout/contexto vencido falla cerrado sin mutación; no cachear contextos entre comandos ni reintentar ciegamente. Rotación/stop resuelven primero el channelId desde su recurso persistido. Una revocación/inactivación posterior a autorización puede coincidir con un commit dentro de ese segundo; la siguiente autorización rechaza. No hay lock o transacción entre Core y Streaming.
 
 **Labels/tombstones.** POST /internal/core/streaming/catalog-values acepta {ids:[ID]} hasta 50 y devuelve {catalogVersion,values:[{id,kind,name,active}]}, incluidos tombstones de IDs asociados. Streaming conserva labels asociados en sus datos para lectura pública ante caída Core. Desactivar no borra ID/último label; un PATCH de título conserva asociaciones inactivadas y una edición explícita requiere contexto activo. No reinterpretar CATEGORY como TAG ni generar vocabulario propio.
+
+Detalles del proveedor Core: batch de 1–50 entradas; IDs no vacíos de hasta 64 caracteres.
+Se deduplican IDs exactos conservando la primera aparición; un ID desconocido rechaza todo el
+batch con `422 INVALID_TAXONOMY`/`fieldErrors.ids`, sin éxito parcial. Los IDs de categorías y tags
+son disjuntos: un registro SQL interno de identidad/tipo con clave única los reserva al insertar,
+en la misma transacción, incluyendo valores inactivos. No se impone un prefijo al consumidor.
+Categoría explícita nula/vacía es inválida; `tagIds: []` es válido y `null` no.
+Owner context deduplica tags antes del máximo de cinco; campos ausentes no aparecen en la respuesta.
+El cliente Rust envía selecciones sin duplicados. Las dos respuestas privadas usan `no-store`.
+Credencial de servicio ausente/incorrecta: 401; entrada por puerto público: 404 aun con token válido.
+JSON/operación/commandId malformados: 400; error SQL: 503. El envelope conserva
+`code,message,requestId,fieldErrors`, sin SQL ni secretos. Configuración/TLS en el runbook Core.
 
 **Sesión para Chat.** GET /internal/streaming/sessions/{sessionId}/context devuelve {streamId,sessionId,streamGeneration,sessionVersion,status,availability,timelinePositionMs,timelineSampledAtUtc}; reloj actual del owner, sin permiso de usuario. PREPARING y ENDED son respuestas de estado, no una sesión LIVE inventada; desconocida 404, owner/clock no verificable 503. Core compone writeAllowed y autor solo para el mensaje solicitado. El contexto Core se entrega después de esas lecturas, con presupuesto agregado de Chat; no hay atomicidad entre revocación Core y fin Streaming.
 

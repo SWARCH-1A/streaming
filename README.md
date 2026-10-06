@@ -28,10 +28,13 @@ y las [fases futuras](docs/fases_futuras.md). [AGENTS.md](AGENTS.md) define las 
 
 ## Implementación y ejecución
 
-[Core](services/core/README.md) implementa registro transaccional de cuenta/perfil/canal, sesiones,
-perfil/avatares, edición/portadas de canal y bootstrap público compuesto. [Compose local](infra/local/README.md) inicia Core y
-PostgreSQL con volumen persistente. Pruebas: `services/core/mvnw -f services/core/pom.xml test` y
-`services/core/mvnw -f services/core/pom.xml verify -P integration` (Docker para PostgreSQL aislado).
+[Core](services/core/README.md) implementa cuentas/perfiles/canales, catálogo SQL público y
+contextos privados de propietario y valores de catálogo. [Compose](infra/local/README.md)
+arranca Core/PostgreSQL; `./infra/local/init-env.ps1` genera configuración local ignorada y
+`./infra/local/test-core.ps1` ejecuta unitarias e integración con Java 25 en Docker.
 
-[Streaming](services/streaming/README.md) contiene el servicio Rust de control, el adaptador Media y su stack MediaMTX/PostgreSQL. La integración con Core, Chat y Web y la aceptación del sistema se rigen por SPEC-09…SPEC-13. Catálogo y Consultas siguen pendientes.
-[Web](apps/web/README.md) organiza su esqueleto en `src/modules`, `src/shell` y `src/accessibility`.
+[Streaming](services/streaming/README.md) contiene el servicio Rust de control, el adaptador Media y su stack MediaMTX/PostgreSQL. La integración con Core, Chat y Web y la aceptación del sistema se rigen por SPEC-09…SPEC-13. El [runner de contratos](tests/contracts/README.md) comprueba su cliente real contra Core y reinicios con volúmenes persistentes.
+
+Discovery, composición de emisiones en Canales, integración Chat/Web y evidencia E2E siguen
+pendientes. El backend Catálogo no cierra por sí solo RF-066…RF-069 ni SPEC-06.
+[Web](apps/web/README.md) conserva su esqueleto; SPEC-08 espera sus vistas.

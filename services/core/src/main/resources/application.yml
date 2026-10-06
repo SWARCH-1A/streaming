@@ -9,7 +9,7 @@ spring:
     username: ${CORE_DB_USER:core}
     password: ${CORE_DB_PASSWORD}
   flyway:
-    schemas: core,identity,profile,channels
+    schemas: core,identity,profile,channels,taxonomy
     default-schema: core
   servlet:
     multipart:
@@ -25,6 +25,14 @@ management:
       probes:
         enabled: true
 core:
+  internal:
+    enabled: ${CORE_INTERNAL_ENABLED:false}
+    port: ${CORE_INTERNAL_PORT:8082}
+    development-http: ${CORE_INTERNAL_DEVELOPMENT_HTTP:false}
+    streaming-service-token: ${CORE_STREAMING_SERVICE_TOKEN:}
+    streaming-catalog-service-token: ${CORE_STREAMING_CATALOG_SERVICE_TOKEN:}
+    tls-keystore: ${CORE_INTERNAL_TLS_KEYSTORE:}
+    tls-keystore-password: ${CORE_INTERNAL_TLS_KEYSTORE_PASSWORD:}
   cookie-name: stream_session
   secure-cookie: ${CORE_SECURE_COOKIE:false}
   public-origin: ${WEB_ORIGIN:http://localhost:3000}

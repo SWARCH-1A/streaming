@@ -13,6 +13,7 @@ import streaming.core.accounts.identity.application.IdentityException;
 import streaming.core.accounts.profile.application.ProfileException;
 import streaming.core.channels.application.ChannelException;
 import streaming.core.security.RequestAuditFilter;
+import streaming.core.taxonomy.application.TaxonomyException;
 
 @RestControllerAdvice
 public class CoreErrorHandler {
@@ -34,6 +35,12 @@ public class CoreErrorHandler {
     @ExceptionHandler(ChannelException.class)
     ResponseEntity<ErrorBody> channel(ChannelException error,HttpServletRequest request) {
         return response(error.status(),error.code(),error.getMessage(),request);
+    }
+    @ExceptionHandler(TaxonomyException.class)
+    ResponseEntity<ErrorBody> taxonomy(TaxonomyException error,HttpServletRequest request) {
+        var body=new ErrorBody(error.code(),error.getMessage(),
+                (String)request.getAttribute(RequestAuditFilter.REQUEST_ID_ATTRIBUTE),error.fieldErrors());
+        return ResponseEntity.status(error.status()).header("Cache-Control","no-store").body(body);
     }
     @ExceptionHandler({MethodArgumentNotValidException.class,org.springframework.web.bind.MissingRequestHeaderException.class,
             org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class,
