@@ -9,6 +9,7 @@
 | [ADR-005](ADR-005-streaming-rust-y-proyeccion-discovery.md) | Aceptada | Streaming Rust/SQL privado, MediaMTX, Discovery en Core con proyección pública y contratos de contexto. |
 | [ADR-006](ADR-006-taxonomia-en-core.md) | Propuesta | Catálogo SQL Core, versión/tombstones y contratos privados owner/catálogo con Streaming. |
 | [ADR-007](ADR-007-web-react-typescript.md) | Aceptada | Web React/TypeScript/SWC, pnpm, componentes atómicos, calidad y mocks locales. |
+| [ADR-008](ADR-008-descubrimiento-en-core.md) | Propuesta | Descubrimiento en Core: graphql-java con controlador propio, recepción atómica de snapshots, reconstrucción con watermark, ranking paginado y límites públicos. |
 
 La selección de Chat y herramientas de operación y despliegue se registra conforme
 a la [política ADR](../politica_ADR.md). Las alternativas candidatas requieren decisión del responsable.
