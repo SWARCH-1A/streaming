@@ -1,24 +1,20 @@
 # ADR-004: Edición y portadas de Canales dentro de Core
 
-- Estado: aceptada
+- Estado: aceptada para Canales; composición de Emisiones actualizada por ADR-005
 - Fecha: 2026-10-02
 - Responsable: Core / Canales
 - SDD/contratos afectados: SPEC-03, SPEC-10…SPEC-13; RF-008…RF-012; bootstrap de canal, PATCH y uploads de portada.
 
 ## Contexto
 
-ADR-003 define Canales como módulo Core. Esta rama contenía un prototipo en services/channels con
-provisión HTTP, cerca de registro, consulta remota de identidad y proyección de eventos de Emisiones.
-Develop ya implementa cuenta/perfil/canal en una transacción y bootstrap local por handle/owner.
-La propuesta anterior de persistencia/provisión de Channels también llevaba el número ADR-003;
-se retira de la definición vigente, conservando su historial en Git. ADR-003-servicios-cohesivos
-es la decisión de arquitectura aplicable.
+Canales pertenece a Core según ADR-005. Cuenta, perfil y canal se crean en una transacción
+PostgreSQL. La edición, las portadas y el bootstrap público por handle/owner necesitan conservar
+esa propiedad local y compartir la seguridad de Cuentas. El estado de emisión pertenece a Streaming.
 
 ## Decisión
 
-- Reubicar edición, reglas y archivos bajo services/core/src/main/java/streaming/core/channels.
-  Un build, PostgreSQL, gestor de transacciones, seguridad y configuración Core; sin puerto 8083,
-  cliente HTTP local, tokens por módulo ni aplicación/Dockerfile/POM propios de Channels.
+- Ubicar edición, reglas y archivos bajo services/core/src/main/java/streaming/core/channels.
+  Un build, PostgreSQL, gestor de transacciones, seguridad y configuración Core.
 - Conservar ChannelInitializer y registro transaccional de Cuentas. JdbcChannels posee las escrituras
   del módulo y expone ChannelQueries con composición de las vistas públicas de Cuentas.
 - PATCH parcial valida la sesión mediante la interfaz local de Cuentas y bloquea la fila del canal.
@@ -31,29 +27,26 @@ es la decisión de arquitectura aplicable.
   referencia tras una gracia de un día; limpieza de permisos vencidos en lotes de 500 cada 5 min.
 - Aplicar V2__channel_editing_and_banners.sql sobre el historial Core, sin alterar V1. FK compuesta
   en los permisos garantiza pertenencia del canal al owner; banner_key acompaña la URI pública.
-- Retirar endpoints de provisión/eventos, cercas, proyecciones e inbox/outbox internos de Canales.
-  Emisiones será fuente local del bootstrap conforme SPEC-04; sigue pendiente en develop. Hasta
-  implementarla, stream=null para el canal sin configuración; no acreditar RF-011/RF-012.
+- La creación de canal usa la transacción local de registro. Streaming Rust es fuente autoritativa
+  del estado de emisión en el bootstrap mediante batch público según ADR-005. Si Streaming falla,
+  la lectura conserva cuenta/perfil/canal con estado UNKNOWN.
 
 ## Opciones consideradas
 
 | Opción | Consecuencia |
 | --- | --- |
-| Mover el servicio sin adaptar provisión/proyección | Conserva coordinación remota e identidad replicada, contradiciendo ADR-003. |
-| Mantener solo el bootstrap inicial de develop | Pierde edición y portadas ya implementadas en esta rama. |
-| Consolidar las capacidades útiles en Core | Elegida: conserva edición/portadas y adopta transacciones, FK y consultas locales. |
+| Canales como servicio separado con provisión y proyección | Introduce coordinación remota y réplica de identidad para datos que comparten transacción con Cuentas. |
+| Bootstrap público sin edición ni portadas | No cubre las capacidades de Canales de SPEC-03. |
+| Canales como módulo Core | Elegida: edición/portadas con transacciones, FK y consultas locales. |
 
 ## Consecuencias
 
 Canales comparte release y disponibilidad de Core. PATCH/uploads siguen en /api/channels; lecturas
-por handle y owner devuelven el bootstrap compuesto vigente, sin status/activeStream de la proyección
-anterior. El consumidor usa channel/handle/profile/stream. La cookie y CSRF son comunes con Cuentas.
+por handle y owner devuelven el bootstrap compuesto channel/handle/profile/stream.
+La cookie y CSRF son comunes con Cuentas.
 El proceso y health son los de Core en 8081; Compose y Docker montan /data/banners además de avatares.
 
-La V2 actualiza bases Core existentes y nuevas; no importa datos del prototipo separado. Para ese
-traslado se preservan IDs, versiones, timestamps, claves/URI de imágenes y permisos vigentes con
-sus archivos mediante import explícito, según el runbook Core. No desplegar prototipos escribiendo
-simultáneamente sobre datos trasladados. Reconciliación y publicación requieren un almacenamiento
+La V2 actualiza bases Core existentes y nuevas. Reconciliación y publicación requieren un almacenamiento
 compartido consistente antes de habilitar múltiples réplicas.
 
 ## Verificación
@@ -62,9 +55,9 @@ Pruebas de Core: registro/rollback/retry, composición pública sin secretos, se
 PATCH concurrentes/no-op, descripción Unicode, multipart real, permisos ligados al owner, uso único,
 caducidad y conservación del objeto anterior ante fallo SQL o rollback posterior a la escritura.
 Las pruebas de BannerFileStore cubren bytes reales, tamaño, dimensiones y claves seguras.
-La composición de Emisiones y el perfil integrado SPEC-13 siguen pendientes.
+La aceptación de la composición de Emisiones y del perfil integrado corresponde a SPEC-13.
 
 ## Revisión
 
-Revisar al implementar la lectura local de Emisiones, antes de habilitar múltiples réplicas o al
-cambiar el adaptador de almacenamiento; una extracción requiere los criterios de ADR-003.
+Revisar al implementar la composición del snapshot Streaming, antes de habilitar múltiples réplicas o al
+cambiar el adaptador de almacenamiento; otras extracciones requieren los criterios de fases_futuras.md.

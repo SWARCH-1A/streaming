@@ -23,7 +23,8 @@ import tools.jackson.databind.ObjectMapper;
 public class CoreSecurityConfiguration {
     @Bean PasswordEncoder passwordEncoder() { return Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8(); }
 
-    @Bean SecurityFilterChain securityFilterChain(HttpSecurity http,ObjectMapper json,
+    @Bean @org.springframework.core.annotation.Order(2)
+    SecurityFilterChain securityFilterChain(HttpSecurity http,ObjectMapper json,
             @Value("${core.secure-cookie:false}") boolean secureCookie) throws Exception {
         CookieCsrfTokenRepository csrf=CookieCsrfTokenRepository.withHttpOnlyFalse();
         csrf.setCookieCustomizer(cookie->cookie.sameSite("Lax").secure(secureCookie).path("/"));
@@ -36,7 +37,7 @@ public class CoreSecurityConfiguration {
                     .requestMatchers(HttpMethod.GET,"/api/identity/registrations/**","/api/identity/public/**",
                             "/api/identity/csrf","/api/profile/csrf","/api/profile/me","/api/profile/users/**",
                             "/api/profile/avatars/**","/api/channels/by-handle/*","/api/channels/by-owner/*",
-                            "/api/channels/csrf","/api/channels/banners/*",
+                            "/api/channels/csrf","/api/channels/banners/*","/api/taxonomy",
                             "/actuator/health","/actuator/health/**","/actuator/info").permitAll()
                     .requestMatchers(HttpMethod.POST,"/api/identity/registrations","/api/identity/sessions",
                             "/api/profile/me/avatar-uploads","/api/channels/*/banner-uploads").permitAll()

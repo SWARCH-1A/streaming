@@ -262,14 +262,14 @@ class CoreIT {
         assertThat(request("PATCH",path,Map.of("description","Revoked"),true).statusCode()).isEqualTo(401);
         assertThat(request("GET","/api/channels/csrf",null,false).statusCode()).isEqualTo(200);
         for(String retired:List.of("/internal/channels/provision","/internal/channels/provisions/old","/internal/channels/stream-events")) {
-            assertThat(request("POST",retired,Map.of(),true).statusCode()).isEqualTo(403);
-            assertThat(request("GET",retired,null,false).statusCode()).isEqualTo(403);
+            assertThat(request("POST",retired,Map.of(),true).statusCode()).isEqualTo(404);
+            assertThat(request("GET",retired,null,false).statusCode()).isEqualTo(404);
         }
     }
 
     @Test void channelPatchesSerializeDifferentFieldsAndKeepVersionOnNoOpOrInvalidInput() throws Exception {
         var account=register(UUID.randomUUID(),"parallel@example.test","parallel_01");
-        var owner=new streaming.core.accounts.identity.application.IdentityApplicationService.SessionView(account.userId(),"parallel_01",null);
+        var owner=new streaming.core.channels.application.AccountAuthentication.Principal(account.userId());
         assertThat(channels.patch(owner,account.channelId(),json.readTree("{\"description\":null}")).channelVersion()).isZero();
         var upload=channels.upload(owner,account.channelId(),png());
         var barrier=new CyclicBarrier(2);
@@ -289,8 +289,8 @@ class CoreIT {
     @Test void channelBannerUploadsAreOwnerBoundSingleUseExpiringAndRollbackSafe() throws Exception {
         var account=register(UUID.randomUUID(),"banner@example.test","banner_01");
         var other=register(UUID.randomUUID(),"bannerother@example.test","banner_other");
-        var owner=new streaming.core.accounts.identity.application.IdentityApplicationService.SessionView(account.userId(),"banner_01",null);
-        var stranger=new streaming.core.accounts.identity.application.IdentityApplicationService.SessionView(other.userId(),"banner_other",null);
+        var owner=new streaming.core.channels.application.AccountAuthentication.Principal(account.userId());
+        var stranger=new streaming.core.channels.application.AccountAuthentication.Principal(other.userId());
         var first=channels.upload(owner,account.channelId(),png());
         var patch=json.valueToTree(Map.of("bannerUploadId",first.uploadId()));
         assertThatThrownBy(()->channels.upload(stranger,account.channelId(),png())).isInstanceOf(streaming.core.channels.application.ChannelException.class);
@@ -352,7 +352,7 @@ class CoreIT {
             assertThat(response.statusCode()).isEqualTo(403);
             assertThat(json.readTree(response.body()).get("requestId").asText()).isEqualTo(response.headers().firstValue("X-Request-Id").orElseThrow());
         }
-        assertThat(request("POST","/internal/identity/sessions/introspect",null,false).statusCode()).isEqualTo(403);
+        assertThat(request("POST","/internal/identity/sessions/introspect",null,false).statusCode()).isEqualTo(404);
         var preflight=browser.send(HttpRequest.newBuilder(uri("/api/profile/me")).header("Origin","http://localhost:3000")
                 .header("Access-Control-Request-Method","PATCH").header("Access-Control-Request-Headers","X-XSRF-TOKEN,Content-Type")
                 .method("OPTIONS",HttpRequest.BodyPublishers.noBody()).build(),HttpResponse.BodyHandlers.ofString());

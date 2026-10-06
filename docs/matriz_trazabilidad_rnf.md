@@ -10,7 +10,7 @@ prueba ejecutada.
 
 | RNF canónico | Aplicabilidad | SPEC primario | SPEC contribuyentes | Evidencia de cierre |
 | --- | --- | --- | --- | --- |
-| RNF-001 | P1 | SPEC-09 | SPEC-01, SPEC-03…SPEC-08 y SPEC-10…SPEC-13 | C&C/despliegue identifica procesos independientes, conectores y límites; SPEC-13 ejecuta Core y Chat como procesos propios separados. |
+| RNF-001 | P1 | SPEC-09 | SPEC-01, SPEC-03…SPEC-08 y SPEC-10…SPEC-13 | C&C/despliegue identifica procesos independientes, conectores y límites; SPEC-13 ejecuta Core, Streaming y Chat como procesos propios separados. |
 | RNF-002 | P1 | SPEC-12 | SPEC-08 | Shell web y navegación principal aparecen en el diagrama/rutas e2e; el prototipo se usa desde Chrome/Firefox sin cliente adicional. |
 | RNF-003 | P1 | SPEC-13 | SPEC-01, SPEC-03…SPEC-07 y SPEC-12 | Inventario demuestra al menos dos procesos de lógica desplegables, con health y reinicio individual. |
 | RNF-004 | P1 | SPEC-13 | SPEC-01, SPEC-03, SPEC-04, SPEC-05, SPEC-06 | Artefacto ejecutable usa SQL para relaciones persistentes que lo requieren; ADR enlaza esquema, dueño y consultas reales. |
@@ -23,9 +23,9 @@ prueba ejecutada.
 | RNF-011 | P1 | SPEC-13 | SPEC-01, SPEC-03, SPEC-06, SPEC-07 | Durante 10 min, el perfil integrado ejecuta 10 solicitudes de API/s totales: 2 login correctos, 3 Discovery, 1 búsqueda de canal, 1 Taxonomy, 1 lectura de canal, 1 perfil y 1 estado de stream. Cada endpoint reporta su muestra y p95 ≤2 s; toda operación válida fallida reprueba el run aunque los p95 de respuestas 2xx cumplan. |
 | RNF-012 | P1 | SPEC-04 | SPEC-12 e SPEC-13 | Solicitud del player→primer frame visible ≤5 s bajo perfil de red/carga P1 registrado; es máximo, no p95. |
 | RNF-013 | P1 | SPEC-05 | SPEC-12 e SPEC-13 | Mensaje aceptado→entrega a clientes conectados p95 <1 s bajo 20 msg/s agregados (cumple RF-033 y RNF-013 ≤1 s); se mide con relojes de servidor correlacionados. |
-| RNF-014 | P1 | SPEC-03 | SPEC-04 e SPEC-11 | Confirmación local de cambio de disponibilidad→consulta pública consistente ≤5 s; estados PLAYABLE/RECONNECTING/OFFLINE diferenciados. |
+| RNF-014 | P1 | SPEC-03 | SPEC-04 e SPEC-11 | Commit Streaming de cambio de disponibilidad→proyección Discovery/consulta pública ≤5 s; estados PLAYABLE/RECONNECTING/OFFLINE diferenciados. |
 | RNF-015 | P1 | SPEC-13 | SPEC-01, SPEC-03…SPEC-07 y SPEC-10…SPEC-12 | Escalar una instancia/capacidad del servicio seleccionado conserva schema/path y no requiere cambios de código/configuración en frontend ni consumidores ajenos. |
-| RNF-016 | P1 | SPEC-13 | SPEC-04, SPEC-05, SPEC-12 | Prueba demuestra capacidad independiente de Chat, Core y Media sin modificar schemas/paths/consumidores; módulos Core se escalan juntos. Documentar orden/fan-out/cuotas de Chat y SQL/volumen/clock de Core. |
+| RNF-016 | P1 | SPEC-13 | SPEC-04, SPEC-05, SPEC-12 | Prueba demuestra capacidad independiente de Chat, Core, Streaming y Media sin modificar schemas/paths/consumidores; módulos Core se escalan juntos. Documentar orden/fan-out/cuotas de Chat y SQL/volumen Core y fencing/clock/owner Streaming antes de varias réplicas. |
 | RNF-017 | P1 | SPEC-04 | SPEC-13 | Cinco fuentes simultáneas y 100 reproducciones concurrentes totales durante 10 min; el sexto stream recibe rechazo controlado. |
 | RNF-018 | P1 | SPEC-05 | SPEC-13 | 20 mensajes/s agregados entre salas durante 10 min; cada cuenta puede enviar como máximo un mensaje aceptado en cualquier ventana móvil de 1000 ms, sin burst allowance. Se documentan pérdidas, duplicados, error rate y latencia. |
 | RNF-019 | P1 | SPEC-05 | SPEC-04, SPEC-12, SPEC-13 | Se detiene Chat durante playback y se verifica que HLS continúa; UI muestra chat no disponible y recupera lectura. |
@@ -57,9 +57,9 @@ prueba ejecutada.
 | RNF-045 | P1 | SPEC-13 | SPEC-01, SPEC-03…SPEC-07 y SPEC-12 | Health/readiness distingue servicio listo, degradado y no disponible; prueba no se bloquea por health dependiente infinito. |
 | RNF-046 | P1 | SPEC-10 | SPEC-01, SPEC-03…SPEC-07 y SPEC-12 | Schemas de request/response/evento son neutrales al lenguaje, serializables y validados por proveedor y consumidor. |
 | RNF-047 | P1 | SPEC-10 | SPEC-01, SPEC-03…SPEC-08 y SPEC-11…SPEC-12 | Cliente consumidor compila/valida desde schema público; no importa modelo/SDK privado del lenguaje del proveedor. |
-| RNF-048 | P1 | SPEC-13 | SPEC-01, SPEC-03, SPEC-04 | Dueños justifican relaciones con integridad en SQL; prueba valida cuenta-canal-stream dentro del almacenamiento de autoridad. |
+| RNF-048 | P1 | SPEC-13 | SPEC-01, SPEC-03, SPEC-04 | Dueños justifican relaciones con integridad en SQL; prueba valida FK cuenta-canal en Core y config-sesión/leases en Rust; referencias entre bases validadas por contexto Core, sin FK entre bases. |
 | RNF-049 | P1 | SPEC-13 | SPEC-04, SPEC-05 | ADR vincula cada uso NoSQL a estado/acceso temporal o eventos; si no hay justificación, no se cuenta como cumplimiento. |
-| RNF-050 | P1 | SPEC-13 | SPEC-01, SPEC-03, SPEC-04, SPEC-05 | Reiniciar procesos y consultar Core desde SQL y recuperar Chat por backup/snapshot/eventos preserva IDs/estado sin volver a crear cuentas/canales/contenido manualmente. |
+| RNF-050 | P1 | SPEC-13 | SPEC-01, SPEC-03, SPEC-04, SPEC-05 | Reiniciar procesos y consultar Core y Streaming desde sus SQL privados, reconstruir proyección Discovery con snapshot/watermark y recuperar Chat por backup/snapshot/eventos preserva IDs/estado sin volver a crear cuentas/canales/contenido manualmente. |
 
 ## Reglas de ownership de la evidencia
 

@@ -2,7 +2,7 @@
 
 Base frontend de los diseños **Dark Cinema Broadcast** de Stitch. Una SPA modular con React,
 TypeScript estricto, Vite + SWC y pnpm. La decisión está en
-[ADR-006](../../docs/adr/ADR-006-web-react-typescript.md).
+[ADR-007](../../docs/adr/ADR-007-web-react-typescript.md).
 
 ## Ejecutar
 

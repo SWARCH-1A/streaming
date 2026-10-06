@@ -1,4 +1,4 @@
-# ADR-006: Web modular con React, TypeScript y SWC
+# ADR-007: Web modular con React, TypeScript y SWC
 
 - Estado: aceptada
 - Fecha: 2026-10-02
@@ -43,7 +43,7 @@ Playwright cubre rutas y recorridos responsive. Un workflow ejecuta calidad, bui
 - React con Vite/SWC: coincide con selección del usuario, build único y despliegue estático sencillo.
 - Next.js: agrega runtime/SSR sin necesidad en esta base; no se selecciona.
 - Mantener HTML generado/CDN: duplica estilos y controles, sin contratos tipados ni tests; descartado.
-- Microfrontends: contradicen ADR-003 y multiplican builds; descartados.
+- Microfrontends: contradicen ADR-005 y multiplican builds; descartados.
 
 ## Consecuencias
 
