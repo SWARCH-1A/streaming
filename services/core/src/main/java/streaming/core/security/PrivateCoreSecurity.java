@@ -24,6 +24,8 @@ public class PrivateCoreSecurity {
                         .access((authentication,context)->new AuthorizationDecision(listener.permits(context.getRequest(),PrivateCoreListener.Permission.OWNER_CONTEXT)))
                         .requestMatchers(HttpMethod.POST,"/internal/core/streaming/catalog-values")
                         .access((authentication,context)->new AuthorizationDecision(listener.permits(context.getRequest(),PrivateCoreListener.Permission.CATALOG_VALUES)))
+                        .requestMatchers(HttpMethod.POST,"/internal/core/discovery/stream-events")
+                        .access((authentication,context)->new AuthorizationDecision(listener.permits(context.getRequest(),PrivateCoreListener.Permission.DISCOVERY_EVENTS)))
                         .anyRequest().denyAll())
                 .exceptionHandling(e->e
                         .authenticationEntryPoint((request,response,error)->deny(request,response,listener,json))

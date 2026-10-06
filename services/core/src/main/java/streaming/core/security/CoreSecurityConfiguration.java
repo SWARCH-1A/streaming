@@ -30,7 +30,9 @@ public class CoreSecurityConfiguration {
         csrf.setCookieCustomizer(cookie->cookie.sameSite("Lax").secure(secureCookie).path("/"));
         http.cors(Customizer.withDefaults())
             // The JSON endpoint and cookie expose the same token accepted by X-XSRF-TOKEN.
-            .csrf(c->c.csrfTokenRepository(csrf).csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
+            .csrf(c->c.csrfTokenRepository(csrf).csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+                    // Public, anonymous, read-only query endpoint: it ignores the session cookie and requires application/json.
+                    .ignoringRequestMatchers("/api/discovery/graphql"))
             .sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .requestCache(c->c.disable())
             .authorizeHttpRequests(a->a
@@ -40,7 +42,7 @@ public class CoreSecurityConfiguration {
                             "/api/channels/csrf","/api/channels/banners/*","/api/taxonomy",
                             "/actuator/health","/actuator/health/**","/actuator/info").permitAll()
                     .requestMatchers(HttpMethod.POST,"/api/identity/registrations","/api/identity/sessions",
-                            "/api/profile/me/avatar-uploads","/api/channels/*/banner-uploads").permitAll()
+                            "/api/profile/me/avatar-uploads","/api/channels/*/banner-uploads","/api/discovery/graphql").permitAll()
                     .requestMatchers(HttpMethod.PATCH,"/api/profile/me","/api/channels/*").permitAll()
                     .requestMatchers(HttpMethod.DELETE,"/api/identity/sessions/current").permitAll()
                     .anyRequest().denyAll())
