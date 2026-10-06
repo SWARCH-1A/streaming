@@ -1,0 +1,19 @@
+.panel {
+  display: grid;
+  gap: 1.5rem;
+}
+.tags {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.tags legend {
+  font-weight: 600;
+  font-size: 0.8125rem;
+  margin-bottom: 0.5rem;
+}
+.tags p {
+  font-size: 0.75rem;
+  margin-bottom: 1rem;
+}

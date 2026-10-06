@@ -86,8 +86,8 @@ lectura pública sin sesión y errores SQL sin detalles internos. Ejecutar `infr
 y conservar informes Maven locales; esta lista no implica que una ejecución haya pasado.
 
 Streaming debe aportar asociaciones, rollback de edición inválida y edición LIVE; Discovery,
-filtros exactos/AND y exclusión de estados no reproducibles. Web y accesibilidad esperan su base
-compartida. Estos recorridos y el perfil SPEC-13 permanecen pendientes de integración.
+filtros exactos/AND y exclusión de estados no reproducibles. Web y accesibilidad requieren verificar los recorridos
+integrados. Estos recorridos y el perfil SPEC-13 permanecen pendientes de integración.
 
 ## Revisión
 

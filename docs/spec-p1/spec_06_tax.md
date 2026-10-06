@@ -93,7 +93,7 @@ fallo SQL correlacionado. El contrato con Rust se comprueba con el runner de
 [tests/contracts](../../tests/contracts/README.md); persistencia con el smoke allí documentado.
 Esto no cierra SPEC-06: Streaming debe demostrar asociaciones/edición LIVE (CA-02/03/05/07),
 Discovery filtros exactos/AND/PLAYABLE y frescura (CA-04/05/07), y Web opciones nuevas sin rebuild
-y accesibilidad (CA-06/SPEC-08). SPEC-08 espera la implementación Web.
+y accesibilidad (CA-06/SPEC-08). SPEC-08 requiere verificar los recorridos Web integrados.
 
 Semilla siete categorías/ocho tags; 0/5/6 tags, categorías ausentes/inactivas y dedupe; filtros PLAYABLE exactos y AND, edición LIVE y tombstones; nueva opción servidor sin rebuild Web. Revisar propiedad local de Catálogo y contrato Core–Streaming, sin FK entre bases ni servicio Taxonomy separado.
 

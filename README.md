@@ -37,4 +37,8 @@ arranca Core/PostgreSQL; `./infra/local/init-env.ps1` genera configuración loca
 
 Discovery, composición de emisiones en Canales, integración Chat/Web y evidencia E2E siguen
 pendientes. El backend Catálogo no cierra por sí solo RF-066…RF-069 ni SPEC-06.
-[Web](apps/web/README.md) conserva su esqueleto; SPEC-08 espera sus vistas.
+[Web](apps/web/README.md) tiene una base React/TypeScript/SWC ejecutable con pnpm, diseño de Stitch,
+componentes atómicos y tests; organiza su esqueleto en `src/modules`, `src/shell` y
+`src/accessibility`. Sus vistas usan datos de demostración; las integraciones HTTP/WS/HLS y
+autorización real siguen pendientes. Ejecutar desde `apps/web`: `pnpm install --frozen-lockfile` y
+`pnpm dev` (puerto 3000). Calidad: `pnpm check`; navegador: `pnpm test:e2e`.

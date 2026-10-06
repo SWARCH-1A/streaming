@@ -1,0 +1,36 @@
+.page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  gap: 3rem;
+}
+.filters {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.filters select {
+  max-width: 210px;
+  font-size: 0.75rem;
+}
+.results {
+  margin: 0.75rem 0 1.5rem;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+.channels {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+@media (max-width: 900px) {
+  .channels {
+    grid-template-columns: 1fr;
+  }
+}
+
+.page > section {
+  min-width: 0;
+}

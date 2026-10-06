@@ -1,0 +1,14 @@
+.empty {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 1rem;
+  padding: 3rem 1.5rem;
+}
+.empty svg {
+  color: var(--color-primary-soft);
+}
+.empty p {
+  color: var(--color-muted);
+  max-width: 42ch;
+}

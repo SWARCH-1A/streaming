@@ -63,7 +63,7 @@ SPEC-10 define APIs públicas/internas públicas y privadas; SPEC-11 registro lo
 
 ## 9. Decisiones y preguntas abiertas
 
-Arquitectura en ADR-005; selección de Chat/Web y configuración Media y artefactos de despliegue pendientes. No fijar stacks diferentes para cada módulo Core ni contabilizar un candidato como evidencia.
+Arquitectura en ADR-005; base Web React/TypeScript/SWC y pnpm en [ADR-007](../adr/ADR-007-web-react-typescript.md). La selección de Chat, la integración y los artefactos de despliegue siguen pendientes. No fijar stacks diferentes para cada módulo Core ni contabilizar un candidato como evidencia.
 
 ## 10. Verificación
 

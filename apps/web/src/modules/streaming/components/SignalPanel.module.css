@@ -1,0 +1,12 @@
+.panel {
+  display: grid;
+  gap: 1rem;
+}
+.states {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: var(--color-canvas);
+  border-radius: var(--radius-md);
+}

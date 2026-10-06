@@ -1,0 +1,61 @@
+.chat {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--color-panel);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgb(255 255 255 / 4%);
+  overflow: hidden;
+  height: 720px;
+}
+.header {
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: #1f1f24;
+}
+.header h2 {
+  font-size: 1.2rem;
+}
+.info {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+  font-size: 0.6875rem;
+  color: var(--color-muted);
+  border-bottom: 1px solid var(--color-outline);
+}
+.history {
+  overflow-y: auto;
+  flex: 1;
+  padding: 1rem;
+}
+.composer {
+  padding: 1rem;
+  background: #1f1f24;
+  display: grid;
+  gap: 1rem;
+}
+.composer p {
+  font-size: 0.75rem;
+}
+.composer textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+.send {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+.send > span {
+  font: 0.75rem var(--font-mono);
+  color: var(--color-muted);
+}
+.error {
+  color: var(--color-error);
+  margin-top: 0.5rem;
+}
