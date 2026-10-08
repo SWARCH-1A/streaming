@@ -1,0 +1,86 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--color-panel);
+  border-right: 1px solid rgb(255 255 255 / 5%);
+}
+.top {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 1.25rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--color-muted);
+  border-bottom: 1px solid rgb(255 255 255 / 5%);
+}
+.top svg {
+  color: var(--color-error);
+}
+.channels {
+  padding: 0.75rem;
+}
+.channels > a {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.4rem;
+  border-radius: var(--radius-sm);
+}
+.channels > a:hover {
+  background: var(--color-raised);
+}
+.channels > a > div {
+  flex: 1;
+  min-width: 0;
+}
+.channels strong {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.75rem;
+}
+.channels div > span {
+  display: block;
+  font-size: 0.6875rem;
+  color: var(--color-muted);
+}
+.channels b {
+  color: var(--color-error);
+  font-size: 0.625rem;
+}
+.section {
+  padding: 1.25rem 1rem;
+  border-top: 1px solid rgb(255 255 255 / 5%);
+}
+.section nav {
+  display: grid;
+  margin-top: 0.5rem;
+  gap: 0.2rem;
+}
+.section a {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.6rem;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  border-radius: var(--radius-sm);
+}
+.section a:hover,
+.section a[aria-current='page'] {
+  background: var(--color-raised);
+  color: var(--color-primary-soft);
+}
+.footer {
+  margin-top: auto;
+  padding: 1.25rem 0.75rem;
+  background: var(--color-surface);
+}
+.footer p {
+  font-size: 0.6875rem;
+  color: var(--color-muted);
+  margin: 0.5rem;
+}

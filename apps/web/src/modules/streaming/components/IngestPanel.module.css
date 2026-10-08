@@ -1,0 +1,12 @@
+.field {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.field input {
+  min-width: 0;
+  font: 0.75rem var(--font-mono);
+}
+.field button {
+  flex-shrink: 0;
+}

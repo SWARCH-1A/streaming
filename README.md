@@ -35,11 +35,12 @@ arranca Core/PostgreSQL; `./infra/local/init-env.ps1` genera configuración loca
 
 [Chat](services/chat/README.md) (Go y Redis) implementa salas efímeras, historial, WebSocket, cuota,
 deduplicación y eventos de sesión. Pruebas: `go test ./...` en `services/chat`.
-Esta entrega depende del [PR #7 de Streaming](https://github.com/SWARCH-1A/streaming/pull/7).
-La documentación adopta sus fronteras; el servicio Rust se incorpora desde ese PR y no se
-fusiona automáticamente aquí. El [runner de contratos](tests/contracts/README.md) comprueba su
-cliente real contra Core y reinicios con volúmenes persistentes.
+[Streaming](services/streaming/README.md) contiene el servicio Rust de control, el adaptador Media y su stack MediaMTX/PostgreSQL. La integración con Core, Chat y Web y la aceptación del sistema se rigen por SPEC-09…SPEC-13. El [runner de contratos](tests/contracts/README.md) comprueba su cliente real contra Core y reinicios con volúmenes persistentes.
 
 Discovery, composición de emisiones en Canales, integración Chat/Web y evidencia E2E siguen
 pendientes. El backend Catálogo no cierra por sí solo RF-066…RF-069 ni SPEC-06.
-[Web](apps/web/README.md) conserva su esqueleto; SPEC-08 espera sus vistas.
+[Web](apps/web/README.md) tiene una base React/TypeScript/SWC ejecutable con pnpm, diseño de Stitch,
+componentes atómicos y tests; organiza su esqueleto en `src/modules`, `src/shell` y
+`src/accessibility`. Sus vistas usan datos de demostración; las integraciones HTTP/WS/HLS y
+autorización real siguen pendientes. Ejecutar desde `apps/web`: `pnpm install --frozen-lockfile` y
+`pnpm dev` (puerto 3000). Calidad: `pnpm check`; navegador: `pnpm test:e2e`.

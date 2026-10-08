@@ -81,7 +81,8 @@ Web consume APIs Core/Streaming y Chat/HLS; módulos UI no requieren procesos pr
 
 ## 9. Decisiones y preguntas abiertas
 
-Web integrada y mismo origen HTTPS. Stacks y librerías Web se seleccionan mediante ADR. La ruta por handle compone datos locales Core y snapshot público Streaming; Discovery consulta proyección SQL local.
+Web integrada y mismo origen HTTPS. [ADR-007](../adr/ADR-007-web-react-typescript.md) selecciona la base Web React/TypeScript/SWC con pnpm.
+Las vistas locales usan mocks; auth, proxy, HTTP/WS/HLS y CA integrados siguen pendientes. La ruta por handle compone datos locales Core y snapshot público Streaming; Discovery consulta proyección SQL local.
 
 ## 10. Verificación
 
