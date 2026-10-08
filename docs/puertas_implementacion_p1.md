@@ -5,7 +5,7 @@ Cada criterio se cierra con evidencia de implementación y ejecución.
 | Puerta | Acción antes de aceptar | Dueño / impacto |
 | --- | --- | --- |
 | Registro local | Implementar transacción cuenta/perfil/canal/idempotencia y FK; rollback/retry tras perder respuesta | Cuentas/Canales Core; publicación solo tras commit |
-| Stack por proceso | Confirmar lenguajes generales en artefactos reales y uso NoSQL justificado; Java y Rust seleccionados mediante ADR; Web TypeScript/Chat Go/MongoDB candidatos | Responsables Web/Chat/Core/Streaming; no seleccionar stack distinto por módulo local |
+| Stack por proceso | Confirmar lenguajes generales en artefactos reales y uso NoSQL justificado; Java y Rust seleccionados mediante ADR; Chat Go/Redis (ADR-006 chat) y Web TypeScript candidato | Responsables Web/Chat/Core/Streaming; no seleccionar stack distinto por módulo local |
 | Dos conectores HTTP | Evidenciar REST/GraphQL/WS y confirmación docente de al menos dos tipos | SPEC-13; no declarar RNF-006 cerrado por un diagrama |
 | Contexto Chat | Schema neutro, TLS/servicio/Origin/cookie, revocación local Core y estado/timeline actual Streaming; medir presupuesto 400ms/commit<=500ms y carrera de operaciones en vuelo | Core/Streaming/Chat; p95 de entrega <1s, sin auth cacheada |
 | Mensajes durables y escalado | Dedupe/secuencia/cuota por cuenta consistentes, persistencia antes de ACK y broadcast recuperable; propietario/fan-out por sala entre réplicas | Chat; no contador independiente por réplica ni ACK perdido |

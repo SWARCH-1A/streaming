@@ -4,6 +4,8 @@
 Chat, Media, Web y proxy se incorporan al implementar sus SPEC/ADR. Se necesita Git, PowerShell
 y Docker Desktop iniciado con contenedores Linux. JDK 25 y Maven 3.9.11 se ejecutan dentro de Docker.
 Definición y variables de proceso: [Core](../../services/core/README.md).
+`compose.chat.yaml` añade Chat y su Redis con AOF. Definición y variables de Chat:
+[Chat](../../services/chat/README.md).
 
 ## Preparar y arrancar
 
@@ -171,6 +173,17 @@ Usar exclusivamente MCP y el proyecto STREAMING; conservar responsables y relaci
 docker compose --env-file infra/local/.env -p streaming-core -f infra/local/compose.core.yaml down
 ```
 
+Chat se levanta junto con Core para resolver `core:8081` en la misma red. Completar antes
+CHAT_CORE_SERVICE_TOKEN y CHAT_SESSION_EVENTS_TOKEN en `.env`:
+
+```sh
+docker compose --env-file infra/local/.env -p streaming-core -f infra/local/compose.core.yaml -f infra/local/compose.chat.yaml up --build -d
+curl http://localhost:8085/readyz
+```
+
+Chat publica 8085 (historial/WS) y 8086 (`/internal/chat/session-events`) solo en localhost. Redis
+no se publica. El volumen `chat-redis` conserva mensajes con ACK ante reinicios. Las salas expiran
+5 minutos después de terminar la sesión.
 Los volúmenes SQL, avatares y portadas son separados; los dos últimos solo contienen datos cuando
 `CORE_IMAGE_STORAGE_PROVIDER=filesystem`. `down` conserva los volúmenes; no añadir `-v` para detener
 una instalación con datos que deban conservarse. Con S3, respaldar SQL y objetos del bucket juntos.
