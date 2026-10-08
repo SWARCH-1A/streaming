@@ -9,7 +9,7 @@ spring:
     username: ${CORE_DB_USER:core}
     password: ${CORE_DB_PASSWORD}
   flyway:
-    schemas: core,identity,profile,channels,taxonomy
+    schemas: core,identity,profile,channels,taxonomy,discovery
     default-schema: core
   servlet:
     multipart:
@@ -46,9 +46,25 @@ core:
   secure-cookie: ${CORE_SECURE_COOKIE:false}
   public-origin: ${WEB_ORIGIN:http://localhost:3000}
   rate-limit-hmac-secret: ${CORE_RATE_LIMIT_HMAC_SECRET}
+  # CIDR list of reverse proxies whose X-Forwarded-For is trusted; empty = always use the socket address.
+  trusted-proxies: ${CORE_TRUSTED_PROXIES:}
 profile:
   storage-root: ${PROFILE_AVATAR_STORAGE}
   avatar-public-base-url: ${PROFILE_AVATAR_PUBLIC_BASE:/api/profile/avatars}
 channels:
   storage-root: ${CHANNELS_BANNER_STORAGE}
   banner-public-base-url: ${CHANNELS_BANNER_PUBLIC_BASE:/api/channels/banners}
+discovery:
+  streaming:
+    # Private Streaming listener used for the consistent rebuild cut; empty disables reconciliation.
+    base-url: ${CORE_STREAMING_BASE_URL:}
+    consumer-token: ${CORE_STREAMING_CONSUMER_TOKEN:}
+    connect-timeout: PT1S
+    read-timeout: PT5S
+  reconcile-interval: ${DISCOVERY_RECONCILE_INTERVAL:PT4S}
+  ranking-snapshot-ttl: PT5M
+  inbox-retention: PT1H
+  rate-limit:
+    burst: 20
+    window-max: 600
+    window: PT60S

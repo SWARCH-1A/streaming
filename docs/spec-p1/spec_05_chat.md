@@ -6,7 +6,7 @@
 
 ## 1. Contexto y problema
 
-Define RF-031…RF-035 y cubre lectura/envío/distribución vinculados a una sesión. Debe fallar de forma aislada respecto al video. El chat es efímero: existe mientras dura la sesión y se elimina poco después de terminar ([ADR-006](../adr/ADR-006-chat-go-redis-efimero.md)).
+Define RF-031…RF-035 y cubre lectura/envío/distribución vinculados a una sesión. Debe fallar de forma aislada respecto al video. El chat es efímero: existe mientras dura la sesión y se elimina poco después de terminar ([ADR-010](../adr/ADR-010-chat-go-redis-efimero.md)).
 
 ## 2. Definición del componente
 
@@ -77,7 +77,7 @@ Como espectador, quiero leer mensajes de la sesión en vivo; como usuario autent
 
 ## 7. Diseño técnico y datos
 
-Chat permanece servicio independiente por conexiones largas, fan-out e aislamiento de HLS. Posee mensajes, dedupe, secuencia por sesión, cuota global por cuenta y broadcast; no credenciales/usuarios maestros. Implementación: Go y Redis según [ADR-006](../adr/ADR-006-chat-go-redis-efimero.md).
+Chat permanece servicio independiente por conexiones largas, fan-out e aislamiento de HLS. Posee mensajes, dedupe, secuencia por sesión, cuota global por cuenta y broadcast; no credenciales/usuarios maestros. Implementación: Go y Redis según [ADR-010](../adr/ADR-010-chat-go-redis-efimero.md).
 
 Por mensaje nuevo: validar texto, solicitar una sola vez contexto Core autenticado (principal vigente + autor público + estado/timeline), aplicar dedupe/cuota y guardar antes del ACK. El contexto no se cachea para otros envíos. Core obtiene estado/timeline Streaming dentro del presupuesto total 400 ms (hop <=200 ms). Core no procesa mensajes ni decide secuencias; Chat consume un único contexto autorizado Core. Revocación/fin posteriores a autorización no revierten operación en vuelo, dentro del presupuesto máximo de 500 ms; nuevas autorizaciones se rechazan.
 

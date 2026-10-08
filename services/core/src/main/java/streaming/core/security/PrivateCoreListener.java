@@ -64,7 +64,7 @@ public class PrivateCoreListener implements WebServerFactoryCustomizer<TomcatSer
 
     public int localPort() { return connector==null?-1:connector.getLocalPort(); }
     public boolean isPrivate(HttpServletRequest request) { return enabled && localPort()>0 && request.getLocalPort()==localPort(); }
-    public enum Permission { OWNER_CONTEXT, CATALOG_VALUES }
+    public enum Permission { OWNER_CONTEXT, CATALOG_VALUES, DISCOVERY_EVENTS }
 
     public boolean permits(HttpServletRequest request,Permission permission) {
         if(!isPrivate(request) || !"streaming".equals(request.getHeader("X-Service-Name"))) return false;
@@ -74,7 +74,7 @@ public class PrivateCoreListener implements WebServerFactoryCustomizer<TomcatSer
         boolean full=MessageDigest.isEqual(token,candidate);
         boolean catalogOnly=catalogToken.length>0 && MessageDigest.isEqual(catalogToken,candidate);
         return switch(permission) {
-            case OWNER_CONTEXT -> full;
+            case OWNER_CONTEXT, DISCOVERY_EVENTS -> full;
             case CATALOG_VALUES -> full || catalogOnly;
         };
     }

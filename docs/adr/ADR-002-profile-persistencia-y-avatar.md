@@ -19,7 +19,7 @@ editables; el handle permanece inmutable. Debe conservarse el objeto anterior an
 
 1. Usar Java/Spring y PostgreSQL Core de ADR-001. Tabla de perfil con FK a cuenta, permisos de upload ligados al propietario y repositorio encapsulado; registro crea displayName=handle, bio vacía, avatar nulo y versión 0. Validación de sesión por interfaz local de Cuentas.
 2. PATCH parcial serializado por usuario; omisión conserva, bio:null limpia y avatarUploadId:null retira. Solo cambios efectivos incrementan versión. Canal/Consultas leen DTO/vista pública local; Chat recibe snapshot del autor en su contexto y conserva el de mensajes anteriores.
-3. Usar el proveedor de objetos definido por [ADR-008](ADR-008-s3-image-storage.md). S3 es el proveedor predeterminado; guardar en el prefijo de avatares bajo `pending/` y `public/`. Filesystem queda disponible solo cuando se selecciona explícitamente para desarrollo o pruebas. Clave UUID inmutable y extensión del formato real; no usar nombres de archivo del cliente ni guardar imagen como blob SQL.
+3. Usar el proveedor de objetos definido por [ADR-009](ADR-009-s3-image-storage.md). S3 es el proveedor predeterminado; guardar en el prefijo de avatares bajo `pending/` y `public/`. Filesystem queda disponible solo cuando se selecciona explícitamente para desarrollo o pruebas. Clave UUID inmutable y extensión del formato real; no usar nombres de archivo del cliente ni guardar imagen como blob SQL.
 4. Inspeccionar/decodificar bytes; JPEG/PNG/GIF real <=10 MB y ancho/alto >=200 px. Límite defensivo de píxeles/dimensiones. Content-Type y extensión del cliente no prueban formato.
 5. Upload crea temporal y permiso de un uso: hash de uploadId, dueño y vencimiento 15 min. PATCH valida/consume permiso y publica objeto nuevo antes del commit de referencia SQL. Rollback elimina el objeto nuevo; tras commit limpia temporal y retira objeto anterior cuando corresponde. Reconciliación periódica elimina temporales vencidos/huérfanos sin borrar objetos referenciados.
 6. URI pública GET /api/profile/avatars/{key}, prefijo PROFILE_AVATAR_PUBLIC_BASE (default /api/profile/avatars). Core entrega la imagen desde el bucket privado; no se publica una ACL S3 ni se incluye una URL directa de bucket. Clave opaca y caché de larga duración con URL nueva en cada reemplazo; no revelar ruta física/nombre original. La política de caché debe contemplar privacidad y retiro antes de introducir borrado definitivo de cuentas.
@@ -33,7 +33,7 @@ editables; el handle permanece inmutable. Debe conservarse el objeto anterior an
 | Perfil en servicio/NoSQL separado | Obliga a activación y lookup remoto; el uso NoSQL de sistema se asigna al historial Chat. |
 | Volumen persistente | Se conserva para desarrollo local y pruebas; con varias réplicas requiere volumen compartido consistente. |
 | Blob PostgreSQL | Aumenta tamaño y costo de lectura/backups transaccionales; separa peor los archivos. |
-| S3/MinIO | Elegido para despliegue: almacén compartido y escalable, a cambio de dependencia de red, credenciales y operación; detalle en ADR-008. |
+| S3/MinIO | Elegido para despliegue: almacén compartido y escalable, a cambio de dependencia de red, credenciales y operación; detalle en ADR-009. |
 | Sobrescribir URL o usar nombre original | Complica caché, colisiones y seguridad; se eligen claves UUID inmutables. |
 
 ## Consecuencias
@@ -59,4 +59,4 @@ SQL antes de habilitar varias réplicas.
 
 Core/Cuentas revisa proveedor ante límites de costo/latencia, política de acceso, CDN o retención.
 Coordinar URL/proxy y restauración con Integración y consumidores. La migración de los volúmenes existentes
-a S3 se describe en ADR-008.
+a S3 se describe en ADR-009.

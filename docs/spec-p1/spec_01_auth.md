@@ -67,7 +67,7 @@ usan FK locales hacia la cuenta. Cada repositorio conserva autoridad de escritur
 hash de Idempotency-Key UUID y fingerprint HMAC del payload; POST 201 ACTIVE, consulta 200 ACTIVE
 con la misma clave; desconocido/clave incorrecta 404. Login es una operación separada.
 
-ADR-002 y ADR-008 definen claves UUID/URI inmutables, almacenamiento de objetos S3 privado en despliegue,
+ADR-002 y ADR-009 definen claves UUID/URI inmutables, almacenamiento de objetos S3 privado en despliegue,
 permisos de upload, publicación y limpieza. Las rutas públicas de imagen siguen pasando por Core.
 Edición parcial se serializa por usuario. S3 es el proveedor de objetos predeterminado; si se selecciona
 filesystem, requiere volumen compartido cuando Core ejecuta más de una réplica.

@@ -22,7 +22,7 @@ Como visitante o propietario, quiero consultar y mantener la página del canal, 
 
 - Crear exactamente un canal por `ownerUserId` en la transacción del registro. El canal no posee ni modifica handle; la ruta se resuelve con el handle canónico de Identity.
 
-- Editar descripción e imagen de portada del canal. Portada opcional, JPEG/PNG/GIF, máximo 10 MB, tamaño recomendado 1200×480 px. ADR-008 fija S3 privado como proveedor predeterminado; filesystem solo se selecciona explícitamente.
+- Editar descripción e imagen de portada del canal. Portada opcional, JPEG/PNG/GIF, máximo 10 MB, tamaño recomendado 1200×480 px. ADR-009 fija S3 privado como proveedor predeterminado; filesystem solo se selecciona explícitamente.
 
 - Consultar la página pública, estado LIVE/OFFLINE y stream activo.
 
@@ -66,7 +66,7 @@ Como visitante o propietario, quiero consultar y mantener la página del canal, 
 
 ## 7. Diseño técnico y datos
 
-Canales posee channelId/ownerUserId/description/banner/version; cuenta posee handle y perfil. FK local hacia cuenta, UNIQUE ownerUserId. Edición por su repositorio; consultas de canal usan read model SQL revisado con perfil y batch público Streaming para metadata/estado; listados Discovery usan proyección pública local. Banner opcional JPEG/PNG/GIF <=10 MB, recomendado 1200×480; upload owner/channel ligado, un uso, 15 min. ADR-008 usa S3 privado por defecto, con objetos `pending/` y `public/` bajo el prefijo de banners; Core sirve `bannerUri` por `/api/channels/banners/{key}` y nunca expone una URL, ACL o credencial del bucket. Filesystem requiere selección explícita y almacenamiento compartido al escalar Core. No guardar nombre visible o estado como otra autoridad.
+Canales posee channelId/ownerUserId/description/banner/version; cuenta posee handle y perfil. FK local hacia cuenta, UNIQUE ownerUserId. Edición por su repositorio; consultas de canal usan read model SQL revisado con perfil y batch público Streaming para metadata/estado; listados Discovery usan proyección pública local. Banner opcional JPEG/PNG/GIF <=10 MB, recomendado 1200×480; upload owner/channel ligado, un uso, 15 min. ADR-009 usa S3 privado por defecto, con objetos `pending/` y `public/` bajo el prefijo de banners; Core sirve `bannerUri` por `/api/channels/banners/{key}` y nunca expone una URL, ACL o credencial del bucket. Filesystem requiere selección explícita y almacenamiento compartido al escalar Core. No guardar nombre visible o estado como otra autoridad.
 
 ## 8. Dependencias y contratos de integración
 

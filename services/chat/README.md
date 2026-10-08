@@ -3,7 +3,7 @@
 Servicio propio de salas, mensajes, cuota global por cuenta, deduplicación, secuencia, historial y
 WebSocket. Se define en [SPEC-05](../../docs/spec-p1/spec_05_chat.md) y
 [contratos](../../docs/contratos_modelo_datos.md). Go y Redis según
-[ADR-006](../../docs/adr/ADR-006-chat-go-redis-efimero.md). El chat es efímero: la sala se elimina
+[ADR-010](../../docs/adr/ADR-010-chat-go-redis-efimero.md). El chat es efímero: la sala se elimina
 5 minutos después de que termina la sesión. Obtiene un contexto Core por mensaje nuevo y no consulta
 servicios de identidad, perfil o emisión por separado.
 

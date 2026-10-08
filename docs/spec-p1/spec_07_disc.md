@@ -77,6 +77,10 @@ Lecturas locales de Cuentas/Canales/Catálogo y proyección recibida de Streamin
 
 GraphQL, búsqueda, filtros, ranking, frescura y límites según el contrato. Canal visible desde commit local; datos de emisión mediante snapshots versionados de Streaming. Discovery permanece dentro de Core según ADR-005.
 
+**Decisiones técnicas ([ADR-008](../adr/ADR-008-descubrimiento-en-core.md), aceptada):** `graphql-java` con controlador propio para controlar códigos HTTP y límites; los snapshots de Streaming se reciben y aplican en una sola transacción y solo una `projectionVersion` mayor reemplaza la fila; una reconstrucción periódica con watermark repara la proyección y acredita la ausencia de configuración; el ranking de `streams` pagina sobre un snapshot materializado de 5 min; un limitador por IP en memoria aplica 600/60 s con burst de 20 (una réplica en P1). Los errores de campo responden HTTP 200 con `extensions.httpStatus=422`; forma o costo excedidos, 422.
+
+**Preguntas abiertas no bloqueantes:** carga del corte periódico sobre Streaming si crece el número de configuraciones; reloj compartido entre Streaming y Core para la frescura; limitador compartido si Core se replica.
+
 ## 10. Verificación
 
 - Datos de fixture con LIVE/OFFLINE, categorías/tags, títulos con subcadenas y contadores con empates.

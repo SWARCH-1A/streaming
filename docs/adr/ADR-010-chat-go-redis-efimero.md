@@ -1,4 +1,4 @@
-# ADR-006: Chat en Go con Redis efímero por sesión
+# ADR-010: Chat en Go con Redis efímero por sesión
 
 - Estado: aceptada
 - Fecha: 2026-10-03

@@ -81,7 +81,7 @@ almacenamiento local usa los volúmenes `/data/avatars` y `/data/banners`.
 Las respuestas siguen publicando `/api/profile/avatars/{key}` y `/api/channels/banners/{key}`;
 Core lee el objeto privado y responde la imagen. La base actual está vacía, así que se puede usar un
 bucket sin objetos; no hay claves ni archivos referenciados que trasladar. Consulta el
-[ADR-008](../../docs/adr/ADR-008-s3-image-storage.md) para la decisión y configuración.
+[ADR-009](../../docs/adr/ADR-009-s3-image-storage.md) para la decisión y configuración.
 
 ## Pruebas dentro de Docker
 

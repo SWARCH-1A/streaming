@@ -1,4 +1,4 @@
-# ADR-008: Almacenamiento S3 privado para avatares y portadas
+# ADR-009: Almacenamiento S3 privado para avatares y portadas
 
 - Estado: aceptada
 - Fecha: 2026-10-07

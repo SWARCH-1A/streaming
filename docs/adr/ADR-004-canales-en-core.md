@@ -20,7 +20,7 @@ esa propiedad local y compartir la seguridad de Cuentas. El estado de emisión p
 - PATCH parcial valida la sesión mediante la interfaz local de Cuentas y bloquea la fila del canal.
   Owner exclusivo; descripción de hasta 500 puntos de código, null limpia a cadena vacía; banner
   null retira. No-op conserva channelVersion; cada cambio real incrementa uno. No outbox de réplica.
-- Reutilizar el ciclo de objetos de ADR-002/ADR-008 para portadas bajo el prefijo S3 de banners, el
+- Reutilizar el ciclo de objetos de ADR-002/ADR-009 para portadas bajo el prefijo S3 de banners, el
   proveedor predeterminado; filesystem conserva un directorio separado cuando se selecciona explícitamente. JPEG/PNG/GIF
   decodificados, <=10 MB, sin mínimo dimensional (1200×480 recomendado; límite defensivo 40 MP).
   Upload opaco de un uso, ligado a owner/channel y válido 15 min. Publicación antes del commit,
