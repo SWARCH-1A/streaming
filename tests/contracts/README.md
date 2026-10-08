@@ -43,4 +43,4 @@ Los secretos de ese entorno y logs quedan exclusivamente bajo `target` ignorado.
 en commits. Repetir muchas veces puede activar las cuotas normales de registro; no desactivarlas.
 
 SPEC-06 permanece abierta hasta probar asociaciones/edición LIVE y consultas Discovery; SPEC-08
-espera Web. La compatibilidad del proveedor no reemplaza la aceptación E2E.
+requiere verificar los recorridos Web integrados. La compatibilidad del proveedor no reemplaza la aceptación E2E.

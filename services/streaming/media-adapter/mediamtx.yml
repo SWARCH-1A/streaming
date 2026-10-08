@@ -1,0 +1,41 @@
+# MediaMTX 1.21.1. Private API/HLS listeners; external traffic enters
+# through the RTMP listener and the Rust adapter's session-scoped HLS listener.
+logLevel: warn
+logStructured: true
+readTimeout: 2s
+writeTimeout: 2s
+writeQueueSize: 512
+authMethod: http
+# Address and secrets are supplied through MTX_AUTHHTTPADDRESS / MTX_HLSCDNSECRET.
+authHTTPExclude:
+  - action: read
+    path: '~^live/str_[0-9a-f-]+$'
+api: true
+apiAddress: :9997
+apiAllowOrigins: []
+metrics: false
+pprof: false
+playback: false
+rtsp: false
+rtmp: true
+rtmpAddress: :1935
+hls: true
+hlsAddress: :8888
+hlsAllowOrigins: []
+hlsAlwaysRemux: true
+hlsVariant: lowLatency
+hlsSegmentCount: 7
+hlsSegmentDuration: 1s
+hlsPartDuration: 200ms
+hlsSegmentMaxSize: 8M
+hlsMuxerCloseAfter: 5s
+webrtc: false
+srt: false
+moq: false
+pathDefaults:
+  source: publisher
+  overridePublisher: false
+  maxReaders: 128
+  record: false
+paths:
+  '~^live/str_[0-9a-f-]+$': {}

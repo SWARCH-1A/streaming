@@ -1,0 +1,32 @@
+.message {
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+  padding: 0.6rem 0;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+.message time {
+  color: var(--color-muted);
+  font: 0.6875rem var(--font-mono);
+  flex-shrink: 0;
+}
+.message > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.message strong {
+  display: inline;
+  margin-right: 0.5rem;
+}
+.message strong > span {
+  margin-right: 0.4rem;
+  padding: 0.1rem 0.3rem;
+  font-size: 0.5625rem;
+}
+.broadcaster {
+  color: var(--color-error);
+}
+.viewer {
+  color: var(--color-primary-soft);
+}
