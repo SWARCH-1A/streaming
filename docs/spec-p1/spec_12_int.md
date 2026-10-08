@@ -42,11 +42,11 @@ Como usuario final, quiero recorrer registro, canal, emisión, chat y búsqueda 
 
 ## 5. Contrato de interfaz web
 
-- Rutas web P1: `/`, `/register`, `/login`, `/channels/{handle}`, `/search?q=...` y `/watch/{streamId}`. Canal consume `GET /api/channels/by-handle/{handle}`: Core compone canal/handle/perfil locales y batch público autoritativo Streaming; si este falla, conserva canal con estado UNKNOWN. Watch usa el snapshot público de stream/sesión; ambos montan Chat desde sessionId.
+- Rutas web P1: `/`, `/register`, `/login`, `/channels/{handle}`, `/search?q=...` y `/watch/{streamId}`. Canal consume `GET /api/channels/by-handle/{handle}`: Core compone canal/handle/perfil locales y batch público autoritativo Streaming; si este falla, conserva canal con estado UNKNOWN. Watch usa el snapshot público de stream/sesión; ambos montan Chat desde sessionId. `avatarUri` y `bannerUri` apuntan a las rutas Core estables `/api/profile/avatars/{key}` y `/api/channels/banners/{key}`; Web nunca recibe una URL directa, ACL o credencial S3.
 
 - Shell consume interfaces UI/versionadas; módulo publica ruta/entry, estados y dependencias, sin compartir store privado.
 
-- Proxy distingue APIs, chat realtime, HLS, assets SPA y entrada RTMP por listener separado.
+- Proxy distingue APIs, chat realtime, HLS, assets SPA y entrada RTMP por listener separado; las rutas de avatar y portada se enrutan a Core, no al endpoint S3.
 
 - Fallback SPA nunca convierte error API en index.html; conservar Upgrade, Host/path base, forwarded proto y correlación.
 
@@ -64,7 +64,7 @@ Como usuario final, quiero recorrer registro, canal, emisión, chat y búsqueda 
 
 - **CA-05:** playlist/segmentos bajo `/hls/{sessionId}/*` solo se ofrecen como playback cuando availability=PLAYABLE; content types/rango/cache se documentan; solicitud→primer frame cumple máximo 5 s bajo perfil P1 de SPEC-13.
 
-- **CA-06:** API path faltante responde status/error JSON sin HTML; headers secretos no se registran.
+- **CA-06:** API path faltante responde status/error JSON sin HTML; las rutas de avatar y portada conservan su path Core y no exponen endpoint, ACL o credenciales del bucket; headers secretos no se registran.
 
 - **CA-07:** rutas integradas pasan criterios de teclado, foco, mensajes y semántica de SPEC-08.
 
@@ -73,7 +73,7 @@ Como usuario final, quiero recorrer registro, canal, emisión, chat y búsqueda 
 
 ## 7. Diseño técnico y configuración
 
-Una Web y un build; código en apps/web/src, módulos en src/modules/{accounts,channels,streaming,chat,taxonomy,discovery}, shell en src/shell y utilidades compartidas en src/accessibility. Shell registra rutas/globales, componentes/tokens y errores por vista. Canal por handle consume un bootstrap Core compuesto; player y chat se montan desde sessionId. Proxy enruta a Core/Streaming/Chat/Media; POST/GET /api/channels/{channelId}/streams es regla exacta Streaming previa al prefijo Canales, sin auth de negocio ni saga; bloquea /internal y sobrescribe forwarding. Paths API no caen al fallback SPA. TLS, CSRF, límite multipart, WS Upgrade/Origin y HLS range/cache definidos en documento frontend.
+Una Web y un build; código en apps/web/src, módulos en src/modules/{accounts,channels,streaming,chat,taxonomy,discovery}, shell en src/shell y utilidades compartidas en src/accessibility. Shell registra rutas/globales, componentes/tokens y errores por vista. Canal por handle consume un bootstrap Core compuesto; player y chat se montan desde sessionId. Proxy enruta a Core/Streaming/Chat/Media; POST/GET /api/channels/{channelId}/streams es regla exacta Streaming previa al prefijo Canales, sin auth de negocio ni saga; bloquea /internal y sobrescribe forwarding. Las rutas de imágenes se enrutan a Core, nunca al endpoint S3; el proveedor y sus variables de despliegue se definen en SPEC-13. Paths API no caen al fallback SPA. TLS, CSRF, límite multipart, WS Upgrade/Origin y HLS range/cache definidos en documento frontend.
 
 ## 8. Dependencias y contratos de integración
 

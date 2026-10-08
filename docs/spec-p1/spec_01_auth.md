@@ -56,7 +56,7 @@ roles administrativos y portada del canal. Recuperación de contraseña se defin
 - CA-09: perfil inicial visible en el commit: displayName=handle, bio vacía, avatar nulo y profileVersion=0. No requiere proyecciones ni eventos de activación.
 - CA-10: PATCH solo permite displayName de 1–50 caracteres, bio hasta 300 y avatarUploadId; campos omitidos se conservan, bio:null limpia y avatarUploadId:null retira avatar. PATCH vacío se rechaza; no-op conserva versión; cambio real incrementa profileVersion. El handle no cambia.
 - CA-11: avatar JPEG/PNG/GIF decodificado real, <=10 MB y ancho/alto >=200 px. Inválido conserva el avatar anterior. Upload ligado al propietario, un uso y vencimiento de 15 min.
-- CA-12: archivo nuevo se publica antes de confirmar la referencia SQL; rollback conserva el anterior y elimina el nuevo. Tras commit se retiran temporal/anterior; limpieza periódica reconcilia objetos huérfanos. Reinicio conserva referencias y volumen.
+- CA-12: archivo nuevo se publica antes de confirmar la referencia SQL; rollback conserva el anterior y elimina el nuevo. Tras commit se retiran temporal/anterior; limpieza periódica reconcilia objetos huérfanos. Reinicio conserva referencias y objetos: S3 comparte el bucket entre réplicas y filesystem requiere un volumen persistente/compartido cuando se selecciona explícitamente.
 - CA-13: lectura pública posterior a edición refleja el commit; snapshots de autor en mensajes Chat anteriores permanecen inmutables.
 
 ## 7. Diseño técnico y datos
