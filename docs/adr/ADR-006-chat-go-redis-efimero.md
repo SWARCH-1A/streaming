@@ -23,7 +23,7 @@ definir su propio almacenamiento. Durante la sesión no se acepta pérdida de me
 3. Un script Lua por envío realiza de forma atómica: búsqueda de dedupe (devuelve el ACK previo sin consumir cuota), verificación de `writeAllowed` y de sala no terminada, `SET NX PX 1000` de cuota global, `INCR` de sequence, `XADD` del mensaje y registro de dedupe. El ACK se envía solo después de que el script responde.
 4. Durabilidad: AOF con `appendfsync always` y volumen persistente; Redis responde después de escribir y sincronizar el AOF, así que un mensaje con ACK sobrevive a un reinicio de Redis o del contenedor. `maxmemory-policy noeviction`: Redis nunca descarta mensajes por presión de memoria.
 5. El Redis Stream de la sala es a la vez historial reciente y outbox: cada réplica con clientes conectados lee el Stream con `XREAD BLOCK` desde su último sequence. Lo confirmado por cualquier réplica, incluso una que cayó antes de difundir, se entrega a todos los conectados. La entrega puede repetirse; el cliente deduplica por `(sessionId,sequence)`.
-6. Retención: al recibir ENDED (evento o snapshot) la sala pasa a `READ_ONLY` y todas sus claves expiran a los 5 minutos (`CHAT_ENDED_RETENTION`). Durante ese lapso el historial sigue legible y un reintento recupera su ACK. Después el historial queda vacío. Cada Stream conserva como máximo `CHAT_ROOM_MAX_MESSAGES` (1000) mensajes y las salas sin fin observado expiran por inactividad (`CHAT_ROOM_IDLE_TTL`, 12 h) como protección.
+6. Retención: al recibir ENDED (evento o snapshot) la sala pasa a `READ_ONLY` y todas sus claves expiran a los 5 minutos (`CHAT_ENDED_RETENTION`). Durante ese lapso el historial sigue legible y un reintento recupera su ACK. Después el historial queda vacío. El Stream no se recorta mientras la sala existe: todo mensaje con ACK sigue disponible hasta la expiración de la sala. La memoria queda acotada por la cuota de 1 mensaje/s por cuenta, el límite de texto y la duración de la sesión. Las salas sin fin observado expiran por inactividad (`CHAT_ROOM_IDLE_TTL`, 12 h) como protección.
 7. Autorización: un contexto Core por mensaje nuevo (Core compone usuario/autor y el estado/timeline de Streaming), sin caché y sin reintento automático. Timeout por llamada de 400 ms (conexión de 100 ms) y presupuesto de 500 ms entre pedir el contexto e intentar persistir. Los eventos de sesión de Streaming se deduplican en la inbox dentro del mismo script que actualiza la sala; nunca autorizan escrituras.
 
 ## Opciones consideradas
@@ -38,8 +38,7 @@ definir su propio almacenamiento. Durante la sesión no se acepta pérdida de me
 
 ## Consecuencias
 
-El chat no se puede consultar después de la retención: no hay Chat Replay en P1 ni historial más
-antiguo que los últimos mensajes retenidos por sala. Un Replay futuro requerirá un ADR que defina
+El chat no se puede consultar después de la retención: no hay Chat Replay en P1. Un Replay futuro requerirá un ADR que defina
 dónde persistir y con qué retención; ese almacén pertenecerá a Chat.
 
 `appendfsync always` limita el rendimiento de escritura de Redis a la latencia de fsync del disco;
@@ -48,8 +47,10 @@ claves de varias ranuras (cuota/inbox globales); P1 opera un Redis primario sin 
 Redis Cluster exige reubicar la cuota o separar el script. Redis con réplicas o Sentinel queda fuera
 de P1; si Redis cae, Chat rechaza envíos con `CHAT_UNAVAILABLE` y HLS continúa.
 
-Un lector rezagado más de 1000 mensajes puede saltar entradas recortadas; el cliente detecta el
-hueco por sequence y vuelve a pedir historial. Las conexiones WS no se cierran al terminar la sesión;
+Sin recorte, la memoria de Redis crece con los mensajes de cada sesión activa hasta su fin más 5
+minutos; con la carga objetivo (20 mensajes/s durante 10 minutos) son unos 12 000 mensajes de hasta
+500 caracteres, del orden de pocos MB, y debe medirse en SPEC-13. Con `noeviction`, agotar memoria
+hace fallar envíos con `CHAT_UNAVAILABLE` en vez de perder mensajes confirmados. Las conexiones WS no se cierran al terminar la sesión;
 reciben `chat.status READ_ONLY`.
 
 Chat no guarda la credencial de sesión: la lee de la cookie en cada envío y la reenvía a Core en

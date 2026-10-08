@@ -355,12 +355,13 @@ extrapola permisos. Una escritura ya autorizada antes de logout/ENDED puede conf
 presupuesto; toda autorización posterior observa revocación/fin. Esta carrera de operación en vuelo
 es explícita: no se promete transacción distribuida Core–Chat ni revocación retroactiva de commits.
 
-Chat persiste mensaje, dedupe, secuencia y efecto de cuota atómicamente antes del ACK; transacción o
-mecanismo equivalente probado en el almacén elegido. Índices requeridos: único (sessionId,sequence),
-único (sessionId,userId,clientMessageId), historial/ventana (sessionId,streamOffsetMs,sequence).
-El diseño final corregirá índices/tipos según motor; no persistir credencial de usuario. MongoDB es
-candidato, no evidencia de NoSQL implementado. Historial duradero es distinto del buffer de cincuenta;
-retención/privacidad futura se define antes de limpiar mensajes de replay.
+Chat persiste mensaje, dedupe, secuencia y efecto de cuota atómicamente antes del ACK en Redis
+([ADR-006](adr/ADR-006-chat-go-redis-efimero.md)): un script Lua por envío, con AOF `appendfsync always`
+y `noeviction`. Unicidad: (sessionId,sequence) por contador `INCR` y ID de Stream `0-<sequence>`;
+(sessionId,userId,clientMessageId) por hash de dedupe. El historial se lee del Stream de la sala en
+orden de sequence. No se persiste la credencial de usuario. Los mensajes confirmados no se recortan
+mientras la sala existe. Retención efímera: al conocer ENDED, todas las claves de la sala (estado,
+sequence, dedupe y mensajes) expiran a los 5 minutos; después el historial queda vacío.
 
 message.accepted al emisor incluye clientMessageId,messageId,sessionId,sequence,serverCreatedAtUtc;
 message.created publica snapshot del autor/texto/offset a conectados. Dedupe también en cliente.
@@ -452,10 +453,12 @@ de retiro. Clases de aplicación locales no se publican como contrato entre leng
 
 ## Chat Replay futuro
 
-Chat conserva mensaje/sesión/autor snapshot/texto/timestamp/sequence/offset y supresiones futuras.
-Core conserva vínculo VOD–sesión y política de acceso. Media/Core publican mapping temporal al VOD;
-Chat sirve ventanas/cursor por contrato cuando la fase lo implemente, sin copia de tablas ni un servicio
-Replay separado de moderación. Retención, borrado y sincronía se acordarán en esa fase.
+P1 no conserva mensajes después de la retención de 5 minutos posterior a ENDED, así que no hay
+historial para Replay. Cuando la fase lo implemente, Chat deberá definir en un ADR nuevo un almacén
+duradero propio para mensaje/sesión/autor snapshot/texto/timestamp/sequence/offset y supresiones, con
+su retención y borrado. Core conserva vínculo VOD–sesión y política de acceso. Media/Core publican
+mapping temporal al VOD; Chat sirve ventanas/cursor por contrato, sin copia de tablas ni un servicio
+Replay separado de moderación.
 
 ## Contratos de consulta y reglas de filtros
 

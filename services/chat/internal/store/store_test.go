@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -17,7 +18,7 @@ func newStore(t *testing.T) (*Store, *miniredis.Miniredis) {
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { rdb.Close() })
 	return New(rdb, Options{
-		EndedRetention: 5 * time.Minute, IdleTTL: 12 * time.Hour, StreamMaxLen: 1000, InboxTTL: 24 * time.Hour,
+		EndedRetention: 5 * time.Minute, IdleTTL: 12 * time.Hour, InboxTTL: 24 * time.Hour,
 	}), mr
 }
 
@@ -48,6 +49,25 @@ func TestAcceptAssignsIncreasingSequencePerSession(t *testing.T) {
 	}
 	if ttl := mr.TTL("chat:{ses_a}:msgs"); ttl != 12*time.Hour {
 		t.Fatalf("TTL de seguridad no aplicado: %v", ttl)
+	}
+}
+
+func TestAcceptedMessagesAreNotTrimmedWhileRoomExists(t *testing.T) {
+	s, _ := newStore(t)
+	ctx := context.Background()
+	const total = 2500 // más que la carga por sala de 10 min a 20 msg/s repartidos en cinco salas
+	for i := 0; i < total; i++ {
+		u := fmt.Sprintf("u%d", i)
+		if res, err := s.Accept(ctx, input("ses_a", u, "c-"+u, "m")); err != nil || res.Outcome != Accepted {
+			t.Fatalf("msg %d: %+v %v", i, res, err)
+		}
+	}
+	if n, _ := s.rdb.XLen(ctx, msgsKey("ses_a")).Result(); n != total {
+		t.Fatalf("mensajes con ACK recortados: quedan %d de %d", n, total)
+	}
+	msgs, err := s.ReadAfter(ctx, "ses_a", 0, time.Millisecond, 1)
+	if err != nil || len(msgs) != 1 || msgs[0].Sequence != 1 {
+		t.Fatalf("el primer mensaje confirmado debe seguir legible: %+v %v", msgs, err)
 	}
 }
 

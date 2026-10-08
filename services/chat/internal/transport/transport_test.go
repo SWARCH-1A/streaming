@@ -117,7 +117,7 @@ func newHarness(t *testing.T, mr *miniredis.Miniredis, fc *fakeCore) *harness {
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { rdb.Close() })
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	st := store.New(rdb, store.Options{EndedRetention: 5 * time.Minute, IdleTTL: time.Hour, StreamMaxLen: 1000, InboxTTL: time.Hour})
+	st := store.New(rdb, store.Options{EndedRetention: 5 * time.Minute, IdleTTL: time.Hour, InboxTTL: time.Hour})
 	cc, err := core.New(core.Config{BaseURL: coreSrv.URL, ServiceToken: "core-token", ConnectTimeout: 100 * time.Millisecond, RequestTimeout: 400 * time.Millisecond})
 	if err != nil {
 		t.Fatal(err)

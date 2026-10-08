@@ -30,7 +30,6 @@ import (
 type Options struct {
 	EndedRetention time.Duration // tiempo que una sala READ_ONLY sigue legible antes de borrarse
 	IdleTTL        time.Duration // vencimiento de seguridad de salas sin actividad ni evento de fin
-	StreamMaxLen   int64         // mensajes retenidos por sala para historial y distribución
 	InboxTTL       time.Duration // retención de eventIds para deduplicar reintentos de session-events
 }
 
@@ -94,10 +93,10 @@ if not redis.call('SET', KEYS[5], '1', 'PX', ARGV[8], 'NX') then
   return {'RATE_LIMITED', tostring(redis.call('PTTL', KEYS[5]))}
 end
 local seq = redis.call('INCR', KEYS[2])
-redis.call('XADD', KEYS[4], 'MAXLEN', ARGV[9], '0-' .. seq, 'm', ARGV[7])
+redis.call('XADD', KEYS[4], '0-' .. seq, 'm', ARGV[7])
 local rec = ARGV[2] .. '|' .. seq .. '|' .. ARGV[5] .. '|' .. ARGV[6]
 redis.call('HSET', KEYS[3], ARGV[1], rec)
-for i = 2, 4 do redis.call('PEXPIRE', KEYS[i], ARGV[10]) end
+for i = 2, 4 do redis.call('PEXPIRE', KEYS[i], ARGV[9]) end
 return {'ACCEPTED', rec}
 `)
 
@@ -116,7 +115,7 @@ func (s *Store) Accept(ctx context.Context, in AcceptInput) (AcceptResult, error
 	raw, err := acceptScript.Run(ctx, s.rdb, keys,
 		in.UserID+"|"+in.ClientMessageID, in.TextHash, allowed, in.DenialCode,
 		in.Message.MessageID, in.Message.ServerCreatedAtUTC.UnixMilli(), payload,
-		chat.QuotaWindow.Milliseconds(), s.opts.StreamMaxLen, s.opts.IdleTTL.Milliseconds(),
+		chat.QuotaWindow.Milliseconds(), s.opts.IdleTTL.Milliseconds(),
 	).Slice()
 	if err != nil {
 		return AcceptResult{}, err

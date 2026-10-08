@@ -5,7 +5,6 @@ package config
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -28,7 +27,6 @@ type Config struct {
 	EventsToken      string
 	EndedRetention   time.Duration
 	RoomIdleTTL      time.Duration
-	StreamMaxLen     int64
 	InboxTTL         time.Duration
 	ReaderBlock      time.Duration
 	LogLevel         string
@@ -82,11 +80,6 @@ func Load() (Config, error) {
 			c.AllowedOrigins = append(c.AllowedOrigins, o)
 		}
 	}
-	maxLen, err := strconv.ParseInt(str("CHAT_ROOM_MAX_MESSAGES", "1000"), 10, 64)
-	if err != nil || maxLen < 50 {
-		errs = append(errs, "CHAT_ROOM_MAX_MESSAGES debe ser un entero >= 50")
-	}
-	c.StreamMaxLen = maxLen
 	if (c.InternalTLSCert == "") != (c.InternalTLSKey == "") {
 		errs = append(errs, "CHAT_INTERNAL_TLS_CERT_FILE y CHAT_INTERNAL_TLS_KEY_FILE van juntos")
 	}

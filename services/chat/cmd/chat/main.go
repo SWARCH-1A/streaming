@@ -51,7 +51,7 @@ func main() {
 	}
 	st := store.New(rdb, store.Options{
 		EndedRetention: cfg.EndedRetention, IdleTTL: cfg.RoomIdleTTL,
-		StreamMaxLen: cfg.StreamMaxLen, InboxTTL: cfg.InboxTTL,
+		InboxTTL: cfg.InboxTTL,
 	})
 	svc := service.New(coreClient, st, log, cfg.AuthBudget)
 	hub := transport.NewHub(st, log, cfg.ReaderBlock)

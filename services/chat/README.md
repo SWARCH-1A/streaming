@@ -45,7 +45,6 @@ Listener interno (`CHAT_INTERNAL_ADDR`, 8086), nunca publicado por el proxy:
 | `CHAT_CORE_CONNECT_TIMEOUT` / `CHAT_CORE_TIMEOUT` | `100ms` / `400ms` | Presupuesto por llamada a Core. |
 | `CHAT_AUTH_BUDGET` | `500ms` | Máximo entre pedir contexto e intentar guardar. |
 | `CHAT_ENDED_RETENTION` | `5m` | Tiempo legible tras ENDED antes de borrar la sala. |
-| `CHAT_ROOM_MAX_MESSAGES` | `1000` | Mensajes retenidos por sala (mínimo 50). |
 | `CHAT_ROOM_IDLE_TTL` | `12h` | Vencimiento de seguridad de salas sin actividad ni fin observado. |
 | `CHAT_EVENT_INBOX_TTL` | `24h` | Retención de eventIds deduplicados. |
 | `CHAT_SESSION_COOKIE` | `stream_session` | Cookie de sesión Core. |

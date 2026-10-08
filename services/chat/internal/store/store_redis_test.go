@@ -30,7 +30,7 @@ func realStore(t *testing.T) (*Store, *redis.Client) {
 	if err := rdb.FlushDB(context.Background()).Err(); err != nil {
 		t.Fatal(err)
 	}
-	return New(rdb, Options{EndedRetention: 5 * time.Minute, IdleTTL: 12 * time.Hour, StreamMaxLen: 1000, InboxTTL: time.Hour}), rdb
+	return New(rdb, Options{EndedRetention: 5 * time.Minute, IdleTTL: 12 * time.Hour, InboxTTL: time.Hour}), rdb
 }
 
 func TestRealRedisAcceptDedupeQuotaAndSequence(t *testing.T) {
