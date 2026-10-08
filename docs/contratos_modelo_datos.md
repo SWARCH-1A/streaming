@@ -59,11 +59,11 @@ Las interfaces requieren schema neutro, correlación y presupuesto acotado.
 | POST /api/identity/sessions; DELETE /api/identity/sessions/current | Core / Web | Cookie opaca, revocación, CSRF y cuotas preservadas |
 | GET /api/identity/public/handles/{handle}; /users/{userId} | Core / Web | Solo cuenta activa y datos públicos mínimos; 404 uniforme |
 | GET /api/profile/users/{userId}; GET/PATCH /api/profile/me | Core / Web | Perfil público y edición self; validación local de sesión |
-| POST /api/profile/me/avatar-uploads; GET /api/profile/avatars/{key} | Core / Web | Upload de un uso y objeto público inmutable |
+| POST /api/profile/me/avatar-uploads; GET /api/profile/avatars/{key} | Core / Web | Upload de un uso y URI pública Core a objeto inmutable en almacenamiento privado |
 | GET /api/channels/by-owner/{userId} | Core / Web | Canal de cuenta activa; sin gate de evento |
 | GET /api/channels/by-handle/{handle} | Core / Web | Canal + handle + perfil compuestos localmente; bootstrap incluye stream actual con estado autoritativo Streaming |
 | PATCH /api/channels/{channelId}; POST /api/channels/{channelId}/banner-uploads | Core / Web | Propietario; descripción/banner, versión y reglas de imagen |
-| GET /api/channels/banners/{key}; GET /api/channels/csrf | Core / Web | Objeto público inmutable; token de la misma seguridad CSRF Core |
+| GET /api/channels/banners/{key}; GET /api/channels/csrf | Core / Web | URI pública Core a objeto inmutable en almacenamiento privado; token de la misma seguridad CSRF Core |
 | GET /api/taxonomy | Core / Web | IDs/labels activos y versión; validación local para Core y contexto privado para Streaming |
 | POST/GET /api/channels/{channelId}/streams; PATCH /api/streams/{streamId} | Streaming / Web | Configuración persistente; contexto nuevo Core valida identidad/owner/catálogo |
 | POST /api/streams/{streamId}/ingest-keys/rotate | Streaming / Web | Solo sin sesión activa; secreto una vez |
@@ -137,6 +137,8 @@ Upload multipart file: JPEG/PNG/GIF decodificado real, <=10 MB, ancho y alto >=2
 Respuesta 201 {uploadId,expiresAtUtc}, ligado al usuario, un uso, vence 15 min. URI de objeto opaca e
 inmutable, no ruta física/nombre original. Reemplazo publica objeto nuevo antes de commit; fallo conserva
 anterior; borrar antiguo/temporales después de commit y reconciliar huérfanos periódicamente.
+`avatarUri` y `bannerUri` apuntan a las rutas públicas de Core (o a un CDN que las proxifique), no a
+una URL directa del bucket. Con S3 el bucket permanece privado y Core obtiene y sirve los bytes.
 
 `GET /api/channels/by-handle/{handle}` devuelve 200 con un DTO de composición pública:
 

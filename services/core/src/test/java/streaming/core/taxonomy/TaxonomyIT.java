@@ -53,6 +53,7 @@ class TaxonomyIT {
         properties.add("spring.datasource.username",POSTGRES::getUsername);
         properties.add("spring.datasource.password",POSTGRES::getPassword);
         properties.add("core.rate-limit-hmac-secret",()->"taxonomy-integration-only-secret-at-least-32-bytes");
+        properties.add("core.images.storage-provider",()->"filesystem");
         properties.add("profile.storage-root",()->avatars.toString());
         properties.add("channels.storage-root",()->banners.toString());
     }

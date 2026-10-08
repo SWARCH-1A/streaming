@@ -46,13 +46,31 @@ está implementado; proyección, inbox/outbox y composición de emisión siguen 
 | CORE_RATE_LIMIT_HMAC_SECRET | Obligatoria, al menos 32 bytes; fingerprint y cuotas |
 | CORE_SECURE_COOKIE | true bajo HTTPS; false solo para desarrollo HTTP |
 | WEB_ORIGIN | Origen CORS permitido; default http://localhost:3000 |
-| PROFILE_AVATAR_STORAGE | Obligatoria; directorio persistente escribible por el proceso |
-| PROFILE_AVATAR_PUBLIC_BASE | URI de avatar; default /api/profile/avatars |
-| CHANNELS_BANNER_STORAGE | Obligatoria; directorio persistente de portadas, separado de avatares |
-| CHANNELS_BANNER_PUBLIC_BASE | URI de portada; default /api/channels/banners |
+| CORE_IMAGE_STORAGE_PROVIDER | `s3` (predeterminado) o `filesystem` (selección explícita); elige el adaptador de avatares/portadas |
+| CORE_IMAGE_S3_BUCKET | Bucket existente; obligatorio con el proveedor predeterminado `s3` |
+| CORE_IMAGE_S3_REGION | Región para firmar llamadas S3; default `us-east-1` |
+| CORE_IMAGE_S3_ENDPOINT | Endpoint opcional para S3 compatible; vacío usa AWS |
+| CORE_IMAGE_S3_PATH_STYLE_ACCESS | `true` para endpoints compatibles que requieren path-style; default `false` |
+| CORE_IMAGE_S3_AVATAR_PREFIX | Prefijo de objetos de avatar; default `avatars` |
+| CORE_IMAGE_S3_BANNER_PREFIX | Prefijo de objetos de portada; default `banners` |
+| PROFILE_AVATAR_STORAGE | Directorio persistente para el proveedor `filesystem` |
+| PROFILE_AVATAR_PUBLIC_BASE | Prefijo API público (o CDN que proxifique Core); default /api/profile/avatars |
+| CHANNELS_BANNER_STORAGE | Directorio persistente para el proveedor `filesystem` |
+| CHANNELS_BANNER_PUBLIC_BASE | Prefijo API público (o CDN que proxifique Core); default /api/channels/banners |
 
-Una réplica Core. Varias requieren almacenamiento de imágenes compartido consistente o nuevo adaptador
-por ADR. El contenedor usa UID 10001 y volúmenes `/data/avatars` y `/data/banners`. Persistir PostgreSQL y objetos juntos;
+El proveedor S3 usa el credential provider chain del AWS SDK: en despliegue se recomienda un rol IAM
+de solo lectura/escritura limitado al bucket y prefijos; localmente se pueden inyectar credenciales
+temporales por `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y `AWS_SESSION_TOKEN`. No guardar claves
+en el repositorio. El bucket es privado: los objetos se leen por los endpoints públicos estables de
+Core, no por una ACL pública ni una URL directa del bucket. Los prefijos de avatar y portada deben
+ser distintos. El bucket debe existir y estar configurado antes de iniciar Core. Para un proveedor
+compatible con S3, configura también su endpoint y path-style según lo requiera. Ver
+[ADR-008](../../docs/adr/ADR-008-s3-image-storage.md) para configurar el proveedor.
+
+Para el proveedor `filesystem`, el contenedor usa UID 10001 y volúmenes `/data/avatars` y
+`/data/banners`; una réplica Core requiere almacenamiento compartido consistente al escalar. Con
+`s3`, las réplicas acceden al mismo bucket y no requieren compartir esos volúmenes. Persistir
+PostgreSQL y objetos como conjunto recuperable;
 el HMAC se conserva entre reinicios para reintentos/cuotas. Rotarlo requiere una estrategia compatible
 con la retención de treinta días, no cambiarlo accidentalmente en cada arranque.
 
@@ -63,11 +81,13 @@ antes de habilitar tráfico tras proxy. Health: `GET /actuator/health`, readines
 
 ## Ejecución local
 
-[Compose](../../infra/local/README.md) inicia Core y PostgreSQL con volúmenes. En Windows, desde
-la raíz del repositorio:
+[Compose](../../infra/local/README.md) inicia Core y PostgreSQL con volúmenes. S3 está seleccionado
+por defecto: después de crear `.env`, configura un bucket privado existente y las credenciales del
+proveedor antes de iniciar Core. Desde la raíz del repositorio, en Windows:
 
 ```powershell
 .\infra\local\init-env.ps1
+# Completa infra/local/.env con la configuración del bucket y del proveedor S3.
 docker compose --env-file infra/local/.env -p streaming-core -f infra/local/compose.core.yaml up --build -d
 Invoke-RestMethod http://localhost:8081/actuator/health
 Invoke-RestMethod http://localhost:8081/api/taxonomy
@@ -145,25 +165,6 @@ Las migraciones V1 de
 los ejecutables anteriores no se concatenan ni se cambian sobre una base aplicada. Flyway debe
 rechazar schemas no vacíos sin historial Core; no activar baseline-on-migrate ni ejecutar clean.
 
-Si existen datos de los prototipos anteriores, el traslado se hace como una migración de datos
-explícita antes del cambio de despliegue:
-
-1. Detener escrituras y respaldar las bases Identity/Profile/Channels, sus historiales y los volúmenes de avatares/portadas.
-2. Resolver las operaciones PENDING/EXPIRED con el prototipo anterior y sus canales externos;
-   no convertir automáticamente pendientes en ACTIVE ni descartar reservas/objetos.
-3. Crear Core en una base nueva y preparar un import por columnas explícitas, preservando userId,
-   channelId, hashes de contraseña/sesión, fechas, perfiles/objetos y resultados ACTIVE retenidos.
-   Crear el perfil default solo donde una cuenta activa anterior no lo tenía. Usar el mismo secreto
-   HMAC para preservar fingerprints; validar el canal/propietario contra las fuentes anteriores.
-   Importar descripción (null se transforma en cadena vacía), banner_key, banner_uri, channelVersion
-   y fechas sin regenerar IDs; copiar objetos publicados a CHANNELS_BANNER_STORAGE y preservar URI
-   /api/channels/banners/{key}. No importar cercas, proyecciones, eventos ni outboxes de Canales.
-   Los permisos temporales vigentes solo se trasladan junto con el archivo y el vínculo owner/canal.
-4. Validar cuenta/perfil/canal 1:1, unicidad, FK, referencias/checksums de avatares/portadas y reintentos con
-   los IDs anteriores; comprobar login/logout en una copia. No importar outboxes de proyección local
-   como autorización ni crear nuevos canales con IDs distintos para registros retenidos.
-5. Cambiar rutas a Core tras comprobar la copia, conservando las fuentes para rollback. No iniciar
-   simultáneamente prototipos antiguos escribiendo en las bases trasladadas.
-
-Este cambio no ejecuta un import ni modifica bases existentes. Los scripts e historiales originales
-permanecen recuperables en Git; el import depende de las fuentes reales y se valida antes de aplicarlo.
+La base actual está vacía: se inicializa con Flyway V1 y no requiere importar datos ni archivos de
+prototipos anteriores. La secuencia anterior solo describe evolución del esquema Core, no una
+migración de datos.
