@@ -8,7 +8,7 @@ Seguridad, CSRF, configuración y gestor de transacciones compartidos. Decisione
 [ADR-004](../../docs/adr/ADR-004-canales-en-core.md).
 La persistencia y validación de Catálogo se documentan en
 [ADR-006 (propuesta para revisión)](../../docs/adr/ADR-006-taxonomia-en-core.md) y las de Descubrimiento en
-[ADR-008 (propuesta para revisión)](../../docs/adr/ADR-008-descubrimiento-en-core.md).
+[ADR-008](../../docs/adr/ADR-008-descubrimiento-en-core.md).
 
 ## Módulos e implementación
 

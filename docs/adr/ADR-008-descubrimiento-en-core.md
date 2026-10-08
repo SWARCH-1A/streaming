@@ -1,8 +1,8 @@
 # ADR-008: Descubrimiento en Core con GraphQL propio y proyección SQL de Streaming
 
-- Estado: propuesta
-- Fecha: 2026-10-06
-- Responsable: Core / Consultas y descubrimiento
+- Estado: aceptada
+- Fecha: 2026-10-08
+- Responsable: Core / Consultas y descubrimiento; revisión con Core, Streaming e Integración
 - SPEC/contratos afectados: SPEC-07; RF-070…RF-073; RNF-011, RNF-014, RNF-038, RNF-041; contratos de consulta, proyección pública y contextos privados Core–Streaming.
 
 ## Contexto
@@ -96,3 +96,8 @@ después, la integración real con Streaming y la medición de SPEC-13.
 Revisar si el número de configuraciones hace costoso el corte periódico, si aparece más de una réplica de Core, si se
 introduce búsqueda sobre VOD o si Streaming cambia el formato del snapshot. Revisa: responsable de Descubrimiento con
 Core y Streaming.
+
+La revisión de Core, Streaming e Integración acepta esta selección para P1: Discovery permanece dentro de Core, consume
+la proyección pública versionada de Streaming y no introduce otro runtime, base de datos o broker. La verificación de la
+implementación y la medición de SPEC-13 siguen siendo evidencia de entrega, no condiciones para volver a tratar la
+tecnología como candidata.
