@@ -52,7 +52,12 @@ Core confirma cuenta/perfil/canal juntos, no PENDING nuevo. Streaming valida com
 
 ## 7. Diseño técnico y datos
 
-Registro una transacción SQL Core; sesión y snapshots públicos commit + outbox Rust→Chat/Discovery con ACKs independientes. Inbox durable HTTPS sin broker. Canal usa datos Core y batch autoritativo Streaming; Discovery SQL local con proyección/versiones/frescura y corte reconstruible. P1 una réplica Streaming, transiciones con bloqueo/CAS; pérdida owner/clock termina sin nueva gracia. Multi-réplica requiere fencing/transferencia probados. Correlación sin secretos.
+Registro una transacción SQL Core; sesión y snapshots públicos commit + outbox Rust→Chat/Discovery con ACKs independientes. Inbox durable HTTPS sin broker. Canal usa datos Core y batch autoritativo Streaming; Discovery SQL local con proyección/versiones/frescura y corte reconstruible. P1 una réplica Streaming, transiciones con bloqueo/CAS; pérdida owner/clock termina sin nueva gracia. Multi-réplica requiere fencing/transferencia probados. Correlación sin secretos. Accounts publica ChatContexts con perfil/sesión locales y un puerto Streaming;
+Channels publica ChannelBootstrapService con lectura SQL local y un batch Streaming. Un adaptador
+HTTP común aplica TLS por defecto, 64 KiB, 200 ms para sesión/1 s para canal y ninguna redirección
+o caché de permisos. El token Chat solo permite sus dos rutas internas Core.
+El TTL de caché de sala no elimina mensajes, sequence ni dedupe activos; ENDED inicia la retención
+una sola vez.
 
 En P1, ADR-011 integra el adaptador técnico en el proceso Streaming. Autorización/callbacks internos conservan HTTP loopback autenticado y persistencia separada. HLS público se enruta al listener 8888 del contenedor Streaming; RTMP sigue en MediaMTX. Reinicios/fallos del proceso afectan al control y al adaptador juntos.
 

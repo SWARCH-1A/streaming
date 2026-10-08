@@ -47,8 +47,39 @@ func TestAcceptAssignsIncreasingSequencePerSession(t *testing.T) {
 	if res.Ack.Sequence != 1 {
 		t.Fatalf("la secuencia debe ser independiente por sesión, got %d", res.Ack.Sequence)
 	}
-	if ttl := mr.TTL("chat:{ses_a}:msgs"); ttl != 12*time.Hour {
-		t.Fatalf("TTL de seguridad no aplicado: %v", ttl)
+	if ttl := mr.TTL("chat:{ses_a}:msgs"); ttl != 0 {
+		t.Fatalf("mensajes activos no deben expirar por inactividad: %v", ttl)
+	}
+}
+
+func TestQuietLiveSessionPreservesMessagesDedupeAndSequenceBeyondStateCacheTTL(t *testing.T) {
+	s, mr := newStore(t)
+	ctx := context.Background()
+	s.ApplyState(ctx, state("ses_a", 1, 1, chat.RoomOpen))
+	first, err := s.Accept(ctx, input("ses_a", "u1", "c1", "hola"))
+	if err != nil || first.Outcome != Accepted {
+		t.Fatalf("%+v %v", first, err)
+	}
+	mr.FastForward(13 * time.Hour)
+	// State is recoverable from Core. Confirmed messages and their sequence/dedupe are not.
+	s.ApplyState(ctx, state("ses_a", 1, 2, chat.RoomOpen))
+	duplicate, err := s.Accept(ctx, input("ses_a", "u1", "c1", "hola"))
+	if err != nil || duplicate.Outcome != Duplicate || duplicate.Ack != first.Ack {
+		t.Fatalf("%+v %v", duplicate, err)
+	}
+	next, err := s.Accept(ctx, input("ses_a", "u2", "c2", "después"))
+	if err != nil || next.Outcome != Accepted || next.Ack.Sequence != 2 {
+		t.Fatalf("%+v %v", next, err)
+	}
+	s.ApplyState(ctx, state("ses_a", 1, 3, chat.RoomReadOnly))
+	mr.FastForward(4 * time.Minute)
+	s.ApplyEvent(ctx, "late-end", "fp", state("ses_a", 1, 3, chat.RoomReadOnly))
+	if snapshot, messages, err := s.History(ctx, "ses_a", 50); err != nil || snapshot != 2 || len(messages) != 2 {
+		t.Fatalf("%d %+v %v", snapshot, messages, err)
+	}
+	mr.FastForward(time.Minute + time.Millisecond)
+	if snapshot, messages, err := s.History(ctx, "ses_a", 50); err != nil || snapshot != 0 || len(messages) != 0 {
+		t.Fatalf("retención renovada: %d %+v %v", snapshot, messages, err)
 	}
 }
 

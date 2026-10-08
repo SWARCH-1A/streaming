@@ -8,5 +8,6 @@ public interface ChannelQueries {
     Optional<Bootstrap> byHandle(String canonicalHandle);
     Optional<Bootstrap> byOwner(String userId);
     record ChannelView(String channelId,String ownerUserId,String description,String bannerUri,long channelVersion) { }
-    record Bootstrap(ChannelView channel,String handle,ProfileView profile,Void stream) { }
+    record Bootstrap(ChannelView channel,String handle,ProfileView profile,StreamingChannelSnapshots.Stream stream,
+            boolean streamStatusFresh,String availability) { }
 }

@@ -1,9 +1,9 @@
 name: P1 contracts
 on:
   push:
-    paths: ['contracts/**', 'docs/contratos_modelo_datos.md', 'tests/contracts/**', 'services/core/**', 'services/streaming/**', 'infra/local/**', '.github/workflows/contracts.yml']
+    paths: ['contracts/**', 'docs/contratos_modelo_datos.md', 'tests/contracts/**', 'tests/integration/**', 'services/core/**', 'services/streaming/**', 'services/chat/**', 'infra/local/**', '.github/workflows/contracts.yml']
   pull_request:
-    paths: ['contracts/**', 'docs/contratos_modelo_datos.md', 'tests/contracts/**', 'services/core/**', 'services/streaming/**', 'infra/local/**', '.github/workflows/contracts.yml']
+    paths: ['contracts/**', 'docs/contratos_modelo_datos.md', 'tests/contracts/**', 'tests/integration/**', 'services/core/**', 'services/streaming/**', 'services/chat/**', 'infra/local/**', '.github/workflows/contracts.yml']
 permissions:
   contents: read
 jobs:
@@ -37,3 +37,21 @@ jobs:
       - name: Current Rust consumer against real Core and PostgreSQL
         shell: pwsh
         run: ./tests/contracts/test-streaming-core.ps1
+  real-domain-flows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r tests/integration/p1-domains/requirements.txt
+      - name: Core regression suite with real PostgreSQL and private HTTPS
+        shell: pwsh
+        run: ./infra/local/test-core.ps1
+      - name: Chat regression suite
+        run: docker run --rm --mount type=bind,source="$PWD/services/chat",target=/src --workdir /src golang:1.26-alpine go test ./...
+      - name: Current Core, Streaming, Chat, Redis, RTMP and decoded HLS frame
+        run: python tests/integration/p1-domains/run.py

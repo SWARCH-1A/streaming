@@ -19,7 +19,7 @@ del módulo no sustituyen esa aceptación integrada.
 | SPEC-08 | Web / Accesibilidad | apps/web/src/accessibility y todas las vistas | Criterios transversales |
 | SPEC-09 | Integración | contracts, infra, shell y evidencia compartida | apps/web/src/shell |
 | SPEC-10 | Integración: contratos y datos | contracts/generate.py, contracts/generated y tests/contracts; ADR-012 | Contratos neutrales generados para consumidores |
-| SPEC-11 | Integración: flujos | tests/integration | Registro local, Core–Streaming, Streaming–Chat y Streaming–Media |
+| SPEC-11 | Integración: flujos | tests/integration/p1-domains; Accounts publica ChatContexts, Channels compone ChannelBootstrapService y adapters HTTP comunes en Core | Registro local, Core–Streaming, Streaming–Chat y Streaming–Media |
 | SPEC-12 | Integración: Web y proxy | apps/web/src/shell, infra/reverse-proxy | Rutas Core de imagen, auth, HTTP/WS/HLS |
 | SPEC-13 | Integración: despliegue y evidencia | infra/local, tests/e2e | Recorrido, perfil de carga y configuración/recuperación S3 |
 
@@ -46,7 +46,9 @@ uso de negocio: coordina las rutas, la configuración y la evidencia de desplieg
 relacionan en la matriz de trazabilidad.
 Catálogo mantiene el registro SQL interno de IDs/tipos disjuntos, incluidos tombstones. Seguridad
 Core verifica los permisos por ruta de las credenciales Streaming; la credencial limitada a catálogo
-no concede acceso al contexto de propietario de Canales.
+no concede acceso al contexto de propietario de Canales. El token Chat solo accede a sus dos
+contratos privados; Accounts compone autor/permisos y Channels su bootstrap, mediante puertos
+publicados y lecturas acotadas Streaming. Integración únicamente prueba y conecta esos dueños.
 
 ## Definición de módulos de trabajo
 

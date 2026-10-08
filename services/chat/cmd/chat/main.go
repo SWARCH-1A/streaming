@@ -38,12 +38,16 @@ func main() {
 		log.Error("CHAT_REDIS_URL inválida")
 		os.Exit(1)
 	}
+	// Bound datastore I/O by each command's context; an ambiguous commit is recovered by clientMessageId.
+	ropts.ContextTimeoutEnabled = true
+	ropts.MaxRetries = -1
 	rdb := redis.NewClient(ropts)
 	defer rdb.Close()
 
 	coreClient, err := core.New(core.Config{
 		BaseURL: cfg.CoreBaseURL, ServiceToken: cfg.CoreServiceToken, CAFile: cfg.CoreCAFile,
-		ConnectTimeout: cfg.CoreConnect, RequestTimeout: cfg.CoreTimeout,
+		DevelopmentHTTP: cfg.CoreDevelopmentHTTP,
+		ConnectTimeout:  cfg.CoreConnect, RequestTimeout: cfg.CoreTimeout,
 	})
 	if err != nil {
 		log.Error("cliente Core", "err", err)

@@ -20,6 +20,10 @@ public class PrivateCoreSecurity {
                 .sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .requestCache(c->c.disable())
                 .authorizeHttpRequests(a->a
+                        .requestMatchers(HttpMethod.POST,"/internal/core/chat/message-context")
+                        .access((authentication,context)->new AuthorizationDecision(listener.permits(context.getRequest(),PrivateCoreListener.Permission.CHAT_CONTEXT)))
+                        .requestMatchers(HttpMethod.GET,"/internal/core/chat/sessions/*")
+                        .access((authentication,context)->new AuthorizationDecision(listener.permits(context.getRequest(),PrivateCoreListener.Permission.CHAT_SNAPSHOT)))
                         .requestMatchers(HttpMethod.POST,"/internal/core/streaming/owner-context")
                         .access((authentication,context)->new AuthorizationDecision(listener.permits(context.getRequest(),PrivateCoreListener.Permission.OWNER_CONTEXT)))
                         .requestMatchers(HttpMethod.POST,"/internal/core/streaming/catalog-values")

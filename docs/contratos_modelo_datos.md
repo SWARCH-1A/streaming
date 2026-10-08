@@ -340,6 +340,8 @@ sessionVersion,availability,authorizedAtUtc,timelinePositionMs,timelineSampleVer
 versión equivale al sessionVersion del snapshot. Sin perfil personalizado, displayName=handle/avatar=null;
 no existe una dependencia Profile HTTP cuyo timeout deba tolerarse.
 
+El POST privado Core valida Content-Type JSON y limita el cuerpo a 16 KiB, también con chunked;
+JSON malformado/excesivo devuelve 400 VALIDATION_ERROR después de autenticar el servicio.
 No cachear contexto para nuevos envíos. Cuota y persistencia pertenecen a Chat, no al endpoint Core.
 Chat, con el userId confiable, busca primero un resultado de dedupe existente: lo retorna aunque
 writeAllowed=false; si no hay resultado, verifica writeAllowed antes de cuota/commit. El mismo
@@ -353,8 +355,11 @@ El timeout elegido debe revisarse con evidencia, manteniendo p95 de entrega Chat
 Chat asigna hora de persistencia y conserva el offset del snapshot autorizado (no inventa un reloj del
 cliente). Rechaza contexto si el round-trip más tiempo hasta intentar persistir supera 500 ms, usando
 monotónico local; devuelve TIMELINE_UNAVAILABLE y permite reintento con mismo clientMessageId. No
-extrapola permisos. Una escritura ya autorizada antes de logout/ENDED puede confirmar dentro de ese
-presupuesto; toda autorización posterior observa revocación/fin. Esta carrera de operación en vuelo
+extrapola permisos. El contexto de llamada también limita el I/O Redis restante, sin retries
+automáticos. El presupuesto limita cuándo se intenta el script; no es una transacción distribuida
+ni puede retirar un script ya recibido por Redis. Timeout de Redis puede dejar commit de resultado
+desconocido: no hay ACK, y se recupera con el mismo clientMessageId mediante dedupe. Una escritura
+ya autorizada antes de logout/ENDED puede confirmar; toda autorización posterior observa revocación/fin. Esta carrera de operación en vuelo
 es explícita: no se promete transacción distribuida Core–Chat ni revocación retroactiva de commits.
 
 Chat persiste mensaje, dedupe, secuencia y efecto de cuota atómicamente antes del ACK en Redis
@@ -364,6 +369,8 @@ y `noeviction`. Unicidad: (sessionId,sequence) por contador `INCR` y ID de Strea
 orden de sequence. No se persiste la credencial de usuario. Los mensajes confirmados no se recortan
 mientras la sala existe. Retención efímera: al conocer ENDED, todas las claves de la sala (estado,
 sequence, dedupe y mensajes) expiran a los 5 minutos; después el historial queda vacío.
+El TTL de caché de estado no vence mensajes, sequence ni dedupe activos, y una reentrega de ENDED
+no renueva su retención. Recuperar estado por snapshot no reconstruye mensajes perdidos.
 
 message.accepted al emisor incluye clientMessageId,messageId,sessionId,sequence,serverCreatedAtUtc;
 message.created publica snapshot del autor/texto/offset a conectados. Dedupe también en cliente.
@@ -422,9 +429,16 @@ Credencial de servicio ausente/incorrecta: 401; entrada por puerto público: 404
 JSON/operación/commandId malformados: 400; error SQL: 503. El envelope conserva
 `code,message,requestId,fieldErrors`, sin SQL ni secretos. Configuración/TLS en el runbook Core.
 
-**Sesión para Chat.** GET /internal/streaming/sessions/{sessionId}/context devuelve {streamId,sessionId,streamGeneration,sessionVersion,status,availability,timelinePositionMs,timelineSampledAtUtc}; reloj actual del owner, sin permiso de usuario. PREPARING y ENDED son respuestas de estado, no una sesión LIVE inventada; desconocida 404, owner/clock no verificable 503. Core compone writeAllowed y autor solo para el mensaje solicitado. El contexto Core se entrega después de esas lecturas, con presupuesto agregado de Chat; no hay atomicidad entre revocación Core y fin Streaming.
+**Sesión para Chat.** GET /internal/streaming/sessions/{sessionId}/context devuelve {streamId,sessionId,streamGeneration,sessionVersion,status,availability,timelinePositionMs,timelineSampledAtUtc}; reloj actual del owner, sin permiso de usuario. PREPARING y ENDED son respuestas de estado, no una sesión LIVE inventada; desconocida 404, owner/clock no verificable 503. Core compone writeAllowed y autor solo para el mensaje solicitado. El adaptador Core limita el cuerpo a 64 KiB y toda la lectura a 200 ms, sin redirecciones ni reintentos.
+Valida ID/generación/versión y timeline entero no negativo/UTC; para LIVE la muestra debe estar
+dentro de 5 s del reloj Core (incluida tolerancia máxima de desfase); ENDED conserva su reloj congelado.
+Un timeline inválido falla con TIMELINE_UNAVAILABLE. El contexto Core se entrega después de esas lecturas, con presupuesto agregado de Chat; no hay atomicidad entre revocación Core y fin Streaming.
 
-**Bootstrap canal.** POST /internal/streaming/channels/snapshots acepta {channelIds:[ID]} hasta 50; devuelve un resultado por ID con {channelId,configured,stream,session,observedAtUtc}. configured=false confirma ausencia; si true, stream/session siguen los DTO públicos autoritativos de Streaming, sin secretos. Core usa batch de un canal para bootstrap y preserva cuenta/perfil/canal ante falla Streaming con streamStatusFresh=false/availability=UNKNOWN. Discovery hace búsqueda/ranking sobre proyección SQL, sin llamadas por fila.
+**Bootstrap canal.** POST /internal/streaming/channels/snapshots acepta {channelIds:[ID]} hasta 50; devuelve un resultado por ID con {channelId,configured,stream,session,observedAtUtc}. configured=false confirma ausencia; si true, stream/session siguen los DTO públicos autoritativos de Streaming, sin secretos. Core usa batch de un canal para bootstrap y preserva cuenta/perfil/canal ante falla Streaming con streamStatusFresh=false/availability=UNKNOWN. El batch de canal tiene presupuesto total de 1 s/cuerpo <=64 KiB. Core valida IDs y coherencia de
+stream/session/versiones, acepta playbackUrl pública HTTP(S) absoluta o ruta /hls de la misma sesión
+sin credenciales/query/fragment/traversal, y publica únicamente campos tipados del DTO. observedAtUtc
+debe estar dentro de 5 s del reloj Core y statusFresh ser true. Fallo/atraso nunca confirma OFFLINE.
+Discovery hace búsqueda/ranking sobre proyección SQL, sin llamadas por fila.
 
 ## Proyección pública Streaming → Discovery
 
@@ -5181,7 +5195,7 @@ campos aditivos, pero datos públicos rechazan secretos mediante la comprobació
       "recovery": "Report structured error; do not replace with demo data.",
       "spec": "SPEC-05",
       "visibility": "public",
-      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; authorization-to-commit <=500ms. Ended retained5min, no TTL renewal by history.",
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history.",
       "traceability": "docs/spec-p1/spec_05_chat.md"
     },
     {
@@ -5210,7 +5224,7 @@ campos aditivos, pero datos públicos rechazan secretos mediante la comprobació
       "recovery": "Report structured error; do not replace with demo data.",
       "spec": "SPEC-05",
       "visibility": "public",
-      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; authorization-to-commit <=500ms. Ended retained5min, no TTL renewal by history.",
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history.",
       "traceability": "docs/spec-p1/spec_05_chat.md"
     },
     {
@@ -5230,7 +5244,7 @@ campos aditivos, pero datos públicos rechazan secretos mediante la comprobació
       "recovery": "Report structured error; do not replace with demo data.",
       "spec": "SPEC-05",
       "visibility": "public",
-      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; authorization-to-commit <=500ms. Ended retained5min, no TTL renewal by history."
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history."
     },
     {
       "id": "chat.frame.ChatStatus",
@@ -5249,7 +5263,7 @@ campos aditivos, pero datos públicos rechazan secretos mediante la comprobació
       "recovery": "Report structured error; do not replace with demo data.",
       "spec": "SPEC-05",
       "visibility": "public",
-      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; authorization-to-commit <=500ms. Ended retained5min, no TTL renewal by history."
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history."
     },
     {
       "id": "chat.frame.MessageAccepted",
@@ -5268,7 +5282,7 @@ campos aditivos, pero datos públicos rechazan secretos mediante la comprobació
       "recovery": "Report structured error; do not replace with demo data.",
       "spec": "SPEC-05",
       "visibility": "public",
-      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; authorization-to-commit <=500ms. Ended retained5min, no TTL renewal by history."
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history."
     },
     {
       "id": "chat.frame.MessageCreated",
@@ -5287,7 +5301,7 @@ campos aditivos, pero datos públicos rechazan secretos mediante la comprobació
       "recovery": "Report structured error; do not replace with demo data.",
       "spec": "SPEC-05",
       "visibility": "public",
-      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; authorization-to-commit <=500ms. Ended retained5min, no TTL renewal by history."
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history."
     },
     {
       "id": "chat.frame.ChatError",
@@ -5306,7 +5320,7 @@ campos aditivos, pero datos públicos rechazan secretos mediante la comprobació
       "recovery": "Report structured error; do not replace with demo data.",
       "spec": "SPEC-05",
       "visibility": "public",
-      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; authorization-to-commit <=500ms. Ended retained5min, no TTL renewal by history."
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history."
     },
     {
       "id": "chat.frame.send",
@@ -5325,7 +5339,7 @@ campos aditivos, pero datos públicos rechazan secretos mediante la comprobació
       "recovery": "Report structured error; do not replace with demo data.",
       "spec": "SPEC-05",
       "visibility": "public",
-      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; authorization-to-commit <=500ms. Ended retained5min, no TTL renewal by history."
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history."
     },
     {
       "id": "chat.context",
@@ -5353,7 +5367,7 @@ campos aditivos, pero datos públicos rechazan secretos mediante la comprobació
       "recovery": "Fail closed; Core unavailable CORE_UNAVAILABLE; Streaming unavailable STREAMING_UNAVAILABLE; no retry/cache",
       "spec": "SPEC-11",
       "visibility": "private",
-      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; authorization-to-commit <=500ms. Ended retained5min, no TTL renewal by history.",
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history.",
       "traceability": "docs/spec-p1/spec_11_int.md"
     },
     {
@@ -5382,7 +5396,7 @@ campos aditivos, pero datos públicos rechazan secretos mediante la comprobació
       "recovery": "Report structured error; do not replace with demo data.",
       "spec": "SPEC-11",
       "visibility": "private",
-      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; authorization-to-commit <=500ms. Ended retained5min, no TTL renewal by history.",
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history.",
       "traceability": "docs/spec-p1/spec_11_int.md"
     },
     {
@@ -5412,7 +5426,7 @@ campos aditivos, pero datos públicos rechazan secretos mediante la comprobació
       "recovery": "Retry 1/2/5/10s then 10s, Retry-After, 15min; durable DLQ, alert after 5s; manual redrive same ID",
       "spec": "SPEC-11",
       "visibility": "private",
-      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; authorization-to-commit <=500ms. Ended retained5min, no TTL renewal by history.",
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history.",
       "traceability": "docs/spec-p1/spec_11_int.md"
     },
     {
@@ -5813,7 +5827,7 @@ campos aditivos, pero datos públicos rechazan secretos mediante la comprobació
       "recovery": "Report structured error; do not replace with demo data.",
       "spec": "SPEC-13",
       "visibility": "operational",
-      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; authorization-to-commit <=500ms. Ended retained5min, no TTL renewal by history."
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history."
     },
     {
       "id": "chat.readyz",
@@ -5833,7 +5847,7 @@ campos aditivos, pero datos públicos rechazan secretos mediante la comprobació
       "recovery": "Report structured error; do not replace with demo data.",
       "spec": "SPEC-13",
       "visibility": "operational",
-      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; authorization-to-commit <=500ms. Ended retained5min, no TTL renewal by history."
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history."
     },
     {
       "id": "mediaadapter.live",

@@ -88,19 +88,19 @@ foreach ($case in $cases) {
     & (Join-Path $caseDir 'init-env.ps1') *> $null
     $firstRun = [IO.File]::ReadAllText($envPath)
     $values = ConvertFrom-StringData $firstRun
-    foreach ($name in @('CORE_STREAMING_SERVICE_TOKEN','CORE_STREAMING_CATALOG_SERVICE_TOKEN')) {
+    foreach ($name in @('CORE_STREAMING_SERVICE_TOKEN','CORE_STREAMING_CATALOG_SERVICE_TOKEN','CHAT_CORE_SERVICE_TOKEN','CHAT_SESSION_EVENTS_TOKEN')) {
         Assert-True ($values[$name] -match '^[A-Za-z0-9_-]{32,256}$') "Invalid generated credential: $($case.name)"
     }
     Assert-True ($values.CORE_STREAMING_SERVICE_TOKEN -cne $values.CORE_STREAMING_CATALOG_SERVICE_TOKEN) 'Service scopes share a secret.'
     if ($null -ne $case.text) {
         Assert-True ($values.CORE_DB_PASSWORD -ceq 'keep_db' -and $values.CORE_RATE_LIMIT_HMAC_SECRET -ceq 'keep_hmac') 'Existing database/HMAC secrets changed.'
     } else {
-        Assert-True ((@($values.CORE_DB_PASSWORD,$values.CORE_RATE_LIMIT_HMAC_SECRET,$values.CORE_STREAMING_SERVICE_TOKEN,$values.CORE_STREAMING_CATALOG_SERVICE_TOKEN) | Select-Object -Unique).Count -eq 4) 'New secrets are not independent.'
+        Assert-True ((@($values.CORE_DB_PASSWORD,$values.CORE_RATE_LIMIT_HMAC_SECRET,$values.CORE_STREAMING_SERVICE_TOKEN,$values.CORE_STREAMING_CATALOG_SERVICE_TOKEN,$values.CHAT_CORE_SERVICE_TOKEN,$values.CHAT_SESSION_EVENTS_TOKEN) | Select-Object -Unique).Count -eq 6) 'New secrets are not independent.'
     }
     if ($case.name -in @('missing-catalog-key','existing-secrets')) {
         Assert-True ($values.CORE_STREAMING_SERVICE_TOKEN -ceq $fullSecret) 'Existing full-access secret changed.'
     }
-    if ($case.name -eq 'existing-secrets') { Assert-True ($firstRun -ceq $case.text) 'Existing file changed.' }
+    if ($case.name -eq 'existing-secrets') { Assert-True ($values.CORE_STREAMING_CATALOG_SERVICE_TOKEN -ceq $catalogSecret) 'Existing catalog secret changed.' }
     & (Join-Path $caseDir 'init-env.ps1') *> $null
     Assert-True ([IO.File]::ReadAllText($envPath) -ceq $firstRun) 'Initialization is not idempotent.'
     Write-Host "PASS env $($case.name)"

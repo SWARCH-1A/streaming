@@ -100,7 +100,7 @@ public class JdbcChannels implements ChannelInitializer, ChannelQueries, Channel
                 .param("value",value).query((rs,n)->new Bootstrap(
                         new ChannelView(rs.getString(1),rs.getString(2),rs.getString(3),rs.getString(4),rs.getLong(5)),
                         rs.getString(6),new ProfileView(rs.getString(2),rs.getString(7),rs.getString(8),
-                        rs.getString(9)==null?null:avatarBase+"/"+rs.getString(9),rs.getTimestamp(10).toInstant(),rs.getLong(11)),null)).optional();
+                        rs.getString(9)==null?null:avatarBase+"/"+rs.getString(9),rs.getTimestamp(10).toInstant(),rs.getLong(11)),null,false,"UNKNOWN")).optional();
     }
 
 }

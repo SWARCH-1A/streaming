@@ -101,12 +101,14 @@ func (s *Service) Send(ctx context.Context, sid, credential, clientMessageID, ra
 	}
 
 	started := time.Now()
+	ctx, cancel := context.WithTimeout(ctx, s.budget)
+	defer cancel()
 	mc, cerr := s.core.MessageContext(ctx, credential, sid, clientMessageID)
-	if cerr != nil {
-		return chat.Ack{}, false, cerr
-	}
 	if time.Since(started) > s.budget {
 		return chat.Ack{}, false, chat.Fail(chat.CodeTimelineUnavailable)
+	}
+	if cerr != nil {
+		return chat.Ack{}, false, cerr
 	}
 
 	writeAllowed, denial := mc.WriteAllowed, ""

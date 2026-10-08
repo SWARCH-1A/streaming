@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
@@ -51,11 +52,12 @@ type SessionSnapshot struct {
 
 // Config de la conexión privada Chat→Core.
 type Config struct {
-	BaseURL        string
-	ServiceToken   string
-	CAFile         string // opcional: CA privada para TLS interno
-	ConnectTimeout time.Duration
-	RequestTimeout time.Duration
+	BaseURL         string
+	ServiceToken    string
+	CAFile          string // opcional: CA privada para TLS interno
+	DevelopmentHTTP bool   // exclusivamente fixtures/red local aislada
+	ConnectTimeout  time.Duration
+	RequestTimeout  time.Duration
 }
 
 type Client struct {
@@ -67,7 +69,8 @@ type Client struct {
 
 func New(cfg Config) (*Client, error) {
 	base, err := url.Parse(cfg.BaseURL)
-	if err != nil || base.Scheme == "" || base.Host == "" {
+	if err != nil || base.Hostname() == "" || base.User != nil || base.RawQuery != "" || base.Fragment != "" || (base.Path != "" && base.Path != "/") ||
+		(base.Scheme != "https" && !(cfg.DevelopmentHTTP && base.Scheme == "http")) {
 		return nil, fmt.Errorf("URL de Core inválida")
 	}
 	transport := &http.Transport{
@@ -87,7 +90,8 @@ func New(cfg Config) (*Client, error) {
 		}
 		transport.TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
 	}
-	return &Client{base: base, token: cfg.ServiceToken, timeout: cfg.RequestTimeout, http: &http.Client{Transport: transport}}, nil
+	return &Client{base: base, token: cfg.ServiceToken, timeout: cfg.RequestTimeout, http: &http.Client{Transport: transport,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}}, nil
 }
 
 // MessageContext pide una autorización nueva para un mensaje lógico. La credencial de sesión solo
@@ -141,11 +145,15 @@ func (c *Client) do(ctx context.Context, method, path string, body []byte, crede
 		return chat.Fail(chat.CodeCoreUnavailable)
 	}
 	defer resp.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
-	if err != nil {
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, (64<<10)+1))
+	if err != nil || len(raw) > 64<<10 {
 		return chat.Fail(chat.CodeCoreUnavailable)
 	}
 	if resp.StatusCode == http.StatusOK {
+		mediaType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+		if err != nil || mediaType != "application/json" {
+			return chat.Fail(chat.CodeCoreUnavailable)
+		}
 		if err := json.Unmarshal(raw, out); err != nil {
 			return chat.Fail(chat.CodeCoreUnavailable)
 		}
@@ -161,6 +169,8 @@ func mapError(status int, raw []byte) *chat.Error {
 	}
 	_ = json.Unmarshal(raw, &env)
 	switch env.Code {
+	case "SERVICE_UNAUTHORIZED", "SERVICE_AUTH_REQUIRED":
+		return chat.Fail(chat.CodeCoreUnavailable)
 	case chat.CodeStreamingUnavailable, chat.CodeTimelineUnavailable, chat.CodeAuthRequired,
 		chat.CodeChatNotOpen, chat.CodeChatReadOnly:
 		return chat.Fail(env.Code)

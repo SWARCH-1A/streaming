@@ -20,7 +20,7 @@ Código bajo `src/main/java/streaming/core`:
 - `channels`: creación inicial transaccional, edición propia, portadas y bootstrap público por handle/owner, con vistas SQL públicas de Cuentas.
 - `taxonomy`: catálogo público activo/versionado, semilla SQL, tombstones y validación local de IDs.
 - `discovery`: GraphQL público (`streams`, `channels`), inbox/proyección SQL de los snapshots públicos de Streaming y reconstrucción desde su corte consistente ([ADR-008](../../docs/adr/ADR-008-descubrimiento-en-core.md)).
-- `streaming`: documentación de frontera; control de emisiones en el [servicio Rust](../streaming/README.md). Los contextos privados owner/catálogo están implementados en Core; la composición de estado/timeline Streaming sigue pendiente.
+- `streaming`: documentación de frontera; control de emisiones en el [servicio Rust](../streaming/README.md). Los contextos privados owner/catálogo están implementados en Core; el contexto Chat compone identidad/perfil locales con estado/timeline actual Streaming.
 - `security`, `api`: infraestructura común, sin orquestación de casos de uso de dominio.
 
 El registro pertenece a Cuentas: abre una transacción y llama interfaces locales de inicialización
@@ -30,12 +30,12 @@ y unicidad. Un reintento recupera los mismos IDs; un fallo revierte todas las es
 Las cuotas se guardan aparte para limitar intentos fallidos.
 
 No hay HTTP entre estos módulos, worker de provisión, reservas PENDING ni outbox de identidad/perfil.
-La consulta pública compone canal/handle/perfil en una sentencia SQL y devuelve `stream:null`
-para el canal inicial sin configuración. Edición/portada usa la sesión y CSRF de Core; los PATCH
-parciales bloquean la fila y solo incrementan channelVersion por cambios efectivos. La composición
-de Streaming en el canal y el contexto Chat aún no se implementan; RF-011/RF-012
-y el cumplimiento completo de SPEC-03/P1 siguen pendientes. El contexto privado de propietario
-está implementado; la composición de emisión en Canales sigue pendiente.
+La consulta pública compone canal/handle/perfil en una sentencia SQL y un batch autoritativo
+Streaming. La ausencia confirmada devuelve `stream:null`, `streamStatusFresh=true` y OFFLINE;
+una dependencia fallida devuelve UNKNOWN/false preservando los datos locales. Edición/portada usa la sesión y CSRF de Core; los PATCH
+parciales bloquean la fila y solo incrementan channelVersion por cambios efectivos. El contexto Chat autentica cada mensaje y toma un snapshot nuevo de autor/estado/timeline; no
+replica permisos en Discovery. Las pruebas entre proveedores están en
+[la suite P1](../../tests/integration/p1-domains/README.md); Web y carga se verifican por separado.
 
 ## Configuración
 
@@ -59,8 +59,10 @@ está implementado; la composición de emisión en Canales sigue pendiente.
 | PROFILE_AVATAR_PUBLIC_BASE | Prefijo API público (o CDN que proxifique Core); default /api/profile/avatars |
 | CHANNELS_BANNER_STORAGE | Directorio persistente para el proveedor `filesystem` |
 | CHANNELS_BANNER_PUBLIC_BASE | Prefijo API público (o CDN que proxifique Core); default /api/channels/banners |
-| CORE_STREAMING_BASE_URL | URL base del listener privado de Streaming usado para el corte de reconstrucción de Descubrimiento. Vacío deshabilita la reconstrucción: Core sigue aplicando eventos, pero un canal sin snapshot queda `UNKNOWN` en vez de `OFFLINE` |
-| CORE_STREAMING_CONSUMER_TOKEN | Secreto de 32+ caracteres enviado como `Authorization: Bearer` al corte; mismo valor que `STREAMING_CORE_CONSUMER_TOKEN` en Streaming. Sin él no hay reconstrucción. Nunca se registra |
+| CORE_STREAMING_BASE_URL | URL base del listener privado Streaming para canal, contexto Chat y corte Discovery. HTTPS por defecto; vacía deshabilita las lecturas: canal UNKNOWN, nuevo contexto 503 y reconstrucción deshabilitada |
+| CORE_STREAMING_CONSUMER_TOKEN | Secreto de 32+ caracteres enviado como `Authorization: Bearer` a las lecturas privadas; mismo valor que `STREAMING_CORE_CONSUMER_TOKEN` en Streaming. Sin él no hay reconstrucción. Nunca se registra |
+| CORE_STREAMING_DEVELOPMENT_HTTP | `false`; `true` permite HTTP solo en desarrollo aislado |
+| CHAT_CORE_SERVICE_TOKEN | Credencial distinta de las dos Streaming; habilita solo message-context y snapshot Chat en el listener privado |
 | DISCOVERY_RECONCILE_INTERVAL | Duración ISO-8601 entre cortes completos; default `PT4S`. Streaming conserva cada corte un día: súbela si el volumen preocupa, sabiendo que la ausencia de una configuración solo se confirma con un corte de menos de 5 s |
 | CORE_TRUSTED_PROXIES | CIDR separados por coma de los reverse proxies cuyo `X-Forwarded-For` se acepta (de derecha a izquierda). Vacío (default) usa siempre la IP del socket; una lista mal formada impide arrancar |
 
