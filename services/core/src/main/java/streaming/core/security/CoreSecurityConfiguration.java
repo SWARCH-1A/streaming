@@ -47,7 +47,8 @@ public class CoreSecurityConfiguration {
                     .requestMatchers(HttpMethod.DELETE,"/api/identity/sessions/current").permitAll()
                     .anyRequest().denyAll())
             .exceptionHandling(e->e.accessDeniedHandler((request,response,error)-> {
-                response.setStatus(403); response.setContentType("application/json");
+                response.setStatus(403); response.setCharacterEncoding(java.nio.charset.StandardCharsets.UTF_8);
+                response.setContentType("application/json");
                 boolean csrfError=error instanceof org.springframework.security.web.csrf.CsrfException;
                 json.writeValue(response.getWriter(),CoreErrorHandler.body(
                         csrfError?"CSRF_INVALID":"ACCESS_DENIED","La solicitud no está autorizada.",request));

@@ -39,6 +39,19 @@ Assert-True $rejected 'Missing ref was accepted.'
 Assert-True (Test-Path -LiteralPath (Join-Path $source 'services/streaming/new-name.txt')) 'Invalid ref destroyed the previous source.'
 Write-Host 'PASS archive replacement, renamed/deleted files, invalid ref and preserved siblings.'
 
+[IO.File]::WriteAllText((Join-Path $fixture 'services/streaming/new-name.txt'), 'uncommitted change')
+[IO.File]::WriteAllText((Join-Path $fixture 'services/streaming/added.txt'), 'untracked source')
+[IO.File]::WriteAllText((Join-Path $fixture '.gitignore'), "ignored.txt`n")
+[IO.File]::WriteAllText((Join-Path $fixture 'services/streaming/ignored.txt'), 'ignored secret')
+$source = Initialize-StreamingConsumer -RepoPath $fixture
+Assert-True ([IO.File]::ReadAllText((Join-Path $source 'services/streaming/new-name.txt')) -ceq 'uncommitted change') 'Current checkout modification was lost.'
+Assert-True (Test-Path -LiteralPath (Join-Path $source 'services/streaming/added.txt')) 'New consumer source was lost.'
+Assert-True (-not (Test-Path -LiteralPath (Join-Path $source 'services/streaming/ignored.txt'))) 'Ignored file was copied.'
+Remove-Item -LiteralPath (Join-Path $fixture 'services/streaming/new-name.txt')
+$source = Initialize-StreamingConsumer -RepoPath $fixture
+Assert-True (-not (Test-Path -LiteralPath (Join-Path $source 'services/streaming/new-name.txt'))) 'Locally deleted file was copied.'
+Write-Host 'PASS current checkout modifications, new/deleted files and ignored-file exclusion.'
+
 $outside = Join-Path $scratch 'protected'
 New-Item -ItemType Directory -Path $outside | Out-Null
 [IO.File]::WriteAllText((Join-Path $outside 'marker'), 'must survive')

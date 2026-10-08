@@ -36,6 +36,7 @@ public class PrivateCoreSecurity {
             PrivateCoreListener listener,ObjectMapper json) throws java.io.IOException {
         boolean internal=listener.isPrivate(request);
         response.setStatus(internal?401:404);
+        response.setCharacterEncoding(java.nio.charset.StandardCharsets.UTF_8);
         response.setContentType("application/json"); response.setHeader("Cache-Control","no-store");
         json.writeValue(response.getWriter(),CoreErrorHandler.body(internal?"SERVICE_UNAUTHORIZED":"NOT_FOUND",
                 "La solicitud no está autorizada.",request));

@@ -30,7 +30,7 @@ if ($Mode -eq 'Integration') {
     )
 }
 
-$dockerArguments += @('eclipse-temurin:25-jdk', 'sh', './mvnw', '-B')
+$dockerArguments += @('eclipse-temurin:25-jdk', 'sh', './mvnw', '-B', 'clean')
 if ($Mode -eq 'Integration') {
     $dockerArguments += @('verify', '-P', 'integration')
 } else {

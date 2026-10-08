@@ -84,6 +84,24 @@ mod tests {
             assert_eq!(response.status(), reqwest::StatusCode::NOT_FOUND);
           }
         }
+        // Save wire payloads for the independent neutral-schema consumer. The fixture credentials
+        // remain in headers; only responses from these fictitious accounts are written.
+        let mut samples = Vec::new();
+        for (path, body, token, expected, schema) in [
+            ("owner-context", serde_json::json!({"commandId":uuid::Uuid::new_v4(),"operation":"CREATE_CONFIG",
+                "channelId":value("channelId")?,"categoryId":category,"tagIds":[]}), "serviceToken", 200, "OwnerContext"),
+            ("catalog-values", serde_json::json!({"ids":[category]}), "catalogServiceToken", 200, "CatalogValues"),
+            ("owner-context", serde_json::json!({"commandId":uuid::Uuid::new_v4(),"operation":"STOP_SESSION",
+                "channelId":value("channelId")?}), "catalogServiceToken", 401, "Error"),
+        ] {
+            let response = client.post(format!("{}/internal/core/streaming/{path}", value("privateUrl")?))
+                .header("X-Service-Name", "streaming").header("X-Service-Token", value(token)?)
+                .header("X-Session-Credential", value("credential")?).json(&body).send().await?;
+            assert_eq!(response.status().as_u16(), expected);
+            samples.push(serde_json::json!({"schema":schema,"public":schema=="Error",
+                "payload":response.json::<serde_json::Value>().await?}));
+        }
+        std::fs::write("responses.json", serde_json::to_vec_pretty(&samples)?)?;
         Ok(())
     }
 }

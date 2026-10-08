@@ -1,0 +1,55 @@
+type Query {
+  streams(q: String, categoryId: ID, tagId: ID, limit: Int = 20, cursor: String): StreamConnection
+  channels(q: String, limit: Int = 20, cursor: String): ChannelConnection
+}
+
+type StreamConnection {
+  items: [LiveStream!]!
+  nextCursor: String
+  generatedAtUtc: DateTime!
+  statusFresh: Boolean!
+}
+
+type LiveStream {
+  streamId: ID!
+  sessionId: ID!
+  channel: PublicChannel!
+  title: String!
+  category: TaxonomyValue!
+  tags: [TaxonomyValue!]!
+  status: String!
+  availability: String!
+  viewerCount: Int!
+  viewerCountFresh: Boolean!
+  viewerCountObservedAtUtc: DateTime!
+  startedAtUtc: DateTime!
+  metadataVersion: Int!
+  sessionVersion: Int!
+  statusFresh: Boolean!
+}
+
+type ChannelConnection {
+  items: [PublicChannelResult!]!
+  nextCursor: String
+  generatedAtUtc: DateTime!
+  statusFresh: Boolean!
+}
+
+type PublicChannelResult {
+  channelId: ID!
+  userId: ID!
+  handle: String!
+  displayName: String!
+  avatarUri: String
+  status: String!
+  availability: String!
+  title: String
+  channelVersion: Int!
+  metadataVersion: Int
+  sessionVersion: Int
+  statusFresh: Boolean!
+}
+
+type PublicChannel { channelId: ID!, handle: String!, displayName: String!, avatarUri: String }
+type TaxonomyValue { id: ID!, name: String! }
+scalar DateTime

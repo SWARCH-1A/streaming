@@ -351,6 +351,7 @@ class CoreIT {
         for(String path:List.of("/api/identity/registrations","/api/identity/sessions","/api/profile/me/avatar-uploads","/api/channels/chn_test/banner-uploads")) {
             var response=request("POST",path,Map.of(),false);
             assertThat(response.statusCode()).isEqualTo(403);
+            assertThat(json.readTree(response.body()).get("message").asText()).isEqualTo("La solicitud no está autorizada.");
             assertThat(json.readTree(response.body()).get("requestId").asText()).isEqualTo(response.headers().firstValue("X-Request-Id").orElseThrow());
         }
         assertThat(request("POST","/internal/identity/sessions/introspect",null,false).statusCode()).isEqualTo(404);

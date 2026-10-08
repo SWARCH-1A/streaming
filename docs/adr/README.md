@@ -13,6 +13,7 @@
 | [ADR-008](ADR-008-descubrimiento-en-core.md) | Aceptada | Descubrimiento en Core: graphql-java con controlador propio, recepción atómica de snapshots, reconstrucción con watermark, ranking paginado y límites públicos. |
 | [ADR-009](ADR-009-s3-image-storage.md) | Aceptada | Bucket S3 privado para avatares/portadas y rutas públicas Core estables. |
 | [ADR-011](ADR-011-streaming-tres-contenedores-p1.md) | Aceptada | Stack Streaming P1 de tres contenedores; adaptador en el runtime Rust, bases separadas y preparación PostgreSQL sin job. |
+| [ADR-012](ADR-012-contratos-generados-p1.md) | Aceptada | Schemas JSON y SDL desde la fuente canónica; generación determinista, checks de drift y consumidores del checkout actual. |
 
 Chat está seleccionado en ADR-010; las herramientas pendientes de operación y despliegue se registran conforme
 a la [política ADR](../politica_ADR.md). Las alternativas candidatas requieren decisión del responsable.

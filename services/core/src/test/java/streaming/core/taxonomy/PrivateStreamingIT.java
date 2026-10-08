@@ -110,6 +110,7 @@ class PrivateStreamingIT {
         var response=post(OWNER,command(owner.channel(),operation,",\"categoryId\":\""+CAT+"\""),CATALOG_TOKEN,"streaming",owner.credential());
         assertThat(response.statusCode()).isEqualTo(401);
         assertThat(json.readTree(response.body()).get("code").asText()).isEqualTo("SERVICE_UNAUTHORIZED");
+        assertThat(json.readTree(response.body()).get("message").asText()).isEqualTo("La solicitud no está autorizada.");
     }
 
     @Test void catalogCredentialResolvesValuesWithoutSessionButRequiresCorrectServiceAndRoute() throws Exception {

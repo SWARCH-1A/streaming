@@ -18,7 +18,7 @@ del módulo no sustituyen esa aceptación integrada.
 | SPEC-07 | Core / Consultas y descubrimiento | services/core; lecturas SQL locales y proyección Streaming, filtros/ranking; GraphQL público | apps/web/src/modules/discovery |
 | SPEC-08 | Web / Accesibilidad | apps/web/src/accessibility y todas las vistas | Criterios transversales |
 | SPEC-09 | Integración | contracts, infra, shell y evidencia compartida | apps/web/src/shell |
-| SPEC-10 | Integración: contratos y datos | contracts/generated y tests/contracts | Contratos para consumidores |
+| SPEC-10 | Integración: contratos y datos | contracts/generate.py, contracts/generated y tests/contracts; ADR-012 | Contratos neutrales generados para consumidores |
 | SPEC-11 | Integración: flujos | tests/integration | Registro local, Core–Streaming, Streaming–Chat y Streaming–Media |
 | SPEC-12 | Integración: Web y proxy | apps/web/src/shell, infra/reverse-proxy | Rutas Core de imagen, auth, HTTP/WS/HLS |
 | SPEC-13 | Integración: despliegue y evidencia | infra/local, tests/e2e | Recorrido, perfil de carga y configuración/recuperación S3 |

@@ -33,13 +33,34 @@ function Assert-ContractTree {
 
 function Initialize-StreamingConsumer {
     [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$RepoPath, [Parameter(Mandatory)][string]$StreamingRef)
+    param([Parameter(Mandatory)][string]$RepoPath, [string]$StreamingRef = '')
     $repo = (Resolve-Path -LiteralPath $RepoPath).Path
-    $work = Join-Path $repo 'services/core/target/streaming-contract'
+    $work = Join-Path $repo 'tests/contracts/.cache/streaming-core'
     $source = Join-Path $work 'source'
     $archive = Join-Path $work 'streaming.tar'
     Assert-ContractPath $repo $archive
     Assert-ContractTree $repo $source
+    if (-not $StreamingRef) {
+        $head = & git -C $repo rev-parse --verify HEAD
+        if ($LASTEXITCODE -ne 0) { throw 'Cannot identify the current checkout.' }
+        $entries = @(& git -C $repo -c core.quotepath=false ls-files --cached --others --exclude-standard -- services/streaming)
+        if ($LASTEXITCODE -ne 0 -or -not $entries) { throw 'Current checkout has no Streaming consumer tree.' }
+        # Resolve and validate every input before touching the previous extraction. Ignored build
+        # artifacts/secrets are excluded by Git; locally modified/new files are included.
+        $files = @($entries | Sort-Object -Unique | Where-Object { Test-Path -LiteralPath (Join-Path $repo $_) })
+        foreach ($relative in $files) { Assert-ContractPath $repo (Join-Path $repo $relative) }
+        Assert-ContractTree $repo $source
+        if (Test-Path -LiteralPath $source) { Remove-Item -LiteralPath $source -Recurse -Force }
+        New-Item -ItemType Directory -Path $source -Force | Out-Null
+        foreach ($relative in $files) {
+            $destination = Join-Path $source $relative
+            New-Item -ItemType Directory -Path (Split-Path $destination -Parent) -Force | Out-Null
+            Copy-Item -LiteralPath (Join-Path $repo $relative) -Destination $destination
+        }
+        Write-Host "Contract consumer: current checkout HEAD=$head (includes nonignored working changes)."
+        & git -C $repo diff --stat HEAD -- services/streaming | Out-Host
+        return $source
+    }
     $commit = & git -C $repo rev-parse --verify --end-of-options "$StreamingRef^{commit}" 2>$null
     if ($LASTEXITCODE -ne 0) { throw 'Fetch the selected Streaming commit before running the contract test.' }
     $entries = & git -C $repo ls-tree -r $commit -- services/streaming
@@ -55,5 +76,6 @@ function Initialize-StreamingConsumer {
     & tar -xf $archive -C $source
     if ($LASTEXITCODE -ne 0) { throw 'Cannot unpack the selected Streaming consumer.' }
     Assert-ContractTree $repo $source
+    Write-Host "Contract consumer: explicit historical regression commit=$commit."
     return $source
 }
