@@ -22,7 +22,8 @@ RUN apt-get update \
 COPY --from=builder /out/streaming-service /usr/local/bin/streaming-service
 COPY --from=builder /out/media-adapter /usr/local/bin/media-adapter
 USER 10001:10001
-EXPOSE 8080
+EXPOSE 8080 8888
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl --fail --silent --show-error http://127.0.0.1:8080/health/ready || exit 1
+    CMD curl --fail --silent --show-error http://127.0.0.1:8080/health/ready \
+        && curl --fail --silent --show-error http://127.0.0.1:8090/health/ready || exit 1
 ENTRYPOINT ["/usr/local/bin/streaming-service"]

@@ -1,6 +1,6 @@
 # Arquitectura de STREAMING
 
-**Decisión:** [ADR-005](adr/ADR-005-streaming-rust-y-proyeccion-discovery.md). **Alcance:** P1 y evolución.
+**Decisiones:** [ADR-005](adr/ADR-005-streaming-rust-y-proyeccion-discovery.md) y [ADR-011](adr/ADR-011-streaming-tres-contenedores-p1.md). **Alcance:** P1 y evolución.
 
 ## Unidades de ejecución
 
@@ -10,7 +10,7 @@
 | Core | Java/Spring: Cuentas, Canales, Catálogo y Discovery. PostgreSQL propio y objetos de imagen en S3; registro en una transacción. | Integridad cuenta–perfil–canal y consultas SQL locales con proyección pública Streaming. |
 | Streaming | Rust/Axum/Tokio/SQLx con pools y PostgreSQL privado: configuración, claves, sesiones, cupos, clock, generaciones, leases e inbox/outbox. | Autonomía de desarrollo, release y operación del control de emisiones; costo de coordinación aceptado en ADR-005. |
 | Chat | Salas, mensajes, deduplicación, cuota, secuencias, historial y realtime; Go + Redis efímero según ADR Chat. | Conexiones largas, fan-out y fallo independientes de video; persistencia temporal propia. |
-| Media | MediaMTX RTMP/LL-HLS y adaptador técnico Rust: autorización de fuente, señales, control y verificación audiovisual. | Códecs, CPU y ancho de banda; contenedores separados del API de negocio Streaming. |
+| Media | MediaMTX RTMP/LL-HLS separado; adaptador técnico Rust dentro del proceso Streaming P1, con base/rol propios. | Motor separado por códecs/ancho de banda; control y adaptador comparten release/fallos según ADR-011. |
 | Reverse proxy | HTTPS, encaminamiento, límites, Upgrade WS y forwarding confiable. | Infraestructura con tabla explícita de upstreams. |
 
 Core, Streaming y Chat son procesos propios de lógica comunicados por HTTP. TypeScript sigue
@@ -46,28 +46,36 @@ sus elementos e interacciones en tiempo de ejecución (Rozanski & Woods, 2011, c
 
 En ejecución existen Web, Core, Streaming, Chat, Media, proxy y sus almacenes. Cuentas, Canales,
 Catálogo y Discovery son módulos locales Core; sus llamadas usan interfaces de aplicación. Las flechas
-representan protocolos y semántica entre procesos; la tabla identifica puertos y roles.
+representan protocolos y semántica de interacción, incluido loopback entre adaptador/control en P1; la tabla identifica puertos y roles.
 
 ## Vista C4/C&C
 
 ```mermaid
 flowchart LR
   V[Visitante / streamer] -->|HTTPS| P[Reverse proxy]
-  E[Encoder] -->|RTMP| M[MediaMTX + adaptador Rust]
+  E[Encoder] -->|RTMP| M[MediaMTX]
+  subgraph SR[Proceso Streaming P1]
+    S[Control Streaming Rust]
+    MA[Adaptador Media Rust]
+  end
   P --> W[Web: un build]
   P -->|REST / GraphQL| C[Core modular Java]
-  P -->|REST control / viewer leases| S[Streaming Rust]
+  P -->|REST control / viewer leases| S
   P -->|REST historial / WebSocket| CH[Chat]
-  P -->|LL-HLS| M
+  P -->|LL-HLS| MA
   CH -->|HTTPS: contexto autorizado / snapshot sala| C
   C -->|HTTPS: estado y timeline actuales / bootstrap canal| S
   S -->|HTTPS: contexto owner / catálogo| C
   S -->|HTTPS: outbox público hacia inbox Discovery| C
   S -->|HTTPS: ciclo de sesión hacia inbox| CH
-  M -->|HTTPS: autorizar ingesta / callbacks durables| S
-  S -->|HTTPS: detener fuente / verificar HLS| M
+  M -->|HTTP privado: auth MediaMTX| MA
+  MA -->|HTTP loopback: ingesta / callbacks durables| S
+  S -->|HTTP loopback: verificar HLS| MA
+  S -->|HTTPS privado: detener fuente| M
+  MA -->|Control / HLS privado| M
   C --> DB[(PostgreSQL Core)]
   S --> SD[(PostgreSQL Streaming)]
+  MA --> MD[(Base Media en mismo PostgreSQL)]
   C -->|S3 API: objetos privados| A[(Bucket S3: avatares / banners)]
   CH --> N[(Redis Chat)]
 ```
@@ -95,7 +103,7 @@ ningún proceso consulta tablas ajenas ni mantiene transacciones entre bases.
 | Comandos protegidos | Streaming / cliente privado | Core / contexto owner | Sesión, propiedad y catálogo tipado; autorización acotada, sin lock entre bases. |
 | Ciclo de sesión | Streaming / outbox | Chat / inbox | HTTPS idempotente, ACK durable, versiones/retry/DLQ; informativo para sala. |
 | Proyección pública | Streaming / outbox y snapshot | Discovery en Core / inbox y staging | Snapshots completos/versionados; frescura <=5s, dedupe y reconstrucción consistente con watermark. |
-| Señales Media | Adaptador Rust / cliente privado | Streaming / ingest y callbacks | HTTPS autenticado; intent/event IDs, generaciones y ACK tras persistir. |
+| Señales Media | Adaptador Rust / cliente privado | Streaming / ingest y callbacks | HTTP loopback autenticado en P1; HTTPS al extraer; intent/event IDs, generaciones y ACK tras persistir. |
 | Control Media | Streaming / cliente multimedia | Media / control y HLS privado | Corte de fuente y comprobación de playlist/segmento/frame real. |
 | SQL | Core o Streaming / cliente propio | PostgreSQL privado / almacén | Pool y transacciones locales; sin lectura ni FK entre bases. |
 | Historial | Chat / cliente propio | Redis Chat / servidor | Persistencia antes de ACK; Core/Streaming no leen mensajes. |
@@ -120,8 +128,8 @@ ningún proceso consulta tablas ajenas ni mantiene transacciones entre bases.
 
 ## Despliegue y aislamiento
 
-Topología: proxy, Web, Core, Streaming, Chat, MediaMTX/adaptador Rust, PostgreSQL Core/Streaming,
-Redis Chat (AOF) y bucket S3 privado para imágenes. Bases separadas con credenciales privadas pueden compartir motor físico sin compartir tablas.
+Topología: proxy, Web, Core, Streaming con adaptador Rust, Chat, MediaMTX, PostgreSQL Core/Streaming,
+Redis Chat (AOF) y bucket S3 privado para imágenes. Bases separadas con credenciales privadas pueden compartir motor físico sin compartir tablas. El stack propio SPEC-04 usa exactamente tres contenedores: PostgreSQL (bases Streaming/Media), Streaming con adaptador y MediaMTX, según ADR-011.
 Core accede a imágenes en S3; Media conserva segmentos. Solo HTTPS web y RTMP son públicos. Core8081,
 Streaming8080, Chat8085 y Web3000; listeners Media/configuración final se verifican antes del despliegue.
 /internal/* queda bloqueado públicamente. TLS privado y secretos específicos por consumidor/operación.
@@ -136,7 +144,7 @@ un mismo host siguen compartiendo su capacidad física. SPEC-13 verifica escalad
 Caída Core bloquea nuevos comandos protegidos y autorizaciones Chat. Caída Streaming bloquea su control
 y nuevas autorizaciones Chat; Media puede conservar una fuente/reproducción existente sin garantía
 indefinida. Caída Chat no corta HLS. Caída Discovery/receptor no revierte LIVE ni bloquea el consumidor
-Chat; proyección atrasada degrada según frescura. Caída del proceso Core afecta a todos sus módulos.
+Chat; proyección atrasada degrada según frescura. Caída del proceso Core afecta a todos sus módulos. Caída/reinicio Streaming afecta también al adaptador, su autorización y la entrega pública HLS; MediaMTX conserva proceso propio.
 
 ## Validación de la arquitectura
 

@@ -18,8 +18,7 @@ La documentación ubicada junto al repositorio remite a esta fuente.
 ## Convenciones
 
 Una SPEC define comportamiento y aceptación; un módulo encapsula una responsabilidad; una unidad
-desplegable posee runtime, configuración, salud y release. Core contiene varios módulos. Streaming, Chat y Media
-tienen fronteras propias. Discovery combina datos locales con la proyección pública de Streaming. Integración y accesibilidad son trabajo transversal.
+desplegable posee runtime, configuración, salud y release. Core contiene varios módulos. Streaming y Chat tienen procesos propios. MediaMTX se despliega separado; el adaptador técnico Media comparte el runtime Streaming en P1 según ADR-011, conservando su frontera de datos. Discovery combina datos locales con la proyección pública de Streaming. Integración y accesibilidad son trabajo transversal.
 
 Cada módulo escribe mediante su repositorio. Dentro de Core se permiten FK, transacciones locales y
 vistas de lectura publicadas con columnas explícitas; ningún proceso externo consulta sus tablas.

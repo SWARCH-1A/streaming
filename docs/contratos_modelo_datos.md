@@ -1,7 +1,7 @@
 # Contratos y modelo de datos
 
 **Arquitectura:** Core, Streaming, Chat y Media según ADR-005.
-**Regla:** APIs de red solo entre unidades de ejecución. Interfaces locales y FK dentro de Core.
+**Regla:** interfaces locales y FK dentro de Core. APIs de red entre unidades de ejecución; ADR-011 conserva excepcionalmente los contratos HTTP autenticados del adaptador Media sobre loopback dentro del proceso Streaming P1.
 
 ## Propiedad y modelo lógico
 
@@ -84,9 +84,9 @@ Las interfaces requieren schema neutro, correlación y presupuesto acotado.
 | POST /internal/streaming/discovery/snapshots | Streaming / Core | Corte consistente paginado de configuraciones con watermark; reconstrucción |
 
 `/internal/*` usa TLS privado y credenciales específicas por consumidor con permisos explícitos
-por ruta; una credencial puede tener varias rutas autorizadas. El listener público lo bloquea.
+por ruta; una credencial puede tener varias rutas autorizadas. El listener público lo bloquea. En P1 los contratos adaptador→Streaming se conservan sobre HTTP loopback autenticado dentro del mismo contenedor (ADR-011); TLS sigue siendo obligatorio al cruzar contenedores en producción. Bases y repositorios técnicos/de negocio permanecen separados.
 Los módulos Core usan interfaces locales; no publican eventos de replicación interna ni requieren
-provisión HTTP de canal. Los outboxes se reservan para efectos entre procesos.
+provisión HTTP de canal. Los outboxes se reservan para efectos entre procesos y para los callbacks técnicos durables Media conservados por ADR-011.
 
 ## Registro y cuentas: transacción local
 

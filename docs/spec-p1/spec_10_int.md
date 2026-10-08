@@ -53,6 +53,8 @@ recibir 401 en owner-context aun con sesión válida. Ambos reciben 404 en la en
 
 Fuente semántica única contratos_modelo_datos.md; artefactos generados según ADR de herramienta. Cambio incompatible identifica transición/migración/retiro. Core usa puertos/adaptadores locales, repositorios privados y FK; Streaming/Chat/Media consumen schemas HTTP neutros. Los criterios de aceptación requieren evidencia ejecutable.
 
+En P1, ADR-011 integra el adaptador técnico en el proceso Streaming. Autorización/callbacks internos conservan HTTP loopback autenticado y persistencia separada. HLS público se enruta al listener 8888 del contenedor Streaming; RTMP sigue en MediaMTX. Reinicios/fallos del proceso afectan al control y al adaptador juntos.
+
 ## 8. Dependencias y contratos de integración
 
 SPEC-01, SPEC-03…SPEC-08 aportan comportamiento; SPEC-11 secuencia; SPEC-12 proxy; SPEC-13 evidencia. Core–Chat usa contexto/snapshot compuesto con estado actual Streaming; Streaming–Chat entrega lifecycle. Core–Streaming valida owner/catálogo y recibe proyección Discovery. Streaming–Media autoriza ingesta/callbacks/control técnico. Snapshots/versiones/frescura/reconstrucción siguen el contrato canónico. Las interfaces de Cuentas/Canales/Catálogo/Consultas son locales a Core.

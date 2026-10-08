@@ -1,83 +1,35 @@
 services:
   db:
     image: postgres:18.6-alpine3.24
+    entrypoint: ["/bin/sh", "/init-database.sh"]
+    command: ["postgres"]
     environment:
       POSTGRES_DB: streaming
       POSTGRES_USER: streaming
       POSTGRES_PASSWORD: streaming_dev_only
+      MEDIA_DATABASE_PASSWORD: ${MEDIA_DATABASE_PASSWORD:-streaming_dev_media_database_password}
     ports:
-      - "127.0.0.1:5438:5432"
+      - "127.0.0.1:${STREAMING_DB_PORT:-5438}:5432"
     volumes:
       - streaming-postgres-data:/var/lib/postgresql
+      - ./media-adapter/init-database.sh:/init-database.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U streaming -d streaming"]
+      test: ["CMD-SHELL", "test -f /tmp/streaming-media-ready && pg_isready -h 127.0.0.1 -U streaming -d streaming"]
       interval: 5s
       timeout: 3s
       retries: 10
 
-  media-db-init:
-    image: postgres:18.6-alpine3.24
-    entrypoint: ["/bin/sh", "/init-database.sh"]
-    environment:
-      PGHOST: db
-      PGUSER: streaming
-      PGDATABASE: streaming
-      PGPASSWORD: streaming_dev_only
-      MEDIA_DATABASE_PASSWORD: ${MEDIA_DATABASE_PASSWORD:-streaming_dev_media_database_password}
-    volumes:
-      - ./media-adapter/init-database.sh:/init-database.sh:ro
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: "no"
-
-  media-adapter:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    entrypoint: ["media-adapter"]
-    environment:
-      STREAMING_ENV: development
-      MEDIA_DATABASE_URL: postgres://media_adapter:${MEDIA_DATABASE_PASSWORD:-streaming_dev_media_database_password}@db:5432/streaming_media
-      MEDIA_RUN_MIGRATIONS: "true"
-      MEDIA_STREAMING_URL: http://streaming:8091
-      MEDIA_STREAMING_PUBLIC_URL: http://streaming:8080
-      MEDIA_STREAMING_TOKEN: ${STREAMING_MEDIA_ADAPTER_SERVICE_TOKEN:-streaming_dev_only_media_adapter_service_token_32chars}
-      MEDIA_CONTROL_URL: http://mediamtx:9997
-      MEDIA_CONTROL_USER: streaming-control
-      MEDIA_CONTROL_PASSWORD: ${MEDIA_CONTROL_PASSWORD:-streaming_dev_media_control_password_32chars}
-      MEDIA_AUTH_TOKEN: ${MEDIA_AUTH_TOKEN:-streaming_dev_media_auth_token_32chars}
-      MEDIA_HLS_URL: http://mediamtx:8888
-      MEDIA_HLS_SECRET: ${MEDIA_HLS_SECRET:-streaming_dev_hls_internal_token_32chars}
-      MEDIA_MAX_OPEN_DEAD_LETTERS: 10000
-    ports:
-      - "127.0.0.1:8888:8888"
-    depends_on:
-      media-db-init:
-        condition: service_completed_successfully
-    read_only: true
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,size=64m
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    healthcheck:
-      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8090/health/ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
   mediamtx:
     image: bluenviron/mediamtx:1.21.1@sha256:5ce2a948eb68df06ce2e13870db8df8e30d516ac4dc40e04bfe8aee3bdf7be40
     environment:
-      MTX_AUTHHTTPADDRESS: http://mediamtx:${MEDIA_AUTH_TOKEN:-streaming_dev_media_auth_token_32chars}@media-adapter:8090/internal/media/auth
+      MTX_AUTHHTTPADDRESS: http://mediamtx:${MEDIA_AUTH_TOKEN:-streaming_dev_media_auth_token_32chars}@streaming:8090/internal/media/auth
       MTX_HLSCDNSECRET: ${MEDIA_HLS_SECRET:-streaming_dev_hls_internal_token_32chars}
     volumes:
       - ./media-adapter/mediamtx.yml:/mediamtx.yml:ro
     ports:
-      - "127.0.0.1:1935:1935"
+      - "127.0.0.1:${STREAMING_RTMP_PORT:-1935}:1935"
     depends_on:
-      media-adapter:
+      streaming:
         condition: service_started
     read_only: true
     tmpfs:
@@ -92,6 +44,18 @@ services:
       dockerfile: Dockerfile
     environment:
       STREAMING_ENV: development
+      MEDIA_DATABASE_URL: postgres://media_adapter:${MEDIA_DATABASE_PASSWORD:-streaming_dev_media_database_password}@db:5432/streaming_media
+      MEDIA_RUN_MIGRATIONS: "true"
+      MEDIA_STREAMING_URL: http://127.0.0.1:8091
+      MEDIA_STREAMING_PUBLIC_URL: http://127.0.0.1:8080
+      MEDIA_STREAMING_TOKEN: ${STREAMING_MEDIA_ADAPTER_SERVICE_TOKEN:-streaming_dev_only_media_adapter_service_token_32chars}
+      MEDIA_CONTROL_URL: http://mediamtx:9997
+      MEDIA_CONTROL_USER: streaming-control
+      MEDIA_CONTROL_PASSWORD: ${MEDIA_CONTROL_PASSWORD:-streaming_dev_media_control_password_32chars}
+      MEDIA_AUTH_TOKEN: ${MEDIA_AUTH_TOKEN:-streaming_dev_media_auth_token_32chars}
+      MEDIA_HLS_URL: http://mediamtx:8888
+      MEDIA_HLS_SECRET: ${MEDIA_HLS_SECRET:-streaming_dev_hls_internal_token_32chars}
+      MEDIA_MAX_OPEN_DEAD_LETTERS: 10000
       STREAMING_BIND_ADDR: 0.0.0.0:8080
       STREAMING_PRIVATE_BIND_ADDR: 0.0.0.0:8091
       STREAMING_DATABASE_URL: postgres://streaming:streaming_dev_only@db:5432/streaming
@@ -108,18 +72,19 @@ services:
       STREAMING_CHAT_SERVICE_TOKEN: ${STREAMING_CHAT_SERVICE_TOKEN:-streaming_dev_chat_service_token_32chars}
       STREAMING_SESSION_COOKIE_NAME: streaming_dev_session
       STREAMING_WEB_ORIGIN: ${STREAMING_WEB_ORIGIN:-http://localhost:3000}
-      STREAMING_RTMP_INGEST_BASE_URL: rtmp://localhost:1935/live
+      STREAMING_RTMP_INGEST_BASE_URL: rtmp://localhost:${STREAMING_RTMP_PORT:-1935}/live
       STREAMING_DEPENDENCY_TIMEOUT_SECONDS: 3
       STREAMING_MEDIA_ADAPTER_SERVICE_TOKEN: ${STREAMING_MEDIA_ADAPTER_SERVICE_TOKEN:-streaming_dev_only_media_adapter_service_token_32chars}
       STREAMING_MEDIAMTX_NODE_ID: media-01
       STREAMING_MEDIAMTX_CONTROL_API_URL: http://mediamtx:9997
       STREAMING_MEDIAMTX_CONTROL_API_USERNAME: streaming-control
       STREAMING_MEDIAMTX_CONTROL_API_PASSWORD: ${MEDIA_CONTROL_PASSWORD:-streaming_dev_media_control_password_32chars}
-      STREAMING_MEDIAMTX_HLS_INTERNAL_BASE_URL: http://media-adapter:8888
-      STREAMING_PUBLIC_HLS_BASE_URL: http://localhost:8888
+      STREAMING_MEDIAMTX_HLS_INTERNAL_BASE_URL: http://127.0.0.1:8888
+      STREAMING_PUBLIC_HLS_BASE_URL: http://localhost:${STREAMING_HLS_PORT:-8888}
       STREAMING_VIEWER_LEASE_HMAC_KEY: streaming_dev_only_viewer_lease_hmac_key_32chars
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:${STREAMING_HTTP_PORT:-8080}:8080"
+      - "127.0.0.1:${STREAMING_HLS_PORT:-8888}:8888"
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m
@@ -127,6 +92,13 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/health/ready && curl --fail --silent http://127.0.0.1:8090/health/ready"]
+      interval: 10s
+      timeout: 5s
+      start_period: 15s
+      retries: 5
+    stop_grace_period: 30s
     depends_on:
       db:
         condition: service_healthy

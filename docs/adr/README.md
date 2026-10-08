@@ -12,6 +12,7 @@
 | [ADR-007](ADR-007-web-react-typescript.md) | Aceptada | Web React/TypeScript/SWC, pnpm, componentes atómicos, calidad y mocks locales. |
 | [ADR-008](ADR-008-descubrimiento-en-core.md) | Aceptada | Descubrimiento en Core: graphql-java con controlador propio, recepción atómica de snapshots, reconstrucción con watermark, ranking paginado y límites públicos. |
 | [ADR-009](ADR-009-s3-image-storage.md) | Aceptada | Bucket S3 privado para avatares/portadas y rutas públicas Core estables. |
+| [ADR-011](ADR-011-streaming-tres-contenedores-p1.md) | Aceptada | Stack Streaming P1 de tres contenedores; adaptador en el runtime Rust, bases separadas y preparación PostgreSQL sin job. |
 
 La selección de Chat y herramientas de operación y despliegue se registra conforme
 a la [política ADR](../politica_ADR.md). Las alternativas candidatas requieren decisión del responsable.

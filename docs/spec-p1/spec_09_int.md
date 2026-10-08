@@ -57,6 +57,8 @@ Todo salto real especifica proveedor/dueño/consumidor/auth/deadline/recovery. D
 
 - La documentación `/docs` contiene el alcance y los contratos necesarios para implementar el proyecto.
 
+En P1, ADR-011 integra el adaptador técnico en el proceso Streaming. Autorización/callbacks internos conservan HTTP loopback autenticado y persistencia separada. HLS público se enruta al listener 8888 del contenedor Streaming; RTMP sigue en MediaMTX. Reinicios/fallos del proceso afectan al control y al adaptador juntos.
+
 ## 8. Dependencias y contratos de integración
 
 SPEC-10 define APIs públicas/internas públicas y privadas; SPEC-11 registro local, sesión Media/Chat y proyección Streaming→Discovery; SPEC-12 tabla única de upstreams; SPEC-13 topología/evidencia. Los RF permanecen en sus SPEC funcionales y la matriz RNF conserva responsables.

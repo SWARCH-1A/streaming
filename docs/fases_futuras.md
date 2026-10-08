@@ -61,4 +61,6 @@ idempotencia y recuperación del único dueño del workflow. Si la extracción e
 conozca internamente a todos los participantes, revisar primero la frontera.
 
 Separación de infraestructura (worker, proceso de cómputo, réplica) no implica inventar otro dominio.
+ADR-011 integra el adaptador técnico Media en el runtime Streaming durante P1. El próximo prototipo reevaluará su extracción si la carga, el aislamiento o los releases requieren independencia; conservar contratos/bases no obliga a añadir procesos sin esa necesidad.
+
 La plataforma debe poder evolucionar por módulos y adaptadores antes de distribuir datos por necesidad futura imaginada.

@@ -44,7 +44,7 @@ Como integrante del equipo, quiero arrancar y verificar desde checkout limpio to
 
 ### Supuestos acordados
 
-- Docker Compose es candidato, no decisión; herramienta final requiere ADR y comandos reproducibles.
+- Docker Compose está seleccionado para el stack propio Streaming/Media de tres contenedores en ADR-011. La composición integrada de los demás componentes requiere su configuración y evidencia.
 
 - REST, GraphQL sobre HTTP/JSON y WebSocket HTTP Upgrade quedan definidos como tres patrones HTTP demostrables. El perfil incluye ejercicios de REST/GraphQL/WebSocket; RTMP/HLS son transportes de medios y no sustituyen conectores HTTP. La aceptación del RNF académico de “dos tipos de conectores basados en HTTP” se marca pendiente hasta confirmar que la guía/docente cuenta al menos dos de esos patrones como distintos; no afirmar cumplimiento sin esa evidencia.
 
@@ -86,7 +86,7 @@ Como integrante del equipo, quiero arrancar y verificar desde checkout limpio to
 
 - **CA-11:** escalar en forma aislada al menos una réplica de Chat y una de Core mantiene paths/schemas y servicio a consumidores sin modificar frontend ni módulo no afectado; las réplicas Core comparten el bucket S3, mientras filesystem requiere volumen compartido; se documenta qué estado requiere afinidad/compartición.
 
-- **CA-12:** crear cuenta, canal, stream metadata y eventos persistentes; reiniciar Core, Streaming, Chat y Media por separado y confirmar mismos IDs/datos sin creación manual. Core conserva las referencias de avatar/portada y las sirve desde el bucket S3 privado configurado (o filesystem explícito). Comprobar Channel desde datos Core y batch Streaming, Discovery desde SQL Core con proyección pública y reconstrucción mediante corte consistente/watermark e inbox durable durante rebuild. Chat recupera salas conocidas mediante snapshot/outbox; pérdida total requiere backup/inventario o enumeración consistente, no lookups puntuales.
+- **CA-12:** crear cuenta, canal, stream metadata y eventos persistentes; reiniciar Core, Streaming (incluido el adaptador Media), Chat y MediaMTX por separado y confirmar mismos IDs/datos sin creación manual. Core conserva las referencias de avatar/portada y las sirve desde el bucket S3 privado configurado (o filesystem explícito). Comprobar Channel desde datos Core y batch Streaming, Discovery desde SQL Core con proyección pública y reconstrucción mediante corte consistente/watermark e inbox durable durante rebuild. Chat recupera salas conocidas mediante snapshot/outbox; pérdida total requiere backup/inventario o enumeración consistente, no lookups puntuales.
 
 - **CA-13:** revisión de arquitectura confirma que añadir VOD, notificaciones, watch party o premium usa contratos/nuevos componentes o extensiones acotadas, sin cambios sustanciales en componentes no relacionados.
 - **CA-14:** E2E fuerza fallo entre escrituras de registro y rollback total; después pierde respuesta tras commit Core y repite misma clave sin duplicar cuenta/perfil/canal. No PENDING nuevo ni 404 temporal por activación. Callback media repetido tras perder ACK produce una sola transición, y un cambio de viewers aparece en proyección SQL Discovery en<=5s con freshness correcta; duplicados/desorden/ENDED/rebuild concurrente no regresan datos.
@@ -97,6 +97,8 @@ Como integrante del equipo, quiero arrancar y verificar desde checkout limpio to
 - Diagrama de despliegue coordinado con SPEC-09; manifest por servicio, variable/puerto y condición de readiness explícitos. El manifest de Core declara `CORE_IMAGE_STORAGE_PROVIDER=s3`, bucket/región/prefijos S3, endpoint/path-style cuando aplique y la cadena de credenciales; el bucket es privado y el adaptador filesystem solo se habilita explícitamente.
 
 - SQL/NoSQL/seed según ADR de dueños; documentar backup o cleanup pertinente a demo y límites del estado guardado.
+
+- Stack SPEC-04: `db`, `streaming` (control y adaptador en un runtime) y `mediamtx`, sin job de inicialización. PostgreSQL prepara el rol/base Media en cada arranque y declara readiness después; Streaming exige ambos checks 8080/8090 y MediaMTX espera únicamente `service_started` para evitar ciclos. HLS público se sirve en Streaming:8888. Reiniciar Streaming interrumpe ambos módulos; el motor MediaMTX se reinicia por separado.
 
 - Health no consulta dependencias sin timeout; logs incluyen request/event ID y excluyen passwords, tokens, stream key y datos privados.
 

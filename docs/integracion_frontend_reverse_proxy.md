@@ -29,7 +29,7 @@ sessionId; RECONNECTING informa pérdida temporal sin anunciar playback confirma
 | /api/discovery/graphql | Core | GraphQL SQL local con proyección pública Streaming, límites de costo/cuerpo/rate |
 | /api/chat/sessions/*/messages | Chat | Historial 1–50, anónimo, orden y snapshotSequence |
 | /realtime/chat/sessions/{sessionId} | Chat | Upgrade, cookie, Origin permitido incluso para anónimos; errores WS correctos |
-| /hls/{sessionId}/* | Media | Playlist/segmentos, content type/range/cache; manifest publicado solo al confirmar PLAYABLE |
+| /hls/{sessionId}/* | Streaming:8888 (adaptador Media) | Playlist/segmentos, content type/range/cache; manifest publicado solo al confirmar PLAYABLE |
 | /internal/* | Bloqueada (404/deny) | Ninguna ruta privada se expone por el listener web |
 | Listener RTMP | Media | Puerto TCP dedicado, no fingir ruta HTTP |
 
@@ -40,7 +40,7 @@ cookie, X-Session-Credential, streamKey, token de lease o Idempotency-Key en log
 
 ## Organización del repositorio
 
-services/core contiene Cuentas, Canales, Catálogo y Discovery, con build/seguridad comunes y proyección pública SQL. services/streaming contiene el control Rust con PostgreSQL privado y pooling. services/chat contiene Chat; infra/media configura MediaMTX y el adaptador Rust.
+services/core contiene Cuentas, Canales, Catálogo y Discovery, con build/seguridad comunes y proyección pública SQL. services/streaming contiene el control Rust y el adaptador técnico Media en el mismo proceso P1, con bases/roles separados y pooling según ADR-011. services/chat contiene Chat; infra/media documenta MediaMTX; configuración del motor y código del adaptador están en services/streaming.
 apps/web tiene un build y código en src/: modules/accounts, channels, streaming, chat, taxonomy y
 discovery; shell compone rutas y accessibility contiene utilidades compartidas. No crear aplicaciones
 por módulo. ADR-007 selecciona React/TypeScript/SWC y pnpm; `src/main.tsx` inicia la SPA. Esta base usa
@@ -49,7 +49,7 @@ infra mantiene configuración y tests/ la evidencia compartida. El mapa_sdd_p1 d
 
 ## Puertos y configuración
 
-Core usa 8081, Streaming 8080, Chat reserva 8085 y Web reserva 3000. Los listeners HLS/RTMP y la configuración MediaMTX se fijan antes del despliegue conforme a ADR-005.
+Core usa 8081, Streaming 8080, Chat reserva 8085 y Web reserva 3000. P1 usa HLS en Streaming:8888 y RTMP en MediaMTX:1935; autorización Media en Streaming:8090 y contrato interno en Streaming:8091, sin publicar estos últimos. ADR-011 fija la composición de tres contenedores.
 Bases en red privada y bucket S3 privado predeterminado para imágenes; filesystem, si se selecciona
 explícitamente, requiere volumen persistente.
 Las URLs públicas de avatar/portada permanecen bajo Core; el proxy no expone el endpoint S3. El runbook de cada unidad declara variables,

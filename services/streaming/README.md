@@ -1,6 +1,6 @@
 # Streaming y Media — SPEC-04
 
-Servicio Rust de gestión de emisiones, PostgreSQL/SQLx con pooling y MediaMTX autogestionado para RTMP/LL-HLS. El paquete produce `streaming-service` y `media-adapter`, desplegables en contenedores independientes.
+Servicio Rust de gestión de emisiones, PostgreSQL/SQLx con pooling y MediaMTX autogestionado para RTMP/LL-HLS. El stack P1 usa tres contenedores: PostgreSQL, MediaMTX y `streaming-service`. El proceso Rust incluye el adaptador técnico Media en el mismo runtime Tokio, según [ADR-011](../../docs/adr/ADR-011-streaming-tres-contenedores-p1.md). `media-adapter` se conserva como CLI de migración y operación; no inicia un servidor.
 
 ## Responsabilidades
 
@@ -40,16 +40,20 @@ docker compose ps
 curl --fail http://localhost:8080/health/ready
 ```
 
-Los valores de Compose son fixtures de desarrollo. Solo inicia componentes propios de SPEC-04; las URLs Core/Chat se configuran para conectar esos extremos en integración. Una emisión ya autorizada no depende del ACK de Discovery/Chat.
+Los valores de Compose son fixtures de desarrollo. Solo inicia los tres componentes propios de SPEC-04; las URLs Core/Chat se configuran para conectar esos extremos en integración. Una emisión ya autorizada no depende del ACK de Discovery/Chat.
 
-El job `media-db-init` crea el rol y la base privada Media si no existen. Cada ejecución actualiza la contraseña del rol con `MEDIA_DATABASE_PASSWORD`, conservando la base y los datos del volumen persistente.
+El arranque de PostgreSQL ejecuta `media-adapter/init-database.sh`: inicia el servidor estándar, espera su listener TCP final y crea el rol/base Media si faltan. Actualiza la contraseña del rol con `MEDIA_DATABASE_PASSWORD` en cada arranque, también con volumen existente. La base solo queda healthy después de esa preparación; no hay contenedor temporal de inicialización.
+
+Para actualizar un stack anterior desde este mismo directorio, ejecutar `docker compose down` sin `-v`, seguido de `docker compose up --build -d --remove-orphans`. Se conserva el volumen y se retiran los contenedores anteriores del adaptador/job. `docker compose ps --all` debe mostrar únicamente `db`, `mediamtx` y `streaming`.
+
+`streaming-service` inicia sus listeners públicos/privados y los del adaptador. Un fallo fatal del adaptador o de un worker de control termina el proceso con error; SIGTERM detiene ambos módulos de forma coordinada. Readiness del contenedor exige `/health/ready` en 8080 y en 8090; el segundo comprueba SQL Media, capacidad DLQ y Control API. MediaMTX depende de `service_started`, para evitar un ciclo de readiness. Reiniciar Streaming interrumpe también HLS; Core y Chat siguen siendo procesos independientes.
 
 | Listener | Exposición del Compose | Uso |
 | --- | --- | --- |
 | Streaming 8080 | `127.0.0.1:8080` | API pública y health |
-| Streaming 8091 | Solo red privada | Auth ingest, callbacks y contextos Core |
-| Adaptador 8888 | `127.0.0.1:8888` | HLS público por sessionId |
-| Adaptador 8090 | Solo red privada | Auth MediaMTX y health |
+| Streaming 8091 | Solo red privada; adaptador usa loopback | Auth ingest, callbacks y contextos Core |
+| Streaming/adaptador 8888 | `127.0.0.1:8888` | HLS público por sessionId |
+| Streaming/adaptador 8090 | Solo red privada | Auth MediaMTX y health |
 | MediaMTX 1935 | `127.0.0.1:1935` | RTMP |
 | MediaMTX 8888/9997 | Solo red privada | HLS del motor/Control API |
 | PostgreSQL 5432 | `127.0.0.1:5438` | Bases `streaming` y `streaming_media`, roles separados |
@@ -59,6 +63,8 @@ MediaMTX [1.21.1](https://github.com/bluenviron/mediamtx/releases/tag/v1.21.1) e
 El adaptador verifica publisher y estado vigente antes de servir `/hls/{sessionId}/...`; la pérdida/fin de sesión invalida el alias. Streaming confirma manifiesto, segmento y frame decodificado antes de LIVE. Reconexión preserva sesión/generación dentro de gracia y asigna sourceGeneration nueva.
 
 ## Configuración
+
+`STREAMING_HTTP_PORT`, `STREAMING_HLS_PORT`, `STREAMING_RTMP_PORT` y `STREAMING_DB_PORT` permiten cambiar los puertos del host (8080, 8888, 1935 y 5438 por defecto), sin cambiar listeners internos. Las variables `MEDIA_*` se entregan ahora al contenedor Streaming; `MEDIA_STREAMING_URL=http://127.0.0.1:8091`, `MEDIA_STREAMING_PUBLIC_URL=http://127.0.0.1:8080` y `STREAMING_MEDIAMTX_HLS_INTERNAL_BASE_URL=http://127.0.0.1:8888`. MediaMTX autoriza contra `http://streaming:8090/internal/media/auth` en desarrollo.
 
 | Variables | Uso |
 | --- | --- |
@@ -81,7 +87,7 @@ El adaptador verifica publisher y estado vigente antes de servir `/hls/{sessionI
 | `MEDIA_HLS_URL`, `MEDIA_HLS_SECRET`, `MEDIA_BIND_ADDR`, `MEDIA_HLS_BIND_ADDR` | HLS interno y listeners del adaptador |
 | `MEDIA_MAX_OPEN_DEAD_LETTERS` | Capacidad DLQ técnica, 10000 en P1 |
 
-En producción se requieren secretos propios, TLS privado/público y PostgreSQL con TLS requerido; las migraciones automáticas se deshabilitan. Los listeners HTTP deben quedar detrás de la terminación TLS de despliegue. MediaMTX y PostgreSQL no se publican como APIs generales. La réplica de control P1 es única y retiene un lock exclusivo en una conexión PostgreSQL supervisada. Perder esa conexión invalida el clock y detiene el proceso. El arranque finaliza transaccionalmente las sesiones cuyo owner anterior perdió sus anchors. Varios owners requieren diseño y evidencia adicional de fencing/enrutamiento/clock.
+En producción se requieren secretos propios, TLS privado/público y PostgreSQL con TLS requerido; las migraciones automáticas se deshabilitan. Los listeners HTTP entre contenedores deben quedar detrás de la terminación TLS de despliegue. Los contratos del adaptador con su propio proceso usan HTTP autenticado sobre `127.0.0.1` (8091 privado y 8080 público); en producción esta excepción solo permite loopback. Las demás URLs privadas siguen exigiendo HTTPS. MediaMTX y PostgreSQL no se publican como APIs generales. La réplica de control P1 es única y retiene un lock exclusivo en una conexión PostgreSQL supervisada. Perder esa conexión invalida el clock y detiene el proceso. El arranque finaliza transaccionalmente las sesiones cuyo owner anterior perdió sus anchors. Varios owners requieren diseño y evidencia adicional de fencing/enrutamiento/clock.
 
 ## APIs
 
@@ -130,5 +136,7 @@ make image
 # Base desechable, pruebas SQL explícitas:
 STREAMING_TEST_DATABASE_URL=postgres://... cargo test --all-targets --all-features --locked -- --include-ignored
 ```
+
+La prueba de stack `python3 tests/smoke_stack.py` requiere Docker y Python 3. Usa un proyecto y puertos desechables; construye la imagen, verifica tres contenedores, video RTMP→HLS real, cierre coordinado, fallos de arranque, reinicios, migraciones, callbacks persistentes y cambio de contraseña Media sobre el mismo volumen. Elimina únicamente su proyecto/volumen al terminar. No sustituye la aceptación integrada Core/Chat/Web ni la carga de SPEC-13.
 
 Las pruebas del módulo usan fixtures propios y bases/esquemas desechables. La aceptación del primer frame visible en Web, los receptores Core/Chat y la carga del sistema se verifica conforme a [SPEC-13](../../docs/spec-p1/spec_13_int.md).

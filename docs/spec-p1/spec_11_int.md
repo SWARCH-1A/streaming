@@ -50,6 +50,8 @@ Core confirma cuenta/perfil/canal juntos, no PENDING nuevo. Streaming valida com
 
 Registro una transacción SQL Core; sesión y snapshots públicos commit + outbox Rust→Chat/Discovery con ACKs independientes. Inbox durable HTTPS sin broker. Canal usa datos Core y batch autoritativo Streaming; Discovery SQL local con proyección/versiones/frescura y corte reconstruible. P1 una réplica Streaming, transiciones con bloqueo/CAS; pérdida owner/clock termina sin nueva gracia. Multi-réplica requiere fencing/transferencia probados. Correlación sin secretos.
 
+En P1, ADR-011 integra el adaptador técnico en el proceso Streaming. Autorización/callbacks internos conservan HTTP loopback autenticado y persistencia separada. HLS público se enruta al listener 8888 del contenedor Streaming; RTMP sigue en MediaMTX. Reinicios/fallos del proceso afectan al control y al adaptador juntos.
+
 ## 8. Dependencias y contratos de integración
 
 contratos_modelo_datos.md especifica schemas/timeouts; integracion_sistema_p1.md secuencias; proxy en documento frontend. Streaming–Media autentica/observa fuente; Core–Chat compone contexto usando Streaming; Streaming notifica ciclo a Chat y snapshots a Discovery. Cuentas/Canales/Catálogo siguen interfaces locales Core.

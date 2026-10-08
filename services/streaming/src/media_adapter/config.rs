@@ -29,10 +29,10 @@ impl MediaConfig {
         if production {
             crate::config::require_postgres_tls("MEDIA_DATABASE_URL", &database_url)?;
         }
-        let streaming_url = http_url("MEDIA_STREAMING_URL", production)?;
-        let streaming_public_url = http_url("MEDIA_STREAMING_PUBLIC_URL", production)?;
-        let control_url = http_url("MEDIA_CONTROL_URL", production)?;
-        let hls_url = http_url("MEDIA_HLS_URL", false)?;
+        let streaming_url = http_url("MEDIA_STREAMING_URL", production, true)?;
+        let streaming_public_url = http_url("MEDIA_STREAMING_PUBLIC_URL", production, true)?;
+        let control_url = http_url("MEDIA_CONTROL_URL", production, false)?;
+        let hls_url = http_url("MEDIA_HLS_URL", false, false)?;
         let streaming_token = secret("MEDIA_STREAMING_TOKEN")?;
         let control_user = required("MEDIA_CONTROL_USER")?;
         let control_password = secret("MEDIA_CONTROL_PASSWORD")?;
@@ -99,11 +99,26 @@ fn secret(name: &str) -> Result<String, Box<dyn std::error::Error + Send + Sync>
     }
     Ok(value)
 }
-fn http_url(name: &str, https: bool) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    let value = required(name)?;
-    let url = reqwest::Url::parse(&value)?;
+fn http_url(
+    name: &str,
+    https: bool,
+    allow_loopback: bool,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    validate_http_url(name, &required(name)?, https, allow_loopback)
+}
+
+fn validate_http_url(
+    name: &str,
+    value: &str,
+    https: bool,
+    allow_loopback: bool,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    let url = reqwest::Url::parse(value)?;
     if !matches!(url.scheme(), "http" | "https")
-        || (https && url.scheme() != "https")
+        || (https
+            && url.scheme() != "https"
+            && !(allow_loopback
+                && matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"))))
         || url.host_str().is_none()
         || !url.username().is_empty()
         || url.password().is_some()
@@ -113,4 +128,30 @@ fn http_url(name: &str, https: bool) -> Result<String, Box<dyn std::error::Error
         return Err(format!("invalid {name}").into());
     }
     Ok(value.trim_end_matches('/').to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_http_url;
+
+    #[test]
+    fn production_http_is_only_allowed_for_internal_loopback_contracts() {
+        for url in [
+            "http://127.0.0.1:8091",
+            "http://[::1]:8091",
+            "http://localhost:8091",
+        ] {
+            assert!(validate_http_url("test", url, true, true).is_ok());
+            assert!(validate_http_url("test", url, true, false).is_err());
+        }
+        for url in [
+            "http://streaming:8091",
+            "http://127.0.0.1.example:8091",
+            "http://localhost@remote:8091",
+            "http://127.0.0.1:8091?token=x",
+        ] {
+            assert!(validate_http_url("test", url, true, true).is_err());
+        }
+        assert!(validate_http_url("test", "https://streaming:8091", true, true).is_ok());
+    }
 }

@@ -14,11 +14,11 @@ SPEC y ADR del repositorio son la fuente normativa; Plane registra el trabajo de
 | Core | Java/Spring y PostgreSQL: Cuentas (autenticación y perfil), Canales, Catálogo y Discovery con proyección de emisiones. Un build, seguridad común y transacciones locales. |
 | Streaming | Rust y PostgreSQL privado: configuración, claves, sesiones, cupos, clock, leases y outbox hacia Discovery/Chat. |
 | Chat | Salas, mensajes, historial, cuota global, secuencia y distribución WebSocket; persistencia propia. |
-| Media | Ingesta RTMP, reproducción HLS y procesamiento audiovisual; adaptador Rust al control de Streaming. |
+| Media | MediaMTX separado para RTMP/HLS; adaptador técnico Rust dentro del proceso Streaming en P1, según ADR-011. |
 | Web | Una aplicación y un build, con módulos internos de UI y accesibilidad. |
 | Reverse proxy | Entrada HTTPS y encaminamiento hacia Core, Streaming, Chat, Media y Web. |
 
-Las fronteras y sus consecuencias están en [ADR-005](docs/adr/ADR-005-streaming-rust-y-proyeccion-discovery.md).
+Las fronteras y sus consecuencias están en [ADR-005](docs/adr/ADR-005-streaming-rust-y-proyeccion-discovery.md); [ADR-011](docs/adr/ADR-011-streaming-tres-contenedores-p1.md) fija los tres contenedores del stack Streaming/Media en P1.
 El registro confirma cuenta, perfil y canal en una transacción. Dentro de Core se usan interfaces
 locales y lecturas SQL publicadas por los módulos; entre procesos, contratos de red explícitos.
 

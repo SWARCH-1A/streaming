@@ -1,7 +1,7 @@
 # Entorno local con Docker
 
 `compose.core.yaml` inicia Core y PostgreSQL 18. Core incluye Catálogo en el mismo ejecutable;
-Chat, Media, Web y proxy se incorporan al implementar sus SPEC/ADR. Se necesita Git, PowerShell
+Chat, Web y proxy se integran conforme a sus SPEC/ADR. El stack propio [Streaming/Media](../../services/streaming/README.md) tiene tres contenedores (PostgreSQL, Streaming con adaptador y MediaMTX), según ADR-011; se arranca desde services/streaming y su conexión con Core se configura como se indica más abajo. Se necesita Git, PowerShell
 y Docker Desktop iniciado con contenedores Linux. JDK 25 y Maven 3.9.11 se ejecutan dentro de Docker.
 Definición y variables de proceso: [Core](../../services/core/README.md).
 `compose.chat.yaml` añade Chat y su Redis con AOF. Definición y variables de Chat:

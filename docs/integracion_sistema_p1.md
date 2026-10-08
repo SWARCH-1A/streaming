@@ -2,6 +2,8 @@
 
 **Arquitectura:** ADR-005. Core, Streaming Rust, Chat y Media cruzan contratos privados explícitos. Cuentas/Canales/Catálogo/Discovery permanecen locales en Core. Integración es trabajo de contratos, infraestructura y evidencia; no ejecuta workflows. La fuente semántica es [contratos](contratos_modelo_datos.md).
 
+En P1 el adaptador Media comparte proceso con Streaming según ADR-011. Los contratos técnicos de autorización/callbacks se conservan en HTTP loopback autenticado; MediaMTX sigue en otro contenedor. Fallo/reinicio del proceso Streaming afecta también autorización Media y HLS.
+
 ## A — Registro y canal inicial
 
 Core confirma cuenta ACTIVE, perfil, canal y resultado idempotente en una transacción PostgreSQL. Rollback no publica parcialmente; respuesta perdida y misma clave recuperan IDs. Login es separado. El canal aparece desde commit, independientemente de eventos o disponibilidad Streaming.
@@ -79,4 +81,4 @@ Core compone cuenta/perfil/canal localmente y solicita un batch público Streami
 | Media | Sin LIVE ficticio; PREPARING/gracia/ENDED | Callbacks durables, retries/DLQ, generaciones y control de fuente |
 | Imágenes / proxy | Error visible; referencia anterior conservada ante fallo archivo | Limpieza/compensación local y configuración observable |
 
-No se promete aislamiento entre módulos dentro de Core ni disponibilidad indefinida de HLS sin control. Las capacidades de las otras iteraciones se priorizan según catálogo/fases futuras; no se implementan durante la integración P1.
+No se promete aislamiento entre control Streaming y su adaptador Media, ni entre módulos dentro de Core ni disponibilidad indefinida de HLS sin control. Las capacidades de las otras iteraciones se priorizan según catálogo/fases futuras; no se implementan durante la integración P1.

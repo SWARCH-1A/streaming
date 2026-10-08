@@ -1,6 +1,6 @@
 # ADR-005: Streaming Rust independiente y proyección Discovery en Core
 
-- Estado: aceptada
+- Estado: aceptada; despliegue del adaptador actualizado por [ADR-011](ADR-011-streaming-tres-contenedores-p1.md)
 - Fecha: 2026-10-03
 - Responsable: Streaming; contratos coordinados con Core, Chat, Discovery e Integración
 - SPEC/contratos afectados: SPEC-01, SPEC-03…SPEC-07, SPEC-09…SPEC-13
@@ -16,7 +16,7 @@ La separación se elige por autonomía de desarrollo, release y operación. No e
 
 1. **Core Java/Spring:** Cuentas, Canales, Catálogo y Discovery. Registro cuenta/perfil/canal sigue siendo una transacción PostgreSQL con FK locales. Discovery conserva GraphQL y SQL de lectura en Core.
 2. **Streaming Rust:** Tokio/Axum, PostgreSQL/SQLx con pools, repositorios encapsulados y contenedor propio en `services/streaming`. Posee configuración, claves, sesiones, cupos, clocks, generaciones, leases e inbox/outbox. Su base es privada; Core no consulta sus tablas.
-3. **Media:** MediaMTX autogestionado, RTMP y Low-Latency HLS; adaptador técnico propio en Rust. Motor y adaptador se despliegan separados del control de negocio. No se implementa transcoding, ABR, VOD ni otro protocolo en P1. La configuración/digest y los fixtures de códecs se verifican antes del despliegue.
+3. **Media:** MediaMTX autogestionado, RTMP y Low-Latency HLS; adaptador técnico propio en Rust. MediaMTX se despliega separado del control de negocio. En P1 el adaptador técnico comparte el proceso/contenedor Streaming según ADR-011; conserva base, repositorio y contratos privados propios. No se implementa transcoding, ABR, VOD ni otro protocolo en P1. La configuración/digest y los fixtures de códecs se verifican antes del despliegue.
 4. Streaming solicita a Core un contexto nuevo para cada comando protegido: sesión vigente, propietario de canal y validación tipada de los IDs de catálogo presentes. La operación usa una autorización acotada, no una transacción entre bases ni un permiso cacheado. Las claves son privadas de Streaming, se entregan una vez y no viajan en eventos.
 5. **Proyección pública:** Streaming publica `StreamDiscoverySnapshot` completo por configuración mediante outbox transaccional. Core acepta en inbox y aplica en sus tablas de lectura; combina esas filas con Canales/Cuentas/Catálogo locales. Estado, metadata, conteo y versiones provienen de Streaming. Discovery no se convierte en autoridad ni hace HTTP por fila.
 6. Se usa **HTTPS privado idempotente** para entrega de eventos P1, con ACK durable, retries, DLQ y credenciales por consumidor. Outbox entrega a Discovery y Chat de manera independiente; un consumidor caído no bloquea LIVE ni al otro. No se incorpora un broker en esta decisión.
