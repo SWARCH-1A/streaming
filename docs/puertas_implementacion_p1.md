@@ -15,7 +15,7 @@ Cada criterio se cierra con evidencia de implementación y ejecución.
 | Reloj/reinicio | Una sola gracia, timer/callback serializados, recuperación de restante o ENDED; multi-réplica requiere fencing/transferencia | Streaming Rust; una réplica inicial no elimina concurrencia |
 | Callbacks/DLQ Media | ACK durable/dedupe, retry2s/calendario15min/alerta30s/dead-letter sin TTL, umbral de capacidad/redrive probado | Media/Streaming; no pérdida silenciosa |
 | Schemas y compatibilidad | Materializar/generar contratos, schemas/error/ejemplos, adopción y retiro de endpoints viejos | SPEC-10; no dos fuentes semánticas |
-| Seguridad e imágenes | Conservar hash/CSRF/sesión del ADR-001 y almacenamiento ADR-002; avatar>=200×200 obligatorio; GIF/dimensiones/píxeles/limpieza, volumen compartido antes de réplicas | Core; restricciones de Cuentas |
+| Seguridad e imágenes | Conservar hash/CSRF/sesión del ADR-001 y almacenamiento ADR-002/008; avatar>=200×200 obligatorio; GIF/dimensiones/píxeles/limpieza, S3 compartido o volumen compartido antes de réplicas | Core; restricciones de Cuentas |
 | Consulta/frescura | SQL acotado/paginación/snapshot/cursor/índices, proyección Streaming pública con inbox/versiones, observación/publicación<=2s y entrega/aplicación<=3s; reconstrucción consistente con watermark, sin HTTP por fila | Consultas Core; no runtime Discovery independiente |
 | Perfil integrado | Cinco RTMP/100 players/20msg/s/10min, API10req/s y leases por separado; máximos/p95 originales y fallos reales | SPEC-13; no llamar “cumplido” sin ejecución |
 | Enumeración de identidad | Mantener conflicto genérico/cuotas; sin verificación email sigue riesgo residual por tiempos/señales | Cuentas; no afirmar eliminación total |

@@ -21,7 +21,7 @@ sessionId; RECONNECTING informa pérdida temporal sin anunciar playback confirma
 | --- | --- | --- |
 | / y rutas SPA válidas | Web | Fallback solo para navegación, nunca /api ni /internal |
 | /api/identity/* | Core | Cookie/CSRF/idempotencia/correlación; registro transaccional |
-| /api/profile/* | Core | Perfil self/público, multipart <=10 MB + overhead, avatar público |
+| /api/profile/* | Core | Perfil self/público, multipart <=10 MB + overhead, lectura pública de avatar desde Core |
 | /api/channels/{channelId}/streams (POST/GET) | Streaming | Regla de path exacto previa al prefijo Canales; contexto owner Core |
 | /api/channels/* | Core | Canal/por handle/por owner, edición/banner/CSRF |
 | /api/streams/* | Streaming | Configuración/sesión/metadata/leases y stop; secretos excluidos de lectura pública |
@@ -50,7 +50,9 @@ infra mantiene configuración y tests/ la evidencia compartida. El mapa_sdd_p1 d
 ## Puertos y configuración
 
 Core usa 8081, Streaming 8080, Chat reserva 8085 y Web reserva 3000. Los listeners HLS/RTMP y la configuración MediaMTX se fijan antes del despliegue conforme a ADR-005.
-Bases en red privada y volumen de imágenes persistente. El runbook de cada unidad declara variables,
+Bases en red privada y bucket S3 privado predeterminado para imágenes; filesystem, si se selecciona
+explícitamente, requiere volumen persistente.
+Las URLs públicas de avatar/portada permanecen bajo Core; el proxy no expone el endpoint S3. El runbook de cada unidad declara variables,
 comando y health; Web ejecuta `pnpm dev` en apps/web, en 127.0.0.1:3000; `pnpm build` genera dist y
 `pnpm preview` sirve esa salida en el mismo puerto. Las reservas pendientes se concretan al implementarlas.
 
@@ -59,7 +61,9 @@ cliente HTTP a localhost para comunicar módulos locales. Core comparte security
 Streaming recibe la misma cookie host-only de Cuentas y valida comandos mediante contexto Core; exige Origin permitido y defensa CSRF según ADR-001. Chat valida sesión por contexto Core, que consulta estado/timeline actual Streaming. El proxy elimina headers privados X-Service-Name/X-Service-Token/X-Session-Credential provenientes del público; backends autentican siempre las rutas privadas.
 
 Core ejecutable usa CORE_DB_URL/USER/PASSWORD, CORE_RATE_LIMIT_HMAC_SECRET, CORE_SECURE_COOKIE,
-WEB_ORIGIN, PROFILE_AVATAR_STORAGE/PUBLIC_BASE y CHANNELS_BANNER_STORAGE/PUBLIC_BASE. El [runbook Core](../services/core/README.md)
+WEB_ORIGIN, CORE_IMAGE_STORAGE_PROVIDER, CORE_IMAGE_S3_BUCKET/REGION/ENDPOINT/PATH_STYLE_ACCESS,
+AWS_* (credenciales temporales si no se usa un rol) y PROFILE_AVATAR_PUBLIC_BASE/CHANNELS_BANNER_PUBLIC_BASE;
+los directorios PROFILE_AVATAR_STORAGE y CHANNELS_BANNER_STORAGE se usan en modo filesystem. El [runbook Core](../services/core/README.md)
 y [Compose local](../infra/local/README.md) contienen comandos, health y volúmenes. El backend directo
 ignora headers forwarded; al implementar el proxy se configurará confianza únicamente en sus
 IP/redes y se verificará la cuota por IP antes de habilitar ese despliegue.

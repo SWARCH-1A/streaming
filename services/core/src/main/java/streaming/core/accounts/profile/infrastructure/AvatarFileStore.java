@@ -12,19 +12,20 @@ import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import streaming.core.accounts.profile.application.AvatarStorage;
 import streaming.core.accounts.profile.application.ProfileException;
 
 @Component
+@ConditionalOnProperty(prefix="core.images",name="storage-provider",havingValue="filesystem")
 public class AvatarFileStore implements AvatarStorage {
-    private static final long MAX_BYTES=10L*1024*1024, MAX_PIXELS=40_000_000L;
-    private static final int MIN_DIMENSION=200;
+    static final long MAX_BYTES=10L*1024*1024, MAX_PIXELS=40_000_000L;
+    static final int MIN_DIMENSION=200;
     private final Path root;
     public AvatarFileStore(@Value("${profile.storage-root}") String root) { this.root=Path.of(root).toAbsolutePath().normalize(); }
     @Override public StoredAvatar saveTemporary(byte[] bytes) {
-        if(bytes==null || bytes.length==0 || bytes.length>MAX_BYTES) throw invalid("El avatar debe ocupar como máximo 10 MB y no estar vacío.");
         try {
             ImageInfo info=inspect(bytes);
             String extension=switch(info.format()) { case "jpeg","jpg"->"jpg"; case "png"->"png"; case "gif"->"gif"; default->throw invalid("Formato de avatar no admitido."); };
@@ -68,7 +69,8 @@ public class AvatarFileStore implements AvatarStorage {
         Path target=resolve(area).resolve(key).normalize(); if(!target.startsWith(resolve(area))) throw invalid("Avatar no encontrado."); return target;
     }
     private Path resolve(String child) { Path p=root.resolve(child).normalize(); if(!p.startsWith(root)) throw invalid("Ruta de avatar inválida."); return p; }
-    private static ImageInfo inspect(byte[] bytes) throws IOException {
+    static ImageInfo inspect(byte[] bytes) throws IOException {
+        if(bytes==null || bytes.length==0 || bytes.length>MAX_BYTES) throw invalid("El avatar debe ocupar como máximo 10 MB y no estar vacío.");
         try(ImageInputStream input=ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
             if(input==null) throw invalid("El archivo no es una imagen válida.");
             Iterator<ImageReader> readers=ImageIO.getImageReaders(input); if(!readers.hasNext()) throw invalid("El archivo no es una imagen válida.");
@@ -85,6 +87,6 @@ public class AvatarFileStore implements AvatarStorage {
             } finally { reader.dispose(); }
         }
     }
-    private static ProfileException invalid(String message) { return new ProfileException(HttpStatus.BAD_REQUEST,"INVALID_AVATAR",message); }
-    private record ImageInfo(String format,String contentType,int width,int height) { }
+    static ProfileException invalid(String message) { return new ProfileException(HttpStatus.BAD_REQUEST,"INVALID_AVATAR",message); }
+    record ImageInfo(String format,String contentType,int width,int height) { }
 }

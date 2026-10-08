@@ -10,7 +10,7 @@ Define el ensamblaje reproducible de los procesos P1, su configuración, salud, 
 
 ## 2. Definición del componente
 
-SPEC-13 define el perfil local de contenedores que deben integrar los módulos, junto con sus runtimes, puertos, comandos y requisitos de health/reinicio. La configuración real debe reflejar únicamente componentes que estén implementados.
+SPEC-13 define el perfil local de contenedores que deben integrar los módulos, junto con sus runtimes, puertos, comandos y requisitos de health/reinicio. También define la configuración de almacenamiento de imágenes de Core: S3 privado es el proveedor predeterminado y filesystem solo se usa mediante selección explícita. La configuración real debe reflejar únicamente componentes que estén implementados.
 
 ## 3. Historia de usuario
 
@@ -21,6 +21,8 @@ Como integrante del equipo, quiero arrancar y verificar desde checkout limpio to
 ### Dentro de P1
 
 - Topología de procesos, imágenes, puertos internos, redes, volúmenes, health checks y configuración por entorno.
+
+- Almacenamiento de imágenes de Core: bucket S3 privado existente, región y prefijos distintos para avatares y portadas; `CORE_IMAGE_S3_BUCKET`, `CORE_IMAGE_S3_REGION`, `CORE_IMAGE_S3_AVATAR_PREFIX` y `CORE_IMAGE_S3_BANNER_PREFIX` son obligatorios o tienen los defaults documentados. `CORE_IMAGE_S3_ENDPOINT` y `CORE_IMAGE_S3_PATH_STYLE_ACCESS` son opcionales para proveedores compatibles. Core usa la cadena de credenciales del AWS SDK (credenciales temporales `AWS_*` solo por configuración del entorno); en despliegue se limita el rol IAM al bucket y prefijos. Filesystem es una alternativa explícita y requiere volumen persistente/compartido al escalar Core.
 
 - SQL y NoSQL con uso real y justificación ADR; al menos dos procesos de lógica reiniciables por separado; tres lenguajes generales y dos conectores HTTP demostrables.
 
@@ -50,6 +52,8 @@ Como integrante del equipo, quiero arrancar y verificar desde checkout limpio to
 
 - Redes privadas; exponer solo reverse proxy/listeners requeridos; bases no accesibles desde navegador.
 
+- El bucket S3 de imágenes permanece privado: solo Core usa `GET/PUT/COPY/DELETE/LIST`, y Web recibe las rutas Core estables, nunca una URL directa ni credenciales del proveedor.
+
 - Health distinguible; falta de Chat no marca player unhealthy; límites de restart y readiness documentados.
 
 - Datos seed se recrean/restablecen con pasos declarados; no se requieren credenciales personales.
@@ -60,7 +64,7 @@ Como integrante del equipo, quiero arrancar y verificar desde checkout limpio to
 
 ## 6. Criterios de aceptación
 
-- **CA-01:** integrante clona checkout limpio y ejecuta comandos documentados hasta health operativo sin pasos manuales omitidos.
+- **CA-01:** integrante clona checkout limpio y ejecuta comandos documentados hasta health operativo sin pasos manuales omitidos; el runbook configura un bucket S3 privado existente y sus credenciales/rol, o declara explícitamente el proveedor filesystem.
 
 - **CA-02:** reiniciar un proceso lógico no detiene los demás; al volver se reintenta/reconcilia o se muestra fallo recuperable.
 
@@ -80,9 +84,9 @@ Como integrante del equipo, quiero arrancar y verificar desde checkout limpio to
 
 - **CA-10:** recorrido integrado funciona en las versiones estables disponibles de Chrome y Firefox; el informe registra fecha, versiones y pasos/error.
 
-- **CA-11:** escalar en forma aislada al menos una réplica de Chat y una de Core mantiene paths/schemas y servicio a consumidores sin modificar frontend ni módulo no afectado; se documenta qué estado requiere afinidad/compartición.
+- **CA-11:** escalar en forma aislada al menos una réplica de Chat y una de Core mantiene paths/schemas y servicio a consumidores sin modificar frontend ni módulo no afectado; las réplicas Core comparten el bucket S3, mientras filesystem requiere volumen compartido; se documenta qué estado requiere afinidad/compartición.
 
-- **CA-12:** crear cuenta, canal, stream metadata y eventos persistentes; reiniciar Core, Streaming, Chat y Media por separado y confirmar mismos IDs/datos sin creación manual. Comprobar Channel desde datos Core y batch Streaming, Discovery desde SQL Core con proyección pública y reconstrucción mediante corte consistente/watermark e inbox durable durante rebuild. Chat recupera salas conocidas mediante snapshot/outbox; pérdida total requiere backup/inventario o enumeración consistente, no lookups puntuales.
+- **CA-12:** crear cuenta, canal, stream metadata y eventos persistentes; reiniciar Core, Streaming, Chat y Media por separado y confirmar mismos IDs/datos sin creación manual. Core conserva las referencias de avatar/portada y las sirve desde el bucket S3 privado configurado (o filesystem explícito). Comprobar Channel desde datos Core y batch Streaming, Discovery desde SQL Core con proyección pública y reconstrucción mediante corte consistente/watermark e inbox durable durante rebuild. Chat recupera salas conocidas mediante snapshot/outbox; pérdida total requiere backup/inventario o enumeración consistente, no lookups puntuales.
 
 - **CA-13:** revisión de arquitectura confirma que añadir VOD, notificaciones, watch party o premium usa contratos/nuevos componentes o extensiones acotadas, sin cambios sustanciales en componentes no relacionados.
 - **CA-14:** E2E fuerza fallo entre escrituras de registro y rollback total; después pierde respuesta tras commit Core y repite misma clave sin duplicar cuenta/perfil/canal. No PENDING nuevo ni 404 temporal por activación. Callback media repetido tras perder ACK produce una sola transición, y un cambio de viewers aparece en proyección SQL Discovery en<=5s con freshness correcta; duplicados/desorden/ENDED/rebuild concurrente no regresan datos.
@@ -90,7 +94,7 @@ Como integrante del equipo, quiero arrancar y verificar desde checkout limpio to
 
 ## 7. Diseño técnico y datos
 
-- Diagrama de despliegue coordinado con SPEC-09; manifest por servicio, variable/puerto y condición de readiness explícitos.
+- Diagrama de despliegue coordinado con SPEC-09; manifest por servicio, variable/puerto y condición de readiness explícitos. El manifest de Core declara `CORE_IMAGE_STORAGE_PROVIDER=s3`, bucket/región/prefijos S3, endpoint/path-style cuando aplique y la cadena de credenciales; el bucket es privado y el adaptador filesystem solo se habilita explícitamente.
 
 - SQL/NoSQL/seed según ADR de dueños; documentar backup o cleanup pertinente a demo y límites del estado guardado.
 
@@ -102,7 +106,7 @@ Como integrante del equipo, quiero arrancar y verificar desde checkout limpio to
 
 - Consume schemas SPEC-10, secuencias SPEC-11 y rutas web/proxy SPEC-12.
 
-- Cada unidad desplegable aporta imagen/comando/variables/puerto/health/seed; Streaming Rust tiene SQL privado con pool y backup propio; los módulos Core comparten runtime y release. Integration coordina el manifiesto, sin servicio orquestador propio.
+- Cada unidad desplegable aporta imagen/comando/variables/puerto/health/seed; Core aporta el bucket S3 privado y sus permisos mínimos para avatares/portadas; Streaming Rust tiene SQL privado con pool y backup propio; los módulos Core comparten runtime y release. Integration coordina el manifiesto, sin servicio orquestador propio.
 
 - Compose/CI pueden ejecutar contract/smoke/E2E; evidencia se limita al prototipo del curso, no producción.
 
@@ -112,7 +116,7 @@ Como integrante del equipo, quiero arrancar y verificar desde checkout limpio to
 
 ## 10. Verificación
 
-- Runbook ejecutado desde checkout limpio por otro integrante.
+- Runbook ejecutado desde checkout limpio por otro integrante, incluida la configuración de S3 privado, permisos mínimos y lectura de imágenes por las rutas Core.
 
 - Matriz restricción de curso→proceso/conector/base/lenguaje/container con evidencia de demo y ADR.
 

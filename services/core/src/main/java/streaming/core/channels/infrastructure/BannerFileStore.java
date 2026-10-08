@@ -12,6 +12,7 @@ import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import streaming.core.channels.application.BannerStorage;
@@ -19,13 +20,13 @@ import streaming.core.channels.application.ChannelException;
 
 /** Banner files on a persistent volume: pending/ for single-use uploads, public/ for published immutable keys. */
 @Component
+@ConditionalOnProperty(prefix="core.images",name="storage-provider",havingValue="filesystem")
 public class BannerFileStore implements BannerStorage {
-    private static final long MAX_BYTES=10L*1024*1024, MAX_PIXELS=40_000_000L;
+    static final long MAX_BYTES=10L*1024*1024, MAX_PIXELS=40_000_000L;
     private static final String KEY_PATTERN="[0-9a-f]{32}\\.(jpg|png|gif)";
     private final Path root;
     public BannerFileStore(@Value("${channels.storage-root}") String root) { this.root=Path.of(root).toAbsolutePath().normalize(); }
     @Override public StoredBanner saveTemporary(byte[] bytes) {
-        if(bytes==null || bytes.length==0 || bytes.length>MAX_BYTES) throw invalid("La portada debe ocupar como máximo 10 MB y no estar vacía.");
         ImageInfo info;
         try { info=inspect(bytes); }
         catch(IOException e) { throw invalid("El archivo no es una imagen válida."); }
@@ -72,7 +73,8 @@ public class BannerFileStore implements BannerStorage {
     }
     private Path resolve(String child) { Path p=root.resolve(child).normalize(); if(!p.startsWith(root)) throw invalid("Ruta de portada inválida."); return p; }
     /** Decodes the real bytes: the client extension or Content-Type never proves the format. 1200×480 px is only a recommendation. */
-    private static ImageInfo inspect(byte[] bytes) throws IOException {
+    static ImageInfo inspect(byte[] bytes) throws IOException {
+        if(bytes==null || bytes.length==0 || bytes.length>MAX_BYTES) throw invalid("La portada debe ocupar como máximo 10 MB y no estar vacía.");
         try(ImageInputStream input=ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
             if(input==null) throw invalid("El archivo no es una imagen válida.");
             Iterator<ImageReader> readers=ImageIO.getImageReaders(input); if(!readers.hasNext()) throw invalid("El archivo no es una imagen válida.");
@@ -87,7 +89,7 @@ public class BannerFileStore implements BannerStorage {
             } finally { reader.dispose(); }
         }
     }
-    private static ChannelException invalid(String message) { return new ChannelException(HttpStatus.BAD_REQUEST,"INVALID_BANNER",message); }
-    private static ChannelException notFound() { return new ChannelException(HttpStatus.NOT_FOUND,"BANNER_NOT_FOUND","Portada no encontrada."); }
-    private record ImageInfo(String format,String contentType,int width,int height) { }
+    static ChannelException invalid(String message) { return new ChannelException(HttpStatus.BAD_REQUEST,"INVALID_BANNER",message); }
+    static ChannelException notFound() { return new ChannelException(HttpStatus.NOT_FOUND,"BANNER_NOT_FOUND","Portada no encontrada."); }
+    record ImageInfo(String format,String contentType,int width,int height) { }
 }

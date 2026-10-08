@@ -18,8 +18,14 @@ Set-Location streaming
 
 Desde la raíz del checkout existente:
 
+S3 es el proveedor predeterminado. Después de crear `.env`, completa un bucket privado existente,
+su región y las credenciales del proveedor antes de iniciar Core. Si ya tienes un `.env` de una versión
+anterior, cambia `CORE_IMAGE_STORAGE_PROVIDER=filesystem` a `CORE_IMAGE_STORAGE_PROVIDER=s3`;
+`init-env.ps1` conserva la configuración existente.
+
 ```powershell
 .\infra\local\init-env.ps1
+# Completa infra/local/.env con la configuración del bucket y del proveedor S3.
 docker compose --env-file infra/local/.env -p streaming-core -f infra/local/compose.core.yaml up --build -d
 Invoke-RestMethod http://localhost:8081/actuator/health
 Invoke-RestMethod http://localhost:8081/api/taxonomy
@@ -50,11 +56,32 @@ de configuración por módulo Core. Los nombres exactos del ejemplo son:
 | `WEB_ORIGIN` | `http://localhost:3000`, origen reservado para Web. |
 
 Compose inyecta además `CORE_DB_URL=jdbc:postgresql://postgres:5432/core`, `CORE_DB_USER=core`,
-`PROFILE_AVATAR_STORAGE=/data/avatars`, `PROFILE_AVATAR_PUBLIC_BASE=/api/profile/avatars`,
-`CHANNELS_BANNER_STORAGE=/data/banners` y `CHANNELS_BANNER_PUBLIC_BASE=/api/channels/banners`.
+`CORE_IMAGE_STORAGE_PROVIDER=s3` por defecto, `PROFILE_AVATAR_STORAGE=/data/avatars`,
+`PROFILE_AVATAR_PUBLIC_BASE=/api/profile/avatars`, `CHANNELS_BANNER_STORAGE=/data/banners` y
+`CHANNELS_BANNER_PUBLIC_BASE=/api/channels/banners`. Los directorios y volúmenes de imágenes solo
+se usan si se selecciona explícitamente `filesystem`.
 El puerto interno Core sigue siendo 8081; `PORT` configura el proceso Java y no es `CORE_PORT`.
 La aplicación Java no carga un `.env` automáticamente: este flujo lo entrega explícitamente a Compose.
 Catálogo no añade variables ni credenciales. Web aún no tiene framework ni `.env` definidos.
+
+### S3 para avatares y portadas
+
+El Compose local usa S3 por defecto. Antes de iniciar Core, crea o elige un bucket privado existente
+(puede estar vacío) y configura en `infra/local/.env` `CORE_IMAGE_S3_BUCKET` y `CORE_IMAGE_S3_REGION`.
+Para proveedores compatibles, configura también `CORE_IMAGE_S3_ENDPOINT` y activa
+`CORE_IMAGE_S3_PATH_STYLE_ACCESS=true` si lo requiere el proveedor. La aplicación usa la cadena de
+credenciales del AWS SDK: en Compose puedes proporcionar credenciales temporales mediante
+`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y `AWS_SESSION_TOKEN`; en despliegue usa un rol IAM
+limitado al bucket y prefijos. No se requiere hacer público el bucket. El contenedor falla al iniciar
+si el proveedor predeterminado S3 no tiene un nombre de bucket válido.
+
+Para iniciar sin S3, cambia explícitamente `CORE_IMAGE_STORAGE_PROVIDER=filesystem` en `.env`; el
+almacenamiento local usa los volúmenes `/data/avatars` y `/data/banners`.
+
+Las respuestas siguen publicando `/api/profile/avatars/{key}` y `/api/channels/banners/{key}`;
+Core lee el objeto privado y responde la imagen. La base actual está vacía, así que se puede usar un
+bucket sin objetos; no hay claves ni archivos referenciados que trasladar. Consulta el
+[ADR-008](../../docs/adr/ADR-008-s3-image-storage.md) para la decisión y configuración.
 
 ## Pruebas dentro de Docker
 
@@ -157,6 +184,7 @@ curl http://localhost:8085/readyz
 Chat publica 8085 (historial/WS) y 8086 (`/internal/chat/session-events`) solo en localhost. Redis
 no se publica. El volumen `chat-redis` conserva mensajes con ACK ante reinicios. Las salas expiran
 5 minutos después de terminar la sesión.
-Los volúmenes SQL, avatares y portadas son separados. `down` conserva los tres; no añadir `-v`
-para detener una instalación con datos que deban conservarse. Respaldar SQL y objetos juntos.
+Los volúmenes SQL, avatares y portadas son separados; los dos últimos solo contienen datos cuando
+`CORE_IMAGE_STORAGE_PROVIDER=filesystem`. `down` conserva los volúmenes; no añadir `-v` para detener
+una instalación con datos que deban conservarse. Con S3, respaldar SQL y objetos del bucket juntos.
 El traslado de prototipos anteriores se describe en el runbook Core y no se ejecuta automáticamente.
