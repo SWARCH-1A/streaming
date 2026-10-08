@@ -9,12 +9,12 @@
 | Web | Una aplicación y un build; rutas, formularios, player, chat y accesibilidad. TypeScript candidato, sujeto a ADR frontend. | Interfaz de usuario con módulos internos. |
 | Core | Java/Spring: Cuentas, Canales, Catálogo y Discovery. PostgreSQL propio y volumen de imágenes; registro en una transacción. | Integridad cuenta–perfil–canal y consultas SQL locales con proyección pública Streaming. |
 | Streaming | Rust/Axum/Tokio/SQLx con pools y PostgreSQL privado: configuración, claves, sesiones, cupos, clock, generaciones, leases e inbox/outbox. | Autonomía de desarrollo, release y operación del control de emisiones; costo de coordinación aceptado en ADR-005. |
-| Chat | Salas, mensajes, deduplicación, cuota, secuencias, historial y realtime; Go/MongoDB candidatos por ADR Chat. | Conexiones largas, fan-out y fallo independientes de video; persistencia temporal propia. |
+| Chat | Salas, mensajes, deduplicación, cuota, secuencias, historial y realtime; Go + Redis efímero según ADR Chat. | Conexiones largas, fan-out y fallo independientes de video; persistencia temporal propia. |
 | Media | MediaMTX RTMP/LL-HLS y adaptador técnico Rust: autorización de fuente, señales, control y verificación audiovisual. | Códecs, CPU y ancho de banda; contenedores separados del API de negocio Streaming. |
 | Reverse proxy | HTTPS, encaminamiento, límites, Upgrade WS y forwarding confiable. | Infraestructura con tabla explícita de upstreams. |
 
-Core, Streaming y Chat son procesos propios de lógica comunicados por HTTP. TypeScript y Go siguen
-siendo candidatos; Java y Rust tienen código propio. Solo artefactos y ejecución cierran RNF-001/003/007.
+Core, Streaming y Chat son procesos propios de lógica comunicados por HTTP. TypeScript sigue
+siendo candidato; Java, Rust y Go tienen código propio. Solo artefactos y ejecución cierran RNF-001/003/007.
 Discovery conserva GraphQL dentro de Core. REST, GraphQL sobre HTTP y WebSocket Upgrade tienen evidencia
 pendiente según SPEC-13; la interpretación académica de RNF-006 requiere confirmación del evaluador.
 SQL/YAML/HTML/CSS no cuentan como lenguajes generales.
@@ -69,7 +69,7 @@ flowchart LR
   C --> DB[(PostgreSQL Core)]
   S --> SD[(PostgreSQL Streaming)]
   C --> A[(Volumen de avatares / banners)]
-  CH --> N[(Almacén Chat)]
+  CH --> N[(Redis Chat)]
 ```
 
 Core comparte transacción y FK locales para cuenta/perfil/canal/catálogo. Sus repositorios están
@@ -94,7 +94,7 @@ ningún proceso consulta tablas ajenas ni mantiene transacciones entre bases.
 | Señales Media | Adaptador Rust / cliente privado | Streaming / ingest y callbacks | HTTPS autenticado; intent/event IDs, generaciones y ACK tras persistir. |
 | Control Media | Streaming / cliente multimedia | Media / control y HLS privado | Corte de fuente y comprobación de playlist/segmento/frame real. |
 | SQL | Core o Streaming / cliente propio | PostgreSQL privado / almacén | Pool y transacciones locales; sin lectura ni FK entre bases. |
-| Historial | Chat / cliente propio | Almacén Chat / servidor | Persistencia antes de ACK; Core/Streaming no leen mensajes. |
+| Historial | Chat / cliente propio | Redis Chat / servidor | Persistencia antes de ACK; Core/Streaming no leen mensajes. |
 | Imágenes | Core / cliente de archivos | Volumen / almacén | Avatares/portadas; IDs y URI públicas distintos de paths físicos. |
 
 ## Invariantes y coordinación
@@ -117,7 +117,7 @@ ningún proceso consulta tablas ajenas ni mantiene transacciones entre bases.
 ## Despliegue y aislamiento
 
 Topología: proxy, Web, Core, Streaming, Chat, MediaMTX/adaptador Rust, PostgreSQL Core/Streaming y
-almacén Chat. Bases separadas con credenciales privadas pueden compartir motor físico sin compartir tablas.
+Redis Chat (AOF). Bases separadas con credenciales privadas pueden compartir motor físico sin compartir tablas.
 Core monta imágenes; Media conserva segmentos. Solo HTTPS web y RTMP son públicos. Core8081,
 Streaming8080, Chat8085 y Web3000; listeners Media/configuración final se verifican antes del despliegue.
 /internal/* queda bloqueado públicamente. TLS privado y secretos específicos por consumidor/operación.

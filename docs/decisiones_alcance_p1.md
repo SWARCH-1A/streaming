@@ -41,8 +41,8 @@ pública; no se infiere su arquitectura interna.
 | D-25 | Un handle P1 tiene 4–25 caracteres ASCII alfanuméricos o `_`, unicidad insensible a mayúsculas y forma canónica en minúsculas; no se aceptan espacios ni transliteración. Es inmutable en P1. El login admite email o handle. |
 | D-26 | `POST /registrations` y la consulta de su operación nunca emiten credencial de sesión. Al alcanzar ACTIVE la cuenta se autentica por `POST /sessions`; esto hace seguros los reintentos y la recuperación por `Idempotency-Key` sin convertirla en sesión bearer. |
 | D-27 | Email recorta espacios iniciales/finales y se compara en minúsculas para unicidad; no se colapsan alias con `+` ni puntos. En Discovery, `q` recorta espacios, se normaliza a Unicode NFKC y se compara sin distinguir mayúsculas, conservando diferencias de acentos; subcadena puede aparecer en cualquier posición. Streams ordena siempre por popularidad/tie-break. Channels ordena matches exactos, prefijos, subcadenas (en handle antes de displayName), luego handle ascendente y userId ascendente. |
-| D-28 | Chat normaliza texto a Unicode NFC, recorta whitespace Unicode en los extremos, rechaza vacío y limita a 500 puntos de código Unicode. `clientMessageId` es UUID generado una vez por intento lógico y deduplica en `(sessionId,userId,clientMessageId)` mientras se retenga el mensaje; el servidor persiste antes del ACK y asigna sequence creciente por sesión. |
-| D-29 | Chat obtiene un contexto Core por nuevo envío: sesión vigente/autor público locales y estado/timeline actual Streaming, jamás proyección Discovery. No cachea permisos. Autorización posterior a logout/ENDED rechaza; operación previamente autorizada puede confirmar dentro del presupuesto acotado del contrato. Eventos Streaming→Chat informan ciclo de vida, no autorizan escrituras. |
+| D-28 | Chat normaliza texto a Unicode NFC, recorta whitespace Unicode en los extremos, rechaza vacío y limita a 500 puntos de código Unicode. `clientMessageId` es UUID generado una vez por intento lógico y deduplica en `(sessionId,userId,clientMessageId)` mientras se retenga la sala; el servidor guarda de forma durable antes del ACK y asigna sequence creciente por sesión. |
+| D-29 | Chat obtiene un contexto Core por nuevo envío: sesión vigente, autor público y estado/timeline de emisión. No cachea permisos. Autorización posterior a logout/ENDED rechaza; operación previamente autorizada puede confirmar dentro del presupuesto acotado del contrato. Eventos Streaming→Chat informan ciclo de vida, no autorizan escrituras. |
 | D-30 | Contraseña P1: entre 12 y 128 puntos de código Unicode. Se conserva exactamente como se introduce: no recortar espacios ni normalizar Unicode; se permiten espacios y frases largas. No exigir mezcla de clases de caracteres ni caducidad periódica. Nunca truncar silenciosamente. |
 
 ## 2. P1 acordado
@@ -102,12 +102,12 @@ consulta reutilizable de categorías y etiquetas.
   documentados aquí sin depender de una especificación externa.
 - La sala acepta mensajes durante la ventana de reconexión. Al terminar el stream pasa a solo lectura
   y no recibe mensajes de sesiones nuevas.
-- Persistir cada evento con ID de mensaje, ID de sesión, cuenta/autor visible, contenido, timestamp
-  del servidor y posición relativa a la línea temporal del medio. P1 no reproduce VOD; deja preparados
-  los eventos para Chat Replay cuando VOD se implemente.
-- La persistencia futura del chat se conserva/elimina junto con el VOD asociado según la política de
-  retención que se acuerde para VOD. Una moderación futura que retire un mensaje del chat en vivo
-  también debe excluirlo del replay.
+- Cada mensaje guarda ID de mensaje, ID de sesión, cuenta/autor visible, contenido, timestamp del
+  servidor y posición relativa a la línea temporal del medio mientras exista la sala.
+- El chat es efímero: al terminar la sesión queda en solo lectura durante 5 minutos y luego se elimina.
+  Durante la sesión no se pierden mensajes confirmados. P1 no reproduce VOD ni conserva chat para
+  replay; Chat Replay futuro definirá su persistencia y retención junto con VOD. Una moderación futura
+  que retire un mensaje del chat en vivo también debe excluirlo del replay.
 
 ### Taxonomía y descubrimiento
 
