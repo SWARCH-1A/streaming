@@ -20,7 +20,8 @@ esa propiedad local y compartir la seguridad de Cuentas. El estado de emisión p
 - PATCH parcial valida la sesión mediante la interfaz local de Cuentas y bloquea la fila del canal.
   Owner exclusivo; descripción de hasta 500 puntos de código, null limpia a cadena vacía; banner
   null retira. No-op conserva channelVersion; cada cambio real incrementa uno. No outbox de réplica.
-- Reutilizar el ciclo de archivos de ADR-002 para portadas en un volumen separado. JPEG/PNG/GIF
+- Reutilizar el ciclo de objetos de ADR-002/ADR-009 para portadas bajo el prefijo S3 de banners, el
+  proveedor predeterminado; filesystem conserva un directorio separado cuando se selecciona explícitamente. JPEG/PNG/GIF
   decodificados, <=10 MB, sin mínimo dimensional (1200×480 recomendado; límite defensivo 40 MP).
   Upload opaco de un uso, ligado a owner/channel y válido 15 min. Publicación antes del commit,
   eliminación anterior después y retiro del nuevo objeto ante rollback. Reconciliar archivos sin
@@ -44,10 +45,13 @@ esa propiedad local y compartir la seguridad de Cuentas. El estado de emisión p
 Canales comparte release y disponibilidad de Core. PATCH/uploads siguen en /api/channels; lecturas
 por handle y owner devuelven el bootstrap compuesto channel/handle/profile/stream.
 La cookie y CSRF son comunes con Cuentas.
-El proceso y health son los de Core en 8081; Compose y Docker montan /data/banners además de avatares.
+El proceso y health son los de Core en 8081. La ruta pública /api/channels/banners/{key} se mantiene;
+Core devuelve los objetos desde el bucket privado S3 predeterminado. El montaje /data/banners solo se
+usa cuando se selecciona el proveedor filesystem.
 
-La V2 actualiza bases Core existentes y nuevas. Reconciliación y publicación requieren un almacenamiento
-compartido consistente antes de habilitar múltiples réplicas.
+La V2 actualiza bases Core existentes y nuevas. Reconciliación y publicación usan el almacenamiento
+seleccionado por configuración. Para desplegar varias réplicas, el proveedor S3 comparte objetos; con
+filesystem se requiere un volumen compartido consistente.
 
 ## Verificación
 

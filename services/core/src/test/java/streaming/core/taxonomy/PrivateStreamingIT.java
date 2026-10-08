@@ -58,6 +58,7 @@ class PrivateStreamingIT {
         p.add("spring.datasource.url",POSTGRES::getJdbcUrl);
         p.add("spring.datasource.username",POSTGRES::getUsername);
         p.add("spring.datasource.password",POSTGRES::getPassword);
+        p.add("core.images.storage-provider",()->"filesystem");
         p.add("profile.storage-root",()->data.resolve("avatars").toString());
         p.add("channels.storage-root",()->data.resolve("banners").toString());
         p.add("core.rate-limit-hmac-secret",()->"fixture_hmac_key_at_least_32_bytes");

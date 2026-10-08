@@ -59,11 +59,11 @@ Las interfaces requieren schema neutro, correlación y presupuesto acotado.
 | POST /api/identity/sessions; DELETE /api/identity/sessions/current | Core / Web | Cookie opaca, revocación, CSRF y cuotas preservadas |
 | GET /api/identity/public/handles/{handle}; /users/{userId} | Core / Web | Solo cuenta activa y datos públicos mínimos; 404 uniforme |
 | GET /api/profile/users/{userId}; GET/PATCH /api/profile/me | Core / Web | Perfil público y edición self; validación local de sesión |
-| POST /api/profile/me/avatar-uploads; GET /api/profile/avatars/{key} | Core / Web | Upload de un uso y objeto público inmutable |
+| POST /api/profile/me/avatar-uploads; GET /api/profile/avatars/{key} | Core / Web | Upload de un uso y URI pública Core a objeto inmutable en almacenamiento privado |
 | GET /api/channels/by-owner/{userId} | Core / Web | Canal de cuenta activa; sin gate de evento |
 | GET /api/channels/by-handle/{handle} | Core / Web | Canal + handle + perfil compuestos localmente; bootstrap incluye stream actual con estado autoritativo Streaming |
 | PATCH /api/channels/{channelId}; POST /api/channels/{channelId}/banner-uploads | Core / Web | Propietario; descripción/banner, versión y reglas de imagen |
-| GET /api/channels/banners/{key}; GET /api/channels/csrf | Core / Web | Objeto público inmutable; token de la misma seguridad CSRF Core |
+| GET /api/channels/banners/{key}; GET /api/channels/csrf | Core / Web | URI pública Core a objeto inmutable en almacenamiento privado; token de la misma seguridad CSRF Core |
 | GET /api/taxonomy | Core / Web | IDs/labels activos y versión; validación local para Core y contexto privado para Streaming |
 | POST/GET /api/channels/{channelId}/streams; PATCH /api/streams/{streamId} | Streaming / Web | Configuración persistente; contexto nuevo Core valida identidad/owner/catálogo |
 | POST /api/streams/{streamId}/ingest-keys/rotate | Streaming / Web | Solo sin sesión activa; secreto una vez |
@@ -137,6 +137,8 @@ Upload multipart file: JPEG/PNG/GIF decodificado real, <=10 MB, ancho y alto >=2
 Respuesta 201 {uploadId,expiresAtUtc}, ligado al usuario, un uso, vence 15 min. URI de objeto opaca e
 inmutable, no ruta física/nombre original. Reemplazo publica objeto nuevo antes de commit; fallo conserva
 anterior; borrar antiguo/temporales después de commit y reconciliar huérfanos periódicamente.
+`avatarUri` y `bannerUri` apuntan a las rutas públicas de Core (o a un CDN que las proxifique), no a
+una URL directa del bucket. Con S3 el bucket permanece privado y Core obtiene y sirve los bytes.
 
 `GET /api/channels/by-handle/{handle}` devuelve 200 con un DTO de composición pública:
 
@@ -355,12 +357,13 @@ extrapola permisos. Una escritura ya autorizada antes de logout/ENDED puede conf
 presupuesto; toda autorización posterior observa revocación/fin. Esta carrera de operación en vuelo
 es explícita: no se promete transacción distribuida Core–Chat ni revocación retroactiva de commits.
 
-Chat persiste mensaje, dedupe, secuencia y efecto de cuota atómicamente antes del ACK; transacción o
-mecanismo equivalente probado en el almacén elegido. Índices requeridos: único (sessionId,sequence),
-único (sessionId,userId,clientMessageId), historial/ventana (sessionId,streamOffsetMs,sequence).
-El diseño final corregirá índices/tipos según motor; no persistir credencial de usuario. MongoDB es
-candidato, no evidencia de NoSQL implementado. Historial duradero es distinto del buffer de cincuenta;
-retención/privacidad futura se define antes de limpiar mensajes de replay.
+Chat persiste mensaje, dedupe, secuencia y efecto de cuota atómicamente antes del ACK en Redis
+([ADR-010](adr/ADR-010-chat-go-redis-efimero.md)): un script Lua por envío, con AOF `appendfsync always`
+y `noeviction`. Unicidad: (sessionId,sequence) por contador `INCR` y ID de Stream `0-<sequence>`;
+(sessionId,userId,clientMessageId) por hash de dedupe. El historial se lee del Stream de la sala en
+orden de sequence. No se persiste la credencial de usuario. Los mensajes confirmados no se recortan
+mientras la sala existe. Retención efímera: al conocer ENDED, todas las claves de la sala (estado,
+sequence, dedupe y mensajes) expiran a los 5 minutos; después el historial queda vacío.
 
 message.accepted al emisor incluye clientMessageId,messageId,sessionId,sequence,serverCreatedAtUtc;
 message.created publica snapshot del autor/texto/offset a conectados. Dedupe también en cliente.
@@ -452,10 +455,12 @@ de retiro. Clases de aplicación locales no se publican como contrato entre leng
 
 ## Chat Replay futuro
 
-Chat conserva mensaje/sesión/autor snapshot/texto/timestamp/sequence/offset y supresiones futuras.
-Core conserva vínculo VOD–sesión y política de acceso. Media/Core publican mapping temporal al VOD;
-Chat sirve ventanas/cursor por contrato cuando la fase lo implemente, sin copia de tablas ni un servicio
-Replay separado de moderación. Retención, borrado y sincronía se acordarán en esa fase.
+P1 no conserva mensajes después de la retención de 5 minutos posterior a ENDED, así que no hay
+historial para Replay. Cuando la fase lo implemente, Chat deberá definir en un ADR nuevo un almacén
+duradero propio para mensaje/sesión/autor snapshot/texto/timestamp/sequence/offset y supresiones, con
+su retención y borrado. Core conserva vínculo VOD–sesión y política de acceso. Media/Core publican
+mapping temporal al VOD; Chat sirve ventanas/cursor por contrato, sin copia de tablas ni un servicio
+Replay separado de moderación.
 
 ## Contratos de consulta y reglas de filtros
 

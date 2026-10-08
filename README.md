@@ -34,6 +34,8 @@ inbox/proyección de snapshots de Streaming y reconstrucción desde su corte). [
 arranca Core/PostgreSQL; `./infra/local/init-env.ps1` genera configuración local ignorada y
 `./infra/local/test-core.ps1` ejecuta unitarias e integración con Java 25 en Docker.
 
+[Chat](services/chat/README.md) (Go y Redis) implementa salas efímeras, historial, WebSocket, cuota,
+deduplicación y eventos de sesión. Pruebas: `go test ./...` en `services/chat`.
 [Streaming](services/streaming/README.md) contiene el servicio Rust de control, el adaptador Media y su stack MediaMTX/PostgreSQL. La integración con Core, Chat y Web y la aceptación del sistema se rigen por SPEC-09…SPEC-13. El [runner de contratos](tests/contracts/README.md) comprueba su cliente real contra Core y reinicios con volúmenes persistentes.
 
 La vista Web de Discovery, la composición de emisiones en Canales, la integración Chat/Web y la evidencia E2E

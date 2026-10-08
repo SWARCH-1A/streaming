@@ -25,6 +25,15 @@ management:
       probes:
         enabled: true
 core:
+  images:
+    storage-provider: ${CORE_IMAGE_STORAGE_PROVIDER:s3}
+    s3:
+      bucket: ${CORE_IMAGE_S3_BUCKET:}
+      region: ${CORE_IMAGE_S3_REGION:us-east-1}
+      endpoint: ${CORE_IMAGE_S3_ENDPOINT:}
+      path-style-access: ${CORE_IMAGE_S3_PATH_STYLE_ACCESS:false}
+      avatar-prefix: ${CORE_IMAGE_S3_AVATAR_PREFIX:avatars}
+      banner-prefix: ${CORE_IMAGE_S3_BANNER_PREFIX:banners}
   internal:
     enabled: ${CORE_INTERNAL_ENABLED:false}
     port: ${CORE_INTERNAL_PORT:8082}

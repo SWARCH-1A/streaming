@@ -170,7 +170,7 @@ Regla acordada para el prototipo: avatar e imagen de portada opcionales; JPEG, P
 - Una sola sesión activa por canal y máximo cinco en la plataforma. LIVE se publica al confirmar medio reproducible.
 - La pérdida de fuente conserva la sesión y el chat durante 30 segundos; después el estado termina y una reconexión inicia una sesión nueva.
 - Espectadores pueden mirar sin login; enviar chat requiere cuenta autenticada.
-- Chat Replay se habilita en una fase VOD futura. P1 persiste eventos con autor, sesión, contenido, timestamp de servidor y posición relativa al medio; no implementa la reproducción VOD.
+- Chat Replay se habilita en una fase VOD futura. En P1 el chat es efímero: cada mensaje lleva autor, sesión, contenido, timestamp de servidor y posición relativa al medio mientras dura la sala, que se elimina 5 minutos después del fin; no implementa la reproducción VOD.
 - Descubrimiento P1 busca canales y títulos con coincidencias parciales, aplica filtros de categoría/etiquetas solo a contenido LIVE y ordena por espectadores descendentes.
 - El objetivo de carga se mide durante 10 minutos: 5 streams, 100 espectadores concurrentes totales y 20 mensajes por segundo agregados.
 - P1 incluye operación por teclado, semántica para tecnologías de asistencia, foco visible, contraste y control de autoscroll del chat. Subtítulos quedan fuera; no se declara conformidad global WCAG 2.2 AA.
