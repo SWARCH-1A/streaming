@@ -14,7 +14,7 @@
 | [ADR-009](ADR-009-s3-image-storage.md) | Aceptada | Bucket S3 privado para avatares/portadas y rutas públicas Core estables. |
 | [ADR-011](ADR-011-streaming-tres-contenedores-p1.md) | Aceptada | Stack Streaming P1 de tres contenedores; adaptador en el runtime Rust, bases separadas y preparación PostgreSQL sin job. |
 
-La selección de Chat y herramientas de operación y despliegue se registra conforme
+Chat está seleccionado en ADR-010; las herramientas pendientes de operación y despliegue se registran conforme
 a la [política ADR](../politica_ADR.md). Las alternativas candidatas requieren decisión del responsable.
 
 La [decisión de entrega durable de callbacks Media](../../services/streaming/docs/adr/0001-media-callback-delivery.md) documenta la persistencia, reintentos, DLQ y capacidad del adaptador de SPEC-04.

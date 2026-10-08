@@ -3,6 +3,10 @@
 `docs/` contiene la definición vigente del proyecto: requisitos, arquitectura, responsabilidades,
 contratos y criterios de aceptación. El catálogo conserva 79 RF y 50 RNF con IDs estables.
 Plane, proyecto STREAMING, contiene las mismas SPEC y agrupaciones de trabajo.
+Al cambiar una SPEC, sincronizar su descripción en Plane desde el archivo canónico e identificar
+el commit de origen. Conservar responsables, estados, comentarios y relaciones existentes;
+planes y evidencia de ejecución se registran aparte de la definición normativa. La cobertura de
+integración se define en SPEC-09 y el cierre RNF en su matriz, sin equiparar Done local a E2E.
 La documentación ubicada junto al repositorio remite a esta fuente.
 
 ## Orden de lectura

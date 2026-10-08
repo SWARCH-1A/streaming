@@ -394,6 +394,10 @@ durable para redrive con mismo ID; no TTL automático ni pérdida silenciosa. GE
 estado de sala conocida al reconectar; Streaming conserva outbox sin ACK y un snapshot de sesiones por IDs. Core delega snapshots de sala a Streaming; no usa Discovery como permiso.
 Para recuperar tras pérdida total de Chat, implementar enumeración paginada privada de sesiones con
 watermark/snapshot antes de declarar reconstrucción automática; no simularla con lookups puntuales.
+Esta enumeración recupera inventario/lifecycle, no texto ni ACK de mensajes. Mensajes con ACK se
+restauran desde AOF/backup del dueño Chat dentro de la retención de ADR-010; tras ENDED no se
+extiende la ventana de 5 minutos por replay o restauración. La evidencia distingue reinicio con
+volumen conservado, recuperación desde backup y pérdida irrecuperable de datos sin backup.
 Un broker futuro requiere ADR y un problema medido; no bus universal inicial.
 
 ## Contextos privados Core–Streaming

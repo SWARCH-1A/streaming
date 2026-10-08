@@ -49,6 +49,10 @@ recibir 401 en owner-context aun con sesión válida. Ambos reciben 404 en la en
 
 - **CA-06:** respuestas de canal, discovery y chat no exponen atributos privados; verificación con payload y revisión de schema.
 
+- **CA-07:** el inventario cubre todas las operaciones de la matriz SPEC-09, incluidas obtención de CSRF, uploads/lectura de imágenes, bootstrap de canal, contexto/snapshot Chat, frames WS, leases y HLS. Cada fila identifica schema/ejemplo de éxito y error, auth por ruta, límites, timeout, idempotencia y consumidor; las interfaces locales Core se distinguen de los contratos de red.
+
+- **CA-08:** las pruebas de proveedor y consumidor usan los componentes del checkout integrado identificado por commit; un harness fijado a una versión histórica se conserva como regresión, pero no acredita compatibilidad del código actual. Cada contrato pendiente de implementación permanece abierto aunque existan schema o mock.
+
 ## 7. Diseño técnico y datos
 
 Fuente semántica única contratos_modelo_datos.md; artefactos generados según ADR de herramienta. Cambio incompatible identifica transición/migración/retiro. Core usa puertos/adaptadores locales, repositorios privados y FK; Streaming/Chat/Media consumen schemas HTTP neutros. Los criterios de aceptación requieren evidencia ejecutable.

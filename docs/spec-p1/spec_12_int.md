@@ -42,7 +42,7 @@ Como usuario final, quiero recorrer registro, canal, emisión, chat y búsqueda 
 
 ## 5. Contrato de interfaz web
 
-- Rutas web P1: `/`, `/register`, `/login`, `/channels/{handle}`, `/search?q=...` y `/watch/{streamId}`. Canal consume `GET /api/channels/by-handle/{handle}`: Core compone canal/handle/perfil locales y batch público autoritativo Streaming; si este falla, conserva canal con estado UNKNOWN. Watch usa el snapshot público de stream/sesión; ambos montan Chat desde sessionId. `avatarUri` y `bannerUri` apuntan a las rutas Core estables `/api/profile/avatars/{key}` y `/api/channels/banners/{key}`; Web nunca recibe una URL directa, ACL o credencial S3.
+- Rutas web P1: `/`, `/register`, `/login`, `/profile`, `/studio`, `/studio/channel`, `/channels/{handle}`, `/search?q=...` y `/watch/{streamId}`. Perfil y estudio requieren sesión vigente; su ruta no concede permisos de backend. Canal consume `GET /api/channels/by-handle/{handle}`: Core compone canal/handle/perfil locales y batch público autoritativo Streaming; si este falla, conserva canal con estado UNKNOWN. Watch usa el snapshot público de stream/sesión; ambos montan Chat desde sessionId. `avatarUri` y `bannerUri` apuntan a las rutas Core estables `/api/profile/avatars/{key}` y `/api/channels/banners/{key}`; Web nunca recibe una URL directa, ACL o credencial S3.
 
 - Shell consume interfaces UI/versionadas; módulo publica ruta/entry, estados y dependencias, sin compartir store privado.
 
@@ -70,6 +70,11 @@ Como usuario final, quiero recorrer registro, canal, emisión, chat y búsqueda 
 
 - **CA-08:** Web integrada ejecutable en modo local; muestra fallback por vista y unidad upstream real si cae.
 - **CA-09:** canal por handle usa bootstrap Core; ACTIVE ya tiene canal/perfil desde commit. Inexistente/no activo 404 uniforme; Core no disponible error explícito; Streaming no disponible conserva canal/perfil con streamStatusFresh=false/UNKNOWN.
+
+- **CA-10:** todos los recorridos de la matriz SPEC-09 usan proveedores reales en el perfil integrado. Fixtures/mocks se habilitan solo en pruebas o modo demo explícito; no sustituyen una respuesta fallida. Cambiar ruta/sesión cancela suscripciones y leases anteriores y evita mostrar respuestas tardías de otro recurso.
+- **CA-11:** registro/login/logout y refresh respetan cookie opaca/CSRF/expiración; edición de perfil/avatar y canal/portada usa uploads reales y conserva datos tras error. Studio configura metadata, muestra la clave solo en la respuesta autorizada, rota solo cuando procede y permite stop owner; no guarda credenciales en storage del navegador ni obtiene identidad de datos demo.
+- **CA-12:** opciones de categorías/tags provienen de GET Taxonomy y cambian sin rebuild; búsqueda/listado consume GraphQL real con filtros exactos AND, ranking/cursor y estados vacío/error/UNKNOWN. Metadata editada y labels tombstone conservan la semántica de SPEC-06/07.
+- **CA-13:** player reproduce medio real y crea lease solo tras primer frame, heartbeat 10 s y cierre/expiración 30 s; al cambiar sessionId reinicia el contexto de player/chat. Chat abre WS antes del backlog, fusiona por sequence, reintenta un envío con el mismo clientMessageId y muestra errores/read-only/retención sin detener HLS. Teclado, foco y autoscroll siguen SPEC-08.
 
 ## 7. Diseño técnico y configuración
 

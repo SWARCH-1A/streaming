@@ -59,7 +59,7 @@ prueba ejecutada.
 | RNF-047 | P1 | SPEC-10 | SPEC-01, SPEC-03…SPEC-08 y SPEC-11…SPEC-12 | Cliente consumidor compila/valida desde schema público; no importa modelo/SDK privado del lenguaje del proveedor. |
 | RNF-048 | P1 | SPEC-13 | SPEC-01, SPEC-03, SPEC-04 | Dueños justifican relaciones con integridad en SQL; prueba valida FK cuenta-canal en Core y config-sesión/leases en Rust; referencias entre bases validadas por contexto Core, sin FK entre bases. |
 | RNF-049 | P1 | SPEC-13 | SPEC-04, SPEC-05 | ADR vincula cada uso NoSQL a estado/acceso temporal o eventos; si no hay justificación, no se cuenta como cumplimiento. |
-| RNF-050 | P1 | SPEC-13 | SPEC-01, SPEC-03, SPEC-04, SPEC-05 | Reiniciar procesos y consultar Core y Streaming desde sus SQL privados, reconstruir proyección Discovery con snapshot/watermark y recuperar Chat por backup/snapshot/eventos preserva IDs/estado sin volver a crear cuentas/canales/contenido manualmente. |
+| RNF-050 | P1 | SPEC-13 | SPEC-01, SPEC-03, SPEC-04, SPEC-05 | Reiniciar procesos y consultar Core y Streaming desde sus SQL privados, reconstruir proyección Discovery con snapshot/watermark y recuperar Chat preservando IDs/estado sin recreación manual. AOF/backup recupera mensajes con ACK dentro de su retención; snapshot/eventos/enumeración Streaming recuperan solo inventario/lifecycle de salas, nunca mensajes perdidos ni historial tras los 5 min de ENDED. |
 
 ## Reglas de ownership de la evidencia
 

@@ -92,11 +92,15 @@ Como integrante del equipo, quiero arrancar y verificar desde checkout limpio to
 - **CA-14:** E2E fuerza fallo entre escrituras de registro y rollback total; después pierde respuesta tras commit Core y repite misma clave sin duplicar cuenta/perfil/canal. No PENDING nuevo ni 404 temporal por activación. Callback media repetido tras perder ACK produce una sola transición, y un cambio de viewers aparece en proyección SQL Discovery en<=5s con freshness correcta; duplicados/desorden/ENDED/rebuild concurrente no regresan datos.
 - **CA-15:** con reloj controlable, callbacks sin respuesta reciben retry al calendario fijado, alertan una vez al alcanzar 30 s y detienen el envío automático al cumplir 15 min dejando registro durable en dead-letter. El redrive manual reutiliza eventId/payload y abre una nueva ventana de 15 min; una respuesta 410 resuelve el evento como obsoleto sin reintento.
 
+- **CA-16:** la evidencia identifica commit/configuración, escenario y resultado por cada RF P1, CA funcional y RNF aplicable de la matriz SPEC-09/matriz RNF. Incluye imágenes reales y recuperación, catálogo nuevo sin rebuild, filtros/ranking/paginación, límites/auth negativos y revisión manual de accesibilidad SPEC-08. Un mock, schema, prueba local o estado de Plane no cierra por sí solo un recorrido integrado; pendientes y confirmación académica RNF-006 permanecen explícitos.
+
 ## 7. Diseño técnico y datos
 
 - Diagrama de despliegue coordinado con SPEC-09; manifest por servicio, variable/puerto y condición de readiness explícitos. El manifest de Core declara `CORE_IMAGE_STORAGE_PROVIDER=s3`, bucket/región/prefijos S3, endpoint/path-style cuando aplique y la cadena de credenciales; el bucket es privado y el adaptador filesystem solo se habilita explícitamente.
 
 - SQL/NoSQL/seed según ADR de dueños; documentar backup o cleanup pertinente a demo y límites del estado guardado.
+
+- Chat recupera mensajes con ACK mediante AOF/backup mientras estén dentro de la retención de ADR-010; un snapshot/enumeración Streaming solo recupera identidad/lifecycle de salas. Tras pérdida total del almacén, probar restauración del backup antes de afirmar recuperación de mensajes; no volver a crear contenido desde datos de demostración ni prometer historial después de los 5 min de ENDED.
 
 - Stack SPEC-04: `db`, `streaming` (control y adaptador en un runtime) y `mediamtx`, sin job de inicialización. PostgreSQL prepara el rol/base Media en cada arranque y declara readiness después; Streaming exige ambos checks 8080/8090 y MediaMTX espera únicamente `service_started` para evitar ciclos. HLS público se sirve en Streaming:8888. Reiniciar Streaming interrumpe ambos módulos; el motor MediaMTX se reinicia por separado.
 

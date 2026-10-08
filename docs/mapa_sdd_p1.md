@@ -4,6 +4,10 @@ El proyecto Plane es STREAMING. Las SPEC y módulos usan las responsabilidades d
 los módulos Core son agrupaciones funcionales dentro de un único proceso, no servicios separados.
 Una asignación personal no cambia la frontera arquitectónica.
 
+La [matriz de cobertura de SPEC-09](spec-p1/spec_09_int.md#cobertura-obligatoria-de-los-spec-funcionales)
+define qué flujos de cada SPEC funcional deben demostrar SPEC-10…SPEC-13. Los estados de trabajo
+del módulo no sustituyen esa aceptación integrada.
+
 | SPEC | Módulo Plane / responsabilidad | Unidad y ubicación | UI |
 | --- | --- | --- | --- |
 | SPEC-01 | Core / Cuentas: autenticación y perfil; avatares privados | services/core; cuentas y objetos de imagen | apps/web/src/modules/accounts |
