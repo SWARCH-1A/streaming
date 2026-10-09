@@ -16,8 +16,14 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
-STATE = HERE / ".state"
-PROJECT = "streaming-p1"
+PROFILES = {
+    "default": (".state", "streaming-p1", "3443", "11936", ".manage.lock"),
+    "load": (".state-load", "streaming-p1-load", "3444", "11937", ".manage-load.lock"),
+}
+PROFILE = os.environ.get("P1_PROFILE", "default")
+if PROFILE not in PROFILES: raise RuntimeError("P1_PROFILE must be default or load")
+STATE_NAME, PROJECT, HTTPS_PORT, RTMPS_PORT, LOCK_NAME = PROFILES[PROFILE]
+STATE = HERE / STATE_NAME
 
 
 def run(args, **kwargs):
@@ -54,6 +60,7 @@ def initialize():
         env = environment()
         print(f"Existing {PROJECT} state retained: {STATE}")
         return env
+    https_port, rtmps_port = configured_ports(os.environ)
     HERE.mkdir(exist_ok=True)
     temporary = Path(tempfile.mkdtemp(prefix=".p1-init-", dir=HERE))
     os.chmod(temporary, 0o700)
@@ -80,8 +87,6 @@ def initialize():
         run(["docker","run","--rm","--network","none","--user",f"{os.getuid()}:{os.getgid()}","-v",str(temporary)+":/state","eclipse-temurin:25-jdk",
              "keytool","-importcert","-noprompt","-alias","p1-ca","-file","/state/ca.crt","-keystore","/state/truststore.p12","-storetype","PKCS12","-storepass","changeit"])
         fingerprint = openssl("x509","-in","streaming.crt","-noout","-fingerprint","-sha256").strip().split("=")[-1].replace(":","").lower()
-        https_port=port("P1_HTTPS_PORT","3443")
-        rtmps_port=port("P1_RTMPS_PORT","11936")
         env.update({"P1_STATE":str(STATE),"P1_HTTPS_PORT":https_port,"P1_RTMPS_PORT":rtmps_port,"WEB_ORIGIN":"https://localhost:"+https_port,"CORE_INTERNAL_TLS_KEYSTORE":str(STATE / "core-internal.p12"),
                     "STREAMING_CERT_FINGERPRINT":fingerprint})
         (temporary / "Caddyfile").write_text(render_proxy())
@@ -108,8 +113,8 @@ def environment():
         key, value = line.split("=",1)
         if not re.fullmatch(r"[A-Z_0-9]+",key): raise RuntimeError("Invalid environment key")
         env[key] = value
-    https_port=port("P1_HTTPS_PORT","3443",env)
-    port("P1_RTMPS_PORT","11936",env)
+    if env.get("P1_STATE") != str(STATE): raise RuntimeError("State path differs from the selected profile")
+    https_port, _ = configured_ports(env)
     if env["WEB_ORIGIN"]!="https://localhost:"+https_port:raise RuntimeError("Origin and HTTPS port differ; keep the initialized ports")
     return env
 
@@ -121,7 +126,16 @@ def port(key,default,env=None):
     return value
 
 
+def configured_ports(env):
+    https_port = port("P1_HTTPS_PORT", HTTPS_PORT, env)
+    rtmps_port = port("P1_RTMPS_PORT", RTMPS_PORT, env)
+    if PROFILE == "load" and (https_port, rtmps_port) != (HTTPS_PORT, RTMPS_PORT):
+        raise RuntimeError("The isolated load profile requires ports 3444 and 11937")
+    return https_port, rtmps_port
+
+
 def command(env, *args, s3=False, timeout=180):
+    if env.get("P1_STATE") != str(STATE): raise RuntimeError("Command state differs from the selected profile")
     cmd = ["docker","compose","--env-file",str(STATE / "environment.env"),"-p",PROJECT,"-f",str(HERE / ("compose.s3.yaml" if s3 else "compose.yaml"))]
     if s3 and env.get("CORE_IMAGE_S3_ENDPOINT") and not env["CORE_IMAGE_S3_ENDPOINT"].startswith("https://"):
         raise RuntimeError("The TLS profile requires an HTTPS S3 endpoint")
@@ -136,7 +150,7 @@ def main():
     parser.add_argument("--confirm-disposable", action="store_true", help="Required to remove only this project's volumes")
     args = parser.parse_args()
     # Lock outside .state so initialization is serialized too.
-    with open(HERE / ".manage.lock","a") as lock:
+    with open(HERE / LOCK_NAME,"a") as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         env = initialize() if args.action=="init" else environment()
         if args.action=="build": command(env,"build",s3=args.s3,timeout=1800); print("Current runtime images built")
@@ -155,8 +169,8 @@ def main():
         elif args.action=="status": print(command(env,"ps",s3=args.s3))
         elif args.action=="down": command(env,"down",s3=args.s3); print("Stopped; persistent volumes retained")
         elif args.action=="reset":
-            if not args.confirm_disposable: raise RuntimeError("Reset requires --confirm-disposable; only streaming-p1 volumes are removed")
-            command(env,"down","--volumes","--remove-orphans",s3=args.s3); print("Only streaming-p1 disposable volumes removed; private config retained")
+            if not args.confirm_disposable: raise RuntimeError(f"Reset requires --confirm-disposable; only {PROJECT} volumes are removed")
+            command(env,"down","--volumes","--remove-orphans",s3=args.s3); print(f"Only {PROJECT} disposable volumes removed; private config retained")
 
 
 if __name__=="__main__": main()

@@ -6,7 +6,9 @@ import { fileURLToPath } from 'node:url';
 import { cpus, freemem, loadavg } from 'node:os';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const state = resolve(root, 'infra/p1/.state');
+const state = resolve(process.env.P1_STATE ?? resolve(root, 'infra/p1/.state'));
+if (![resolve(root, 'infra/p1/.state'), resolve(root, 'infra/p1/.state-load')].includes(state))
+  throw new Error('Player state must belong to an own P1 profile');
 const require = createRequire(resolve(root, 'apps/web/package.json'));
 const { firefox } = require('@playwright/test');
 const hlsScript = require.resolve('hls.js/dist/hls.js');

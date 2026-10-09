@@ -43,11 +43,17 @@ Para el perfil completo, detener las fuentes, restablecer **solo los datos desec
 y esperar readiness. Reset conserva CA, contraseñas e imágenes compiladas:
 
 ```sh
-python infra/p1/manage.py reset --confirm-disposable
-python infra/p1/manage.py up --replicas 2
-curl --fail --cacert infra/p1/.state/ca.crt https://localhost:3443/api/taxonomy
-python tests/integration/p1-delivery/load.py --confirm-disposable
+P1_PROFILE=load python infra/p1/manage.py init
+P1_PROFILE=load python infra/p1/manage.py reset --confirm-disposable
+P1_PROFILE=load python infra/p1/manage.py up --replicas 2
+curl --fail --cacert infra/p1/.state-load/ca.crt https://localhost:3444/api/taxonomy
+P1_PROFILE=load python tests/integration/p1-delivery/load.py --confirm-disposable
 ```
+
+Seleccionar `P1_PROFILE=load` también para diagnóstico, réplicas, recuperación y `down` en ese
+entorno. Tiene estado, CA, secretos y volúmenes propios bajo `.state-load` / `streaming-p1-load`;
+los informes quedan en ese directorio. La instancia interactiva `default` no se restablece.
+El load comparte los recursos del host con otras instancias: registrar esa condición en la evidencia.
 
 El seed crea 100 cuentas/perfiles/canales ficticios en Core; la primera cuenta se registra por API,
 y las otras usan SQL exclusivo del fixture. Nunca fuerza LIVE ni escribe SQL de Streaming.

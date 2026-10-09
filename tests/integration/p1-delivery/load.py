@@ -72,6 +72,7 @@ def run(diagnostic):
     owners=[]; configs=[]; sessions=[]; sources=[]; sockets=[]; threads=[]; log=None; driver=None
     stop=threading.Event();lock=threading.Lock();resources=None;network=None
     stats={"mode":"diagnostic-NOT-acceptance" if diagnostic else "full-P1", "durationSeconds":duration,"warmupSeconds":60,
+           "fixture":{"profile":v.manage.PROFILE,"project":v.manage.PROJECT,"origin":v.ORIGIN},
            "players":players,"sources":5,"sourceMode":"pre-encoded 720p30 H264/AAC; five independent real-time RTMPS publishers",
            "sourceAverageBitrateBitsPerSecond":source_bitrate,
            "api":{},"failures":[],"apiScheduleLate":0,"chatScheduleLate":0,
@@ -294,7 +295,7 @@ def run(diagnostic):
             if path.is_file():digest.update(relative.encode());digest.update(path.read_bytes())
         stats["sourceTreeSha256"]=digest.hexdigest()
         private_json(v.manage.STATE/"load-report.json",stats)
-    print(("PASS" if stats.get("nominalThresholdsPass") else "FAIL")+": "+stats["mode"]+"; private report infra/p1/.state/load-report.json",flush=True)
+    print(("PASS" if stats.get("nominalThresholdsPass") else "FAIL")+": "+stats["mode"]+"; private report "+str((v.manage.STATE/"load-report.json").relative_to(v.ROOT)),flush=True)
     return stats
 
 if __name__=="__main__":

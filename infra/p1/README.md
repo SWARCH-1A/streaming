@@ -39,6 +39,26 @@ mismo proyecto. El puerto HTTPS predeterminado es 3443 y RTMPS 11936, ambos en l
 seleccionar `P1_HTTPS_PORT`/`P1_RTMPS_PORT` **antes de init**, conservándolos después. No se publican
 puertos SQL, Redis, listeners privados ni control MediaMTX. La API pública de salud no se expone en Caddy.
 
+Para pruebas desechables mientras se usa la instancia interactiva, seleccionar `P1_PROFILE=load`
+en **todos** los comandos de gestión y suites. Este perfil usa proyecto `streaming-p1-load`, estado
+privado `.state-load`, lock separado y puertos fijos HTTPS 3444/RTMPS 11937. Genera su propia CA,
+secretos, redes y volúmenes. El perfil `default` conserva `.state`, `streaming-p1` y sus puertos
+inicializados. Un perfil desconocido, propietario ajeno o path de estado distinto se rechaza.
+Los navegadores de prueba usan un perfil independiente; las cookies host-only de localhost no
+están aisladas por puerto. No usar ambos perfiles con la misma sesión del navegador interactivo.
+
+```sh
+P1_PROFILE=load python3 infra/p1/manage.py init
+P1_PROFILE=load python3 infra/p1/manage.py up --replicas 2
+curl --fail --cacert infra/p1/.state-load/ca.crt https://localhost:3444/api/taxonomy
+P1_PROFILE=load /tmp/streaming-p1-venv/bin/python tests/integration/p1-delivery/load.py --confirm-disposable
+P1_PROFILE=load python3 infra/p1/manage.py down
+```
+
+Las imágenes compiladas y el build Web proceden del mismo checkout; no hace falta duplicar su build.
+`P1_PROFILE=load ... reset --confirm-disposable` elimina únicamente los volúmenes de `streaming-p1-load`.
+Las pruebas de selección y protección se ejecutan con `python3 infra/p1/test_profiles.py` sin Docker.
+
 ## TLS, secretos y almacenamiento
 
 `init` genera una CA local (30 días), certificados SAN por servicio (14 días), un PKCS12 Core y tokens

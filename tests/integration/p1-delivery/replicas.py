@@ -26,7 +26,7 @@ def run():
             inspected=json.loads(v.manage.run(["docker","inspect",ident]))[0]
             if inspected["Config"]["Labels"]["com.docker.compose.project"]!=v.manage.PROJECT:raise RuntimeError("Foreign container")
             name=inspected["Name"].lstrip("/")
-            if not re.fullmatch(r"streaming-p1-(core|chat)-[12]",name):raise RuntimeError("Unexpected replica identity")
+            if not re.fullmatch(re.escape(v.manage.PROJECT)+r"-(core|chat)-[12]",name):raise RuntimeError("Unexpected replica identity")
             routes.append(f"""    handle_path /__p1test/{service}{i}/* {{
       reverse_proxy https://{name}:{port} {{
         import proxy_headers
