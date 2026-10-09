@@ -108,6 +108,11 @@ func (s *Service) Send(ctx context.Context, sid, credential, clientMessageID, ra
 	if time.Since(started) > s.budget {
 		return chat.Ack{}, false, chat.Fail(chat.CodeTimelineUnavailable)
 	}
+	// Transport cancellation alone cannot bound scheduling/decoding time after its response.
+	// Core context has a separate 400 ms contract, before the 500 ms persistence-attempt budget.
+	if contextElapsed > 400*time.Millisecond {
+		return chat.Ack{}, false, chat.Fail(chat.CodeCoreUnavailable)
+	}
 	if cerr != nil {
 		return chat.Ack{}, false, cerr
 	}
