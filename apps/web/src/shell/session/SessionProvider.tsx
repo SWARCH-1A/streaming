@@ -12,7 +12,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
   const generation = useRef({ version: 0 });
-  const refresh = useCallback(async (signal?: AbortSignal) => {
+  const refresh = useCallback(async (signal?: AbortSignal, requireSession = false) => {
     const version = ++generation.current.version;
     try {
       const profile = await request<Profile>('/api/profile/me', signal ? { signal } : {});
@@ -20,21 +20,26 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         `/api/identity/public/users/${encodeURIComponent(profile.userId)}`,
         signal ? { signal } : {},
       );
-      if (version === generation.current.version) {
-        setUser({ ...profile, handle: identity.handle });
-        setError(null);
-        setStatus('ready');
+      if (version !== generation.current.version) {
+        if (requireSession)
+          throw new Error('La sesión cambió durante el inicio de sesión. Inténtalo de nuevo.');
+        return;
       }
+      setUser({ ...profile, handle: identity.handle });
+      setError(null);
+      setStatus('ready');
     } catch (error) {
-      if (version !== generation.current.version) return;
-      setUser(null);
-      if (error instanceof HttpError && error.status === 401) {
-        setStatus('ready');
-        setError(null);
-      } else {
-        setStatus('error');
-        setError(errorMessage(error));
+      if (version === generation.current.version) {
+        setUser(null);
+        if (error instanceof HttpError && error.status === 401) {
+          setStatus('ready');
+          setError(null);
+        } else {
+          setStatus('error');
+          setError(errorMessage(error));
+        }
       }
+      if (requireSession) throw error;
     }
   }, []);
   useEffect(() => {
@@ -62,7 +67,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       body: { login, password },
       coreMutation: true,
     });
-    await refresh();
+    await refresh(undefined, true);
   }
   async function signOut() {
     await request('/api/identity/sessions/current', { method: 'DELETE', coreMutation: true });
