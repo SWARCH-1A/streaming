@@ -88,9 +88,8 @@ SPEC-02 fue consolidada en SPEC-01; no hay un SPEC de perfil separado en P1. Los
 del catálogo conservan su prioridad y no se convierten en trabajo P1 por esta matriz.
 
 SPEC-09 conserva coordinación y revisión de cierre. El orden de implementación es SPEC-10,
-SPEC-11, SPEC-12 y SPEC-13, con revisión final de SPEC-09. Antes de cada hijo se prepara su plan
-detallado conforme a las [puertas de implementación](../puertas_implementacion_p1.md); los planes
-de ejecución se registran en Plane y no se incorporan como archivos locales al repositorio.
+SPEC-11, SPEC-12 y SPEC-13, con revisión final de SPEC-09. Los [criterios de entrega](../puertas_implementacion_p1.md) definen las verificaciones necesarias.
+Plane conserva los planes y resultados de ejecución.
 
 ## 9. Decisiones y preguntas abiertas
 

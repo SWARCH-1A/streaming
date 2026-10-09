@@ -10,7 +10,7 @@ Define contratos de red entre Web/Core/Streaming/Chat/Media y límites locales C
 
 ## 2. Definición del componente
 
-Los límites lógicos, las rutas canónicas P1, el payload mínimo de las operaciones críticas y los errores/fallos observables están especificados en el inventario autocontenido `contratos_modelo_datos.md`. ADR-012 selecciona JSON Schema 2020-12 y SDL, generados desde ese documento mediante `contracts/generate.py`. `--check` verifica ejemplos, referencias locales, privacidad, inventario, SDL Core/queries y drift; CI usa el mismo comando. La prueba Core–Streaming importa el cliente Rust del checkout actual; una referencia histórica requiere selección explícita.
+Los límites lógicos, las rutas canónicas P1, el payload mínimo de las operaciones críticas y los errores/fallos observables están especificados en el inventario `contratos_modelo_datos.md`, con schemas y ejemplos en `contracts/p1.json`. ADR-012 selecciona JSON Schema 2020-12 y SDL, derivados mediante `contracts/generate.py`. `--check` verifica ejemplos, referencias locales, privacidad, inventario, SDL Core/queries y drift; CI usa el mismo comando. La prueba Core–Streaming importa el cliente Rust del checkout actual; una referencia histórica requiere selección explícita.
 
 ## 3. Historia de usuario
 

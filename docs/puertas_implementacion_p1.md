@@ -2,14 +2,7 @@
 
 Cada criterio se cierra con evidencia de implementación y ejecución.
 
-Antes de implementar cada SPEC de integración, registrar en su item Plane un plan propio con:
-alcance y exclusiones; estado del checkout y dependencias; decisiones/contratos exactos por extremo;
-pasos y archivos propietarios; entradas/salidas y errores; seguridad, timeout, concurrencia,
-idempotencia y recuperación; migración/compatibilidad; escenarios de prueba ligados a CA/RF/RNF;
-comandos y entorno reproducible; criterio de cierre y rollback. Resolver ambigüedades que afecten
-comportamiento antes de codificar; una elección pendiente se identifica con responsable y condición
-de resolución. Actualizar el plan ante cambios de alcance. Los planes locales y reportes temporales
-no se incluyen en commits; las decisiones normativas se registran en SPEC/contratos/ADR.
+Las decisiones se documentan en SPEC/contratos/ADR; Plane conserva planes de trabajo y evidencia.
 
 | Puerta | Acción antes de aceptar | Dueño / impacto |
 | --- | --- | --- |

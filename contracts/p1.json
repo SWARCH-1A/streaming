@@ -1,0 +1,3344 @@
+{
+  "version": 1,
+  "schemas": {
+    "Error": {
+      "type": "object",
+      "properties": {
+        "code": {"type": "string", "minLength": 1},
+        "message": {"type": "string"},
+        "requestId": {"type": "string"},
+        "fieldErrors": {"type": "object", "additionalProperties": {"type": "string"}}
+      },
+      "required": ["code", "message", "requestId"],
+      "additionalProperties": true,
+      "examples": [{"code": "CORE_UNAVAILABLE", "message": "Servicio no disponible.", "requestId": "req_fixture"}]
+    },
+    "Csrf": {
+      "type": "object",
+      "properties": {"headerName": {"const": "X-XSRF-TOKEN"}, "token": {"type": "string"}},
+      "required": ["headerName", "token"],
+      "additionalProperties": true,
+      "examples": [{"headerName": "X-XSRF-TOKEN", "token": "fictitious-csrf-token"}]
+    },
+    "RegistrationRequest": {
+      "type": "object",
+      "properties": {
+        "email": {"type": "string", "minLength": 1, "maxLength": 400},
+        "handle": {"type": "string", "pattern": "^[a-zA-Z0-9_]{4,25}$"},
+        "password": {"type": "string", "minLength": 12, "maxLength": 128}
+      },
+      "required": ["email", "handle", "password"],
+      "additionalProperties": false,
+      "examples": [{"email": "fixture@example.test", "handle": "fixture_01", "password": "Fictitious-password-123"}]
+    },
+    "Registration": {
+      "type": "object",
+      "properties": {
+        "registrationId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "status": {"const": "ACTIVE"},
+        "userId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "channelId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"}
+      },
+      "required": ["registrationId", "status", "userId", "channelId"],
+      "additionalProperties": true,
+      "examples": [{"registrationId": "reg_fixture", "status": "ACTIVE", "userId": "usr_fixture", "channelId": "chn_fixture"}]
+    },
+    "LoginRequest": {
+      "type": "object",
+      "properties": {"login": {"type": "string", "minLength": 1}, "password": {"type": "string"}},
+      "required": ["login", "password"],
+      "additionalProperties": false,
+      "examples": [{"login": "fixture_01", "password": "Fictitious-password-123"}]
+    },
+    "Login": {
+      "type": "object",
+      "properties": {
+        "userId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "expiresAtUtc": {"type": "string", "format": "date-time", "pattern": "(Z|\\+00:00)$"}
+      },
+      "required": ["userId", "expiresAtUtc"],
+      "additionalProperties": true,
+      "examples": [{"userId": "usr_fixture", "expiresAtUtc": "2026-10-08T20:00:00Z"}]
+    },
+    "PublicIdentity": {
+      "type": "object",
+      "properties": {
+        "userId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "handle": {"type": "string", "pattern": "^[a-zA-Z0-9_]{4,25}$"}
+      },
+      "required": ["userId", "handle"],
+      "additionalProperties": true,
+      "examples": [{"userId": "usr_fixture", "handle": "fixture_01"}]
+    },
+    "Profile": {
+      "type": "object",
+      "properties": {
+        "userId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "displayName": {"type": "string", "minLength": 1, "maxLength": 50},
+        "bio": {"type": "string", "maxLength": 300},
+        "avatarUri": {"type": ["string", "null"]},
+        "updatedAtUtc": {"type": "string", "format": "date-time", "pattern": "(Z|\\+00:00)$"},
+        "profileVersion": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}
+      },
+      "required": ["userId", "displayName", "bio", "avatarUri", "updatedAtUtc", "profileVersion"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "userId": "usr_fixture",
+          "displayName": "Fixture",
+          "bio": "",
+          "avatarUri": null,
+          "updatedAtUtc": "2026-10-08T20:00:00Z",
+          "profileVersion": 0
+        }
+      ]
+    },
+    "ProfilePatch": {
+      "type": "object",
+      "properties": {
+        "displayName": {"type": "string", "minLength": 1, "maxLength": 50},
+        "bio": {"anyOf": [{"type": "string", "maxLength": 300}, {"type": "null"}]},
+        "avatarUploadId": {
+          "anyOf": [{"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"}, {"type": "null"}]
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "minProperties": 1,
+      "examples": [{"bio": null}]
+    },
+    "Upload": {
+      "type": "object",
+      "properties": {
+        "uploadId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "expiresAtUtc": {"type": "string", "format": "date-time", "pattern": "(Z|\\+00:00)$"}
+      },
+      "required": ["uploadId", "expiresAtUtc"],
+      "additionalProperties": true,
+      "examples": [{"uploadId": "upl_fixture", "expiresAtUtc": "2026-10-08T20:00:00Z"}]
+    },
+    "MultipartImage": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "description": "Decoded JPEG/PNG/GIF <=10 MB; multipart field file, not a JSON HTTP body."
+        }
+      },
+      "required": ["file"],
+      "additionalProperties": false,
+      "examples": [{"file": "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="}]
+    },
+    "Channel": {
+      "type": "object",
+      "properties": {
+        "channelId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "ownerUserId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "description": {"type": "string", "maxLength": 500},
+        "bannerUri": {"type": ["string", "null"]},
+        "channelVersion": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}
+      },
+      "required": ["channelId", "ownerUserId", "description", "bannerUri", "channelVersion"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "channelId": "chn_fixture",
+          "ownerUserId": "usr_fixture",
+          "description": "",
+          "bannerUri": null,
+          "channelVersion": 0
+        }
+      ]
+    },
+    "ChannelPatch": {
+      "type": "object",
+      "properties": {
+        "description": {"anyOf": [{"type": "string", "maxLength": 500}, {"type": "null"}]},
+        "bannerUploadId": {
+          "anyOf": [{"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"}, {"type": "null"}]
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "minProperties": 1,
+      "examples": [{"description": "Canal de prueba"}]
+    },
+    "TaxonomyLabel": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "name": {"type": "string"}
+      },
+      "required": ["id", "name"],
+      "additionalProperties": true,
+      "examples": [{"id": "cat_00000000000000000000000000000001", "name": "Conversación"}]
+    },
+    "ActiveTaxonomyValue": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "name": {"type": "string"},
+        "active": {"const": true}
+      },
+      "required": ["id", "name", "active"],
+      "additionalProperties": true,
+      "examples": [{"id": "cat_00000000000000000000000000000001", "name": "Conversación", "active": true}]
+    },
+    "TaxonomyValue": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "string", "minLength": 1, "maxLength": 64},
+        "kind": {"enum": ["CATEGORY", "TAG"]},
+        "name": {"type": "string"},
+        "active": {"type": "boolean"}
+      },
+      "required": ["id", "kind", "name", "active"],
+      "additionalProperties": true,
+      "examples": [{"id": "cat_00000000000000000000000000000001", "name": "Conversación", "kind": "CATEGORY", "active": true}]
+    },
+    "Taxonomy": {
+      "type": "object",
+      "properties": {
+        "catalogVersion": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "categories": {"type": "array", "items": {"$ref": "#/$defs/ActiveTaxonomyValue"}},
+        "tags": {"type": "array", "items": {"$ref": "#/$defs/ActiveTaxonomyValue"}}
+      },
+      "required": ["catalogVersion", "categories", "tags"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "catalogVersion": 1,
+          "categories": [{"id": "cat_00000000000000000000000000000001", "name": "Conversación", "active": true}],
+          "tags": [{"id": "tag_00000000000000000000000000000001", "name": "Español", "active": true}]
+        }
+      ]
+    },
+    "CatalogRequest": {
+      "type": "object",
+      "properties": {
+        "ids": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 64}, "minItems": 1, "maxItems": 50}
+      },
+      "required": ["ids"],
+      "additionalProperties": false,
+      "examples": [{"ids": ["cat_00000000000000000000000000000001"]}]
+    },
+    "CatalogValues": {
+      "type": "object",
+      "properties": {
+        "catalogVersion": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "values": {"type": "array", "items": {"$ref": "#/$defs/TaxonomyValue"}, "minItems": 0, "maxItems": 50}
+      },
+      "required": ["catalogVersion", "values"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "catalogVersion": 1,
+          "values": [{"id": "cat_00000000000000000000000000000001", "name": "Conversación", "kind": "CATEGORY", "active": true}]
+        }
+      ]
+    },
+    "OwnerRequest": {
+      "type": "object",
+      "properties": {
+        "commandId": {"type": "string", "format": "uuid"},
+        "operation": {"enum": ["CREATE_CONFIG", "PATCH_METADATA", "ROTATE_KEY", "STOP_SESSION"]},
+        "channelId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "categoryId": {"type": "string", "minLength": 1, "maxLength": 64},
+        "tagIds": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 64}, "minItems": 0, "maxItems": 5}
+      },
+      "required": ["commandId", "operation", "channelId"],
+      "additionalProperties": true,
+      "allOf": [{"if": {"properties": {"operation": {"const": "CREATE_CONFIG"}}}, "then": {"required": ["categoryId"]}}],
+      "examples": [
+        {
+          "commandId": "00000000-0000-4000-8000-000000000001",
+          "operation": "CREATE_CONFIG",
+          "channelId": "chn_fixture",
+          "categoryId": "cat_00000000000000000000000000000001",
+          "tagIds": []
+        }
+      ]
+    },
+    "OwnerContext": {
+      "type": "object",
+      "properties": {
+        "commandId": {"type": "string", "format": "uuid"},
+        "operation": {"enum": ["CREATE_CONFIG", "PATCH_METADATA", "ROTATE_KEY", "STOP_SESSION"]},
+        "userId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "channelId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "authorizedAtUtc": {"type": "string", "format": "date-time", "pattern": "(Z|\\+00:00)$"},
+        "catalogVersion": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "category": {"$ref": "#/$defs/TaxonomyValue"},
+        "tags": {"type": "array", "items": {"$ref": "#/$defs/TaxonomyValue"}, "minItems": 0, "maxItems": 5}
+      },
+      "required": ["commandId", "operation", "userId", "channelId", "authorizedAtUtc", "catalogVersion"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "commandId": "00000000-0000-4000-8000-000000000001",
+          "operation": "CREATE_CONFIG",
+          "userId": "usr_fixture",
+          "channelId": "chn_fixture",
+          "authorizedAtUtc": "2026-10-08T20:00:00Z",
+          "catalogVersion": 1,
+          "category": {"id": "cat_00000000000000000000000000000001", "name": "Conversación", "kind": "CATEGORY", "active": true},
+          "tags": []
+        }
+      ]
+    },
+    "StreamCreateRequest": {
+      "type": "object",
+      "properties": {
+        "title": {"type": "string", "minLength": 1, "maxLength": 100},
+        "categoryId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "tagIds": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+          "minItems": 0,
+          "maxItems": 5,
+          "uniqueItems": true
+        }
+      },
+      "required": ["title", "categoryId"],
+      "additionalProperties": false,
+      "examples": [{"title": "Conversación", "categoryId": "cat_00000000000000000000000000000001", "tagIds": []}]
+    },
+    "StreamPatchRequest": {
+      "type": "object",
+      "properties": {
+        "title": {"type": "string", "minLength": 1, "maxLength": 100},
+        "categoryId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "tagIds": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+          "minItems": 0,
+          "maxItems": 5,
+          "uniqueItems": true
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "minProperties": 1,
+      "examples": [{"title": "Nuevo título"}]
+    },
+    "StreamCreated": {
+      "type": "object",
+      "properties": {
+        "streamId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "channelId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "title": {"type": "string", "minLength": 1, "maxLength": 100},
+        "categoryId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "tagIds": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+          "minItems": 0,
+          "maxItems": 5,
+          "uniqueItems": true
+        },
+        "metadataVersion": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "rtmpUrl": {"type": "string"},
+        "streamKey": {"type": "string"}
+      },
+      "required": ["streamId", "channelId", "title", "categoryId", "tagIds", "metadataVersion", "rtmpUrl"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "streamId": "str_fixture",
+          "channelId": "chn_fixture",
+          "title": "Conversación",
+          "categoryId": "cat_00000000000000000000000000000001",
+          "tagIds": [],
+          "metadataVersion": 1,
+          "rtmpUrl": "rtmp://localhost:1935/live/str_fixture",
+          "streamKey": "fictitious-stream-key"
+        }
+      ]
+    },
+    "StreamPatched": {
+      "type": "object",
+      "properties": {
+        "streamId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "channelId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "title": {"type": "string", "minLength": 1, "maxLength": 100},
+        "categoryId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "tagIds": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+          "minItems": 0,
+          "maxItems": 5,
+          "uniqueItems": true
+        },
+        "metadataVersion": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "changedFields": {"type": "array", "items": {"enum": ["title", "categoryId", "tagIds"]}, "minItems": 0, "maxItems": 3}
+      },
+      "required": ["streamId", "channelId", "title", "categoryId", "tagIds", "metadataVersion", "changedFields"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "streamId": "str_fixture",
+          "channelId": "chn_fixture",
+          "title": "Conversación",
+          "categoryId": "cat_00000000000000000000000000000001",
+          "tagIds": [],
+          "metadataVersion": 1,
+          "changedFields": []
+        }
+      ]
+    },
+    "IngestKey": {
+      "type": "object",
+      "properties": {
+        "streamId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "channelId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "rtmpUrl": {"type": "string"},
+        "streamKey": {"type": "string"},
+        "ingestKeyVersion": {"type": "integer", "minimum": 1, "maximum": 9007199254740991}
+      },
+      "required": ["streamId", "channelId", "rtmpUrl", "streamKey", "ingestKeyVersion"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "streamId": "str_fixture",
+          "channelId": "chn_fixture",
+          "rtmpUrl": "rtmp://localhost:1935/live/str_fixture",
+          "streamKey": "fictitious-stream-key",
+          "ingestKeyVersion": 1
+        }
+      ]
+    },
+    "PublicStream": {
+      "type": "object",
+      "properties": {
+        "streamId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "channelId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "sessionId": {
+          "anyOf": [{"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"}, {"type": "null"}]
+        },
+        "streamGeneration": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "title": {"type": "string", "minLength": 1, "maxLength": 100},
+        "category": {"$ref": "#/$defs/TaxonomyLabel"},
+        "tags": {"type": "array", "items": {"$ref": "#/$defs/TaxonomyLabel"}, "minItems": 0, "maxItems": 5},
+        "status": {"enum": ["OFFLINE", "PREPARING", "LIVE", "ENDED"]},
+        "availability": {"enum": ["OFFLINE", "PLAYABLE", "RECONNECTING"]},
+        "statusFresh": {"type": "boolean"},
+        "metadataVersion": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "sessionVersion": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 9007199254740991}, {"type": "null"}]},
+        "viewerCount": {"anyOf": [{"type": "integer", "minimum": 0, "maximum": 9007199254740991}, {"type": "null"}]},
+        "countVersion": {"anyOf": [{"type": "integer", "minimum": 0, "maximum": 9007199254740991}, {"type": "null"}]},
+        "viewerCountObservedAtUtc": {"anyOf": [{"type": "string", "format": "date-time", "pattern": "(Z|\\+00:00)$"}, {"type": "null"}]}
+      },
+      "required": [
+        "streamId",
+        "channelId",
+        "sessionId",
+        "streamGeneration",
+        "title",
+        "category",
+        "tags",
+        "status",
+        "availability",
+        "statusFresh",
+        "metadataVersion",
+        "sessionVersion"
+      ],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "streamId": "str_fixture",
+          "channelId": "chn_fixture",
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1,
+          "title": "Conversación",
+          "category": {"id": "cat_00000000000000000000000000000001", "name": "Conversación"},
+          "tags": [],
+          "status": "LIVE",
+          "availability": "PLAYABLE",
+          "statusFresh": true,
+          "metadataVersion": 1,
+          "sessionVersion": 1,
+          "viewerCount": 1,
+          "countVersion": 1,
+          "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+        }
+      ]
+    },
+    "StreamConfig": {
+      "type": "object",
+      "properties": {
+        "streamId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "channelId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "title": {"type": "string", "minLength": 1, "maxLength": 100},
+        "categoryId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "tagIds": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+          "minItems": 0,
+          "maxItems": 5,
+          "uniqueItems": true
+        },
+        "metadataVersion": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "streamGeneration": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "rtmpUrl": {"type": "string"},
+        "status": {"enum": ["OFFLINE", "PREPARING", "LIVE", "ENDED"]},
+        "availability": {"enum": ["OFFLINE", "PLAYABLE", "RECONNECTING"]},
+        "statusFresh": {"type": "boolean"},
+        "sessionId": {
+          "anyOf": [{"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"}, {"type": "null"}]
+        },
+        "sessionVersion": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 9007199254740991}, {"type": "null"}]}
+      },
+      "required": [
+        "streamId",
+        "channelId",
+        "title",
+        "categoryId",
+        "tagIds",
+        "metadataVersion",
+        "streamGeneration",
+        "rtmpUrl",
+        "status",
+        "availability",
+        "statusFresh",
+        "sessionId",
+        "sessionVersion"
+      ],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "streamId": "str_fixture",
+          "channelId": "chn_fixture",
+          "title": "Conversación",
+          "categoryId": "cat_00000000000000000000000000000001",
+          "tagIds": [],
+          "metadataVersion": 1,
+          "streamGeneration": 0,
+          "rtmpUrl": "rtmp://localhost:1935/live/str_fixture",
+          "status": "OFFLINE",
+          "availability": "OFFLINE",
+          "statusFresh": true,
+          "sessionId": null,
+          "sessionVersion": null
+        }
+      ]
+    },
+    "PublicSession": {
+      "type": "object",
+      "properties": {
+        "sessionId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "streamId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "channelId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "streamGeneration": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "status": {"enum": ["PREPARING", "LIVE", "RECONNECT_GRACE", "ENDED"]},
+        "availability": {"enum": ["OFFLINE", "PLAYABLE", "RECONNECTING"]},
+        "playbackUrl": {"type": ["string", "null"]},
+        "timelinePositionMs": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "timelineSampledAtUtc": {"anyOf": [{"type": "string", "format": "date-time", "pattern": "(Z|\\+00:00)$"}, {"type": "null"}]},
+        "metadataVersion": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "sessionVersion": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "viewerCount": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "countVersion": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "viewerCountObservedAtUtc": {"anyOf": [{"type": "string", "format": "date-time", "pattern": "(Z|\\+00:00)$"}, {"type": "null"}]}
+      },
+      "required": [
+        "sessionId",
+        "streamId",
+        "channelId",
+        "streamGeneration",
+        "status",
+        "availability",
+        "playbackUrl",
+        "timelinePositionMs",
+        "timelineSampledAtUtc",
+        "metadataVersion",
+        "sessionVersion",
+        "viewerCount",
+        "countVersion",
+        "viewerCountObservedAtUtc"
+      ],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "sessionId": "ses_fixture",
+          "streamId": "str_fixture",
+          "channelId": "chn_fixture",
+          "streamGeneration": 1,
+          "status": "LIVE",
+          "availability": "PLAYABLE",
+          "playbackUrl": "/hls/ses_fixture/index.m3u8",
+          "timelinePositionMs": 1000,
+          "timelineSampledAtUtc": "2026-10-08T20:00:00Z",
+          "metadataVersion": 1,
+          "sessionVersion": 1,
+          "viewerCount": 1,
+          "countVersion": 1,
+          "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+        }
+      ]
+    },
+    "BootstrapStream": {
+      "type": "object",
+      "properties": {
+        "streamId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "channelId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "sessionId": {
+          "anyOf": [{"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"}, {"type": "null"}]
+        },
+        "streamGeneration": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "title": {"type": "string", "minLength": 1, "maxLength": 100},
+        "category": {"$ref": "#/$defs/TaxonomyLabel"},
+        "tags": {"type": "array", "items": {"$ref": "#/$defs/TaxonomyLabel"}, "minItems": 0, "maxItems": 5},
+        "status": {"enum": ["OFFLINE", "PREPARING", "LIVE", "ENDED"]},
+        "availability": {"enum": ["OFFLINE", "PLAYABLE", "RECONNECTING"]},
+        "statusFresh": {"type": "boolean"},
+        "metadataVersion": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "sessionVersion": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 9007199254740991}, {"type": "null"}]},
+        "viewerCount": {"anyOf": [{"type": "integer", "minimum": 0, "maximum": 9007199254740991}, {"type": "null"}]},
+        "countVersion": {"anyOf": [{"type": "integer", "minimum": 0, "maximum": 9007199254740991}, {"type": "null"}]},
+        "viewerCountObservedAtUtc": {"anyOf": [{"type": "string", "format": "date-time", "pattern": "(Z|\\+00:00)$"}, {"type": "null"}]},
+        "session": {"anyOf": [{"$ref": "#/$defs/PublicSession"}, {"type": "null"}]}
+      },
+      "required": [
+        "streamId",
+        "channelId",
+        "sessionId",
+        "streamGeneration",
+        "title",
+        "category",
+        "tags",
+        "status",
+        "availability",
+        "statusFresh",
+        "metadataVersion",
+        "sessionVersion",
+        "session"
+      ],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "streamId": "str_fixture",
+          "channelId": "chn_fixture",
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1,
+          "title": "Conversación",
+          "category": {"id": "cat_00000000000000000000000000000001", "name": "Conversación"},
+          "tags": [],
+          "status": "LIVE",
+          "availability": "PLAYABLE",
+          "statusFresh": true,
+          "metadataVersion": 1,
+          "sessionVersion": 1,
+          "viewerCount": 1,
+          "countVersion": 1,
+          "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z",
+          "session": {
+            "sessionId": "ses_fixture",
+            "streamId": "str_fixture",
+            "channelId": "chn_fixture",
+            "streamGeneration": 1,
+            "status": "LIVE",
+            "availability": "PLAYABLE",
+            "playbackUrl": "/hls/ses_fixture/index.m3u8",
+            "timelinePositionMs": 1000,
+            "timelineSampledAtUtc": "2026-10-08T20:00:00Z",
+            "metadataVersion": 1,
+            "sessionVersion": 1,
+            "viewerCount": 1,
+            "countVersion": 1,
+            "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+          }
+        }
+      ]
+    },
+    "ChannelBootstrap": {
+      "type": "object",
+      "properties": {
+        "channel": {"$ref": "#/$defs/Channel"},
+        "handle": {"type": "string", "pattern": "^[a-zA-Z0-9_]{4,25}$"},
+        "profile": {"$ref": "#/$defs/Profile"},
+        "stream": {"anyOf": [{"$ref": "#/$defs/BootstrapStream"}, {"type": "null"}]},
+        "streamStatusFresh": {"type": "boolean"},
+        "availability": {"enum": ["OFFLINE", "PLAYABLE", "RECONNECTING", "UNKNOWN"]}
+      },
+      "required": ["channel", "handle", "profile", "stream", "streamStatusFresh", "availability"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "channel": {
+            "channelId": "chn_fixture",
+            "ownerUserId": "usr_fixture",
+            "description": "",
+            "bannerUri": null,
+            "channelVersion": 0
+          },
+          "handle": "fixture_01",
+          "profile": {
+            "userId": "usr_fixture",
+            "displayName": "Fixture",
+            "bio": "",
+            "avatarUri": null,
+            "updatedAtUtc": "2026-10-08T20:00:00Z",
+            "profileVersion": 0
+          },
+          "stream": null,
+          "streamStatusFresh": true,
+          "availability": "OFFLINE"
+        }
+      ]
+    },
+    "ChannelBatchRequest": {
+      "type": "object",
+      "properties": {
+        "channelIds": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+          "minItems": 1,
+          "maxItems": 50
+        }
+      },
+      "required": ["channelIds"],
+      "additionalProperties": false,
+      "examples": [{"channelIds": ["chn_fixture"]}]
+    },
+    "ChannelSnapshot": {
+      "type": "object",
+      "properties": {
+        "channelId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "configured": {"type": "boolean"},
+        "stream": {"anyOf": [{"$ref": "#/$defs/PublicStream"}, {"type": "null"}]},
+        "session": {"anyOf": [{"$ref": "#/$defs/PublicSession"}, {"type": "null"}]},
+        "observedAtUtc": {"type": "string", "format": "date-time", "pattern": "(Z|\\+00:00)$"}
+      },
+      "required": ["channelId", "configured", "stream", "session", "observedAtUtc"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "channelId": "chn_fixture",
+          "configured": true,
+          "stream": {
+            "streamId": "str_fixture",
+            "channelId": "chn_fixture",
+            "sessionId": "ses_fixture",
+            "streamGeneration": 1,
+            "title": "Conversación",
+            "category": {"id": "cat_00000000000000000000000000000001", "name": "Conversación"},
+            "tags": [],
+            "status": "LIVE",
+            "availability": "PLAYABLE",
+            "statusFresh": true,
+            "metadataVersion": 1,
+            "sessionVersion": 1,
+            "viewerCount": 1,
+            "countVersion": 1,
+            "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+          },
+          "session": {
+            "sessionId": "ses_fixture",
+            "streamId": "str_fixture",
+            "channelId": "chn_fixture",
+            "streamGeneration": 1,
+            "status": "LIVE",
+            "availability": "PLAYABLE",
+            "playbackUrl": "/hls/ses_fixture/index.m3u8",
+            "timelinePositionMs": 1000,
+            "timelineSampledAtUtc": "2026-10-08T20:00:00Z",
+            "metadataVersion": 1,
+            "sessionVersion": 1,
+            "viewerCount": 1,
+            "countVersion": 1,
+            "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+          },
+          "observedAtUtc": "2026-10-08T20:00:00Z"
+        }
+      ]
+    },
+    "ChannelBatch": {
+      "type": "object",
+      "properties": {"items": {"type": "array", "items": {"$ref": "#/$defs/ChannelSnapshot"}, "minItems": 1, "maxItems": 50}},
+      "required": ["items"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "items": [
+            {
+              "channelId": "chn_fixture",
+              "configured": true,
+              "stream": {
+                "streamId": "str_fixture",
+                "channelId": "chn_fixture",
+                "sessionId": "ses_fixture",
+                "streamGeneration": 1,
+                "title": "Conversación",
+                "category": {"id": "cat_00000000000000000000000000000001", "name": "Conversación"},
+                "tags": [],
+                "status": "LIVE",
+                "availability": "PLAYABLE",
+                "statusFresh": true,
+                "metadataVersion": 1,
+                "sessionVersion": 1,
+                "viewerCount": 1,
+                "countVersion": 1,
+                "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+              },
+              "session": {
+                "sessionId": "ses_fixture",
+                "streamId": "str_fixture",
+                "channelId": "chn_fixture",
+                "streamGeneration": 1,
+                "status": "LIVE",
+                "availability": "PLAYABLE",
+                "playbackUrl": "/hls/ses_fixture/index.m3u8",
+                "timelinePositionMs": 1000,
+                "timelineSampledAtUtc": "2026-10-08T20:00:00Z",
+                "metadataVersion": 1,
+                "sessionVersion": 1,
+                "viewerCount": 1,
+                "countVersion": 1,
+                "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+              },
+              "observedAtUtc": "2026-10-08T20:00:00Z"
+            }
+          ]
+        }
+      ]
+    },
+    "SessionContext": {
+      "type": "object",
+      "properties": {
+        "streamId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "sessionId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "streamGeneration": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "sessionVersion": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "status": {"enum": ["PREPARING", "LIVE", "RECONNECT_GRACE", "ENDED"]},
+        "availability": {"enum": ["OFFLINE", "PLAYABLE", "RECONNECTING"]},
+        "timelinePositionMs": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "timelineSampledAtUtc": {"type": "string", "format": "date-time", "pattern": "(Z|\\+00:00)$"}
+      },
+      "required": [
+        "streamId",
+        "sessionId",
+        "streamGeneration",
+        "sessionVersion",
+        "status",
+        "availability",
+        "timelinePositionMs",
+        "timelineSampledAtUtc"
+      ],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "streamId": "str_fixture",
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1,
+          "sessionVersion": 1,
+          "status": "LIVE",
+          "availability": "PLAYABLE",
+          "timelinePositionMs": 1000,
+          "timelineSampledAtUtc": "2026-10-08T20:00:00Z"
+        }
+      ]
+    },
+    "ChatSnapshot": {
+      "type": "object",
+      "properties": {
+        "streamId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "sessionId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "streamGeneration": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "sessionVersion": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "status": {"enum": ["PREPARING", "LIVE", "RECONNECT_GRACE", "ENDED"]},
+        "availability": {"enum": ["OFFLINE", "PLAYABLE", "RECONNECTING"]},
+        "timelinePositionMs": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}
+      },
+      "required": ["streamId", "sessionId", "streamGeneration", "sessionVersion", "status", "availability", "timelinePositionMs"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "streamId": "str_fixture",
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1,
+          "sessionVersion": 1,
+          "status": "LIVE",
+          "availability": "PLAYABLE",
+          "timelinePositionMs": 1000
+        }
+      ]
+    },
+    "ChatContextRequest": {
+      "type": "object",
+      "properties": {
+        "sessionId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "clientMessageId": {"type": "string", "format": "uuid"}
+      },
+      "required": ["sessionId", "clientMessageId"],
+      "additionalProperties": false,
+      "examples": [{"sessionId": "ses_fixture", "clientMessageId": "00000000-0000-4000-8000-000000000001"}]
+    },
+    "ChatContext": {
+      "type": "object",
+      "properties": {
+        "userId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "handle": {"type": "string", "pattern": "^[a-zA-Z0-9_]{4,25}$"},
+        "displayName": {"type": "string"},
+        "avatarUri": {"type": ["string", "null"]},
+        "profileVersion": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "sessionId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "streamGeneration": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "sessionVersion": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "availability": {"enum": ["OFFLINE", "PLAYABLE", "RECONNECTING"]},
+        "authorizedAtUtc": {"type": "string", "format": "date-time", "pattern": "(Z|\\+00:00)$"},
+        "timelinePositionMs": {"anyOf": [{"type": "integer", "minimum": 0, "maximum": 9007199254740991}, {"type": "null"}]},
+        "timelineSampleVersion": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 9007199254740991}, {"type": "null"}]},
+        "writeAllowed": {"type": "boolean"},
+        "denialCode": {"anyOf": [{"type": "string"}, {"type": "null"}]}
+      },
+      "required": [
+        "userId",
+        "handle",
+        "displayName",
+        "avatarUri",
+        "profileVersion",
+        "sessionId",
+        "streamGeneration",
+        "sessionVersion",
+        "availability",
+        "authorizedAtUtc",
+        "timelinePositionMs",
+        "timelineSampleVersion",
+        "writeAllowed",
+        "denialCode"
+      ],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "userId": "usr_fixture",
+          "handle": "fixture_01",
+          "displayName": "Fixture",
+          "avatarUri": null,
+          "profileVersion": 0,
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1,
+          "sessionVersion": 1,
+          "availability": "PLAYABLE",
+          "authorizedAtUtc": "2026-10-08T20:00:00Z",
+          "timelinePositionMs": 1000,
+          "timelineSampleVersion": 1,
+          "writeAllowed": true,
+          "denialCode": null
+        }
+      ]
+    },
+    "IngestRequest": {
+      "type": "object",
+      "properties": {
+        "ingestAttemptId": {"type": "string", "format": "uuid"},
+        "streamId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "streamKey": {"type": "string", "minLength": 1, "maxLength": 4096}
+      },
+      "required": ["ingestAttemptId", "streamKey"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "ingestAttemptId": "00000000-0000-4000-8000-000000000001",
+          "streamId": "str_fixture",
+          "streamKey": "fictitious-stream-key"
+        }
+      ]
+    },
+    "IngestAuthorization": {
+      "type": "object",
+      "properties": {
+        "streamId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "sessionId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "streamGeneration": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "sourceGeneration": {"type": "integer", "minimum": 1, "maximum": 9007199254740991}
+      },
+      "required": ["streamId", "sessionId", "streamGeneration", "sourceGeneration"],
+      "additionalProperties": true,
+      "examples": [{"streamId": "str_fixture", "sessionId": "ses_fixture", "streamGeneration": 1, "sourceGeneration": 1}]
+    },
+    "MediaCallback": {
+      "type": "object",
+      "properties": {
+        "eventId": {"type": "string", "format": "uuid"},
+        "streamId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "sessionId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "streamGeneration": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "sourceGeneration": {"type": "integer", "minimum": 1, "maximum": 9007199254740991}
+      },
+      "required": ["eventId", "streamId", "sessionId", "streamGeneration", "sourceGeneration"],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "eventId": "00000000-0000-4000-8000-000000000001",
+          "streamId": "str_fixture",
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1,
+          "sourceGeneration": 1
+        }
+      ]
+    },
+    "PlaybackCallback": {
+      "type": "object",
+      "properties": {
+        "eventId": {"type": "string", "format": "uuid"},
+        "streamId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "sessionId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "streamGeneration": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "sourceGeneration": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "playbackPath": {"type": "string", "pattern": "^/hls/[A-Za-z0-9_-]+/[^?#]+\\.m3u8$"}
+      },
+      "required": ["eventId", "streamId", "sessionId", "streamGeneration", "sourceGeneration", "playbackPath"],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "eventId": "00000000-0000-4000-8000-000000000001",
+          "streamId": "str_fixture",
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1,
+          "sourceGeneration": 1,
+          "playbackPath": "/hls/ses_fixture/index.m3u8"
+        }
+      ]
+    },
+    "CallbackAck": {
+      "type": "object",
+      "properties": {
+        "accepted": {"const": true},
+        "duplicate": {"type": "boolean"},
+        "ignored": {"type": "boolean"},
+        "reason": {"const": "STALE_GENERATION"},
+        "eventId": {"type": "string", "format": "uuid"}
+      },
+      "required": ["accepted", "eventId"],
+      "additionalProperties": true,
+      "examples": [{"accepted": true, "duplicate": false, "eventId": "00000000-0000-4000-8000-000000000001"}]
+    },
+    "ViewerLease": {
+      "type": "object",
+      "properties": {
+        "leaseId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "leaseToken": {"type": "string"},
+        "sessionId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "heartbeatEverySeconds": {"const": 10},
+        "expiresAfterSeconds": {"const": 30}
+      },
+      "required": ["leaseId", "leaseToken", "sessionId", "heartbeatEverySeconds", "expiresAfterSeconds"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "leaseId": "lease_fixture",
+          "leaseToken": "fictitious-lease-token",
+          "sessionId": "ses_fixture",
+          "heartbeatEverySeconds": 10,
+          "expiresAfterSeconds": 30
+        }
+      ]
+    },
+    "LeaseHeartbeat": {
+      "type": "object",
+      "properties": {
+        "leaseId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "sessionId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "expiresAtUtc": {"type": "string", "format": "date-time", "pattern": "(Z|\\+00:00)$"}
+      },
+      "required": ["leaseId", "sessionId", "expiresAtUtc"],
+      "additionalProperties": true,
+      "examples": [{"leaseId": "lease_fixture", "sessionId": "ses_fixture", "expiresAtUtc": "2026-10-08T20:00:00Z"}]
+    },
+    "ChatAuthor": {
+      "type": "object",
+      "properties": {
+        "userId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "handle": {"type": "string", "pattern": "^[a-zA-Z0-9_]{4,25}$"},
+        "displayName": {"type": "string"},
+        "avatarUri": {"type": ["string", "null"]}
+      },
+      "required": ["userId", "handle", "displayName", "avatarUri"],
+      "additionalProperties": true,
+      "examples": [{"userId": "usr_fixture", "handle": "fixture_01", "displayName": "Fixture", "avatarUri": null}]
+    },
+    "ChatMessage": {
+      "type": "object",
+      "properties": {
+        "messageId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "sessionId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "sequence": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "author": {"$ref": "#/$defs/ChatAuthor"},
+        "text": {"type": "string", "minLength": 1, "maxLength": 500},
+        "serverCreatedAtUtc": {"type": "string", "format": "date-time", "pattern": "(Z|\\+00:00)$"},
+        "streamOffsetMs": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "streamGeneration": {"type": "integer", "minimum": 1, "maximum": 9007199254740991}
+      },
+      "required": [
+        "messageId",
+        "sessionId",
+        "sequence",
+        "author",
+        "text",
+        "serverCreatedAtUtc",
+        "streamOffsetMs",
+        "streamGeneration"
+      ],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "messageId": "msg_fixture",
+          "sessionId": "ses_fixture",
+          "sequence": 1,
+          "author": {"userId": "usr_fixture", "handle": "fixture_01", "displayName": "Fixture", "avatarUri": null},
+          "text": "Hola",
+          "serverCreatedAtUtc": "2026-10-08T20:00:00Z",
+          "streamOffsetMs": 1000,
+          "streamGeneration": 1
+        }
+      ]
+    },
+    "ChatReady": {
+      "type": "object",
+      "properties": {
+        "type": {"const": "chat.ready"},
+        "sessionId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "roomStatus": {"enum": ["OPEN", "NOT_OPEN", "READ_ONLY"]},
+        "lastSequence": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}
+      },
+      "required": ["type", "sessionId", "roomStatus", "lastSequence"],
+      "additionalProperties": true,
+      "examples": [{"type": "chat.ready", "sessionId": "ses_fixture", "roomStatus": "OPEN", "lastSequence": 0}]
+    },
+    "ChatStatus": {
+      "type": "object",
+      "properties": {
+        "type": {"const": "chat.status"},
+        "sessionId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "roomStatus": {"enum": ["OPEN", "NOT_OPEN", "READ_ONLY"]}
+      },
+      "required": ["type", "sessionId", "roomStatus"],
+      "additionalProperties": true,
+      "examples": [{"type": "chat.status", "sessionId": "ses_fixture", "roomStatus": "READ_ONLY"}]
+    },
+    "MessageSend": {
+      "type": "object",
+      "properties": {
+        "type": {"const": "message.send"},
+        "clientMessageId": {"type": "string", "format": "uuid"},
+        "text": {"type": "string", "minLength": 1, "maxLength": 500}
+      },
+      "required": ["type", "clientMessageId", "text"],
+      "additionalProperties": false,
+      "examples": [{"type": "message.send", "clientMessageId": "00000000-0000-4000-8000-000000000001", "text": "Hola"}]
+    },
+    "MessageAccepted": {
+      "type": "object",
+      "properties": {
+        "type": {"const": "message.accepted"},
+        "clientMessageId": {"type": "string", "format": "uuid"},
+        "messageId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "sessionId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "sequence": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "serverCreatedAtUtc": {"type": "string", "format": "date-time", "pattern": "(Z|\\+00:00)$"}
+      },
+      "required": ["type", "clientMessageId", "messageId", "sessionId", "sequence", "serverCreatedAtUtc"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "type": "message.accepted",
+          "clientMessageId": "00000000-0000-4000-8000-000000000001",
+          "messageId": "msg_fixture",
+          "sessionId": "ses_fixture",
+          "sequence": 1,
+          "serverCreatedAtUtc": "2026-10-08T20:00:00Z"
+        }
+      ]
+    },
+    "MessageCreated": {
+      "type": "object",
+      "properties": {"type": {"const": "message.created"}, "message": {"$ref": "#/$defs/ChatMessage"}},
+      "required": ["type", "message"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "type": "message.created",
+          "message": {
+            "messageId": "msg_fixture",
+            "sessionId": "ses_fixture",
+            "sequence": 1,
+            "author": {"userId": "usr_fixture", "handle": "fixture_01", "displayName": "Fixture", "avatarUri": null},
+            "text": "Hola",
+            "serverCreatedAtUtc": "2026-10-08T20:00:00Z",
+            "streamOffsetMs": 1000,
+            "streamGeneration": 1
+          }
+        }
+      ]
+    },
+    "ChatError": {
+      "type": "object",
+      "properties": {
+        "type": {"const": "error"},
+        "clientMessageId": {"type": "string", "format": "uuid"},
+        "code": {"type": "string"},
+        "message": {"type": "string"},
+        "retryAfterMs": {"type": "integer", "minimum": 1, "maximum": 9007199254740991}
+      },
+      "required": ["type", "code", "message"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "type": "error",
+          "clientMessageId": "00000000-0000-4000-8000-000000000001",
+          "code": "RATE_LIMITED",
+          "message": "Espera antes de enviar.",
+          "retryAfterMs": 1000
+        }
+      ]
+    },
+    "ChatHistory": {
+      "type": "object",
+      "properties": {
+        "sessionId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "roomStatus": {"enum": ["OPEN", "NOT_OPEN", "READ_ONLY"]},
+        "snapshotSequence": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "items": {"type": "array", "items": {"$ref": "#/$defs/ChatMessage"}, "minItems": 0, "maxItems": 50}
+      },
+      "required": ["sessionId", "roomStatus", "snapshotSequence", "items"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "sessionId": "ses_fixture",
+          "roomStatus": "OPEN",
+          "snapshotSequence": 1,
+          "items": [
+            {
+              "messageId": "msg_fixture",
+              "sessionId": "ses_fixture",
+              "sequence": 1,
+              "author": {"userId": "usr_fixture", "handle": "fixture_01", "displayName": "Fixture", "avatarUri": null},
+              "text": "Hola",
+              "serverCreatedAtUtc": "2026-10-08T20:00:00Z",
+              "streamOffsetMs": 1000,
+              "streamGeneration": 1
+            }
+          ]
+        }
+      ]
+    },
+    "LifecyclePayload": {
+      "type": "object",
+      "properties": {
+        "streamId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "sessionId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "streamGeneration": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "sessionVersion": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "status": {"enum": ["PREPARING", "LIVE", "RECONNECT_GRACE", "ENDED"]},
+        "availability": {"enum": ["OFFLINE", "PLAYABLE", "RECONNECTING"]}
+      },
+      "required": ["streamId", "sessionId", "streamGeneration", "sessionVersion", "status", "availability"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "streamId": "str_fixture",
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1,
+          "sessionVersion": 1,
+          "status": "LIVE",
+          "availability": "PLAYABLE"
+        }
+      ]
+    },
+    "LifecycleEvent": {
+      "type": "object",
+      "properties": {
+        "eventId": {"type": "string", "format": "uuid"},
+        "eventType": {"type": "string"},
+        "schemaVersion": {"const": 1},
+        "aggregateId": {"type": "string"},
+        "sequence": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "occurredAtUtc": {"type": "string", "format": "date-time", "pattern": "(Z|\\+00:00)$"},
+        "producer": {"const": "streaming"},
+        "payload": {"$ref": "#/$defs/LifecyclePayload"}
+      },
+      "required": ["eventId", "eventType", "schemaVersion", "aggregateId", "sequence", "occurredAtUtc", "producer", "payload"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "eventId": "00000000-0000-4000-8000-000000000001",
+          "eventType": "StreamSessionStarted",
+          "schemaVersion": 1,
+          "aggregateId": "session:ses_fixture",
+          "sequence": 1,
+          "occurredAtUtc": "2026-10-08T20:00:00Z",
+          "producer": "streaming",
+          "payload": {
+            "streamId": "str_fixture",
+            "sessionId": "ses_fixture",
+            "streamGeneration": 1,
+            "sessionVersion": 1,
+            "status": "LIVE",
+            "availability": "PLAYABLE"
+          }
+        }
+      ]
+    },
+    "DiscoverySnapshot": {
+      "type": "object",
+      "properties": {
+        "streamId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "channelId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "sessionId": {
+          "anyOf": [{"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"}, {"type": "null"}]
+        },
+        "streamGeneration": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "title": {"type": "string", "minLength": 1, "maxLength": 100},
+        "category": {"$ref": "#/$defs/TaxonomyLabel"},
+        "tags": {"type": "array", "items": {"$ref": "#/$defs/TaxonomyLabel"}, "minItems": 0, "maxItems": 5},
+        "status": {"enum": ["OFFLINE", "PREPARING", "LIVE", "ENDED"]},
+        "availability": {"enum": ["OFFLINE", "PLAYABLE", "RECONNECTING"]},
+        "metadataVersion": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "sessionVersion": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 9007199254740991}, {"type": "null"}]},
+        "viewerCount": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "countVersion": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "viewerCountObservedAtUtc": {"type": "string", "format": "date-time", "pattern": "(Z|\\+00:00)$"},
+        "projectionVersion": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "discoveryPosition": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "startedAtUtc": {"anyOf": [{"type": "string", "format": "date-time", "pattern": "(Z|\\+00:00)$"}, {"type": "null"}]},
+        "stateObservedAtUtc": {"type": "string", "format": "date-time", "pattern": "(Z|\\+00:00)$"}
+      },
+      "required": [
+        "streamId",
+        "channelId",
+        "sessionId",
+        "streamGeneration",
+        "title",
+        "category",
+        "tags",
+        "status",
+        "availability",
+        "metadataVersion",
+        "sessionVersion",
+        "viewerCount",
+        "countVersion",
+        "viewerCountObservedAtUtc",
+        "projectionVersion",
+        "discoveryPosition",
+        "startedAtUtc",
+        "stateObservedAtUtc"
+      ],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "streamId": "str_fixture",
+          "channelId": "chn_fixture",
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1,
+          "title": "Conversación",
+          "category": {"id": "cat_00000000000000000000000000000001", "name": "Conversación"},
+          "tags": [],
+          "status": "LIVE",
+          "availability": "PLAYABLE",
+          "metadataVersion": 1,
+          "sessionVersion": 1,
+          "viewerCount": 1,
+          "countVersion": 1,
+          "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z",
+          "projectionVersion": 1,
+          "discoveryPosition": 1,
+          "startedAtUtc": "2026-10-08T20:00:00Z",
+          "stateObservedAtUtc": "2026-10-08T20:00:00Z"
+        }
+      ]
+    },
+    "DiscoveryEvent": {
+      "type": "object",
+      "properties": {
+        "eventId": {"type": "string", "format": "uuid"},
+        "eventType": {"const": "StreamDiscoverySnapshot"},
+        "schemaVersion": {"const": 1},
+        "aggregateId": {"type": "string"},
+        "sequence": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "occurredAtUtc": {"type": "string", "format": "date-time", "pattern": "(Z|\\+00:00)$"},
+        "producer": {"const": "streaming"},
+        "payload": {"$ref": "#/$defs/DiscoverySnapshot"}
+      },
+      "required": ["eventId", "eventType", "schemaVersion", "aggregateId", "sequence", "occurredAtUtc", "producer", "payload"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "eventId": "00000000-0000-4000-8000-000000000001",
+          "eventType": "StreamDiscoverySnapshot",
+          "schemaVersion": 1,
+          "aggregateId": "stream:str_fixture",
+          "sequence": 1,
+          "occurredAtUtc": "2026-10-08T20:00:00Z",
+          "producer": "streaming",
+          "payload": {
+            "streamId": "str_fixture",
+            "channelId": "chn_fixture",
+            "sessionId": "ses_fixture",
+            "streamGeneration": 1,
+            "title": "Conversación",
+            "category": {"id": "cat_00000000000000000000000000000001", "name": "Conversación"},
+            "tags": [],
+            "status": "LIVE",
+            "availability": "PLAYABLE",
+            "metadataVersion": 1,
+            "sessionVersion": 1,
+            "viewerCount": 1,
+            "countVersion": 1,
+            "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z",
+            "projectionVersion": 1,
+            "discoveryPosition": 1,
+            "startedAtUtc": "2026-10-08T20:00:00Z",
+            "stateObservedAtUtc": "2026-10-08T20:00:00Z"
+          }
+        }
+      ]
+    },
+    "SnapshotRequest": {
+      "type": "object",
+      "properties": {
+        "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+        "cursor": {"anyOf": [{"type": "string"}, {"type": "null"}]}
+      },
+      "required": ["limit"],
+      "additionalProperties": false,
+      "examples": [{"limit": 50}]
+    },
+    "DiscoveryPage": {
+      "type": "object",
+      "properties": {
+        "snapshotId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+        "watermark": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "capturedAtUtc": {"type": "string", "format": "date-time", "pattern": "(Z|\\+00:00)$"},
+        "expiresAtUtc": {"type": "string", "format": "date-time", "pattern": "(Z|\\+00:00)$"},
+        "items": {"type": "array", "items": {"$ref": "#/$defs/DiscoverySnapshot"}, "minItems": 0, "maxItems": 50},
+        "nextCursor": {"anyOf": [{"type": "string"}, {"type": "null"}]}
+      },
+      "required": ["snapshotId", "watermark", "capturedAtUtc", "expiresAtUtc", "items", "nextCursor"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "snapshotId": "snap_fixture",
+          "watermark": 1,
+          "capturedAtUtc": "2026-10-08T20:00:00Z",
+          "expiresAtUtc": "2026-10-08T20:00:00Z",
+          "items": [
+            {
+              "streamId": "str_fixture",
+              "channelId": "chn_fixture",
+              "sessionId": "ses_fixture",
+              "streamGeneration": 1,
+              "title": "Conversación",
+              "category": {"id": "cat_00000000000000000000000000000001", "name": "Conversación"},
+              "tags": [],
+              "status": "LIVE",
+              "availability": "PLAYABLE",
+              "metadataVersion": 1,
+              "sessionVersion": 1,
+              "viewerCount": 1,
+              "countVersion": 1,
+              "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z",
+              "projectionVersion": 1,
+              "discoveryPosition": 1,
+              "startedAtUtc": "2026-10-08T20:00:00Z",
+              "stateObservedAtUtc": "2026-10-08T20:00:00Z"
+            }
+          ],
+          "nextCursor": null
+        }
+      ]
+    },
+    "EventAck": {
+      "type": "object",
+      "properties": {"accepted": {"type": "boolean"}, "duplicate": {"type": "boolean"}},
+      "required": [],
+      "additionalProperties": true,
+      "examples": [{"accepted": true, "duplicate": false}]
+    },
+    "GraphQLRequest": {
+      "type": "object",
+      "properties": {
+        "query": {"type": "string", "minLength": 1},
+        "operationName": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        "variables": {"anyOf": [{"type": "object"}, {"type": "null"}]}
+      },
+      "required": ["query"],
+      "additionalProperties": false,
+      "examples": [{"query": "query { channels { items { channelId handle } } }", "operationName": null, "variables": {}}]
+    },
+    "GraphQLError": {
+      "type": "object",
+      "properties": {
+        "message": {"type": "string"},
+        "path": {"type": "array", "items": {"type": ["string", "integer"]}, "minItems": 0, "maxItems": 20},
+        "extensions": {
+          "type": "object",
+          "properties": {"code": {"type": "string"}, "httpStatus": {"type": "integer"}, "requestId": {"type": "string"}},
+          "required": ["code", "httpStatus", "requestId"],
+          "additionalProperties": true
+        }
+      },
+      "required": ["message", "extensions"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "message": "Filtro inválido.",
+          "path": ["streams"],
+          "extensions": {"code": "INVALID_FILTER", "httpStatus": 422, "requestId": "req_fixture"}
+        }
+      ]
+    },
+    "GraphQLResponse": {
+      "type": "object",
+      "properties": {
+        "data": {"anyOf": [{"type": "object"}, {"type": "null"}]},
+        "errors": {"type": "array", "items": {"$ref": "#/$defs/GraphQLError"}, "minItems": 0, "maxItems": 20}
+      },
+      "required": [],
+      "additionalProperties": true,
+      "minProperties": 1,
+      "examples": [
+        {
+          "data": {"channels": {"items": [], "nextCursor": null, "generatedAtUtc": "2026-10-08T20:00:00Z", "statusFresh": true}}
+        }
+      ]
+    },
+    "Health": {
+      "type": "object",
+      "properties": {"status": {"type": "string"}},
+      "required": ["status"],
+      "additionalProperties": true,
+      "examples": [{"status": "UP"}]
+    },
+    "Binary": {
+      "type": "string",
+      "description": "Raw HTTP bytes: MIME/range/cache are transport assertions, not JSON.",
+      "examples": ["#EXTM3U\n"]
+    },
+    "MediaAuthRequest": {
+      "type": "object",
+      "properties": {
+        "action": {"type": "string"},
+        "protocol": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        "id": {"anyOf": [{"type": "string", "format": "uuid"}, {"type": "null"}]},
+        "path": {"type": "string"},
+        "user": {"type": "string"},
+        "password": {"type": "string"}
+      },
+      "required": ["action"],
+      "additionalProperties": true,
+      "examples": [
+        {
+          "action": "publish",
+          "protocol": "rtmp",
+          "id": "00000000-0000-4000-8000-000000000001",
+          "path": "live/str_fixture",
+          "user": "",
+          "password": "fictitious-stream-key"
+        }
+      ]
+    },
+    "MediaPath": {
+      "type": "object",
+      "properties": {
+        "online": {"type": "boolean"},
+        "ready": {"type": "boolean"},
+        "source": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {"id": {"type": "string", "format": "uuid"}, "type": {"type": "string"}},
+              "required": ["id", "type"],
+              "additionalProperties": true
+            },
+            {"type": "null"}
+          ]
+        }
+      },
+      "required": [],
+      "additionalProperties": true,
+      "examples": [{"online": true, "ready": true, "source": {"id": "00000000-0000-4000-8000-000000000001", "type": "rtmpConn"}}]
+    },
+    "MediaControlStatus": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": true,
+      "description": "Private control operations consume HTTP status only; additive JSON fields are intentionally opaque.",
+      "examples": [{}]
+    },
+    "MediaControlError": {
+      "type": "object",
+      "properties": {"error": {"type": "string"}},
+      "required": ["error"],
+      "additionalProperties": true,
+      "examples": [{"error": "not found"}]
+    }
+  },
+  "operations": [
+    {
+      "id": "identity.csrf",
+      "method": "GET",
+      "path": "/api/identity/csrf",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core",
+      "auth": "public",
+      "request": null,
+      "responses": {"200": "Csrf", "503": "Error"},
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-10",
+      "visibility": "credential",
+      "limits": "CSRF token tied to browser cookie; no-store; never persist/log token.",
+      "traceability": "docs/spec-p1/spec_10_int.md"
+    },
+    {
+      "id": "profile.csrf",
+      "method": "GET",
+      "path": "/api/profile/csrf",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core",
+      "auth": "public",
+      "request": null,
+      "responses": {
+        "200": "Csrf",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "413": "Error",
+        "415": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-10",
+      "visibility": "credential",
+      "limits": "Display name 1–50 and bio <=300 Unicode code points. Avatar multipart file <=10 MB, JPEG/PNG/GIF decoded, both dimensions >=200 px. Upload single-use, TTL15min. No-store on owner operations.",
+      "traceability": "docs/spec-p1/spec_10_int.md"
+    },
+    {
+      "id": "channels.csrf",
+      "method": "GET",
+      "path": "/api/channels/csrf",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core",
+      "auth": "public",
+      "request": null,
+      "responses": {
+        "200": "Csrf",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "413": "Error",
+        "415": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-10",
+      "visibility": "credential",
+      "limits": "Description <=500 Unicode code points. Banner file <=10 MB, decoded JPEG/PNG/GIF, recommended1200x480; upload single-use TTL15min. One bounded bootstrap request, no per-row remote calls.",
+      "traceability": "docs/spec-p1/spec_10_int.md"
+    },
+    {
+      "id": "accounts.register",
+      "method": "POST",
+      "path": "/api/identity/registrations",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core",
+      "auth": "csrf",
+      "request": "RegistrationRequest",
+      "responses": {
+        "201": "Registration",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "Idempotency-Key UUID; same normalized payload returns same IDs for 30 days",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-01",
+      "visibility": "public",
+      "limits": "Registration: handle 4–25 ASCII alphanumeric/underscore; password 12–128 Unicode code points, UTF-8 <=512 bytes; email <=400 input chars. UUID Idempotency-Key. Account quotas and CSRF per SPEC-01.",
+      "traceability": "docs/spec-p1/spec_01_auth.md"
+    },
+    {
+      "id": "accounts.registration",
+      "method": "GET",
+      "path": "/api/identity/registrations/{registrationId}",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core",
+      "auth": "idempotency-key",
+      "request": null,
+      "responses": {
+        "200": "Registration",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-01",
+      "visibility": "public",
+      "limits": "Registration: handle 4–25 ASCII alphanumeric/underscore; password 12–128 Unicode code points, UTF-8 <=512 bytes; email <=400 input chars. UUID Idempotency-Key. Account quotas and CSRF per SPEC-01.",
+      "traceability": "docs/spec-p1/spec_01_auth.md"
+    },
+    {
+      "id": "accounts.login",
+      "method": "POST",
+      "path": "/api/identity/sessions",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core",
+      "auth": "csrf",
+      "request": "LoginRequest",
+      "responses": {
+        "200": "Login",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-01",
+      "visibility": "credential",
+      "limits": "Registration: handle 4–25 ASCII alphanumeric/underscore; password 12–128 Unicode code points, UTF-8 <=512 bytes; email <=400 input chars. UUID Idempotency-Key. Account quotas and CSRF per SPEC-01.",
+      "traceability": "docs/spec-p1/spec_01_auth.md"
+    },
+    {
+      "id": "accounts.logout",
+      "method": "DELETE",
+      "path": "/api/identity/sessions/current",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core",
+      "auth": "session-csrf",
+      "request": null,
+      "responses": {
+        "204": null,
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "Revocation is idempotent",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-01",
+      "visibility": "public",
+      "limits": "Registration: handle 4–25 ASCII alphanumeric/underscore; password 12–128 Unicode code points, UTF-8 <=512 bytes; email <=400 input chars. UUID Idempotency-Key. Account quotas and CSRF per SPEC-01.",
+      "traceability": "docs/spec-p1/spec_01_auth.md"
+    },
+    {
+      "id": "accounts.public.handles",
+      "method": "GET",
+      "path": "/api/identity/public/handles/{handle}",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core",
+      "auth": "public",
+      "request": null,
+      "responses": {
+        "200": "PublicIdentity",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-01",
+      "visibility": "public",
+      "limits": "Registration: handle 4–25 ASCII alphanumeric/underscore; password 12–128 Unicode code points, UTF-8 <=512 bytes; email <=400 input chars. UUID Idempotency-Key. Account quotas and CSRF per SPEC-01.",
+      "traceability": "docs/spec-p1/spec_01_auth.md"
+    },
+    {
+      "id": "accounts.public.users",
+      "method": "GET",
+      "path": "/api/identity/public/users/{userId}",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core",
+      "auth": "public",
+      "request": null,
+      "responses": {
+        "200": "PublicIdentity",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-01",
+      "visibility": "public",
+      "limits": "Registration: handle 4–25 ASCII alphanumeric/underscore; password 12–128 Unicode code points, UTF-8 <=512 bytes; email <=400 input chars. UUID Idempotency-Key. Account quotas and CSRF per SPEC-01.",
+      "traceability": "docs/spec-p1/spec_01_auth.md"
+    },
+    {
+      "id": "profile.public",
+      "method": "GET",
+      "path": "/api/profile/users/{userId}",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core",
+      "auth": "public",
+      "request": null,
+      "responses": {
+        "200": "Profile",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "413": "Error",
+        "415": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-01",
+      "visibility": "public",
+      "limits": "Display name 1–50 and bio <=300 Unicode code points. Avatar multipart file <=10 MB, JPEG/PNG/GIF decoded, both dimensions >=200 px. Upload single-use, TTL15min. No-store on owner operations.",
+      "traceability": "docs/spec-p1/spec_01_auth.md"
+    },
+    {
+      "id": "profile.self",
+      "method": "GET",
+      "path": "/api/profile/me",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core",
+      "auth": "session",
+      "request": null,
+      "responses": {
+        "200": "Profile",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "413": "Error",
+        "415": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-01",
+      "visibility": "public",
+      "limits": "Display name 1–50 and bio <=300 Unicode code points. Avatar multipart file <=10 MB, JPEG/PNG/GIF decoded, both dimensions >=200 px. Upload single-use, TTL15min. No-store on owner operations.",
+      "traceability": "docs/spec-p1/spec_01_auth.md"
+    },
+    {
+      "id": "profile.patch",
+      "method": "PATCH",
+      "path": "/api/profile/me",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core",
+      "auth": "session-csrf",
+      "request": "ProfilePatch",
+      "responses": {
+        "200": "Profile",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "413": "Error",
+        "415": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-01",
+      "visibility": "public",
+      "limits": "Display name 1–50 and bio <=300 Unicode code points. Avatar multipart file <=10 MB, JPEG/PNG/GIF decoded, both dimensions >=200 px. Upload single-use, TTL15min. No-store on owner operations.",
+      "traceability": "docs/spec-p1/spec_01_auth.md"
+    },
+    {
+      "id": "profile.upload",
+      "method": "POST",
+      "path": "/api/profile/me/avatar-uploads",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core",
+      "auth": "session-csrf",
+      "request": "MultipartImage",
+      "responses": {
+        "201": "Upload",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "413": "Error",
+        "415": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-01",
+      "visibility": "public",
+      "limits": "Display name 1–50 and bio <=300 Unicode code points. Avatar multipart file <=10 MB, JPEG/PNG/GIF decoded, both dimensions >=200 px. Upload single-use, TTL15min. No-store on owner operations.",
+      "traceability": "docs/spec-p1/spec_01_auth.md"
+    },
+    {
+      "id": "profile.avatar",
+      "method": "GET",
+      "path": "/api/profile/avatars/{key}",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core",
+      "auth": "public",
+      "request": null,
+      "responses": {
+        "200": "Binary",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "406": "Error",
+        "413": "Error",
+        "415": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-01",
+      "visibility": "public",
+      "limits": "Display name 1–50 and bio <=300 Unicode code points. Avatar multipart file <=10 MB, JPEG/PNG/GIF decoded, both dimensions >=200 px. Upload single-use, TTL15min. No-store on owner operations.",
+      "traceability": "docs/spec-p1/spec_01_auth.md"
+    },
+    {
+      "id": "channels.by-handle",
+      "method": "GET",
+      "path": "/api/channels/by-handle/{handle}",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core",
+      "auth": "public",
+      "request": null,
+      "responses": {
+        "200": "ChannelBootstrap",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "413": "Error",
+        "415": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-03",
+      "visibility": "public",
+      "limits": "Description <=500 Unicode code points. Banner file <=10 MB, decoded JPEG/PNG/GIF, recommended1200x480; upload single-use TTL15min. One bounded bootstrap request, no per-row remote calls.",
+      "traceability": "docs/spec-p1/spec_03_channel.md"
+    },
+    {
+      "id": "channels.by-owner",
+      "method": "GET",
+      "path": "/api/channels/by-owner/{userId}",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core",
+      "auth": "public",
+      "request": null,
+      "responses": {
+        "200": "ChannelBootstrap",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "413": "Error",
+        "415": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-03",
+      "visibility": "public",
+      "limits": "Description <=500 Unicode code points. Banner file <=10 MB, decoded JPEG/PNG/GIF, recommended1200x480; upload single-use TTL15min. One bounded bootstrap request, no per-row remote calls.",
+      "traceability": "docs/spec-p1/spec_03_channel.md"
+    },
+    {
+      "id": "channels.by-id",
+      "method": "GET",
+      "path": "/api/channels/{channelId}",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core",
+      "auth": "public",
+      "request": null,
+      "responses": {
+        "200": "ChannelBootstrap",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "413": "Error",
+        "415": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-03",
+      "visibility": "public",
+      "limits": "Description <=500 Unicode code points. Banner file <=10 MB, decoded JPEG/PNG/GIF, recommended1200x480; upload single-use TTL15min. One bounded bootstrap request, no per-row remote calls.",
+      "traceability": "docs/spec-p1/spec_03_channel.md"
+    },
+    {
+      "id": "channels.patch",
+      "method": "PATCH",
+      "path": "/api/channels/{channelId}",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core",
+      "auth": "session-csrf",
+      "request": "ChannelPatch",
+      "responses": {
+        "200": "Channel",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "413": "Error",
+        "415": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-03",
+      "visibility": "public",
+      "limits": "Description <=500 Unicode code points. Banner file <=10 MB, decoded JPEG/PNG/GIF, recommended1200x480; upload single-use TTL15min. One bounded bootstrap request, no per-row remote calls.",
+      "traceability": "docs/spec-p1/spec_03_channel.md"
+    },
+    {
+      "id": "channels.upload",
+      "method": "POST",
+      "path": "/api/channels/{channelId}/banner-uploads",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core",
+      "auth": "session-csrf",
+      "request": "MultipartImage",
+      "responses": {
+        "201": "Upload",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "413": "Error",
+        "415": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-03",
+      "visibility": "public",
+      "limits": "Description <=500 Unicode code points. Banner file <=10 MB, decoded JPEG/PNG/GIF, recommended1200x480; upload single-use TTL15min. One bounded bootstrap request, no per-row remote calls.",
+      "traceability": "docs/spec-p1/spec_03_channel.md"
+    },
+    {
+      "id": "channels.banner",
+      "method": "GET",
+      "path": "/api/channels/banners/{key}",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core",
+      "auth": "public",
+      "request": null,
+      "responses": {
+        "200": "Binary",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "406": "Error",
+        "413": "Error",
+        "415": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-03",
+      "visibility": "public",
+      "limits": "Description <=500 Unicode code points. Banner file <=10 MB, decoded JPEG/PNG/GIF, recommended1200x480; upload single-use TTL15min. One bounded bootstrap request, no per-row remote calls.",
+      "traceability": "docs/spec-p1/spec_03_channel.md"
+    },
+    {
+      "id": "taxonomy.get",
+      "method": "GET",
+      "path": "/api/taxonomy",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core",
+      "auth": "public",
+      "request": null,
+      "responses": {"200": "Taxonomy", "503": "Error"},
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-06",
+      "visibility": "public",
+      "limits": "Active stable CATEGORY/TAG IDs; version/tombstones per SPEC-06; no IDs hardcoded by consumers.",
+      "traceability": "docs/spec-p1/spec_06_tax.md"
+    },
+    {
+      "id": "streams.create",
+      "method": "POST",
+      "path": "/api/channels/{channelId}/streams",
+      "provider": "Streaming",
+      "consumer": "Web",
+      "owner": "Streaming",
+      "auth": "session-origin-csrf",
+      "request": "StreamCreateRequest",
+      "responses": {
+        "201": "StreamCreated",
+        "200": "StreamCreated",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "Idempotency-Key UUID; existing config never reveals streamKey",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-04",
+      "visibility": "owner-secret",
+      "limits": "Title 1–100 code points; category required/active, 0–5 distinct active tag IDs. Owner mutations use session + same Origin + X-XSRF-TOKEN; create requires UUID Idempotency-Key. One config per channel, <=5 concurrent LIVE/RECONNECTING sessions.",
+      "traceability": "docs/spec-p1/spec_04_stream.md"
+    },
+    {
+      "id": "streams.config",
+      "method": "GET",
+      "path": "/api/channels/{channelId}/streams",
+      "provider": "Streaming",
+      "consumer": "Web",
+      "owner": "Streaming",
+      "auth": "session",
+      "request": null,
+      "responses": {
+        "200": "StreamConfig",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-04",
+      "visibility": "owner",
+      "limits": "Title 1–100 code points; category required/active, 0–5 distinct active tag IDs. Owner mutations use session + same Origin + X-XSRF-TOKEN; create requires UUID Idempotency-Key. One config per channel, <=5 concurrent LIVE/RECONNECTING sessions.",
+      "traceability": "docs/spec-p1/spec_04_stream.md"
+    },
+    {
+      "id": "streams.patch",
+      "method": "PATCH",
+      "path": "/api/streams/{streamId}",
+      "provider": "Streaming",
+      "consumer": "Web",
+      "owner": "Streaming",
+      "auth": "session-origin-csrf",
+      "request": "StreamPatchRequest",
+      "responses": {
+        "200": "StreamPatched",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-04",
+      "visibility": "public",
+      "limits": "Title 1–100 code points; category required/active, 0–5 distinct active tag IDs. Owner mutations use session + same Origin + X-XSRF-TOKEN; create requires UUID Idempotency-Key. One config per channel, <=5 concurrent LIVE/RECONNECTING sessions.",
+      "traceability": "docs/spec-p1/spec_04_stream.md"
+    },
+    {
+      "id": "streams.rotate",
+      "method": "POST",
+      "path": "/api/streams/{streamId}/ingest-keys/rotate",
+      "provider": "Streaming",
+      "consumer": "Web",
+      "owner": "Streaming",
+      "auth": "session-origin-csrf",
+      "request": null,
+      "responses": {
+        "200": "IngestKey",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-04",
+      "visibility": "owner-secret",
+      "limits": "Title 1–100 code points; category required/active, 0–5 distinct active tag IDs. Owner mutations use session + same Origin + X-XSRF-TOKEN; create requires UUID Idempotency-Key. One config per channel, <=5 concurrent LIVE/RECONNECTING sessions.",
+      "traceability": "docs/spec-p1/spec_04_stream.md"
+    },
+    {
+      "id": "streams.public",
+      "method": "GET",
+      "path": "/api/streams/{streamId}",
+      "provider": "Streaming",
+      "consumer": "Web",
+      "owner": "Streaming",
+      "auth": "public",
+      "request": null,
+      "responses": {
+        "200": "PublicStream",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-04",
+      "visibility": "public",
+      "limits": "Title 1–100 code points; category required/active, 0–5 distinct active tag IDs. Owner mutations use session + same Origin + X-XSRF-TOKEN; create requires UUID Idempotency-Key. One config per channel, <=5 concurrent LIVE/RECONNECTING sessions.",
+      "traceability": "docs/spec-p1/spec_04_stream.md"
+    },
+    {
+      "id": "streams.session",
+      "method": "GET",
+      "path": "/api/streams/sessions/{sessionId}",
+      "provider": "Streaming",
+      "consumer": "Web",
+      "owner": "Streaming",
+      "auth": "public",
+      "request": null,
+      "responses": {
+        "200": "PublicSession",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-04",
+      "visibility": "public",
+      "limits": "Title 1–100 code points; category required/active, 0–5 distinct active tag IDs. Owner mutations use session + same Origin + X-XSRF-TOKEN; create requires UUID Idempotency-Key. One config per channel, <=5 concurrent LIVE/RECONNECTING sessions.",
+      "traceability": "docs/spec-p1/spec_04_stream.md"
+    },
+    {
+      "id": "streams.stop",
+      "method": "DELETE",
+      "path": "/api/streams/sessions/{sessionId}",
+      "provider": "Streaming",
+      "consumer": "Web",
+      "owner": "Streaming",
+      "auth": "session-origin-csrf",
+      "request": null,
+      "responses": {
+        "204": null,
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "Ended remains terminal",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-04",
+      "visibility": "public",
+      "limits": "Title 1–100 code points; category required/active, 0–5 distinct active tag IDs. Owner mutations use session + same Origin + X-XSRF-TOKEN; create requires UUID Idempotency-Key. One config per channel, <=5 concurrent LIVE/RECONNECTING sessions.",
+      "traceability": "docs/spec-p1/spec_04_stream.md"
+    },
+    {
+      "id": "viewers.create",
+      "method": "POST",
+      "path": "/api/streams/sessions/{sessionId}/viewer-leases",
+      "provider": "Streaming",
+      "consumer": "Web",
+      "owner": "Streaming",
+      "auth": "idempotency-key",
+      "request": null,
+      "responses": {
+        "201": "ViewerLease",
+        "200": "ViewerLease",
+        "400": "Error",
+        "401": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "500": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "Same UUID yields same lease; after first frame only",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-04",
+      "visibility": "credential",
+      "limits": "Create only after first decoded frame; UUID Idempotency-Key, heartbeat10s, expiry30s. Authorization: ViewerLease <leaseToken> on heartbeat/close. Lease is browser runtime state, not account credential.",
+      "traceability": "docs/spec-p1/spec_04_stream.md"
+    },
+    {
+      "id": "viewers.heartbeat",
+      "method": "PUT",
+      "path": "/api/streams/viewer-leases/{leaseId}/heartbeat",
+      "provider": "Streaming",
+      "consumer": "Web",
+      "owner": "Streaming",
+      "auth": "viewer-lease",
+      "request": null,
+      "responses": {
+        "200": "LeaseHeartbeat",
+        "400": "Error",
+        "401": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "500": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-04",
+      "visibility": "credential",
+      "limits": "Create only after first decoded frame; UUID Idempotency-Key, heartbeat10s, expiry30s. Authorization: ViewerLease <leaseToken> on heartbeat/close. Lease is browser runtime state, not account credential.",
+      "traceability": "docs/spec-p1/spec_04_stream.md"
+    },
+    {
+      "id": "viewers.close",
+      "method": "DELETE",
+      "path": "/api/streams/viewer-leases/{leaseId}",
+      "provider": "Streaming",
+      "consumer": "Web",
+      "owner": "Streaming",
+      "auth": "viewer-lease",
+      "request": null,
+      "responses": {
+        "204": null,
+        "400": "Error",
+        "401": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "500": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "Closing a lease is idempotent",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-04",
+      "visibility": "public",
+      "limits": "Create only after first decoded frame; UUID Idempotency-Key, heartbeat10s, expiry30s. Authorization: ViewerLease <leaseToken> on heartbeat/close. Lease is browser runtime state, not account credential.",
+      "traceability": "docs/spec-p1/spec_04_stream.md"
+    },
+    {
+      "id": "discovery.graphql",
+      "method": "POST",
+      "path": "/api/discovery/graphql",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core",
+      "auth": "public",
+      "request": "GraphQLRequest",
+      "responses": {
+        "200": "GraphQLResponse",
+        "400": "Error",
+        "415": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-07",
+      "visibility": "public",
+      "limits": "JSON <=16KiB; streams/channels once each, no aliases/fragments/introspection; limit default20/max50 each, combined<=100; q/categoryId/tagId/limit/cursor arguments in SDL.600 requests/IP/60s and20 burst. Cursor bound to filters; streams snapshot TTL5min.",
+      "traceability": "docs/spec-p1/spec_07_disc.md"
+    },
+    {
+      "id": "chat.history",
+      "method": "GET",
+      "path": "/api/chat/sessions/{sessionId}/messages",
+      "provider": "Chat",
+      "consumer": "Web",
+      "owner": "Chat",
+      "auth": "public",
+      "request": null,
+      "responses": {
+        "200": "ChatHistory",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-05",
+      "visibility": "public",
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history.",
+      "traceability": "docs/spec-p1/spec_05_chat.md"
+    },
+    {
+      "id": "chat.websocket",
+      "method": "GET",
+      "path": "/realtime/chat/sessions/{sessionId}",
+      "provider": "Chat",
+      "consumer": "Web",
+      "owner": "Chat",
+      "auth": "origin",
+      "request": null,
+      "responses": {
+        "101": null,
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-05",
+      "visibility": "public",
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history.",
+      "traceability": "docs/spec-p1/spec_05_chat.md"
+    },
+    {
+      "id": "chat.frame.ChatReady",
+      "method": "FRAME",
+      "path": "/realtime/chat/sessions/{sessionId}#ChatReady",
+      "provider": "Chat",
+      "consumer": "Web",
+      "owner": "Chat",
+      "auth": "origin",
+      "request": null,
+      "responses": {"frame": "ChatReady"},
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-05",
+      "visibility": "public",
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history."
+    },
+    {
+      "id": "chat.frame.ChatStatus",
+      "method": "FRAME",
+      "path": "/realtime/chat/sessions/{sessionId}#ChatStatus",
+      "provider": "Chat",
+      "consumer": "Web",
+      "owner": "Chat",
+      "auth": "origin",
+      "request": null,
+      "responses": {"frame": "ChatStatus"},
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-05",
+      "visibility": "public",
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history."
+    },
+    {
+      "id": "chat.frame.MessageAccepted",
+      "method": "FRAME",
+      "path": "/realtime/chat/sessions/{sessionId}#MessageAccepted",
+      "provider": "Chat",
+      "consumer": "Web",
+      "owner": "Chat",
+      "auth": "origin",
+      "request": null,
+      "responses": {"frame": "MessageAccepted"},
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-05",
+      "visibility": "public",
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history."
+    },
+    {
+      "id": "chat.frame.MessageCreated",
+      "method": "FRAME",
+      "path": "/realtime/chat/sessions/{sessionId}#MessageCreated",
+      "provider": "Chat",
+      "consumer": "Web",
+      "owner": "Chat",
+      "auth": "origin",
+      "request": null,
+      "responses": {"frame": "MessageCreated"},
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-05",
+      "visibility": "public",
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history."
+    },
+    {
+      "id": "chat.frame.ChatError",
+      "method": "FRAME",
+      "path": "/realtime/chat/sessions/{sessionId}#ChatError",
+      "provider": "Chat",
+      "consumer": "Web",
+      "owner": "Chat",
+      "auth": "origin",
+      "request": null,
+      "responses": {"frame": "ChatError"},
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-05",
+      "visibility": "public",
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history."
+    },
+    {
+      "id": "chat.frame.send",
+      "method": "FRAME",
+      "path": "/realtime/chat/sessions/{sessionId}#message.send",
+      "provider": "Chat",
+      "consumer": "Web",
+      "owner": "Chat",
+      "auth": "origin-session",
+      "request": "MessageSend",
+      "responses": {"frame": "MessageAccepted"},
+      "timeoutMs": 2000,
+      "idempotency": "(sessionId,userId,clientMessageId) while retained; conflict if text differs",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-05",
+      "visibility": "public",
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history."
+    },
+    {
+      "id": "chat.context",
+      "method": "POST",
+      "path": "/internal/core/chat/message-context",
+      "provider": "Core",
+      "consumer": "Chat",
+      "owner": "Core",
+      "auth": "chat-service",
+      "request": "ChatContextRequest",
+      "responses": {
+        "200": "ChatContext",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "timeoutMs": 400,
+      "idempotency": "none",
+      "recovery": "Fail closed; Core unavailable CORE_UNAVAILABLE; Streaming unavailable STREAMING_UNAVAILABLE; no retry/cache",
+      "spec": "SPEC-11",
+      "visibility": "private",
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history.",
+      "traceability": "docs/spec-p1/spec_11_int.md"
+    },
+    {
+      "id": "chat.snapshot",
+      "method": "GET",
+      "path": "/internal/core/chat/sessions/{sessionId}",
+      "provider": "Core",
+      "consumer": "Chat",
+      "owner": "Core",
+      "auth": "chat-service",
+      "request": null,
+      "responses": {
+        "200": "ChatSnapshot",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "timeoutMs": 400,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-11",
+      "visibility": "private",
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history.",
+      "traceability": "docs/spec-p1/spec_11_int.md"
+    },
+    {
+      "id": "chat.lifecycle",
+      "method": "POST",
+      "path": "/internal/chat/session-events",
+      "provider": "Chat",
+      "consumer": "Streaming",
+      "owner": "Chat",
+      "auth": "streaming-service",
+      "request": "LifecycleEvent",
+      "responses": {
+        "202": "EventAck",
+        "200": "EventAck",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "timeoutMs": 1000,
+      "idempotency": "eventId/payload; aggregate/sessionVersion; no auth grant",
+      "recovery": "Retry 1/2/5/10s then 10s, Retry-After, 15min; durable DLQ, alert after 5s; manual redrive same ID",
+      "spec": "SPEC-11",
+      "visibility": "private",
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history.",
+      "traceability": "docs/spec-p1/spec_11_int.md"
+    },
+    {
+      "id": "core.owner",
+      "method": "POST",
+      "path": "/internal/core/streaming/owner-context",
+      "provider": "Core",
+      "consumer": "Streaming",
+      "owner": "Core",
+      "auth": "streaming-owner-token",
+      "request": "OwnerRequest",
+      "responses": {
+        "200": "OwnerContext",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "422": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 1000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-10",
+      "visibility": "private",
+      "limits": "Owner commandId UUID, operation enum; <=5 distinct tag IDs. Catalog ids1–50; session passed X-Session-Credential, never URL/body/log. Service X-Service-Name/X-Service-Token with per-route scopes.",
+      "traceability": "docs/spec-p1/spec_10_int.md"
+    },
+    {
+      "id": "core.catalog",
+      "method": "POST",
+      "path": "/internal/core/streaming/catalog-values",
+      "provider": "Core",
+      "consumer": "Streaming",
+      "owner": "Core",
+      "auth": "streaming-or-catalog-token",
+      "request": "CatalogRequest",
+      "responses": {"200": "CatalogValues", "400": "Error", "401": "Error", "422": "Error", "503": "Error"},
+      "timeoutMs": 1000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-10",
+      "visibility": "private",
+      "limits": "Owner commandId UUID, operation enum; <=5 distinct tag IDs. Catalog ids1–50; session passed X-Session-Credential, never URL/body/log. Service X-Service-Name/X-Service-Token with per-route scopes.",
+      "traceability": "docs/spec-p1/spec_10_int.md"
+    },
+    {
+      "id": "streaming.context",
+      "method": "GET",
+      "path": "/internal/streaming/sessions/{sessionId}/context",
+      "provider": "Streaming",
+      "consumer": "Core",
+      "owner": "Streaming",
+      "auth": "core-consumer-bearer",
+      "request": null,
+      "responses": {"200": "SessionContext", "401": "Error", "404": "Error", "503": "Error"},
+      "timeoutMs": 200,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-11",
+      "visibility": "private",
+      "limits": "Private Core Bearer; channels batch1–50 IDs; snapshot limit1–50/cursor opaque, cut TTL5min. Session context is uncached and versioned; no identity/credential fields.",
+      "traceability": "docs/spec-p1/spec_11_int.md"
+    },
+    {
+      "id": "streaming.channels",
+      "method": "POST",
+      "path": "/internal/streaming/channels/snapshots",
+      "provider": "Streaming",
+      "consumer": "Core",
+      "owner": "Streaming",
+      "auth": "core-consumer-bearer",
+      "request": "ChannelBatchRequest",
+      "responses": {
+        "200": "ChannelBatch",
+        "400": "Error",
+        "401": "Error",
+        "404": "Error",
+        "410": "Error",
+        "422": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 1000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-11",
+      "visibility": "private",
+      "limits": "Private Core Bearer; channels batch1–50 IDs; snapshot limit1–50/cursor opaque, cut TTL5min. Session context is uncached and versioned; no identity/credential fields.",
+      "traceability": "docs/spec-p1/spec_11_int.md"
+    },
+    {
+      "id": "streaming.discovery-page",
+      "method": "POST",
+      "path": "/internal/streaming/discovery/snapshots",
+      "provider": "Streaming",
+      "consumer": "Core",
+      "owner": "Streaming",
+      "auth": "core-consumer-bearer",
+      "request": "SnapshotRequest",
+      "responses": {
+        "200": "DiscoveryPage",
+        "400": "Error",
+        "401": "Error",
+        "404": "Error",
+        "410": "Error",
+        "422": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Consistent 5min snapshot/watermark; 410 restarts cut; inbox stays active",
+      "spec": "SPEC-11",
+      "visibility": "private",
+      "limits": "Private Core Bearer; channels batch1–50 IDs; snapshot limit1–50/cursor opaque, cut TTL5min. Session context is uncached and versioned; no identity/credential fields.",
+      "traceability": "docs/spec-p1/spec_11_int.md"
+    },
+    {
+      "id": "core.discovery-event",
+      "method": "POST",
+      "path": "/internal/core/discovery/stream-events",
+      "provider": "Core",
+      "consumer": "Streaming",
+      "owner": "Core",
+      "auth": "streaming-service",
+      "request": "DiscoveryEvent",
+      "responses": {
+        "202": "EventAck",
+        "200": "EventAck",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 1000,
+      "idempotency": "eventId/payload + projectionVersion",
+      "recovery": "Retry 1/2/5/10s then 10s, Retry-After, 15min; durable DLQ and watermark rebuild",
+      "spec": "SPEC-11",
+      "visibility": "private",
+      "limits": "Owner commandId UUID, operation enum; <=5 distinct tag IDs. Catalog ids1–50; session passed X-Session-Credential, never URL/body/log. Service X-Service-Name/X-Service-Token with per-route scopes.",
+      "traceability": "docs/spec-p1/spec_11_int.md"
+    },
+    {
+      "id": "media.ingest",
+      "method": "POST",
+      "path": "/internal/streaming/ingest/authorize",
+      "provider": "Streaming",
+      "consumer": "MediaAdapter",
+      "owner": "Streaming",
+      "auth": "media-bearer",
+      "request": "IngestRequest",
+      "responses": {
+        "200": "IngestAuthorization",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "422": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "ingestAttemptId; same source/session/generations",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-04",
+      "visibility": "private",
+      "limits": "Private callbacks/ingest body <=2048bytes, UUID eventId/ingestAttemptId, generations >=1; source and session must match. HLS only canonical relative paths, GET/ranges/cache/MIME verified with real bytes.",
+      "traceability": "docs/spec-p1/spec_04_stream.md"
+    },
+    {
+      "id": "media.source-connected",
+      "method": "POST",
+      "path": "/internal/streaming/sessions/{sessionId}/source-connected",
+      "provider": "Streaming",
+      "consumer": "MediaAdapter",
+      "owner": "Streaming",
+      "auth": "media-bearer",
+      "request": "MediaCallback",
+      "responses": {
+        "202": "CallbackAck",
+        "200": "CallbackAck",
+        "410": "Error",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "eventId + exact payload; stale generation ignored",
+      "recovery": "100/250/500/1000/2000ms then2s up to15min; alert30s; 410 terminal; durable DLQ/redrive same ID",
+      "spec": "SPEC-04",
+      "visibility": "private",
+      "limits": "Private callbacks/ingest body <=2048bytes, UUID eventId/ingestAttemptId, generations >=1; source and session must match. HLS only canonical relative paths, GET/ranges/cache/MIME verified with real bytes.",
+      "traceability": "docs/spec-p1/spec_04_stream.md"
+    },
+    {
+      "id": "media.playback-ready",
+      "method": "POST",
+      "path": "/internal/streaming/sessions/{sessionId}/playback-ready",
+      "provider": "Streaming",
+      "consumer": "MediaAdapter",
+      "owner": "Streaming",
+      "auth": "media-bearer",
+      "request": "PlaybackCallback",
+      "responses": {
+        "202": "CallbackAck",
+        "200": "CallbackAck",
+        "410": "Error",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "eventId + exact payload; stale generation ignored",
+      "recovery": "100/250/500/1000/2000ms then2s up to15min; alert30s; 410 terminal; durable DLQ/redrive same ID",
+      "spec": "SPEC-04",
+      "visibility": "private",
+      "limits": "Private callbacks/ingest body <=2048bytes, UUID eventId/ingestAttemptId, generations >=1; source and session must match. HLS only canonical relative paths, GET/ranges/cache/MIME verified with real bytes.",
+      "traceability": "docs/spec-p1/spec_04_stream.md"
+    },
+    {
+      "id": "media.source-lost",
+      "method": "POST",
+      "path": "/internal/streaming/sessions/{sessionId}/source-lost",
+      "provider": "Streaming",
+      "consumer": "MediaAdapter",
+      "owner": "Streaming",
+      "auth": "media-bearer",
+      "request": "MediaCallback",
+      "responses": {
+        "202": "CallbackAck",
+        "200": "CallbackAck",
+        "410": "Error",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "eventId + exact payload; stale generation ignored",
+      "recovery": "100/250/500/1000/2000ms then2s up to15min; alert30s; 410 terminal; durable DLQ/redrive same ID",
+      "spec": "SPEC-04",
+      "visibility": "private",
+      "limits": "Private callbacks/ingest body <=2048bytes, UUID eventId/ingestAttemptId, generations >=1; source and session must match. HLS only canonical relative paths, GET/ranges/cache/MIME verified with real bytes.",
+      "traceability": "docs/spec-p1/spec_04_stream.md"
+    },
+    {
+      "id": "media.auth",
+      "method": "POST",
+      "path": "/internal/media/auth",
+      "provider": "MediaAdapter",
+      "consumer": "MediaMTX",
+      "owner": "MediaAdapter",
+      "auth": "mediamtx-bearer",
+      "request": "MediaAuthRequest",
+      "responses": {"204": null, "400": "Error", "401": "Error", "403": "Error", "503": "Error"},
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-04",
+      "visibility": "private",
+      "limits": "Private callbacks/ingest body <=2048bytes, UUID eventId/ingestAttemptId, generations >=1; source and session must match. HLS only canonical relative paths, GET/ranges/cache/MIME verified with real bytes.",
+      "traceability": "docs/spec-p1/spec_04_stream.md"
+    },
+    {
+      "id": "media.hls",
+      "method": "GET",
+      "path": "/hls/{sessionId}/{file}",
+      "provider": "MediaAdapter",
+      "consumer": "Web",
+      "owner": "MediaAdapter",
+      "auth": "public",
+      "request": null,
+      "responses": {
+        "200": "Binary",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "422": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-04",
+      "visibility": "public",
+      "limits": "Private callbacks/ingest body <=2048bytes, UUID eventId/ingestAttemptId, generations >=1; source and session must match. HLS only canonical relative paths, GET/ranges/cache/MIME verified with real bytes.",
+      "traceability": "docs/spec-p1/spec_04_stream.md"
+    },
+    {
+      "id": "core.health",
+      "method": "GET",
+      "path": "/actuator/health",
+      "provider": "Core",
+      "consumer": "Deployment",
+      "owner": "Core",
+      "auth": "public",
+      "request": null,
+      "responses": {"200": "Health", "503": "Health"},
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-13",
+      "visibility": "operational",
+      "limits": "Owner commandId UUID, operation enum; <=5 distinct tag IDs. Catalog ids1–50; session passed X-Session-Credential, never URL/body/log. Service X-Service-Name/X-Service-Token with per-route scopes."
+    },
+    {
+      "id": "streaming.live",
+      "method": "GET",
+      "path": "/health/live",
+      "provider": "Streaming",
+      "consumer": "Deployment",
+      "owner": "Streaming",
+      "auth": "public",
+      "request": null,
+      "responses": {"200": "Health", "503": "Error"},
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-13",
+      "visibility": "operational",
+      "limits": "Private Core Bearer; channels batch1–50 IDs; snapshot limit1–50/cursor opaque, cut TTL5min. Session context is uncached and versioned; no identity/credential fields."
+    },
+    {
+      "id": "streaming.ready",
+      "method": "GET",
+      "path": "/health/ready",
+      "provider": "Streaming",
+      "consumer": "Deployment",
+      "owner": "Streaming",
+      "auth": "public",
+      "request": null,
+      "responses": {"200": "Health", "503": "Error"},
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-13",
+      "visibility": "operational",
+      "limits": "Private Core Bearer; channels batch1–50 IDs; snapshot limit1–50/cursor opaque, cut TTL5min. Session context is uncached and versioned; no identity/credential fields."
+    },
+    {
+      "id": "chat.healthz",
+      "method": "GET",
+      "path": "/healthz",
+      "provider": "Chat",
+      "consumer": "Deployment",
+      "owner": "Chat",
+      "auth": "public",
+      "request": null,
+      "responses": {"200": "Health", "503": "Health"},
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-13",
+      "visibility": "operational",
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history."
+    },
+    {
+      "id": "chat.readyz",
+      "method": "GET",
+      "path": "/readyz",
+      "provider": "Chat",
+      "consumer": "Deployment",
+      "owner": "Chat",
+      "auth": "public",
+      "request": null,
+      "responses": {"200": "Health", "503": "Health"},
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-13",
+      "visibility": "operational",
+      "limits": "Session-scoped; history query limit1–50, default50; response snapshotSequence is the merge watermark. Send trimmed Unicode1–500 code points; UUID clientMessageId; One accepted message/account in every rolling1000ms globally, no burst. Core <=400ms including Streaming<=200ms; request-start-to-commit-attempt <=500ms (local monotonic deadline). Ended retained5min, no TTL renewal by history."
+    },
+    {
+      "id": "mediaadapter.live",
+      "method": "GET",
+      "path": "/health/live",
+      "provider": "MediaAdapter",
+      "consumer": "Deployment",
+      "owner": "MediaAdapter",
+      "auth": "public",
+      "request": null,
+      "responses": {"200": null, "503": null},
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-13",
+      "visibility": "operational",
+      "limits": "Readiness uses dependency status; no credentials in response; no browser business action."
+    },
+    {
+      "id": "mediaadapter.ready",
+      "method": "GET",
+      "path": "/health/ready",
+      "provider": "MediaAdapter",
+      "consumer": "Deployment",
+      "owner": "MediaAdapter",
+      "auth": "public",
+      "request": null,
+      "responses": {"200": null, "503": null},
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-13",
+      "visibility": "operational",
+      "limits": "Readiness uses dependency status; no credentials in response; no browser business action."
+    },
+    {
+      "id": "motor.info",
+      "method": "GET",
+      "path": "/v3/info",
+      "provider": "MediaMTX",
+      "consumer": "MediaAdapter/Streaming",
+      "owner": "MediaMTX",
+      "auth": "private-basic",
+      "request": null,
+      "responses": {"200": "MediaControlStatus", "400": "MediaControlError", "401": "MediaControlError", "404": "MediaControlError"},
+      "timeoutMs": 2000,
+      "idempotency": "Read-only",
+      "recovery": "404 missing resource; other failures remain unavailable; never publish private control API",
+      "spec": "SPEC-04",
+      "visibility": "private",
+      "limits": "Control API is private and version-pinned by MediaMTX image; Basic service credential. Path response <=64KiB; publisherId UUID, ingestPath live/{streamId}. HLS transport bytes and readiness must be verified, not schema alone."
+    },
+    {
+      "id": "motor.path",
+      "method": "GET",
+      "path": "/v3/paths/get/{ingestPath}",
+      "provider": "MediaMTX",
+      "consumer": "MediaAdapter/Streaming",
+      "owner": "MediaMTX",
+      "auth": "private-basic",
+      "request": null,
+      "responses": {"200": "MediaPath", "400": "MediaControlError", "401": "MediaControlError", "404": "MediaControlError"},
+      "timeoutMs": 2000,
+      "idempotency": "Read-only",
+      "recovery": "404 missing resource; other failures remain unavailable; never publish private control API",
+      "spec": "SPEC-04",
+      "visibility": "private",
+      "limits": "Control API is private and version-pinned by MediaMTX image; Basic service credential. Path response <=64KiB; publisherId UUID, ingestPath live/{streamId}. HLS transport bytes and readiness must be verified, not schema alone."
+    },
+    {
+      "id": "motor.publisher",
+      "method": "GET",
+      "path": "/v3/rtmp/conns/get/{publisherId}",
+      "provider": "MediaMTX",
+      "consumer": "MediaAdapter/Streaming",
+      "owner": "MediaMTX",
+      "auth": "private-basic",
+      "request": null,
+      "responses": {"200": "MediaControlStatus", "400": "MediaControlError", "401": "MediaControlError", "404": "MediaControlError"},
+      "timeoutMs": 2000,
+      "idempotency": "Read-only",
+      "recovery": "404 missing resource; other failures remain unavailable; never publish private control API",
+      "spec": "SPEC-04",
+      "visibility": "private",
+      "limits": "Control API is private and version-pinned by MediaMTX image; Basic service credential. Path response <=64KiB; publisherId UUID, ingestPath live/{streamId}. HLS transport bytes and readiness must be verified, not schema alone."
+    },
+    {
+      "id": "motor.kick",
+      "method": "POST",
+      "path": "/v3/rtmp/conns/kick/{publisherId}",
+      "provider": "MediaMTX",
+      "consumer": "MediaAdapter/Streaming",
+      "owner": "MediaMTX",
+      "auth": "private-basic",
+      "request": null,
+      "responses": {"200": null, "400": "MediaControlError", "401": "MediaControlError", "404": "MediaControlError"},
+      "timeoutMs": 2000,
+      "idempotency": "Kick missing publisher is terminal success",
+      "recovery": "404 missing resource; other failures remain unavailable; never publish private control API",
+      "spec": "SPEC-04",
+      "visibility": "private",
+      "limits": "Control API is private and version-pinned by MediaMTX image; Basic service credential. Path response <=64KiB; publisherId UUID, ingestPath live/{streamId}. HLS transport bytes and readiness must be verified, not schema alone."
+    },
+    {
+      "id": "motor.hls",
+      "method": "GET",
+      "path": "/{ingestPath}/{file}",
+      "provider": "MediaMTX",
+      "consumer": "MediaAdapter",
+      "owner": "MediaMTX",
+      "auth": "private-network",
+      "request": null,
+      "responses": {"200": "Binary", "206": "Binary", "404": "Binary"},
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Manifest <=128KiB; initialization/media <=8MiB; real decoded-frame evidence before LIVE",
+      "spec": "SPEC-04",
+      "visibility": "private",
+      "limits": "Control API is private and version-pinned by MediaMTX image; Basic service credential. Path response <=64KiB; publisherId UUID, ingestPath live/{streamId}. HLS transport bytes and readiness must be verified, not schema alone."
+    }
+  ],
+  "localInterfaces": [
+    {
+      "id": "core.registration-transaction",
+      "provider": "Cuentas/Canales",
+      "consumer": "Cuentas",
+      "owner": "Core",
+      "contract": "IdentityStore + ChannelInitializer; one PostgreSQL transaction, rollback/idempotency/FK"
+    },
+    {
+      "id": "core.catalog-selection",
+      "provider": "Catálogo",
+      "consumer": "Canales/Discovery",
+      "owner": "Catálogo",
+      "contract": "CatalogContexts/CatalogSelections/CatalogValues; typed active IDs and tombstones, local SQL snapshot"
+    },
+    {
+      "id": "core.public-reads",
+      "provider": "Cuentas/Canales",
+      "consumer": "Canales/Discovery/Chat context",
+      "owner": "Core modules",
+      "contract": "Published DTO/read model, explicit SQL columns; no credential columns or external SQL access"
+    }
+  ],
+  "graphqlQueries": [
+    {
+      "name": "LiveStreams",
+      "query": "query LiveStreams($q:String,$categoryId:ID,$tagId:ID,$limit:Int,$cursor:String){streams(q:$q,categoryId:$categoryId,tagId:$tagId,limit:$limit,cursor:$cursor){items{streamId sessionId channel{channelId handle displayName avatarUri} title category{id name} tags{id name} status availability viewerCount viewerCountFresh viewerCountObservedAtUtc startedAtUtc metadataVersion sessionVersion statusFresh} nextCursor generatedAtUtc statusFresh}}"
+    },
+    {
+      "name": "Channels",
+      "query": "query Channels($q:String,$limit:Int,$cursor:String){channels(q:$q,limit:$limit,cursor:$cursor){items{channelId userId handle displayName avatarUri status availability title channelVersion metadataVersion sessionVersion statusFresh} nextCursor generatedAtUtc statusFresh}}"
+    }
+  ],
+  "negativeExamples": [
+    {"name": "null-category", "schema": "StreamCreateRequest", "value": {"title": "En vivo", "categoryId": null}},
+    {
+      "name": "six-tags",
+      "schema": "StreamCreateRequest",
+      "value": {
+        "title": "En vivo",
+        "categoryId": "cat_00000000000000000000000000000001",
+        "tagIds": ["tag_0", "tag_1", "tag_2", "tag_3", "tag_4", "tag_5"]
+      }
+    },
+    {"name": "empty-patch", "schema": "StreamPatchRequest", "value": {}},
+    {
+      "name": "invalid-event-id",
+      "schema": "MediaCallback",
+      "value": {
+        "eventId": "not-a-uuid",
+        "streamId": "str_fixture",
+        "sessionId": "ses_fixture",
+        "streamGeneration": 1,
+        "sourceGeneration": 1
+      }
+    },
+    {
+      "name": "public-secret",
+      "schema": "PublicStream",
+      "public": true,
+      "value": {
+        "streamId": "str_fixture",
+        "channelId": "chn_fixture",
+        "sessionId": "ses_fixture",
+        "streamGeneration": 1,
+        "title": "Conversación",
+        "category": {"id": "cat_00000000000000000000000000000001", "name": "Conversación"},
+        "tags": [],
+        "status": "LIVE",
+        "availability": "PLAYABLE",
+        "statusFresh": true,
+        "metadataVersion": 1,
+        "sessionVersion": 1,
+        "viewerCount": 1,
+        "countVersion": 1,
+        "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z",
+        "streamKey": "fictitious-secret"
+      }
+    },
+    {
+      "name": "message-too-long",
+      "schema": "MessageSend",
+      "value": {
+        "type": "message.send",
+        "clientMessageId": "00000000-0000-4000-8000-000000000001",
+        "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "name": "negative-sequence",
+      "schema": "ChatMessage",
+      "value": {
+        "messageId": "msg_fixture",
+        "sessionId": "ses_fixture",
+        "sequence": -1,
+        "author": {"userId": "usr_fixture", "handle": "fixture_01", "displayName": "Fixture", "avatarUri": null},
+        "text": "Hola",
+        "serverCreatedAtUtc": "2026-10-08T20:00:00Z",
+        "streamOffsetMs": 1000,
+        "streamGeneration": 1
+      }
+    },
+    {
+      "name": "invalid-utc",
+      "schema": "ChatMessage",
+      "value": {
+        "messageId": "msg_fixture",
+        "sessionId": "ses_fixture",
+        "sequence": 1,
+        "author": {"userId": "usr_fixture", "handle": "fixture_01", "displayName": "Fixture", "avatarUri": null},
+        "text": "Hola",
+        "serverCreatedAtUtc": "tomorrow",
+        "streamOffsetMs": 1000,
+        "streamGeneration": 1
+      }
+    },
+    {
+      "name": "owner-create-missing-category",
+      "schema": "OwnerRequest",
+      "value": {"commandId": "00000000-0000-4000-8000-000000000001", "operation": "CREATE_CONFIG", "channelId": "chn_fixture"}
+    }
+  ]
+}

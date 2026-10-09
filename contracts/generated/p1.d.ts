@@ -1,4 +1,4 @@
-// Generated from docs/contratos_modelo_datos.md by contracts/generate.py; do not edit.
+// Generated from contracts/p1.json and the canonical GraphQL SDL; do not edit.
 export type ActiveTaxonomyValue = { "id": string; "name": string; "active": true };
 export type Binary = string;
 export type BootstrapStream = { "streamId": string; "channelId": string; "sessionId": string | null; "streamGeneration": number; "title": string; "category": TaxonomyLabel; "tags": Array<TaxonomyLabel>; "status": "OFFLINE" | "PREPARING" | "LIVE" | "ENDED"; "availability": "OFFLINE" | "PLAYABLE" | "RECONNECTING"; "statusFresh": boolean; "metadataVersion": number; "sessionVersion": number | null; "viewerCount"?: number | null; "countVersion"?: number | null; "viewerCountObservedAtUtc"?: string | null; "session": PublicSession | null };

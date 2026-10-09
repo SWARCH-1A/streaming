@@ -150,31 +150,6 @@ Los resultados quedan bajo `services/core/target/surefire-reports` y `failsafe-r
 versionan. Solo una ejecución exitosa acredita los checks; el perfil integrado P1 de SPEC-13 se
 verifica aparte cuando estén sus consumidores.
 
-## Plane mediante MCP
-
-Plane organiza trabajo y no participa en el arranque o pruebas de Core. El servidor oficial usa
-`uvx plane-mcp-server stdio`; su registro local en la configuración del cliente MCP contiene:
-
-```toml
-[mcp_servers.plane]
-command = "uvx"
-args = ["plane-mcp-server", "stdio"]
-enabled = false
-env_vars = ["PLANE_API_KEY"]
-
-[mcp_servers.plane.env]
-PLANE_BASE_URL = "https://plane.ivant.dev"
-PLANE_WORKSPACE_SLUG = "sw-architecture-2026-2"
-```
-
-En Codex esta configuración vive en el archivo local del usuario `.codex/config.toml`; si `uvx`
-no está en su PATH, `command` debe usar la ruta absoluta de la instalación local. `PLANE_API_KEY`
-pertenece al entorno privado del cliente MCP, nunca al repositorio ni a `infra/local/.env`.
-El servidor no carga ese `.env` automáticamente. Habilitar el registro solo cuando la credencial
-esté disponible en el proceso cliente; reiniciar el cliente tras modificar sus variables de usuario.
-La ausencia de credencial mantiene Plane deshabilitado y permite continuar con desarrollo/pruebas.
-Usar exclusivamente MCP y el proyecto STREAMING; conservar responsables y relaciones existentes.
-
 ## Detener conservando datos
 
 ```powershell

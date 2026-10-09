@@ -2,7 +2,7 @@
 
 - Estado: aceptada
 - Fecha: 2026-10-08
-- Responsable: Web / integración, por encargo explícito del usuario
+- Responsable: Web / integración
 - SDD/contratos afectados: SPEC-01, SPEC-03, SPEC-04, SPEC-05, SPEC-06, SPEC-07, SPEC-08, SPEC-12/13
 
 ## Contexto

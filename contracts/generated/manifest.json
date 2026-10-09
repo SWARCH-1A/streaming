@@ -1,12 +1,13 @@
 {
+  "semantics": "docs/contratos_modelo_datos.md",
   "sha256": {
     "discovery.graphqls": "963c1bcea2ca4b9d8506bf7610915a7c5edc4c6611cdf39d865cc63b97137d23",
     "graphql-queries.json": "7483c15a0c662a0f844156d4c17e63c4b1f0bf4cc6cdde0c496e7a1a8ff7185b",
     "local-interfaces.json": "1d46fcef39a1a8bda27c42f06e210dd8ac2908a7722b39c454419f53d6ef6ecd",
-    "operations.json": "77b0352c70103af42b9fc1f1a67c5d6cccbbc666eb298c271d1646dcb07d2587",
-    "p1.d.ts": "c74d0f7e28d8f51cb34ebc665ab0007a8283d7aea99931c1df72a61626cdf660",
-    "p1.schema.json": "43ea4af96c3ca26d2fc513f547e0d6f3e5ee294173e71d0708d2c0c17b502f92"
+    "operations.json": "86931eeadf6b75760a40dd6c3debd6ce50e6e4165ecf6b7d3f5e717fc0df258d",
+    "p1.d.ts": "6ec12da542181684edf30889d89ee19752b9795e80b5ae2c60090a3305872348",
+    "p1.schema.json": "2b4d0e61617603daccee0f4382eab3520941a576a713a0848305c956b024fdef"
   },
-  "source": "docs/contratos_modelo_datos.md",
+  "source": "contracts/p1.json",
   "version": 1
 }

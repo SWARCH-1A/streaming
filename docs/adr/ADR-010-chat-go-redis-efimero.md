@@ -69,11 +69,9 @@ con `snapshotSequence`, eventos deduplicados y ENDED terminal, borrado tras 5 mi
 mensajes confirmados por otra réplica o por un proceso que cayó antes de difundir.
 
 Contra Redis 8 real (`go test -tags integration ./internal/store/`): scripts de envío y de estado,
-cuota, dedupe, lectura bloqueante del Stream y TTL de retención. En una prueba manual con Docker se
-reinició Redis y el historial con ACK se conservó (AOF).
-
-Pendiente: carga de 20 msg/s con p95 <1 s y verificación integrada con los endpoints reales de
-Core/Streaming según SPEC-13.
+cuota, dedupe, lectura bloqueante del Stream y TTL de retención. La recuperación debe conservar historial con ACK
+tras reiniciar Redis. SPEC-13 verifica los endpoints Core/Streaming reales y la carga de
+20 msg/s con p95 <1 s; sus resultados se registran en Plane.
 
 ## Revisión
 

@@ -1,7 +1,7 @@
 # Assets de Stitch
 
 Imágenes de referencia descargadas de los enlaces de Google contenidos en los dos exports
-`stitch_streaming_responsive_web_ui_system*.zip` entregados por el usuario el 2026-10-02.
+`stitch_streaming_responsive_web_ui_system*.zip`.
 Se conservan los JPEG originales; no son material generado nuevo ni imágenes de usuarios reales.
 
 - `explore-N.jpg`: imágenes en orden de aparición de `03_explorar_y_buscar/code.html`.

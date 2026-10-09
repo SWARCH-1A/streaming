@@ -11,10 +11,7 @@
     "provider": "Core",
     "recovery": "Report structured error; do not replace with demo data.",
     "request": null,
-    "responses": {
-      "200": "Csrf",
-      "503": "Error"
-    },
+    "responses": {"200": "Csrf", "503": "Error"},
     "spec": "SPEC-10",
     "timeoutMs": 2000,
     "traceability": "docs/spec-p1/spec_10_int.md",
@@ -579,10 +576,7 @@
     "provider": "Core",
     "recovery": "Report structured error; do not replace with demo data.",
     "request": null,
-    "responses": {
-      "200": "Taxonomy",
-      "503": "Error"
-    },
+    "responses": {"200": "Taxonomy", "503": "Error"},
     "spec": "SPEC-06",
     "timeoutMs": 2000,
     "traceability": "docs/spec-p1/spec_06_tax.md",
@@ -963,9 +957,7 @@
     "provider": "Chat",
     "recovery": "Report structured error; do not replace with demo data.",
     "request": null,
-    "responses": {
-      "frame": "ChatReady"
-    },
+    "responses": {"frame": "ChatReady"},
     "spec": "SPEC-05",
     "timeoutMs": 2000,
     "visibility": "public"
@@ -982,9 +974,7 @@
     "provider": "Chat",
     "recovery": "Report structured error; do not replace with demo data.",
     "request": null,
-    "responses": {
-      "frame": "ChatStatus"
-    },
+    "responses": {"frame": "ChatStatus"},
     "spec": "SPEC-05",
     "timeoutMs": 2000,
     "visibility": "public"
@@ -1001,9 +991,7 @@
     "provider": "Chat",
     "recovery": "Report structured error; do not replace with demo data.",
     "request": null,
-    "responses": {
-      "frame": "MessageAccepted"
-    },
+    "responses": {"frame": "MessageAccepted"},
     "spec": "SPEC-05",
     "timeoutMs": 2000,
     "visibility": "public"
@@ -1020,9 +1008,7 @@
     "provider": "Chat",
     "recovery": "Report structured error; do not replace with demo data.",
     "request": null,
-    "responses": {
-      "frame": "MessageCreated"
-    },
+    "responses": {"frame": "MessageCreated"},
     "spec": "SPEC-05",
     "timeoutMs": 2000,
     "visibility": "public"
@@ -1039,9 +1025,7 @@
     "provider": "Chat",
     "recovery": "Report structured error; do not replace with demo data.",
     "request": null,
-    "responses": {
-      "frame": "ChatError"
-    },
+    "responses": {"frame": "ChatError"},
     "spec": "SPEC-05",
     "timeoutMs": 2000,
     "visibility": "public"
@@ -1058,9 +1042,7 @@
     "provider": "Chat",
     "recovery": "Report structured error; do not replace with demo data.",
     "request": "MessageSend",
-    "responses": {
-      "frame": "MessageAccepted"
-    },
+    "responses": {"frame": "MessageAccepted"},
     "spec": "SPEC-05",
     "timeoutMs": 2000,
     "visibility": "public"
@@ -1191,13 +1173,7 @@
     "provider": "Core",
     "recovery": "Report structured error; do not replace with demo data.",
     "request": "CatalogRequest",
-    "responses": {
-      "200": "CatalogValues",
-      "400": "Error",
-      "401": "Error",
-      "422": "Error",
-      "503": "Error"
-    },
+    "responses": {"200": "CatalogValues", "400": "Error", "401": "Error", "422": "Error", "503": "Error"},
     "spec": "SPEC-10",
     "timeoutMs": 1000,
     "traceability": "docs/spec-p1/spec_10_int.md",
@@ -1215,12 +1191,7 @@
     "provider": "Streaming",
     "recovery": "Report structured error; do not replace with demo data.",
     "request": null,
-    "responses": {
-      "200": "SessionContext",
-      "401": "Error",
-      "404": "Error",
-      "503": "Error"
-    },
+    "responses": {"200": "SessionContext", "401": "Error", "404": "Error", "503": "Error"},
     "spec": "SPEC-11",
     "timeoutMs": 200,
     "traceability": "docs/spec-p1/spec_11_int.md",
@@ -1433,13 +1404,7 @@
     "provider": "MediaAdapter",
     "recovery": "Report structured error; do not replace with demo data.",
     "request": "MediaAuthRequest",
-    "responses": {
-      "204": null,
-      "400": "Error",
-      "401": "Error",
-      "403": "Error",
-      "503": "Error"
-    },
+    "responses": {"204": null, "400": "Error", "401": "Error", "403": "Error", "503": "Error"},
     "spec": "SPEC-04",
     "timeoutMs": 2000,
     "traceability": "docs/spec-p1/spec_04_stream.md",
@@ -1485,10 +1450,7 @@
     "provider": "Core",
     "recovery": "Report structured error; do not replace with demo data.",
     "request": null,
-    "responses": {
-      "200": "Health",
-      "503": "Health"
-    },
+    "responses": {"200": "Health", "503": "Health"},
     "spec": "SPEC-13",
     "timeoutMs": 2000,
     "visibility": "operational"
@@ -1505,10 +1467,7 @@
     "provider": "Streaming",
     "recovery": "Report structured error; do not replace with demo data.",
     "request": null,
-    "responses": {
-      "200": "Health",
-      "503": "Error"
-    },
+    "responses": {"200": "Health", "503": "Error"},
     "spec": "SPEC-13",
     "timeoutMs": 2000,
     "visibility": "operational"
@@ -1525,10 +1484,7 @@
     "provider": "Streaming",
     "recovery": "Report structured error; do not replace with demo data.",
     "request": null,
-    "responses": {
-      "200": "Health",
-      "503": "Error"
-    },
+    "responses": {"200": "Health", "503": "Error"},
     "spec": "SPEC-13",
     "timeoutMs": 2000,
     "visibility": "operational"
@@ -1545,10 +1501,7 @@
     "provider": "Chat",
     "recovery": "Report structured error; do not replace with demo data.",
     "request": null,
-    "responses": {
-      "200": "Health",
-      "503": "Health"
-    },
+    "responses": {"200": "Health", "503": "Health"},
     "spec": "SPEC-13",
     "timeoutMs": 2000,
     "visibility": "operational"
@@ -1565,10 +1518,7 @@
     "provider": "Chat",
     "recovery": "Report structured error; do not replace with demo data.",
     "request": null,
-    "responses": {
-      "200": "Health",
-      "503": "Health"
-    },
+    "responses": {"200": "Health", "503": "Health"},
     "spec": "SPEC-13",
     "timeoutMs": 2000,
     "visibility": "operational"
@@ -1585,10 +1535,7 @@
     "provider": "MediaAdapter",
     "recovery": "Report structured error; do not replace with demo data.",
     "request": null,
-    "responses": {
-      "200": null,
-      "503": null
-    },
+    "responses": {"200": null, "503": null},
     "spec": "SPEC-13",
     "timeoutMs": 2000,
     "visibility": "operational"
@@ -1605,10 +1552,7 @@
     "provider": "MediaAdapter",
     "recovery": "Report structured error; do not replace with demo data.",
     "request": null,
-    "responses": {
-      "200": null,
-      "503": null
-    },
+    "responses": {"200": null, "503": null},
     "spec": "SPEC-13",
     "timeoutMs": 2000,
     "visibility": "operational"
@@ -1625,12 +1569,7 @@
     "provider": "MediaMTX",
     "recovery": "404 missing resource; other failures remain unavailable; never publish private control API",
     "request": null,
-    "responses": {
-      "200": "MediaControlStatus",
-      "400": "MediaControlError",
-      "401": "MediaControlError",
-      "404": "MediaControlError"
-    },
+    "responses": {"200": "MediaControlStatus", "400": "MediaControlError", "401": "MediaControlError", "404": "MediaControlError"},
     "spec": "SPEC-04",
     "timeoutMs": 2000,
     "visibility": "private"
@@ -1647,12 +1586,7 @@
     "provider": "MediaMTX",
     "recovery": "404 missing resource; other failures remain unavailable; never publish private control API",
     "request": null,
-    "responses": {
-      "200": "MediaPath",
-      "400": "MediaControlError",
-      "401": "MediaControlError",
-      "404": "MediaControlError"
-    },
+    "responses": {"200": "MediaPath", "400": "MediaControlError", "401": "MediaControlError", "404": "MediaControlError"},
     "spec": "SPEC-04",
     "timeoutMs": 2000,
     "visibility": "private"
@@ -1669,12 +1603,7 @@
     "provider": "MediaMTX",
     "recovery": "404 missing resource; other failures remain unavailable; never publish private control API",
     "request": null,
-    "responses": {
-      "200": "MediaControlStatus",
-      "400": "MediaControlError",
-      "401": "MediaControlError",
-      "404": "MediaControlError"
-    },
+    "responses": {"200": "MediaControlStatus", "400": "MediaControlError", "401": "MediaControlError", "404": "MediaControlError"},
     "spec": "SPEC-04",
     "timeoutMs": 2000,
     "visibility": "private"
@@ -1691,12 +1620,7 @@
     "provider": "MediaMTX",
     "recovery": "404 missing resource; other failures remain unavailable; never publish private control API",
     "request": null,
-    "responses": {
-      "200": null,
-      "400": "MediaControlError",
-      "401": "MediaControlError",
-      "404": "MediaControlError"
-    },
+    "responses": {"200": null, "400": "MediaControlError", "401": "MediaControlError", "404": "MediaControlError"},
     "spec": "SPEC-04",
     "timeoutMs": 2000,
     "visibility": "private"
@@ -1713,11 +1637,7 @@
     "provider": "MediaMTX",
     "recovery": "Manifest <=128KiB; initialization/media <=8MiB; real decoded-frame evidence before LIVE",
     "request": null,
-    "responses": {
-      "200": "Binary",
-      "206": "Binary",
-      "404": "Binary"
-    },
+    "responses": {"200": "Binary", "206": "Binary", "404": "Binary"},
     "spec": "SPEC-04",
     "timeoutMs": 2000,
     "visibility": "private"

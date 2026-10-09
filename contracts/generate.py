@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate and verify neutral contracts from the canonical Markdown, without network I/O."""
+"""Generate neutral contracts from JSON and the canonical GraphQL SDL, without network I/O."""
 from __future__ import annotations
 
 import argparse
@@ -15,7 +15,8 @@ from jsonschema.exceptions import SchemaError, ValidationError
 from graphql import GraphQLError
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "docs/contratos_modelo_datos.md"
+SOURCE = ROOT / "contracts/p1.json"
+SEMANTICS = ROOT / "docs/contratos_modelo_datos.md"
 OUTPUT = ROOT / "contracts/generated"
 FORBIDDEN = {"email", "password", "passwordHash", "sessionCredential", "credential", "streamKey",
              "streamKeyHash", "leaseToken", "serviceToken", "rtmpUrl", "ingestKey", "token"}
@@ -32,13 +33,28 @@ def read_json(text: str):
     return json.loads(text, object_pairs_hook=unique)
 
 
-def load(source: Path = SOURCE):
-    text = source.read_text(encoding="utf-8")
-    blocks = re.findall(r"^```p1-contracts\s*\n(.*?)^```\s*$", text, re.M | re.S)
+def load(source: Path = SOURCE, semantics: Path = SEMANTICS):
+    text = semantics.read_text(encoding="utf-8")
     sdls = re.findall(r"^```graphql\s*\n(.*?)^```\s*$", text, re.M | re.S)
-    if len(blocks) != 1 or len(sdls) != 1:
-        raise ValueError("Expected exactly one p1-contracts block and one GraphQL SDL")
-    return read_json(blocks[0]), sdls[0].rstrip() + "\n"
+    if len(sdls) != 1:
+        raise ValueError("Expected exactly one canonical GraphQL SDL")
+    return read_json(source.read_text(encoding="utf-8")), sdls[0].rstrip() + "\n"
+
+
+def encode_json(value, depth=0):
+    """Keep small schema objects and scalar arrays readable on a single line."""
+    short = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(", ", ": "))
+    if not isinstance(value, (dict, list)) or len(short) + depth * 2 <= 120:
+        return short
+    pad = "  " * (depth + 1)
+    if isinstance(value, dict):
+        items = [pad + json.dumps(key, ensure_ascii=False) + ": " + encode_json(item, depth + 1)
+                 for key, item in sorted(value.items())]
+        opening, closing = "{", "}"
+    else:
+        items = [pad + encode_json(item, depth + 1) for item in value]
+        opening, closing = "[", "]"
+    return opening + "\n" + ",\n".join(items) + "\n" + "  " * depth + closing
 
 
 def walk(value):
@@ -135,7 +151,7 @@ def typescript(bundle, sdl):
             required = schema.get("required", [])
             return "{ " + "; ".join(json.dumps(k) + ("" if k in required else "?") + ": " + ts(v) for k, v in props.items()) + " }"
         return {"string": "string", "integer": "number", "number": "number", "boolean": "boolean", "null": "null"}.get(kind, "unknown")
-    lines = ["// Generated from docs/contratos_modelo_datos.md by contracts/generate.py; do not edit."]
+    lines = ["// Generated from contracts/p1.json and the canonical GraphQL SDL; do not edit."]
     lines += ["export type " + name + " = " + ts(schema) + ";" for name, schema in sorted(bundle["schemas"].items())]
     from graphql import GraphQLObjectType, GraphQLNonNull, GraphQLList
     def gql(t):
@@ -151,12 +167,12 @@ def typescript(bundle, sdl):
 
 
 def artifacts(bundle, sdl):
-    encode = lambda value: json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+    encode = lambda value: encode_json(value) + "\n"
     schema = {"$schema": "https://json-schema.org/draft/2020-12/schema", "$defs": bundle["schemas"]}
     files = {"p1.schema.json": encode(schema), "operations.json": encode(bundle["operations"]),
              "discovery.graphqls": sdl, "graphql-queries.json": encode(bundle["graphqlQueries"]),
              "local-interfaces.json": encode(bundle["localInterfaces"]), "p1.d.ts": typescript(bundle, sdl)}
-    files["manifest.json"] = encode({"source": "docs/contratos_modelo_datos.md", "version": bundle["version"],
+    files["manifest.json"] = encode({"source": "contracts/p1.json", "semantics": "docs/contratos_modelo_datos.md", "version": bundle["version"],
         "sha256": {name: hashlib.sha256(content.encode()).hexdigest() for name, content in files.items()}})
     return files
 

@@ -2,7 +2,7 @@
 
 - Estado: aceptada
 - Fecha: 2026-10-08
-- Responsable: Streaming e Integración; decisión autorizada por el responsable del prototipo
+- Responsable: Streaming e Integración
 - SPEC/contratos afectados: SPEC-04, SPEC-09…SPEC-13
 - Sustituye parcialmente ADR-005: despliegue independiente del adaptador Media; conserva las demás fronteras y contratos.
 

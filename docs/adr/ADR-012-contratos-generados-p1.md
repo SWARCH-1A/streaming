@@ -2,20 +2,20 @@
 
 - Estado: aceptada
 - Fecha: 2026-10-08
-- Responsable: Integración; alcance autorizado por el usuario, consumidores Core/Streaming/Chat/Web
+- Responsable: Integración; consumidores Core/Streaming/Chat/Web
 - SPEC: SPEC-10; contribuye a SPEC-11…13 y RNF-030/038/042/046/047.
 
 ## Contexto
 
 El inventario semántico existe, pero no había schemas neutrales ni una comprobación de drift.
-El harness Core–Streaming seleccionaba un commit histórico por defecto. La integración necesita
-contrastar el checkout que se entrega, manteniendo los contratos pendientes de proveedor explícitos.
+Los consumidores deben verificar el checkout actual contra sus proveedores reales, además
+de validar formas de datos y compatibilidad.
 
 ## Decisión
 
-Mantener en `docs/contratos_modelo_datos.md` un único bloque `p1-contracts` JSON con `$defs`
-JSON Schema Draft 2020-12, ejemplos y operaciones. El SDL GraphQL de ese mismo documento sigue
-siendo canónico. `contracts/generate.py` extrae ambos determinísticamente a `contracts/generated`;
+Mantener schemas JSON Schema Draft 2020-12, ejemplos y operaciones en `contracts/p1.json`.
+`docs/contratos_modelo_datos.md` define la semántica y el SDL GraphQL canónico.
+`contracts/generate.py` deriva ambos determinísticamente a `contracts/generated`;
 `--check` verifica schemas, ejemplos, referencias, inventario y drift sin escribir archivos.
 El SDL usado por Core debe coincidir semánticamente con el generado. No mantener OpenAPI/AsyncAPI
 adicionales ni generar clientes ligados a modelos privados: P1 no necesita esa duplicación.
@@ -40,15 +40,15 @@ inventario y conservan transacción/repositorio, sin convertirlas en HTTP.
 
 El runner PowerShell usa el checkout actual por defecto, con identidad HEAD y diff informados;
 `-StreamingRef` selecciona explícitamente una regresión histórica. Los tests consumidores siguen
-importando el cliente Rust real. La generación no declara implementados contextos Chat ni bootstrap
-pendientes: sus pruebas de proveedor real se completan en SPEC-11 antes de aceptar SPEC-10.
+importando el cliente Rust real. La generación valida formas de datos; SPEC-11 verifica los contextos Chat y el bootstrap
+contra sus proveedores reales.
 
 ## Opciones consideradas
 
 - Schemas escritos por separado: descartado por drift y dos definiciones manuales.
 - Generación desde anotaciones Java/Rust/Go: favorece un proveedor y no cubre límites entre lenguajes.
 - OpenAPI + AsyncAPI + SDL: posible evolución, pero añade formatos y herramientas sin necesidad P1.
-- JSON Schema + inventario y SDL desde el documento canónico: elegido, neutral y revisable.
+- JSON Schema e inventario en JSON, semántica y SDL en Markdown: elegido, neutral y revisable.
 
 ## Consecuencias
 
