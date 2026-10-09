@@ -64,44 +64,53 @@ impl MediaState {
             }))
     }
     pub(super) async fn publisher_exists(&self, id: Uuid) -> Result<bool, ()> {
-        let response = self
-            .client
-            .get(format!(
-                "{}/v3/rtmp/conns/get/{id}",
-                self.config.control_url
-            ))
-            .basic_auth(
-                &self.config.control_user,
-                Some(&self.config.control_password),
-            )
-            .send()
-            .await
-            .map_err(|_| ())?;
-        match response.status() {
-            StatusCode::OK => Ok(true),
-            StatusCode::NOT_FOUND => Ok(false),
-            _ => Err(()),
+        // MediaMTX keeps RTMP and RTMPS connections in separate API collections.
+        for protocol in ["rtmp", "rtmps"] {
+            let response = self
+                .client
+                .get(format!(
+                    "{}/v3/{protocol}/conns/get/{id}",
+                    self.config.control_url
+                ))
+                .basic_auth(
+                    &self.config.control_user,
+                    Some(&self.config.control_password),
+                )
+                .send()
+                .await
+                .map_err(|_| ())?;
+            match response.status() {
+                StatusCode::OK => return Ok(true),
+                StatusCode::NOT_FOUND => {}
+                _ => return Err(()),
+            }
         }
+        Ok(false)
     }
     pub(super) async fn kick(&self, id: Uuid) -> Result<(), ()> {
-        let response = self
-            .client
-            .post(format!(
-                "{}/v3/rtmp/conns/kick/{id}",
-                self.config.control_url
-            ))
-            .basic_auth(
-                &self.config.control_user,
-                Some(&self.config.control_password),
-            )
-            .send()
-            .await
-            .map_err(|_| ())?;
-        if response.status().is_success() || response.status() == StatusCode::NOT_FOUND {
-            Ok(())
-        } else {
-            Err(())
+        for protocol in ["rtmp", "rtmps"] {
+            let response = self
+                .client
+                .post(format!(
+                    "{}/v3/{protocol}/conns/kick/{id}",
+                    self.config.control_url
+                ))
+                .basic_auth(
+                    &self.config.control_user,
+                    Some(&self.config.control_password),
+                )
+                .send()
+                .await
+                .map_err(|_| ())?;
+            if response.status().is_success() {
+                return Ok(());
+            }
+            if response.status() != StatusCode::NOT_FOUND {
+                return Err(());
+            }
         }
+        // Only absence in both collections means the publisher is already gone.
+        Ok(())
     }
     pub(super) async fn session_status(&self, session: &str) -> Result<String, ()> {
         self.session_state(session).await.map(|value| value.status)

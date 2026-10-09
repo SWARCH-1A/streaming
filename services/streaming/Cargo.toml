@@ -19,6 +19,7 @@ path = "src/media_adapter_main.rs"
 
 [dependencies]
 axum = { version = "0.8.9", features = ["http1", "json", "tokio"] }
+axum-server = { version = "0.8.0", default-features = false, features = ["tls-rustls-no-provider"] }
 futures-util = "0.3.34"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
@@ -35,6 +36,9 @@ tokio = { version = "1.53.1", features = ["macros", "net", "rt-multi-thread", "s
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
 uuid = { version = "1.26.1", features = ["serde", "v4", "v7"] }
+
+[dev-dependencies]
+rcgen = { version = "0.14.7", default-features = false, features = ["crypto", "ring", "pem"] }
 
 [profile.release]
 lto = "thin"

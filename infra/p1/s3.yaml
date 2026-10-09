@@ -1,0 +1,8 @@
+services:
+  core:
+    environment:
+      CORE_IMAGE_STORAGE_PROVIDER: s3
+      CORE_IMAGE_S3_BUCKET: ${CORE_IMAGE_S3_BUCKET:?Private bucket required}
+      CORE_IMAGE_S3_REGION: ${CORE_IMAGE_S3_REGION:?Region required}
+      CORE_IMAGE_S3_ENDPOINT: ${CORE_IMAGE_S3_ENDPOINT:-}
+      CORE_IMAGE_S3_PATH_STYLE_ACCESS: ${CORE_IMAGE_S3_PATH_STYLE_ACCESS:-false}

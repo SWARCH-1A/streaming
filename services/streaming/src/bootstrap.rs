@@ -66,7 +66,7 @@ pub enum BootstrapError {
     #[error("another Streaming control process already owns this private database")]
     ControlOwnerPresent,
     #[error("could not build the outbound HTTP client")]
-    HttpClient(#[from] reqwest::Error),
+    HttpClient(#[from] crate::adapters::outbound::http_clients::ClientError),
 }
 
 #[derive(Debug, Error)]

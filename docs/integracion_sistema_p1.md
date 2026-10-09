@@ -2,7 +2,7 @@
 
 **Arquitectura:** ADR-005. Core, Streaming Rust, Chat y Media cruzan contratos privados explícitos. Cuentas/Canales/Catálogo/Discovery permanecen locales en Core. Integración es trabajo de contratos, infraestructura y evidencia; no ejecuta workflows. La fuente semántica es [contratos](contratos_modelo_datos.md).
 
-En P1 el adaptador Media comparte proceso con Streaming según ADR-011. Los contratos técnicos de autorización/callbacks se conservan en HTTP loopback autenticado; MediaMTX sigue en otro contenedor. Fallo/reinicio del proceso Streaming afecta también autorización Media y HLS.
+En P1 el adaptador Media comparte proceso con Streaming según ADR-011. Los contratos técnicos de autorización/callbacks se conservan en HTTP loopback autenticado en desarrollo y HTTPS con CA explícita en el perfil persistente ADR-014; MediaMTX sigue en otro contenedor. Fallo/reinicio del proceso Streaming afecta también autorización Media y HLS.
 
 ## A — Registro y canal inicial
 
@@ -64,7 +64,7 @@ sequenceDiagram
   CH->>CH: dedupe / cuota / secuencia / mensaje y entrega durable
 ```
 
-Chat conserva una llamada Core por mensaje nuevo; Core consulta Streaming dentro del presupuesto agregado <=400 ms. Commit Chat requiere contexto <=500 ms usando monotónico local. Core caído invalida nuevos contextos; Streaming caído impide autorizar desde datos Discovery. Logout/ENDED rechazan la siguiente autorización; operaciones en vuelo ya autorizadas pueden confirmar dentro del presupuesto. Los eventos lifecycle llegan desde Streaming con producer=streaming y no conceden permiso. Snapshot de sala se delega a Streaming; historia conocida puede permanecer disponible en Chat.
+Chat conserva una llamada Core por mensaje nuevo; Core consulta Streaming dentro del presupuesto agregado <=400 ms. El intento de persistencia Chat exige <=500 ms desde iniciar el contexto, usando monotónico local; no es un deadline de commit físico Redis. Core caído invalida nuevos contextos; Streaming caído impide autorizar desde datos Discovery. Logout/ENDED rechazan la siguiente autorización; operaciones en vuelo ya autorizadas pueden confirmar dentro del presupuesto. Los eventos lifecycle llegan desde Streaming con producer=streaming y no conceden permiso. Snapshot de sala se delega a Streaming; historia conocida puede permanecer disponible en Chat.
 
 ## F — Player, leases y bootstrap canal
 

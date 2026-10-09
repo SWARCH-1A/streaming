@@ -70,6 +70,8 @@ Canales posee channelId/ownerUserId/description/banner/version; cuenta posee han
 observación dentro de 5 s. Ausencia confirmada es OFFLINE/true, error o dato incoherente UNKNOWN/false.
 La lectura privada no sigue redirecciones ni reintenta. No guardar nombre visible o estado como otra autoridad.
 
+Las rutas públicas de imágenes sirven bytes con Content-Type image/*. Un Accept incompatible devuelve 406 NOT_ACCEPTABLE; no es un fallo 500 del almacenamiento.
+
 ## 8. Dependencias y contratos de integración
 
 Registro local Cuentas→Canales participa en una transacción; Streaming obtiene validación de dueño por contexto privado Core y publica snapshots de emisión; el registro del canal sigue local. Catálogo/Discovery también son módulos Core. Chat/Media no leen las tablas de canal. Frontend consume bootstrap público compuesto y las rutas de imagen permanecen servidas por Core; SPEC-12 integra sus paths y SPEC-13 documenta el bucket y su configuración.

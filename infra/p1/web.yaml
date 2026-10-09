@@ -1,0 +1,11 @@
+services:
+  web:
+    ports: !override
+      - "127.0.0.1:${P1_HTTPS_PORT:-3443}:3443"
+    volumes: !override
+      - ../../apps/web/dist:/srv:ro
+      - ${P1_STATE}/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${P1_STATE}/web.crt:/run/secrets/web.crt:ro
+      - ${P1_STATE}/web.key:/run/secrets/web.key:ro
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    restart: unless-stopped

@@ -47,7 +47,7 @@ infra mantiene configuración y tests/ la evidencia compartida. El mapa_sdd_p1 d
 
 ## Puertos y configuración
 
-Core usa 8081, Streaming 8080, Chat usa 8085 y Web/proxy usan 3000. P1 usa HLS en Streaming:8888 y RTMP en MediaMTX:1935; autorización Media en Streaming:8090 y contrato interno en Streaming:8091, sin publicar estos últimos. ADR-011 fija la composición de tres contenedores.
+Core usa 8081, Streaming 8080, Chat usa 8085 y Web/proxy usan 3000. P1 usa HLS en Streaming:8888 y RTMP en MediaMTX:1935; autorización Media en Streaming:8090 y contrato interno en Streaming:8091, sin publicar estos últimos. ADR-011 fija la composición de tres contenedores. Son puertos de desarrollo; el perfil persistente [ADR-014](adr/ADR-014-perfil-integrado-tls-p1.md) usa TLS nativo en los mismos listeners HTTP, RTMPS en MediaMTX:1936 y publica únicamente HTTPS localhost:3443 y RTMPS localhost:11936 por defecto. Ver [runbook integrado](../infra/p1/README.md).
 Bases en red privada y bucket S3 privado predeterminado para imágenes; filesystem, si se selecciona
 explícitamente, requiere volumen persistente.
 Las URLs públicas de avatar/portada permanecen bajo Core; el proxy no expone el endpoint S3. El runbook de cada unidad declara variables,

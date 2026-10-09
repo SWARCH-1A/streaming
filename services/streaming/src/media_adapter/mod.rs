@@ -8,7 +8,7 @@ mod operator;
 mod repository;
 mod workers;
 
-use std::{future::IntoFuture, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use axum::Router;
 use reqwest::Client;
@@ -94,18 +94,20 @@ async fn serve_inner(stopped: watch::Receiver<bool>) -> Result<(), MediaError> {
     let worker = tokio::spawn(workers::run(Arc::clone(&state), worker_stopped));
     let router: Router = handlers::router(Arc::clone(&state));
     let server_stopped = shutdown.subscribe();
-    let server = axum::serve(listener, router)
-        .with_graceful_shutdown(wait_for_shutdown(server_stopped))
-        .into_future();
-    let hls_server = axum::serve(hls_listener, handlers::hls_router(Arc::clone(&state)))
-        .with_graceful_shutdown(wait_for_shutdown(shutdown.subscribe()))
-        .into_future();
+    let tls = crate::transport::tls_from_env().await?;
+    let server = crate::transport::serve(listener, router, tls.clone(), server_stopped);
+    let hls_server = crate::transport::serve(
+        hls_listener,
+        handlers::hls_router(Arc::clone(&state)),
+        tls,
+        shutdown.subscribe(),
+    );
     tokio::pin!(server);
     tokio::pin!(hls_server);
     let mut worker = worker;
     let (result, finished) = tokio::select! {
-        result = &mut server => (result.map_err(std::io::Error::other), 1),
-        result = &mut hls_server => (result.map_err(std::io::Error::other), 2),
+        result = &mut server => (result.map_err(|_| std::io::Error::other("media listener stopped")), 1),
+        result = &mut hls_server => (result.map_err(|_| std::io::Error::other("media listener stopped")), 2),
         _ = wait_for_shutdown(stopped) => (Ok(()), 0),
         result = &mut worker => {
             let _ = result;

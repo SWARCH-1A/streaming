@@ -1,6 +1,12 @@
 server:
   port: ${PORT:8081}
   forward-headers-strategy: none
+  ssl:
+    enabled: ${CORE_PUBLIC_TLS_ENABLED:false}
+    key-store: ${CORE_PUBLIC_TLS_KEYSTORE:}
+    key-store-password: ${CORE_PUBLIC_TLS_KEYSTORE_PASSWORD:}
+    key-store-type: PKCS12
+    enabled-protocols: TLSv1.2,TLSv1.3
 spring:
   application:
     name: core

@@ -104,6 +104,7 @@ func (s *Service) Send(ctx context.Context, sid, credential, clientMessageID, ra
 	ctx, cancel := context.WithTimeout(ctx, s.budget)
 	defer cancel()
 	mc, cerr := s.core.MessageContext(ctx, credential, sid, clientMessageID)
+	contextElapsed := time.Since(started)
 	if time.Since(started) > s.budget {
 		return chat.Ack{}, false, chat.Fail(chat.CodeTimelineUnavailable)
 	}
@@ -136,6 +137,10 @@ func (s *Service) Send(ctx context.Context, sid, credential, clientMessageID, ra
 		StreamOffsetMs:     offset,
 		StreamGeneration:   mc.StreamGeneration,
 	}
+	// Payloads/credentials never enter metrics. This measures the attempt, not physical Redis commit.
+	s.log.Info("autorización de mensaje", "event", "chat_authorization", "sessionId", sid,
+		"clientMessageId", clientMessageID, "contextMs", contextElapsed.Milliseconds(),
+		"persistAttemptMs", time.Since(started).Milliseconds())
 	res, err := s.store.Accept(ctx, store.AcceptInput{
 		SessionID: sid, UserID: mc.UserID, ClientMessageID: clientMessageID,
 		TextHash: chat.TextFingerprint(text), WriteAllowed: writeAllowed, DenialCode: denial, Message: msg,

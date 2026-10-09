@@ -1,4 +1,4 @@
-use std::{future::IntoFuture, io, process::ExitCode, time::Duration};
+use std::{io, process::ExitCode, time::Duration};
 
 use futures_util::{FutureExt, StreamExt, stream::FuturesUnordered};
 
@@ -30,18 +30,20 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let listener = tokio::net::TcpListener::bind(config.bind_addr).await?;
     let private_listener = tokio::net::TcpListener::bind(config.private_bind_addr).await?;
     let app = bootstrap::build_app(&config).await?;
+    let tls = streaming_service::transport::tls_from_env().await?;
     tracing::info!(address=%config.bind_addr,"streaming public API listening");
     tracing::info!(address=%config.private_bind_addr,"streaming private API listening");
     let (stop, stopped) = tokio::sync::watch::channel(false);
-    let server = axum::serve(listener, app.router())
-        .with_graceful_shutdown(wait_for_stop(stopped))
-        .into_future();
-    let private = axum::serve(private_listener, app.private_router())
-        .with_graceful_shutdown(wait_for_stop(stop.subscribe()))
-        .into_future();
+    let server = streaming_service::transport::serve(listener, app.router(), tls.clone(), stopped);
+    let private = streaming_service::transport::serve(
+        private_listener,
+        app.private_router(),
+        tls,
+        stop.subscribe(),
+    );
     let mut servers = FuturesUnordered::new();
-    servers.push(async { server.await.map_err(Into::into) }.boxed());
-    servers.push(async { private.await.map_err(Into::into) }.boxed());
+    servers.push(async { server.await }.boxed());
+    servers.push(async { private.await }.boxed());
     servers.push(streaming_service::media_adapter::serve(stop.subscribe()).boxed());
     let failure = app.worker_failure_signal();
     let server_result: Result<(), Box<dyn std::error::Error + Send + Sync>> = tokio::select! {
@@ -108,11 +110,5 @@ async fn shutdown_signal() {
     tokio::select! {
         _ = ctrl_c => {},
         _ = terminate => {},
-    }
-}
-
-async fn wait_for_stop(mut stopped: tokio::sync::watch::Receiver<bool>) {
-    if !*stopped.borrow() {
-        let _ = stopped.changed().await;
     }
 }

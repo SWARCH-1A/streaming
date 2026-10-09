@@ -57,7 +57,9 @@ librería GraphQL y para los detalles que dejó abiertos.
    coincidencia por subcadena NFKC en minúsculas con acentos conservados, calculada en SQL con `normalize`/`lower`;
    orden exacta → prefijo → subcadena, handle antes que nombre visible, luego handle y `userId`; cursor de clave
    (sin estado) atado al filtro.
-9. **Tasa e IP.** Limitador en memoria por IP: cubeta de 20 que repone 10/s más un tope móvil de 600 por 60 s. La IP es la
+9. **Tasa e IP.** Según ADR-014, limitador compartido en SQL Core por HMAC de IP: cubeta de 20 que repone 10/s
+   más un tope móvil de 600 por 60 s, con tiempo SQL y transacción por bucket. SQL inaccesible devuelve 503 sin
+   fallback local. Sustituye la decisión original en memoria al incorporar réplicas Core. La IP es la
    del socket salvo que `core.trusted-proxies` (CIDR) incluya al par directo: entonces se toma la última entrada no
    confiable de `X-Forwarded-For`. Por defecto no hay proxies confiables.
 10. **CSRF.** La ruta pública de solo lectura queda fuera de la protección CSRF, exige `Content-Type: application/json` y
@@ -72,7 +74,7 @@ librería GraphQL y para los detalles que dejó abiertos.
 | Keyset puro para `streams` | Descartada: el ranking cambia con el conteo y las páginas saltarían o repetirían filas. |
 | Consultar a Streaming por cada resultado | Descartada por ADR-005: HTTP por fila y acoplamiento de latencia. |
 | Motor de búsqueda externo | Fuera de P1; exige reconstrucción con watermark y ADR propio. |
-| Limitador SQL o Redis | Escritura por petición pública o runtime nuevo sin necesidad medida; se documenta el límite de una réplica. |
+| Limitador SQL o Redis | ADR-014 selecciona SQL Core compartido al habilitar réplicas; no añade un runtime ni dependencia sobre Redis Chat. |
 
 ## Consecuencias
 
@@ -80,7 +82,8 @@ Descubrimiento comparte disponibilidad y release con Core; una caída de Core af
 Streaming solo degrada la frescura (las filas vencen a `UNKNOWN`, nunca a OFFLINE). La frescura compara el reloj de
 Streaming con el de Core, de modo que un desfase mayor a unos segundos reduce el tiempo en que los datos se ven frescos.
 Un corte cada 4 s genera unos 21 600 cortes diarios en Streaming, que los conserva un día: debe revisarse con Streaming si
-crece el número de configuraciones. El limitador en memoria no se comparte entre réplicas (P1 usa una). El cursor de
+crece el número de configuraciones. La cuota SQL compartida añade escrituras y bloqueo por IP, conservando el límite
+al replicar Core; su indisponibilidad rechaza la consulta. El cursor de
 `streams` caduca a los 5 min y entonces responde `INVALID_CURSOR`. No se acredita el perfil de carga de SPEC-13.
 
 ## Verificación
@@ -101,3 +104,6 @@ La revisión de Core, Streaming e Integración acepta esta selección para P1: D
 la proyección pública versionada de Streaming y no introduce otro runtime, base de datos o broker. La verificación de la
 implementación y la medición de SPEC-13 siguen siendo evidencia de entrega, no condiciones para volver a tratar la
 tecnología como candidata.
+
+La selección original del limitador en memoria fue reemplazada por cuota compartida SQL al habilitar
+réplicas Core en [ADR-014](ADR-014-perfil-integrado-tls-p1.md). Los demás aspectos de esta decisión se conservan.

@@ -69,8 +69,8 @@ flowchart LR
   S -->|HTTPS: outbox público hacia inbox Discovery| C
   S -->|HTTPS: ciclo de sesión hacia inbox| CH
   M -->|HTTP privado: auth MediaMTX| MA
-  MA -->|HTTP loopback: ingesta / callbacks durables| S
-  S -->|HTTP loopback: verificar HLS| MA
+  MA -->|HTTP dev / HTTPS P1: ingesta y callbacks| S
+  S -->|HTTP dev / HTTPS P1: verificar HLS| MA
   S -->|HTTPS privado: detener fuente| M
   MA -->|Control / HLS privado| M
   C --> DB[(PostgreSQL Core)]
@@ -103,7 +103,7 @@ ningún proceso consulta tablas ajenas ni mantiene transacciones entre bases.
 | Comandos protegidos | Streaming / cliente privado | Core / contexto owner | Sesión, propiedad y catálogo tipado; autorización acotada, sin lock entre bases. |
 | Ciclo de sesión | Streaming / outbox | Chat / inbox | HTTPS idempotente, ACK durable, versiones/retry/DLQ; informativo para sala. |
 | Proyección pública | Streaming / outbox y snapshot | Discovery en Core / inbox y staging | Snapshots completos/versionados; frescura <=5s, dedupe y reconstrucción consistente con watermark. |
-| Señales Media | Adaptador Rust / cliente privado | Streaming / ingest y callbacks | HTTP loopback autenticado en P1; HTTPS al extraer; intent/event IDs, generaciones y ACK tras persistir. |
+| Señales Media | Adaptador Rust / cliente privado | Streaming / ingest y callbacks | HTTP loopback autenticado en desarrollo; HTTPS con CA explícita en ADR-014; intent/event IDs, generaciones y ACK tras persistir. |
 | Control Media | Streaming / cliente multimedia | Media / control y HLS privado | Corte de fuente y comprobación de playlist/segmento/frame real. |
 | SQL | Core o Streaming / cliente propio | PostgreSQL privado / almacén | Pool y transacciones locales; sin lectura ni FK entre bases. |
 | Historial | Chat / cliente propio | Redis Chat / servidor | Persistencia antes de ACK; Core/Streaming no leen mensajes. |
@@ -130,8 +130,12 @@ ningún proceso consulta tablas ajenas ni mantiene transacciones entre bases.
 
 Topología: proxy, Web, Core, Streaming con adaptador Rust, Chat, MediaMTX, PostgreSQL Core/Streaming,
 Redis Chat (AOF) y bucket S3 privado para imágenes. Bases separadas con credenciales privadas pueden compartir motor físico sin compartir tablas. El stack propio SPEC-04 usa exactamente tres contenedores: PostgreSQL (bases Streaming/Media), Streaming con adaptador y MediaMTX, según ADR-011.
-Core accede a imágenes en S3; Media conserva segmentos. Solo HTTPS web y RTMP son públicos. Core8081,
-Streaming8080, Chat8085 y Web3000; listeners Media/configuración final se verifican antes del despliegue.
+Core accede a imágenes en S3 o filesystem explícito compartido; Media conserva segmentos.
+[ADR-014](adr/ADR-014-perfil-integrado-tls-p1.md) materializa ocho contenedores con una réplica Core/Chat
+y diez con dos réplicas, sin añadir runtime de integración. Caddy sirve Web y proxy juntos. Solo se
+publican HTTPS localhost:3443 y RTMPS localhost:11936 por defecto. Core8081/8082, Streaming8080/8091,
+Chat8085/8086, autorización Media8090 y HLS8888 son TLS privados; SQL y Redis también usan TLS.
+El [runbook](../infra/p1/README.md) configura readiness, CA, secretos y proveedor de imágenes.
 /internal/* queda bloqueado públicamente. TLS privado y secretos específicos por consumidor/operación.
 
 P1 inicia una réplica de control Streaming con anchors monotónicos. Pérdida de owner/clock termina

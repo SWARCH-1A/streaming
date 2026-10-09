@@ -70,3 +70,7 @@ comparten proceso y stack; las de capacidades futuras organizan trabajo sin adel
 
 Web consume los contratos generados por módulo, conserva la sesión común y monta player/Chat por sessionId.
 El proxy Caddy y el player HLS se definen en ADR-013; ejemplos visuales no son fallback funcional.
+
+El ensamblaje persistente usa TLS nativo y volúmenes en [infra/p1](../infra/p1/README.md), según
+[ADR-014](adr/ADR-014-perfil-integrado-tls-p1.md). Core/Chat pueden replicarse con SQL/Redis/imágenes
+compartidos; Streaming conserva su único runtime y sus tres contenedores propios.

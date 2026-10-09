@@ -85,7 +85,7 @@ Las interfaces requieren schema neutro, correlación y presupuesto acotado.
 | POST /internal/streaming/discovery/snapshots | Streaming / Core | Corte consistente paginado de configuraciones con watermark; reconstrucción |
 
 `/internal/*` usa TLS privado y credenciales específicas por consumidor con permisos explícitos
-por ruta; una credencial puede tener varias rutas autorizadas. El listener público lo bloquea. En P1 los contratos adaptador→Streaming se conservan sobre HTTP loopback autenticado dentro del mismo contenedor (ADR-011); TLS sigue siendo obligatorio al cruzar contenedores en producción. Bases y repositorios técnicos/de negocio permanecen separados.
+por ruta; una credencial puede tener varias rutas autorizadas. El listener público lo bloquea. En P1 los contratos adaptador→Streaming se conservan sobre HTTP loopback autenticado en desarrollo dentro del mismo contenedor (ADR-011); el perfil persistente ADR-014 usa HTTPS con CA explícita también entre control y adaptador. TLS es obligatorio al cruzar contenedores. Bases y repositorios técnicos/de negocio permanecen separados.
 Los módulos Core usan interfaces locales; no publican eventos de replicación interna ni requieren
 provisión HTTP de canal. Los outboxes se reservan para efectos entre procesos y para los callbacks técnicos durables Media conservados por ADR-011.
 
@@ -165,8 +165,13 @@ bootstrap. Upload multipart file devuelve 201 {uploadId,expiresAtUtc}, ligado a 
 un uso y 15 min; JPEG/PNG/GIF reales <=10 MB. 1200×480 es una recomendación, sin mínimo obligatorio;
 límite defensivo de 40 MP. Publicar antes de commit, conservar archivo anterior ante rollback y
 reconciliar objetos sin referencias después de una gracia de un día. Las portadas se sirven en
-/api/channels/banners/{key}. Cuenta/canal desconocidos dan 404; otro usuario 403, sin sesión 401,
+/api/channels/banners/{key}. Las lecturas de imagen requieren Accept compatible con su tipo binario (image/* o */*); un Accept incompatible devuelve 406 NOT_ACCEPTABLE. Cuenta/canal desconocidos dan 404; otro usuario 403, sin sesión 401,
 CSRF inválido 403, carga inválida 400 INVALID_BANNER (413 si excede el límite HTTP).
+
+
+El limitador Discovery conserva buckets/eventos de cuota en SQL Core, compartidos entre réplicas;
+la clave es HMAC de la IP observada con contexto Discovery. No expone IP ni credenciales en DTO,
+y una falla SQL devuelve GraphQL DISCOVERY_UNAVAILABLE/503 sin fallback local (ADR-014).
 
 ## Semántica de emisión y reloj
 
@@ -4686,6 +4691,7 @@ campos aditivos, pero datos públicos rechazan secretos mediante la comprobació
         "401": "Error",
         "403": "Error",
         "404": "Error",
+        "406": "Error",
         "413": "Error",
         "415": "Error",
         "422": "Error",
@@ -4860,6 +4866,7 @@ campos aditivos, pero datos públicos rechazan secretos mediante la comprobació
         "401": "Error",
         "403": "Error",
         "404": "Error",
+        "406": "Error",
         "413": "Error",
         "415": "Error",
         "422": "Error",

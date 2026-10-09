@@ -12,6 +12,8 @@ import (
 type Config struct {
 	PublicAddr          string
 	InternalAddr        string
+	PublicTLSCert       string
+	PublicTLSKey        string
 	InternalTLSCert     string
 	InternalTLSKey      string
 	RedisURL            string
@@ -58,6 +60,8 @@ func Load() (Config, error) {
 	c := Config{
 		PublicAddr:          str("CHAT_PUBLIC_ADDR", ":8085"),
 		InternalAddr:        str("CHAT_INTERNAL_ADDR", ":8086"),
+		PublicTLSCert:       str("CHAT_PUBLIC_TLS_CERT_FILE", ""),
+		PublicTLSKey:        str("CHAT_PUBLIC_TLS_KEY_FILE", ""),
 		InternalTLSCert:     str("CHAT_INTERNAL_TLS_CERT_FILE", ""),
 		InternalTLSKey:      str("CHAT_INTERNAL_TLS_KEY_FILE", ""),
 		RedisURL:            required("CHAT_REDIS_URL"),
@@ -81,6 +85,9 @@ func Load() (Config, error) {
 		if o = strings.TrimRight(strings.TrimSpace(o), "/"); o != "" {
 			c.AllowedOrigins = append(c.AllowedOrigins, o)
 		}
+	}
+	if (c.PublicTLSCert == "") != (c.PublicTLSKey == "") {
+		errs = append(errs, "CHAT_PUBLIC_TLS_CERT_FILE y CHAT_PUBLIC_TLS_KEY_FILE van juntos")
 	}
 	if (c.InternalTLSCert == "") != (c.InternalTLSKey == "") {
 		errs = append(errs, "CHAT_INTERNAL_TLS_CERT_FILE y CHAT_INTERNAL_TLS_KEY_FILE van juntos")

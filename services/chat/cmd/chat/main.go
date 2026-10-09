@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -64,11 +65,17 @@ func main() {
 		EventsProducer: cfg.EventsProducer, EventsToken: cfg.EventsToken,
 	}, svc, hub, st.Ping, log)
 
-	public := &http.Server{Addr: cfg.PublicAddr, Handler: srv.PublicHandler(), ReadHeaderTimeout: 5 * time.Second}
-	internal := &http.Server{Addr: cfg.InternalAddr, Handler: srv.InternalHandler(), ReadHeaderTimeout: 5 * time.Second}
+	public := &http.Server{Addr: cfg.PublicAddr, Handler: srv.PublicHandler(), ReadHeaderTimeout: 5 * time.Second, TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12}}
+	internal := &http.Server{Addr: cfg.InternalAddr, Handler: srv.InternalHandler(), ReadHeaderTimeout: 5 * time.Second, TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12}}
 
 	errc := make(chan error, 2)
-	go func() { errc <- public.ListenAndServe() }()
+	go func() {
+		if cfg.PublicTLSCert != "" {
+			errc <- public.ListenAndServeTLS(cfg.PublicTLSCert, cfg.PublicTLSKey)
+			return
+		}
+		errc <- public.ListenAndServe()
+	}()
 	go func() {
 		if cfg.InternalTLSCert != "" {
 			errc <- internal.ListenAndServeTLS(cfg.InternalTLSCert, cfg.InternalTLSKey)

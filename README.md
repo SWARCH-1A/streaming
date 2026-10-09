@@ -44,3 +44,7 @@ los ejemplos visuales se limitan a la biblioteca de componentes. Calidad: desde 
 Recorrido real de dominios y Web: `python tests/integration/p1-domains/run.py --web`, con las
 [dependencias y condiciones del fixture](tests/integration/p1-domains/README.md). El perfil HTTP de
 desarrollo no acredita TLS, S3 o carga P1 de SPEC-13; la revisión manual de SPEC-08 permanece separada.
+
+El [perfil persistente TLS P1](infra/p1/README.md) ensambla los ocho contenedores del sistema,
+conserva tres en Streaming y documenta CA, secretos, volúmenes y réplicas Core/Chat. Sus pruebas
+de reinicio y la carga completa tienen resultados separados; consultar las puertas pendientes en Plane.
