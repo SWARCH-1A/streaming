@@ -42,7 +42,7 @@ Como usuario final, quiero recorrer registro, canal, emisión, chat y búsqueda 
 
 ## 5. Contrato de interfaz web
 
-- Rutas web P1: `/`, `/register`, `/login`, `/channels/{handle}`, `/search?q=...` y `/watch/{streamId}`. Canal consume `GET /api/channels/by-handle/{handle}`: Core compone canal/handle/perfil locales y batch público autoritativo Streaming; si este falla, conserva canal con estado UNKNOWN. Watch usa el snapshot público de stream/sesión; ambos montan Chat desde sessionId. `avatarUri` y `bannerUri` apuntan a las rutas Core estables `/api/profile/avatars/{key}` y `/api/channels/banners/{key}`; Web nunca recibe una URL directa, ACL o credencial S3.
+- Rutas web P1: `/`, `/register`, `/login`, `/profile`, `/studio`, `/studio/channel`, `/channels/{handle}`, `/search?q=...` y `/watch/{streamId}`. Perfil y estudio requieren sesión vigente; su ruta no concede permisos de backend. Canal consume `GET /api/channels/by-handle/{handle}`: Core compone canal/handle/perfil locales y batch público autoritativo Streaming; si este falla, conserva canal con estado UNKNOWN. Watch usa el snapshot público de stream/sesión y resuelve el canal mediante GET /api/channels/{channelId}; ambos montan Chat desde sessionId. `avatarUri` y `bannerUri` apuntan a las rutas Core estables `/api/profile/avatars/{key}` y `/api/channels/banners/{key}`; Web nunca recibe una URL directa, ACL o credencial S3.
 
 - Shell consume interfaces UI/versionadas; módulo publica ruta/entry, estados y dependencias, sin compartir store privado.
 
@@ -71,9 +71,16 @@ Como usuario final, quiero recorrer registro, canal, emisión, chat y búsqueda 
 - **CA-08:** Web integrada ejecutable en modo local; muestra fallback por vista y unidad upstream real si cae.
 - **CA-09:** canal por handle usa bootstrap Core; ACTIVE ya tiene canal/perfil desde commit. Inexistente/no activo 404 uniforme; Core no disponible error explícito; Streaming no disponible conserva canal/perfil con streamStatusFresh=false/UNKNOWN.
 
+- **CA-10:** todos los recorridos de la matriz SPEC-09 usan proveedores reales en el perfil integrado. Fixtures/mocks se habilitan solo en pruebas o modo demo explícito; no sustituyen una respuesta fallida. Cambiar ruta/sesión cancela suscripciones y leases anteriores y evita mostrar respuestas tardías de otro recurso.
+- **CA-11:** registro/login/logout y refresh respetan cookie opaca/CSRF/expiración; edición de perfil/avatar y canal/portada usa uploads reales y conserva datos tras error. Studio configura metadata, muestra la clave solo en la respuesta autorizada, rota solo cuando procede y permite stop owner; no guarda credenciales en storage del navegador ni obtiene identidad de datos demo.
+- **CA-12:** opciones de categorías/tags provienen de GET Taxonomy y cambian sin rebuild; búsqueda/listado consume GraphQL real con filtros exactos AND, ranking/cursor y estados vacío/error/UNKNOWN. Metadata editada y labels tombstone conservan la semántica de SPEC-06/07.
+- **CA-13:** player reproduce medio real y crea lease solo tras primer frame, heartbeat 10 s y cierre/expiración 30 s; al cambiar sessionId reinicia el contexto de player/chat. Chat abre WS antes del backlog, fusiona por sequence, reintenta un envío con el mismo clientMessageId y muestra errores/read-only/retención sin detener HLS. Teclado, foco y autoscroll siguen SPEC-08.
+
 ## 7. Diseño técnico y configuración
 
 Una Web y un build; código en apps/web/src, módulos en src/modules/{accounts,channels,streaming,chat,taxonomy,discovery}, shell en src/shell y utilidades compartidas en src/accessibility. Shell registra rutas/globales, componentes/tokens y errores por vista. Canal por handle consume un bootstrap Core compuesto; player y chat se montan desde sessionId. Proxy enruta a Core/Streaming/Chat/Media; POST/GET /api/channels/{channelId}/streams es regla exacta Streaming previa al prefijo Canales, sin auth de negocio ni saga; bloquea /internal y sobrescribe forwarding. Las rutas de imágenes se enrutan a Core, nunca al endpoint S3; el proveedor y sus variables de despliegue se definen en SPEC-13. Paths API no caen al fallback SPA. TLS, CSRF, límite multipart, WS Upgrade/Origin y HLS range/cache definidos en documento frontend.
+
+En P1, ADR-011 integra el adaptador técnico en el proceso Streaming. Autorización/callbacks internos conservan HTTP loopback autenticado en desarrollo; el perfil persistente ADR-014 usa HTTPS con CA explícita y conserva persistencia separada. HLS público se enruta al listener 8888 del contenedor Streaming; RTMP sigue en MediaMTX. Reinicios/fallos del proceso afectan al control y al adaptador juntos.
 
 ## 8. Dependencias y contratos de integración
 
@@ -82,7 +89,7 @@ Web consume APIs Core/Streaming y Chat/HLS; módulos UI no requieren procesos pr
 ## 9. Decisiones y preguntas abiertas
 
 Web integrada y mismo origen HTTPS. [ADR-007](../adr/ADR-007-web-react-typescript.md) selecciona la base Web React/TypeScript/SWC con pnpm.
-Las vistas locales usan mocks; auth, proxy, HTTP/WS/HLS y CA integrados siguen pendientes. La ruta por handle compone datos locales Core y snapshot público Streaming; Discovery consulta proyección SQL local.
+La Web funcional consume HTTP/GraphQL/WS/HLS reales y valida respuestas con los contratos generados. [ADR-013](../adr/ADR-013-web-integrada-caddy-hls.md) selecciona Caddy, hls.js y validación Ajv. Las muestras se limitan a pruebas y biblioteca visual explícita; nunca reemplazan un fallo de API. El perfil HTTP local sirve para desarrollo y pruebas; TLS, S3 y carga pertenecen a SPEC-13, y la inspección con lector de pantalla de SPEC-08 conserva su puerta independiente. La ruta por handle compone datos locales Core y snapshot público Streaming; Discovery consulta proyección SQL local.
 
 ## 10. Verificación
 

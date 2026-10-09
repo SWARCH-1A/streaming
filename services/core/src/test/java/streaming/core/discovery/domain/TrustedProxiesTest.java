@@ -1,5 +1,7 @@
 package streaming.core.discovery.domain;
 
+import streaming.core.security.TrustedProxies;
+
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

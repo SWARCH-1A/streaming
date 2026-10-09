@@ -10,7 +10,7 @@ Define contratos de red entre Web/Core/Streaming/Chat/Media y límites locales C
 
 ## 2. Definición del componente
 
-Los límites lógicos, las rutas canónicas P1, el payload mínimo de las operaciones críticas y los errores/fallos observables están especificados en el inventario autocontenido `contratos_modelo_datos.md`. OpenAPI/JSON Schema/AsyncAPI y las herramientas de validación se seleccionan mediante ADR, sin cambiar el contrato semántico.
+Los límites lógicos, las rutas canónicas P1, el payload mínimo de las operaciones críticas y los errores/fallos observables están especificados en el inventario `contratos_modelo_datos.md`, con schemas y ejemplos en `contracts/p1.json`. ADR-012 selecciona JSON Schema 2020-12 y SDL, derivados mediante `contracts/generate.py`. `--check` verifica ejemplos, referencias locales, privacidad, inventario, SDL Core/queries y drift; CI usa el mismo comando. La prueba Core–Streaming importa el cliente Rust del checkout actual; una referencia histórica requiere selección explícita.
 
 ## 3. Historia de usuario
 
@@ -49,9 +49,15 @@ recibir 401 en owner-context aun con sesión válida. Ambos reciben 404 en la en
 
 - **CA-06:** respuestas de canal, discovery y chat no exponen atributos privados; verificación con payload y revisión de schema.
 
+- **CA-07:** el inventario cubre todas las operaciones de la matriz SPEC-09, incluidas obtención de CSRF, uploads/lectura de imágenes, bootstrap de canal, contexto/snapshot Chat, frames WS, leases y HLS. Cada fila identifica schema/ejemplo de éxito y error, auth por ruta, límites, timeout, idempotencia y consumidor; las interfaces locales Core se distinguen de los contratos de red.
+
+- **CA-08:** las pruebas de proveedor y consumidor usan los componentes del checkout integrado identificado por commit; un harness fijado a una versión histórica se conserva como regresión, pero no acredita compatibilidad del código actual. Cada contrato pendiente de implementación permanece abierto aunque existan schema o mock.
+
 ## 7. Diseño técnico y datos
 
 Fuente semántica única contratos_modelo_datos.md; artefactos generados según ADR de herramienta. Cambio incompatible identifica transición/migración/retiro. Core usa puertos/adaptadores locales, repositorios privados y FK; Streaming/Chat/Media consumen schemas HTTP neutros. Los criterios de aceptación requieren evidencia ejecutable.
+
+En P1, ADR-011 integra el adaptador técnico en el proceso Streaming. Autorización/callbacks internos conservan HTTP loopback autenticado en desarrollo; el perfil persistente ADR-014 usa HTTPS con CA explícita y conserva persistencia separada. HLS público se enruta al listener 8888 del contenedor Streaming; RTMP sigue en MediaMTX. Reinicios/fallos del proceso afectan al control y al adaptador juntos.
 
 ## 8. Dependencias y contratos de integración
 
@@ -60,6 +66,8 @@ SPEC-01, SPEC-03…SPEC-08 aportan comportamiento; SPEC-11 secuencia; SPEC-12 pr
 ## 9. Decisiones y preguntas abiertas
 
 Preservar contratos públicos donde no contradigan topología; registrar cambios de registro/lectura compuesta/contexto Chat. La aceptación requiere schemas neutrales y verificación de presupuestos entre proveedor y consumidor.
+
+Los artefactos incluyen p1.d.ts derivado de schemas JSON y tipos GraphQL derivados del SDL; Web consume esos tipos y las queries sin DTO paralelos.
 
 ## 10. Verificación
 

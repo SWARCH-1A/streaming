@@ -1,0 +1,12 @@
+# Isolated integration fixture, not a deployment profile. HTTP is explicitly confined to this network.
+include:
+  - path:
+      - ../../../infra/local/compose.core.yaml
+      - ../../../infra/local/compose.core-private-dev.yaml
+      - ../../../infra/local/compose.chat.yaml
+      - ../../../infra/local/compose.chat-private-dev.yaml
+      - ./core.yaml
+  - path:
+      - ../../../services/streaming/compose.yaml
+      - ./streaming.yaml
+  - path: ../../../infra/reverse-proxy/compose.web-dev.yaml

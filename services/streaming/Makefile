@@ -22,4 +22,4 @@ compose-check:
 
 # BuildKit image build is a separate target because it needs the Docker daemon.
 image:
-	docker compose -f "$(SERVICE_DIR)compose.yaml" build streaming media-adapter
+	docker compose -f "$(SERVICE_DIR)compose.yaml" build streaming

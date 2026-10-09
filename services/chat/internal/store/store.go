@@ -29,7 +29,7 @@ import (
 // Options fija retenciones y límites; los valores salen de configuración.
 type Options struct {
 	EndedRetention time.Duration // tiempo que una sala READ_ONLY sigue legible antes de borrarse
-	IdleTTL        time.Duration // vencimiento de seguridad de salas sin actividad ni evento de fin
+	IdleTTL        time.Duration // caché de estado; nunca limita mensajes confirmados de una sesión activa
 	InboxTTL       time.Duration // retención de eventIds para deduplicar reintentos de session-events
 }
 
@@ -96,7 +96,6 @@ local seq = redis.call('INCR', KEYS[2])
 redis.call('XADD', KEYS[4], '0-' .. seq, 'm', ARGV[7])
 local rec = ARGV[2] .. '|' .. seq .. '|' .. ARGV[5] .. '|' .. ARGV[6]
 redis.call('HSET', KEYS[3], ARGV[1], rec)
-for i = 2, 4 do redis.call('PEXPIRE', KEYS[i], ARGV[9]) end
 return {'ACCEPTED', rec}
 `)
 
@@ -115,7 +114,7 @@ func (s *Store) Accept(ctx context.Context, in AcceptInput) (AcceptResult, error
 	raw, err := acceptScript.Run(ctx, s.rdb, keys,
 		in.UserID+"|"+in.ClientMessageID, in.TextHash, allowed, in.DenialCode,
 		in.Message.MessageID, in.Message.ServerCreatedAtUTC.UnixMilli(), payload,
-		chat.QuotaWindow.Milliseconds(), s.opts.IdleTTL.Milliseconds(),
+		chat.QuotaWindow.Milliseconds(),
 	).Slice()
 	if err != nil {
 		return AcceptResult{}, err

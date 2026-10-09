@@ -1,0 +1,33 @@
+name: P1 contracts
+on:
+  push:
+    branches: [main, develop]
+    paths: ['contracts/**', 'docs/contratos_modelo_datos.md', 'tests/contracts/**', 'services/core/src/main/resources/discovery/schema.graphqls', '.github/workflows/contracts.yml', '!contracts/**/*.md', '!tests/contracts/**/*.md']
+  pull_request:
+    paths: ['contracts/**', 'docs/contratos_modelo_datos.md', 'tests/contracts/**', 'services/core/src/main/resources/discovery/schema.graphqls', '.github/workflows/contracts.yml', '!contracts/**/*.md', '!tests/contracts/**/*.md']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: contracts-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  generated-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - run: python generate.py --check
+      - run: python -m unittest discover -s ../tests/contracts -p 'test_*.py'
+      - name: Checkout selection and runner safeguards
+        shell: pwsh
+        run: ../tests/contracts/test-runner-helpers.ps1

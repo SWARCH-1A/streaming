@@ -8,6 +8,8 @@ use std::{error::Error, time::Duration};
 use uuid::Uuid;
 type TestError = Box<dyn Error + Send + Sync>;
 async fn database() -> Result<PgPool, TestError> {
+    // Ignored SQL tests also construct HTTP clients without running application bootstrap.
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let url = std::env::var("STREAMING_TEST_DATABASE_URL")?;
     let admin = PgPoolOptions::new()
         .max_connections(1)
@@ -279,6 +281,50 @@ fn media_state(pool: PgPool, server: &TestServer) -> Result<super::MediaState, T
             max_open_dead_letters: 10000,
         },
     })
+}
+
+#[tokio::test]
+async fn rtmps_publisher_is_found_and_kicked_after_rtmp_collection_returns_404()
+-> Result<(), TestError> {
+    use axum::{
+        Router,
+        extract::State,
+        http::StatusCode,
+        routing::{get, post},
+    };
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    let kicks = Arc::new(AtomicUsize::new(0));
+    let engine = serve(
+        Router::new()
+            .route(
+                "/v3/rtmp/conns/get/{id}",
+                get(async || StatusCode::NOT_FOUND),
+            )
+            .route(
+                "/v3/rtmp/conns/kick/{id}",
+                post(async || StatusCode::NOT_FOUND),
+            )
+            .route("/v3/rtmps/conns/get/{id}", get(async || StatusCode::OK))
+            .route(
+                "/v3/rtmps/conns/kick/{id}",
+                post(async |State(kicks): State<Arc<AtomicUsize>>| {
+                    kicks.fetch_add(1, Ordering::Relaxed);
+                    StatusCode::OK
+                }),
+            )
+            .with_state(Arc::clone(&kicks)),
+    )
+    .await?;
+    let pool = PgPoolOptions::new().connect_lazy("postgres://unused:unused@localhost/unused")?;
+    let state = media_state(pool, &engine)?;
+    let id = Uuid::new_v4();
+    assert!(state.publisher_exists(id).await.is_ok_and(|exists| exists));
+    assert!(state.kick(id).await.is_ok());
+    assert_eq!(kicks.load(Ordering::Relaxed), 1);
+    Ok(())
 }
 
 #[tokio::test]

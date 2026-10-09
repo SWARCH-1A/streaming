@@ -17,8 +17,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 import streaming.core.discovery.application.DiscoveryException;
-import streaming.core.discovery.domain.RequestRateLimiter;
-import streaming.core.discovery.domain.TrustedProxies;
+import streaming.core.discovery.domain.RequestLimiter;
+import streaming.core.security.TrustedProxies;
 import streaming.core.discovery.infrastructure.graphql.DiscoveryGraphQl;
 import streaming.core.discovery.infrastructure.graphql.GraphQlQueryGuard;
 import streaming.core.security.RequestAuditFilter;
@@ -35,11 +35,11 @@ public class DiscoveryGraphQlController {
     static final int MAX_BODY_BYTES=16*1024;
     private final DiscoveryGraphQl engine;
     private final GraphQlQueryGuard guard;
-    private final RequestRateLimiter limiter;
+    private final RequestLimiter limiter;
     private final TrustedProxies proxies;
     private final ObjectMapper json;
 
-    public DiscoveryGraphQlController(DiscoveryGraphQl engine,GraphQlQueryGuard guard,RequestRateLimiter limiter,TrustedProxies proxies,ObjectMapper json) {
+    public DiscoveryGraphQlController(DiscoveryGraphQl engine,GraphQlQueryGuard guard,RequestLimiter limiter,TrustedProxies proxies,ObjectMapper json) {
         this.engine=engine; this.guard=guard; this.limiter=limiter; this.proxies=proxies; this.json=json;
     }
 
@@ -47,7 +47,11 @@ public class DiscoveryGraphQlController {
     public ResponseEntity<byte[]> graphql(HttpServletRequest request) throws IOException {
         String requestId=String.valueOf(request.getAttribute(RequestAuditFilter.REQUEST_ID_ATTRIBUTE));
         String client=proxies.clientAddress(request.getRemoteAddr(),Collections.list(request.getHeaders("X-Forwarded-For")));
-        var decision=limiter.tryAcquire(client);
+        RequestLimiter.Decision decision;
+        try { decision=limiter.tryAcquire(client); }
+        catch(org.springframework.dao.DataAccessException e) {
+            return failure(HttpStatus.SERVICE_UNAVAILABLE,"DISCOVERY_UNAVAILABLE","No fue posible completar la consulta.",requestId);
+        }
         if(!decision.allowed()) {
             var response=failure(HttpStatus.TOO_MANY_REQUESTS,"RATE_LIMITED","Se superó el límite de solicitudes; reintenta más tarde.",requestId);
             return ResponseEntity.status(response.getStatusCode()).headers(headers(response.getHeaders()))

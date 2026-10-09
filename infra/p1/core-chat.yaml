@@ -1,0 +1,56 @@
+services:
+  postgres:
+    ports: !reset []
+    entrypoint: ["/bin/sh", "/postgres-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tmp/p1-tls/server.crt", "-c", "ssl_key_file=/tmp/p1-tls/server.key"]
+    volumes:
+      - ../p1/postgres-tls.sh:/postgres-tls.sh:ro
+      - ${P1_STATE}/postgres.crt:/run/secrets/server.crt:ro
+      - ${P1_STATE}/postgres.key:/run/secrets/server.key:ro
+    restart: unless-stopped
+  core:
+    image: streaming-p1-core
+    ports: !reset []
+    environment:
+      CORE_DB_URL: jdbc:postgresql://postgres:5432/core?sslmode=verify-full&sslrootcert=/run/secrets/ca.crt
+      CORE_PUBLIC_TLS_ENABLED: "true"
+      CORE_PUBLIC_TLS_KEYSTORE: /run/secrets/core-internal.p12
+      CORE_PUBLIC_TLS_KEYSTORE_PASSWORD: ${CORE_INTERNAL_TLS_KEYSTORE_PASSWORD:?Run init}
+      CORE_SECURE_COOKIE: "true"
+      CORE_TRUSTED_PROXIES: ${WEB_PROXY_IP:-}
+      CORE_STREAMING_BASE_URL: https://streaming:8091
+      CORE_STREAMING_CONSUMER_TOKEN: ${CORE_STREAMING_CONSUMER_TOKEN:?Run init}
+      CORE_STREAMING_DEVELOPMENT_HTTP: "false"
+      CORE_IMAGE_STORAGE_PROVIDER: filesystem
+      JAVA_TOOL_OPTIONS: -Djavax.net.ssl.trustStore=/run/secrets/truststore.p12 -Djavax.net.ssl.trustStorePassword=changeit
+    volumes:
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+      - ${P1_STATE}/truststore.p12:/run/secrets/truststore.p12:ro
+    restart: unless-stopped
+  chat-redis:
+    command: ["redis-server", "--port", "0", "--tls-port", "6379", "--tls-cert-file", "/run/secrets/chat-redis.crt", "--tls-key-file", "/run/secrets/chat-redis.key", "--tls-ca-cert-file", "/run/secrets/ca.crt", "--tls-auth-clients", "no", "--appendonly", "yes", "--appendfsync", "always", "--save", "", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - ${P1_STATE}/chat-redis.crt:/run/secrets/chat-redis.crt:ro
+      - ${P1_STATE}/chat-redis.key:/run/secrets/chat-redis.key:ro
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    healthcheck:
+      test: ["CMD", "redis-cli", "--tls", "--cacert", "/run/secrets/ca.crt", "-h", "chat-redis", "ping"]
+    restart: unless-stopped
+  chat:
+    image: streaming-p1-chat
+    ports: !reset []
+    environment:
+      CHAT_REDIS_URL: rediss://chat-redis:6379/0
+      SSL_CERT_FILE: /run/secrets/ca.crt
+      CHAT_CORE_BASE_URL: https://core:8082
+      CHAT_CORE_DEVELOPMENT_HTTP: "false"
+      CHAT_CORE_CA_FILE: /run/secrets/ca.crt
+      CHAT_PUBLIC_TLS_CERT_FILE: /run/secrets/chat.crt
+      CHAT_PUBLIC_TLS_KEY_FILE: /run/secrets/chat.key
+      CHAT_INTERNAL_TLS_CERT_FILE: /run/secrets/chat.crt
+      CHAT_INTERNAL_TLS_KEY_FILE: /run/secrets/chat.key
+    volumes:
+      - ${P1_STATE}/chat.crt:/run/secrets/chat.crt:ro
+      - ${P1_STATE}/chat.key:/run/secrets/chat.key:ro
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    restart: unless-stopped

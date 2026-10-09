@@ -1,8 +1,8 @@
 [CmdletBinding()]
-param([string]$StreamingRef = 'f9dc6d164242b24bdc20e29ceefdc3978b215390')
+param([string]$StreamingRef = '', [string]$Python = 'python')
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
-$work = Join-Path $repo 'services/core/target/streaming-contract'
+$work = Join-Path $repo 'tests/contracts/.cache/streaming-core'
 . (Join-Path $PSScriptRoot 'prepare-streaming-consumer.ps1')
 $source = Initialize-StreamingConsumer -RepoPath $repo -StreamingRef $StreamingRef
 function Invoke-CheckedDocker {
@@ -15,6 +15,8 @@ function New-FixtureSecret {
     [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
 }
 $crate = Join-Path $source 'tests/contracts/streaming-core'
+$cache = Join-Path $work 'cache'
+New-Item -ItemType Directory -Path $cache -Force | Out-Null
 New-Item -ItemType Directory -Path $crate -Force | Out-Null
 Copy-Item -Path (Join-Path $PSScriptRoot 'streaming-core/*') -Destination $crate -Recurse -Force
 $envFile = Join-Path $work '.env'
@@ -31,7 +33,7 @@ if ($envText -notmatch '(?m)^CORE_STREAMING_CATALOG_SERVICE_TOKEN=[^\r\n]+\r?$')
     [IO.File]::WriteAllText($envFile, $envText, [Text.UTF8Encoding]::new($false))
 }
 $settings = ConvertFrom-StringData ([IO.File]::ReadAllText($envFile))
-$compose = @('compose','--env-file',$envFile,'-p','taxonomy-contracts','-f',(Join-Path $repo 'infra/local/compose.core.yaml'),'-f',(Join-Path $repo 'infra/local/compose.core-private-dev.yaml'))
+$compose = @('compose','--env-file',$envFile,'-p','taxonomy-contracts','-f',(Join-Path $repo 'infra/local/compose.core.yaml'),'-f',(Join-Path $repo 'infra/local/compose.core-private-dev.yaml'),'-f',(Join-Path $PSScriptRoot 'compose.yaml'))
 $base = 'http://127.0.0.1:18081'
 function Wait-Core {
     for ($attempt=0; $attempt -lt 60; $attempt++) {
@@ -61,7 +63,9 @@ try {
     $fixturePath = Join-Path $work 'fixture.json'
     [IO.File]::WriteAllText($fixturePath, ($fixture | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
     $before = Invoke-RestMethod "$base/api/taxonomy" | ConvertTo-Json -Depth 8 -Compress
-    Invoke-CheckedDocker run --rm --network taxonomy-contracts_default --mount "type=bind,source=$source,target=/source" --mount "type=bind,source=$fixturePath,target=/fixture.json,readonly" --mount 'type=volume,source=streaming-contract-cargo,target=/usr/local/cargo' --mount 'type=volume,source=streaming-contract-target,target=/target' --env CARGO_TARGET_DIR=/target --env CONTRACT_FIXTURE=/fixture.json --env CARGO_BUILD_JOBS=2 --workdir /source/tests/contracts/streaming-core rust:1.98 cargo test
+    Invoke-CheckedDocker run --rm --network taxonomy-contracts_default --mount "type=bind,source=$source,target=/source" --mount "type=bind,source=$fixturePath,target=/fixture.json,readonly" --mount 'type=volume,source=streaming-contract-cargo,target=/usr/local/cargo' --mount "type=bind,source=$cache,target=/target" --env CARGO_TARGET_DIR=/target --env CONTRACT_FIXTURE=/fixture.json --env CARGO_BUILD_JOBS=2 --env CARGO_PROFILE_DEV_DEBUG=0 --env CARGO_PROFILE_TEST_DEBUG=0 --env CARGO_INCREMENTAL=0 --workdir /source/tests/contracts/streaming-core rust:1.98-slim-bookworm cargo test --locked
+    & $Python (Join-Path $PSScriptRoot 'verify_http_samples.py') (Join-Path $crate 'responses.json')
+    if ($LASTEXITCODE -ne 0) { throw 'Neutral consumer rejected actual provider payloads.' }
     Invoke-CheckedDocker @compose restart postgres
     for ($attempt=0; $attempt -lt 30; $attempt++) {
         & docker @compose exec -T postgres pg_isready -U core -d core | Out-Null

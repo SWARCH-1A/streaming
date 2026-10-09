@@ -29,8 +29,13 @@ impl MediaConfig {
         if production {
             crate::config::require_postgres_tls("MEDIA_DATABASE_URL", &database_url)?;
         }
-        let streaming_url = http_url("MEDIA_STREAMING_URL", production)?;
-        let streaming_public_url = http_url("MEDIA_STREAMING_PUBLIC_URL", production)?;
+        // Self-calls reach the same listeners as network clients. Their scheme
+        // must match TLS even when certificates are enabled in development.
+        let streaming_tls = production
+            || env::var_os("STREAMING_TLS_CERT_FILE").is_some()
+            || env::var_os("STREAMING_TLS_KEY_FILE").is_some();
+        let streaming_url = http_url("MEDIA_STREAMING_URL", streaming_tls)?;
+        let streaming_public_url = http_url("MEDIA_STREAMING_PUBLIC_URL", streaming_tls)?;
         let control_url = http_url("MEDIA_CONTROL_URL", production)?;
         let hls_url = http_url("MEDIA_HLS_URL", false)?;
         let streaming_token = secret("MEDIA_STREAMING_TOKEN")?;
@@ -100,8 +105,15 @@ fn secret(name: &str) -> Result<String, Box<dyn std::error::Error + Send + Sync>
     Ok(value)
 }
 fn http_url(name: &str, https: bool) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    let value = required(name)?;
-    let url = reqwest::Url::parse(&value)?;
+    validate_http_url(name, &required(name)?, https)
+}
+
+fn validate_http_url(
+    name: &str,
+    value: &str,
+    https: bool,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    let url = reqwest::Url::parse(value)?;
     if !matches!(url.scheme(), "http" | "https")
         || (https && url.scheme() != "https")
         || url.host_str().is_none()
@@ -113,4 +125,52 @@ fn http_url(name: &str, https: bool) -> Result<String, Box<dyn std::error::Error
         return Err(format!("invalid {name}").into());
     }
     Ok(value.trim_end_matches('/').to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_http_url;
+
+    #[test]
+    fn tls_listeners_require_https_even_for_loopback_self_calls() {
+        for url in [
+            "http://127.0.0.1:8091",
+            "http://[::1]:8091",
+            "http://localhost:8091",
+        ] {
+            assert!(validate_http_url("test", url, true).is_err());
+            assert!(validate_http_url("test", url, false).is_ok());
+        }
+        for url in [
+            "http://streaming:8091",
+            "http://127.0.0.1.example:8091",
+            "http://localhost@remote:8091",
+            "http://127.0.0.1:8091?token=x",
+        ] {
+            assert!(validate_http_url("test", url, true).is_err());
+        }
+        for url in [
+            "https://live:8091",
+            "https://live:8080",
+            "https://localhost:8091",
+            "https://127.0.0.1:8080",
+            "https://[::1]:8091",
+        ] {
+            assert!(validate_http_url("test", url, true).is_ok());
+        }
+    }
+
+    #[test]
+    fn self_call_urls_reject_embedded_credentials_and_invalid_transports() {
+        for url in [
+            "ftp://live:8091",
+            "https://user:password@live:8091",
+            "https://live:8091?token=x",
+            "https://live:8091#fragment",
+        ] {
+            for tls in [false, true] {
+                assert!(validate_http_url("test", url, tls).is_err());
+            }
+        }
+    }
 }

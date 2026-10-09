@@ -54,6 +54,10 @@ public class CoreErrorHandler {
         String code=request.getRequestURI().startsWith("/api/channels/")?"INVALID_BANNER":"INVALID_AVATAR";
         return response(HttpStatus.PAYLOAD_TOO_LARGE,code,"La carga excede el límite permitido.",request);
     }
+    @ExceptionHandler(org.springframework.web.HttpMediaTypeNotAcceptableException.class)
+    ResponseEntity<ErrorBody> unacceptable(HttpServletRequest request) {
+        return response(HttpStatus.NOT_ACCEPTABLE,"NOT_ACCEPTABLE","El tipo de respuesta solicitado no está disponible.",request);
+    }
     @ExceptionHandler(Exception.class)
     ResponseEntity<ErrorBody> unexpected(HttpServletRequest request) {
         return response(HttpStatus.INTERNAL_SERVER_ERROR,"INTERNAL_ERROR","No fue posible completar la solicitud.",request);

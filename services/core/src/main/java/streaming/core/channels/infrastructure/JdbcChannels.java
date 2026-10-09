@@ -34,6 +34,7 @@ public class JdbcChannels implements ChannelInitializer, ChannelQueries, Channel
     }
 
     public Optional<Bootstrap> byHandle(String canonicalHandle) { return read("a.handle",canonicalHandle); }
+    public Optional<Bootstrap> byId(String channelId) { return read("c.channel_id",channelId); }
     public Optional<Bootstrap> byOwner(String userId) { return read("c.owner_user_id",userId); }
 
     @Override public Optional<Channel> find(String channelId) {
@@ -100,7 +101,7 @@ public class JdbcChannels implements ChannelInitializer, ChannelQueries, Channel
                 .param("value",value).query((rs,n)->new Bootstrap(
                         new ChannelView(rs.getString(1),rs.getString(2),rs.getString(3),rs.getString(4),rs.getLong(5)),
                         rs.getString(6),new ProfileView(rs.getString(2),rs.getString(7),rs.getString(8),
-                        rs.getString(9)==null?null:avatarBase+"/"+rs.getString(9),rs.getTimestamp(10).toInstant(),rs.getLong(11)),null)).optional();
+                        rs.getString(9)==null?null:avatarBase+"/"+rs.getString(9),rs.getTimestamp(10).toInstant(),rs.getLong(11)),null,false,"UNKNOWN")).optional();
     }
 
 }

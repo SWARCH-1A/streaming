@@ -9,7 +9,7 @@ async fn main() -> ExitCode {
         )
         .with_target(false)
         .init();
-    match streaming_service::media_adapter::run().await {
+    match streaming_service::media_adapter::run_operator_cli().await {
         Ok(()) => ExitCode::SUCCESS,
         Err(_) => {
             // Driver/network errors can contain URLs or credentials.

@@ -26,7 +26,7 @@ docs/ es la definición vigente. Usa exclusivamente MCP de Plane y proyecto STRE
 | accessibility | Web y criterios de todas las vistas afectadas | SPEC-08 | src/accessibility y vistas |
 | integration | Shell, contracts, infra y pruebas compartidas | SPEC-09…SPEC-13 | src/shell |
 
-Core se ubica en services/core; Streaming Rust en services/streaming; Chat en services/chat; Media en infra/media; UI bajo apps/web.
+Core se ubica en services/core; Streaming Rust y adaptador Media en services/streaming; Chat en services/chat; MediaMTX en infra/media; UI bajo apps/web.
 Las responsabilidades de autenticación y perfil viven en services/core/src/main/java/streaming/core/accounts.
 Web organiza módulos bajo apps/web/src/modules, shell y accesibilidad bajo apps/web/src.
 Discovery permanece en Core con inbox/proyección SQL pública de Streaming según ADR-005. No crear otro runtime por los módulos que permanecen en Core.

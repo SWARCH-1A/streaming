@@ -1,7 +1,7 @@
 # Entorno local con Docker
 
 `compose.core.yaml` inicia Core y PostgreSQL 18. Core incluye Catálogo en el mismo ejecutable;
-Chat, Media, Web y proxy se incorporan al implementar sus SPEC/ADR. Se necesita Git, PowerShell
+Chat, Web y proxy se integran conforme a sus SPEC/ADR. El stack propio [Streaming/Media](../../services/streaming/README.md) tiene tres contenedores (PostgreSQL, Streaming con adaptador y MediaMTX), según ADR-011; se arranca desde services/streaming y su conexión con Core se configura como se indica más abajo. Se necesita Git, PowerShell
 y Docker Desktop iniciado con contenedores Linux. JDK 25 y Maven 3.9.11 se ejecutan dentro de Docker.
 Definición y variables de proceso: [Core](../../services/core/README.md).
 `compose.chat.yaml` añade Chat y su Redis con AOF. Definición y variables de Chat:
@@ -87,7 +87,7 @@ bucket sin objetos; no hay claves ni archivos referenciados que trasladar. Consu
 
 ### Conexión privada Core–Streaming
 
-`init-env.ps1` agrega `CORE_STREAMING_SERVICE_TOKEN` y `CORE_STREAMING_CATALOG_SERVICE_TOKEN` si faltan
+`init-env.ps1` agrega los tokens Streaming/Chat si faltan
 o están vacíos, y conserva los secretos existentes, incluidos archivos LF/CRLF. Son secretos distintos:
 el primero permite los POST owner-context y catalog-values; el segundo solo catalog-values y es
 opcional para Core. Ambos pertenecen a la relación entre procesos. El listener
@@ -105,7 +105,15 @@ no se publica en el host; 8081 rechaza `/internal/*` incluso con token válido.
 El cliente Rust actual conserva el token principal porque necesita ambas rutas. No sustituirlo
 por el token limitado al catálogo: los comandos de propietario recibirían 401. La credencial
 opcional vacía queda deshabilitada; un valor inválido o igual al principal impide arrancar la
-entrada privada. Los ejemplos versionados mantienen ambos valores vacíos.
+entrada privada. El secreto Chat también es opcional hasta conectar Chat; cuando se configura,
+debe ser válido y distinto de los dos Streaming. Solo permite las rutas privadas Chat.
+Los ejemplos versionados mantienen los secretos vacíos.
+
+Para canal y contexto Chat, configurar CORE_STREAMING_BASE_URL con el listener privado Streaming
+y CORE_STREAMING_CONSUMER_TOKEN con el mismo valor de STREAMING_CORE_CONSUMER_TOKEN. Core
+usa HTTPS por defecto; el overlay private-dev habilita HTTP explícitamente. Timeout de sesión
+200 ms incluyendo cuerpo, de canal 1 s; cuerpo máximo 64 KiB. Una falla de Streaming devuelve
+UNKNOWN en el canal y rechaza el contexto nuevo con STREAMING_UNAVAILABLE.
 
 Para TLS, reemplazar el último overlay por `infra/local/compose.core-private-tls.yaml` y añadir
 al `.env` local `CORE_INTERNAL_TLS_KEYSTORE` (ruta absoluta al PKCS12 legible por UID 10001) y
@@ -142,42 +150,18 @@ Los resultados quedan bajo `services/core/target/surefire-reports` y `failsafe-r
 versionan. Solo una ejecución exitosa acredita los checks; el perfil integrado P1 de SPEC-13 se
 verifica aparte cuando estén sus consumidores.
 
-## Plane mediante MCP
-
-Plane organiza trabajo y no participa en el arranque o pruebas de Core. El servidor oficial usa
-`uvx plane-mcp-server stdio`; su registro local en la configuración del cliente MCP contiene:
-
-```toml
-[mcp_servers.plane]
-command = "uvx"
-args = ["plane-mcp-server", "stdio"]
-enabled = false
-env_vars = ["PLANE_API_KEY"]
-
-[mcp_servers.plane.env]
-PLANE_BASE_URL = "https://plane.ivant.dev"
-PLANE_WORKSPACE_SLUG = "sw-architecture-2026-2"
-```
-
-En Codex esta configuración vive en el archivo local del usuario `.codex/config.toml`; si `uvx`
-no está en su PATH, `command` debe usar la ruta absoluta de la instalación local. `PLANE_API_KEY`
-pertenece al entorno privado del cliente MCP, nunca al repositorio ni a `infra/local/.env`.
-El servidor no carga ese `.env` automáticamente. Habilitar el registro solo cuando la credencial
-esté disponible en el proceso cliente; reiniciar el cliente tras modificar sus variables de usuario.
-La ausencia de credencial mantiene Plane deshabilitado y permite continuar con desarrollo/pruebas.
-Usar exclusivamente MCP y el proyecto STREAMING; conservar responsables y relaciones existentes.
-
 ## Detener conservando datos
 
 ```powershell
 docker compose --env-file infra/local/.env -p streaming-core -f infra/local/compose.core.yaml down
 ```
 
-Chat se levanta junto con Core para resolver `core:8081` en la misma red. Completar antes
-CHAT_CORE_SERVICE_TOKEN y CHAT_SESSION_EVENTS_TOKEN en `.env`:
+Chat usa el listener privado `core:8082` en la misma red. `init-env.ps1` genera
+CHAT_CORE_SERVICE_TOKEN y CHAT_SESSION_EVENTS_TOKEN distintos; Core recibe el primero y Streaming
+el segundo. Ejemplo aislado HTTP (en despliegue usar TLS y CA confiables):
 
 ```sh
-docker compose --env-file infra/local/.env -p streaming-core -f infra/local/compose.core.yaml -f infra/local/compose.chat.yaml up --build -d
+docker compose --env-file infra/local/.env -p streaming-core -f infra/local/compose.core.yaml -f infra/local/compose.core-private-dev.yaml -f infra/local/compose.chat.yaml -f infra/local/compose.chat-private-dev.yaml up --build -d
 curl http://localhost:8085/readyz
 ```
 

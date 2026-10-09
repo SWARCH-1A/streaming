@@ -59,6 +59,7 @@ func (f *fakeCore) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if failWith != 0 {
 		w.WriteHeader(failWith)
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"code": failCode})
 		return
 	}
@@ -68,6 +69,7 @@ func (f *fakeCore) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(core.SessionSnapshot{SessionID: sid, StreamGeneration: 1, SessionVersion: version, Status: status, Availability: "PLAYABLE"})
 		return
 	}
@@ -75,6 +77,7 @@ func (f *fakeCore) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	json.NewDecoder(r.Body).Decode(&body)
 	if user == "" {
 		w.WriteHeader(http.StatusUnauthorized)
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"code": "AUTH_REQUIRED"})
 		return
 	}
@@ -93,6 +96,7 @@ func (f *fakeCore) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		code := chat.CodeChatNotOpen
 		mc.DenialCode = &code
 	}
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(mc)
 }
 
@@ -118,7 +122,7 @@ func newHarness(t *testing.T, mr *miniredis.Miniredis, fc *fakeCore) *harness {
 	t.Cleanup(func() { rdb.Close() })
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	st := store.New(rdb, store.Options{EndedRetention: 5 * time.Minute, IdleTTL: time.Hour, InboxTTL: time.Hour})
-	cc, err := core.New(core.Config{BaseURL: coreSrv.URL, ServiceToken: "core-token", ConnectTimeout: 100 * time.Millisecond, RequestTimeout: 400 * time.Millisecond})
+	cc, err := core.New(core.Config{DevelopmentHTTP: true, BaseURL: coreSrv.URL, ServiceToken: "core-token", ConnectTimeout: 100 * time.Millisecond, RequestTimeout: 400 * time.Millisecond})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,7 +313,8 @@ func TestCoreFailuresRejectWithoutPersisting(t *testing.T) {
 		{func(f *fakeCore) { f.failWith, f.failCode = 503, "" }, chat.CodeCoreUnavailable},
 		{func(f *fakeCore) { f.failWith, f.failCode = 503, chat.CodeStreamingUnavailable }, chat.CodeStreamingUnavailable},
 		{func(f *fakeCore) { f.failWith = 0; f.delay = 350 * time.Millisecond }, chat.CodeTimelineUnavailable},
-		{func(f *fakeCore) { f.delay = time.Second }, chat.CodeCoreUnavailable},
+		// This harness has a 300 ms total budget, shorter than its 400 ms Core timeout.
+		{func(f *fakeCore) { f.delay = time.Second }, chat.CodeTimelineUnavailable},
 	}
 	for _, tc := range cases {
 		h.core.set(tc.apply)

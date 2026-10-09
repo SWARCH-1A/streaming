@@ -56,7 +56,7 @@ Como visitante o propietario, quiero consultar y mantener la página del canal, 
 
 - CA-01: registro confirmado crea exactamente un canal por cuenta en la misma transacción; retry conserva channelId. FK y UNIQUE ownerUserId, no provisión HTTP.
 - CA-02: owner edita descripción/banner; otro usuario 403, inválido conserva anterior. La publicación usa el proveedor seleccionado, S3 privado por defecto, y un fallo conserva la portada anterior.
-- CA-03: /channels/{handle} usa GET /api/channels/by-handle/{handle}, composición local de canal, handle y perfil; bootstrap agrega metadata/estado desde batch Streaming; fallo conserva canal con UNKNOWN. El player consulta directamente la sesión autoritativa. No join Identity→Profile→Channels en navegador.
+- CA-03: /channels/{handle} usa GET /api/channels/by-handle/{handle}, composición local de canal, handle y perfil; GET /api/channels/{channelId} publica el mismo bootstrap para resolver Watch directo; bootstrap agrega metadata/estado desde batch Streaming; fallo conserva canal con UNKNOWN. El player consulta directamente la sesión autoritativa. No join Identity→Profile→Channels en navegador.
 - CA-04: cambio de disponibilidad confirmado por Emisiones aparece en <=5 s; proyección de emisiones aplicada en SQL Core; estado no confirmado se marca UNKNOWN, sin demorar publicación de cuenta/canal.
 - CA-05: LIVE muestra sesión PLAYABLE; gracia indica reconectando, OFFLINE no inventa VOD.
 - CA-06: cuentas activas publicables desde commit, inexistente/no activo 404 uniforme; channelVersion inicia 0 y sube solo por cambio real.
@@ -66,7 +66,11 @@ Como visitante o propietario, quiero consultar y mantener la página del canal, 
 
 ## 7. Diseño técnico y datos
 
-Canales posee channelId/ownerUserId/description/banner/version; cuenta posee handle y perfil. FK local hacia cuenta, UNIQUE ownerUserId. Edición por su repositorio; consultas de canal usan read model SQL revisado con perfil y batch público Streaming para metadata/estado; listados Discovery usan proyección pública local. Banner opcional JPEG/PNG/GIF <=10 MB, recomendado 1200×480; upload owner/channel ligado, un uso, 15 min. ADR-009 usa S3 privado por defecto, con objetos `pending/` y `public/` bajo el prefijo de banners; Core sirve `bannerUri` por `/api/channels/banners/{key}` y nunca expone una URL, ACL o credencial del bucket. Filesystem requiere selección explícita y almacenamiento compartido al escalar Core. No guardar nombre visible o estado como otra autoridad.
+Canales posee channelId/ownerUserId/description/banner/version; cuenta posee handle y perfil. FK local hacia cuenta, UNIQUE ownerUserId. Edición por su repositorio; consultas de canal usan read model SQL revisado con perfil y batch público Streaming para metadata/estado; listados Discovery usan proyección pública local. Banner opcional JPEG/PNG/GIF <=10 MB, recomendado 1200×480; upload owner/channel ligado, un uso, 15 min. ADR-009 usa S3 privado por defecto, con objetos `pending/` y `public/` bajo el prefijo de banners; Core sirve `bannerUri` por `/api/channels/banners/{key}` y nunca expone una URL, ACL o credencial del bucket. Filesystem requiere selección explícita y almacenamiento compartido al escalar Core. ChannelBootstrapService compone un puerto Streaming con datos locales; batch <=1 s/64 KiB y
+observación dentro de 5 s. Ausencia confirmada es OFFLINE/true, error o dato incoherente UNKNOWN/false.
+La lectura privada no sigue redirecciones ni reintenta. No guardar nombre visible o estado como otra autoridad.
+
+Las rutas públicas de imágenes sirven bytes con Content-Type image/*. Un Accept incompatible devuelve 406 NOT_ACCEPTABLE; no es un fallo 500 del almacenamiento.
 
 ## 8. Dependencias y contratos de integración
 

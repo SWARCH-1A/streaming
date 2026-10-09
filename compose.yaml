@@ -1,0 +1,261 @@
+name: streaming-local
+
+services:
+  core-db:
+    image: postgres:18-alpine
+    entrypoint: ["/bin/sh", "/postgres-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tmp/p1-tls/server.crt", "-c", "ssl_key_file=/tmp/p1-tls/server.key"]
+    environment:
+      POSTGRES_DB: core
+      POSTGRES_USER: core
+      POSTGRES_PASSWORD: ${CORE_DB_PASSWORD:?Run python3 infra/local/dev.py init}
+    volumes:
+      - core-db:/var/lib/postgresql
+      - ./infra/p1/postgres-tls.sh:/postgres-tls.sh:ro
+      - ${P1_STATE:?Run init}/postgres.crt:/run/secrets/server.crt:ro
+      - ${P1_STATE}/postgres.key:/run/secrets/server.key:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U core -d core"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  core:
+    image: streaming-local-core
+    build: ./services/core
+    environment:
+      CORE_DB_URL: jdbc:postgresql://core-db:5432/core?sslmode=verify-full&sslrootcert=/run/secrets/ca.crt
+      CORE_DB_USER: core
+      CORE_DB_PASSWORD: ${CORE_DB_PASSWORD:?Run init}
+      CORE_RATE_LIMIT_HMAC_SECRET: ${CORE_RATE_LIMIT_HMAC_SECRET:?Run init}
+      CORE_TRUSTED_PROXIES: ${LOCAL_PROXY_IP:?Run init}
+      CORE_SECURE_COOKIE: "true"
+      CORE_PUBLIC_TLS_ENABLED: "true"
+      CORE_PUBLIC_TLS_KEYSTORE: /run/secrets/core-internal.p12
+      CORE_PUBLIC_TLS_KEYSTORE_PASSWORD: ${CORE_INTERNAL_TLS_KEYSTORE_PASSWORD:?Run init}
+      CORE_INTERNAL_ENABLED: "true"
+      CORE_INTERNAL_PORT: "8082"
+      CORE_INTERNAL_DEVELOPMENT_HTTP: "false"
+      CORE_INTERNAL_TLS_KEYSTORE: /run/secrets/core-internal.p12
+      CORE_INTERNAL_TLS_KEYSTORE_PASSWORD: ${CORE_INTERNAL_TLS_KEYSTORE_PASSWORD:?Run init}
+      CORE_STREAMING_SERVICE_TOKEN: ${CORE_STREAMING_SERVICE_TOKEN:?Run init}
+      CORE_STREAMING_CATALOG_SERVICE_TOKEN: ${CORE_STREAMING_CATALOG_SERVICE_TOKEN:?Run init}
+      CORE_STREAMING_CONSUMER_TOKEN: ${CORE_STREAMING_CONSUMER_TOKEN:?Run init}
+      CORE_STREAMING_BASE_URL: https://live:8091
+      CORE_STREAMING_DEVELOPMENT_HTTP: "false"
+      CHAT_CORE_SERVICE_TOKEN: ${CHAT_CORE_SERVICE_TOKEN:?Run init}
+      WEB_ORIGIN: ${WEB_ORIGIN:?Run init}
+      CORE_IMAGE_STORAGE_PROVIDER: filesystem
+      PROFILE_AVATAR_STORAGE: /data/avatars
+      PROFILE_AVATAR_PUBLIC_BASE: /api/profile/avatars
+      CHANNELS_BANNER_STORAGE: /data/banners
+      CHANNELS_BANNER_PUBLIC_BASE: /api/channels/banners
+      JAVA_TOOL_OPTIONS: -Djavax.net.ssl.trustStore=/run/secrets/truststore.p12 -Djavax.net.ssl.trustStorePassword=changeit
+    volumes:
+      - core-avatars:/data/avatars
+      - core-banners:/data/banners
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+      - ${P1_STATE}/truststore.p12:/run/secrets/truststore.p12:ro
+      - ${P1_STATE}/core-internal.p12:/run/secrets/core-internal.p12:ro
+    depends_on:
+      core-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  chat-db:
+    image: redis:8-alpine
+    command: ["redis-server", "--port", "0", "--tls-port", "6379", "--tls-cert-file", "/run/secrets/chat-redis.crt", "--tls-key-file", "/run/secrets/chat-redis.key", "--tls-ca-cert-file", "/run/secrets/ca.crt", "--tls-auth-clients", "no", "--appendonly", "yes", "--appendfsync", "always", "--save", "", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - chat-db:/data
+      - ${P1_STATE}/chat-redis.crt:/run/secrets/chat-redis.crt:ro
+      - ${P1_STATE}/chat-redis.key:/run/secrets/chat-redis.key:ro
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    healthcheck:
+      test: ["CMD", "redis-cli", "--tls", "--cacert", "/run/secrets/ca.crt", "-h", "chat-db", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  chat:
+    image: streaming-local-chat
+    build: ./services/chat
+    environment:
+      CHAT_REDIS_URL: rediss://chat-db:6379/0
+      SSL_CERT_FILE: /run/secrets/ca.crt
+      CHAT_ALLOWED_ORIGINS: ${WEB_ORIGIN:?Run init}
+      CHAT_CORE_BASE_URL: https://core:8082
+      CHAT_CORE_DEVELOPMENT_HTTP: "false"
+      CHAT_CORE_CA_FILE: /run/secrets/ca.crt
+      CHAT_CORE_SERVICE_TOKEN: ${CHAT_CORE_SERVICE_TOKEN:?Run init}
+      CHAT_SESSION_EVENTS_TOKEN: ${CHAT_SESSION_EVENTS_TOKEN:?Run init}
+      CHAT_PUBLIC_TLS_CERT_FILE: /run/secrets/chat.crt
+      CHAT_PUBLIC_TLS_KEY_FILE: /run/secrets/chat.key
+      CHAT_INTERNAL_TLS_CERT_FILE: /run/secrets/chat.crt
+      CHAT_INTERNAL_TLS_KEY_FILE: /run/secrets/chat.key
+      CHAT_ENDED_RETENTION: 5m
+    volumes:
+      - ${P1_STATE}/chat.crt:/run/secrets/chat.crt:ro
+      - ${P1_STATE}/chat.key:/run/secrets/chat.key:ro
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    depends_on:
+      chat-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  live-db:
+    image: postgres:18.6-alpine3.24
+    entrypoint: ["/bin/sh", "/postgres-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tmp/p1-tls/server.crt", "-c", "ssl_key_file=/tmp/p1-tls/server.key"]
+    environment:
+      POSTGRES_DB: streaming
+      POSTGRES_USER: streaming
+      POSTGRES_PASSWORD: ${STREAMING_DB_PASSWORD:?Run init}
+      MEDIA_DATABASE_PASSWORD: ${MEDIA_DATABASE_PASSWORD:?Run init}
+    volumes:
+      - live-db:/var/lib/postgresql
+      - ./infra/p1/postgres-tls.sh:/postgres-tls.sh:ro
+      - ./services/streaming/media-adapter/init-database.sh:/init-database.sh:ro
+      - ${P1_STATE}/db.crt:/run/secrets/server.crt:ro
+      - ${P1_STATE}/db.key:/run/secrets/server.key:ro
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/streaming-media-ready && pg_isready -h 127.0.0.1 -U streaming -d streaming"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  live:
+    image: streaming-local-live
+    build: ./services/streaming
+    environment:
+      STREAMING_ENV: development
+      STREAMING_BIND_ADDR: 0.0.0.0:8080
+      STREAMING_PRIVATE_BIND_ADDR: 0.0.0.0:8091
+      STREAMING_TLS_CERT_FILE: /run/secrets/streaming.crt
+      STREAMING_TLS_KEY_FILE: /run/secrets/streaming.key
+      STREAMING_HTTP_CA_FILE: /run/secrets/ca.crt
+      STREAMING_DATABASE_URL: postgres://streaming:${STREAMING_DB_PASSWORD:?Run init}@live-db:5432/streaming?sslmode=verify-full&sslrootcert=/run/secrets/ca.crt
+      STREAMING_DB_MIN_CONNECTIONS: "0"
+      STREAMING_DB_MAX_CONNECTIONS: "16"
+      STREAMING_DB_ACQUIRE_TIMEOUT_SECONDS: "3"
+      STREAMING_RUN_MIGRATIONS: "true"
+      STREAMING_CORE_BASE_URL: https://core:8082
+      STREAMING_CORE_SERVICE_TOKEN: ${CORE_STREAMING_SERVICE_TOKEN:?Run init}
+      STREAMING_CORE_CONSUMER_TOKEN: ${CORE_STREAMING_CONSUMER_TOKEN:?Run init}
+      STREAMING_CHAT_BASE_URL: https://chat:8086
+      STREAMING_CHAT_SERVICE_TOKEN: ${CHAT_SESSION_EVENTS_TOKEN:?Run init}
+      STREAMING_SESSION_COOKIE_NAME: stream_session
+      STREAMING_WEB_ORIGIN: ${WEB_ORIGIN:?Run init}
+      STREAMING_RTMP_INGEST_BASE_URL: rtmps://localhost:${P1_RTMPS_PORT:-11938}/live
+      STREAMING_DEPENDENCY_TIMEOUT_SECONDS: "3"
+      STREAMING_MEDIA_ADAPTER_SERVICE_TOKEN: ${STREAMING_MEDIA_ADAPTER_SERVICE_TOKEN:?Run init}
+      STREAMING_MEDIAMTX_NODE_ID: media-01
+      STREAMING_MEDIAMTX_CONTROL_API_URL: https://media-server:9997
+      STREAMING_MEDIAMTX_CONTROL_API_USERNAME: streaming-control
+      STREAMING_MEDIAMTX_CONTROL_API_PASSWORD: ${MEDIA_CONTROL_PASSWORD:?Run init}
+      STREAMING_MEDIAMTX_HLS_INTERNAL_BASE_URL: https://live:8888
+      STREAMING_PUBLIC_HLS_BASE_URL: ${WEB_ORIGIN:?Run init}
+      STREAMING_VIEWER_LEASE_HMAC_KEY: ${STREAMING_VIEWER_LEASE_HMAC_KEY:?Run init}
+      MEDIA_DATABASE_URL: postgres://media_adapter:${MEDIA_DATABASE_PASSWORD:?Run init}@live-db:5432/streaming_media?sslmode=verify-full&sslrootcert=/run/secrets/ca.crt
+      MEDIA_RUN_MIGRATIONS: "true"
+      MEDIA_STREAMING_URL: https://live:8091
+      MEDIA_STREAMING_PUBLIC_URL: https://live:8080
+      MEDIA_STREAMING_TOKEN: ${STREAMING_MEDIA_ADAPTER_SERVICE_TOKEN:?Run init}
+      MEDIA_CONTROL_URL: https://media-server:9997
+      MEDIA_CONTROL_USER: streaming-control
+      MEDIA_CONTROL_PASSWORD: ${MEDIA_CONTROL_PASSWORD:?Run init}
+      MEDIA_AUTH_TOKEN: ${MEDIA_AUTH_TOKEN:?Run init}
+      MEDIA_HLS_URL: https://media-server:8888
+      MEDIA_HLS_SECRET: ${MEDIA_HLS_SECRET:?Run init}
+      MEDIA_MAX_OPEN_DEAD_LETTERS: "10000"
+    volumes:
+      - ${P1_STATE}/streaming.crt:/run/secrets/streaming.crt:ro
+      - ${P1_STATE}/streaming.key:/run/secrets/streaming.key:ro
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent --cacert /run/secrets/ca.crt https://localhost:8080/health/ready && curl --fail --silent --cacert /run/secrets/ca.crt https://localhost:8090/health/ready"]
+      interval: 10s
+      timeout: 5s
+      start_period: 15s
+      retries: 12
+    stop_grace_period: 30s
+    depends_on:
+      live-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  media-server:
+    image: bluenviron/mediamtx:1.21.1@sha256:5ce2a948eb68df06ce2e13870db8df8e30d516ac4dc40e04bfe8aee3bdf7be40
+    environment:
+      MTX_AUTHHTTPADDRESS: https://mediamtx:${MEDIA_AUTH_TOKEN:?Run init}@live:8090/internal/media/auth
+      MTX_AUTHHTTPFINGERPRINT: ${STREAMING_CERT_FINGERPRINT:?Run init}
+      MTX_HLSCDNSECRET: ${MEDIA_HLS_SECRET:?Run init}
+      MTX_APIENCRYPTION: "true"
+      MTX_APISERVERCERT: /run/secrets/mediamtx.crt
+      MTX_APISERVERKEY: /run/secrets/mediamtx.key
+      MTX_HLSENCRYPTION: "true"
+      MTX_HLSVARIANT: fmp4
+      MTX_HLSSERVERCERT: /run/secrets/mediamtx.crt
+      MTX_HLSSERVERKEY: /run/secrets/mediamtx.key
+      MTX_RTMPENCRYPTION: strict
+      MTX_RTMPSERVERCERT: /run/secrets/mediamtx.crt
+      MTX_RTMPSERVERKEY: /run/secrets/mediamtx.key
+    volumes:
+      - ./services/streaming/media-adapter/mediamtx.yml:/mediamtx.yml:ro
+      - ${P1_STATE}/mediamtx.crt:/run/secrets/mediamtx.crt:ro
+      - ${P1_STATE}/mediamtx.key:/run/secrets/mediamtx.key:ro
+    ports:
+      - "127.0.0.1:${P1_RTMPS_PORT:-11938}:1936"
+    depends_on:
+      live:
+        condition: service_started
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+
+  web:
+    image: streaming-local-web
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    volumes:
+      - ${P1_STATE}/web.crt:/run/secrets/web.crt:ro
+      - ${P1_STATE}/web.key:/run/secrets/web.key:ro
+    restart: unless-stopped
+
+  proxy:
+    image: caddy:2-alpine
+    ports:
+      - "127.0.0.1:${P1_HTTPS_PORT:-3445}:3443"
+    volumes:
+      - ${P1_STATE}/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${P1_STATE}/web.crt:/run/secrets/web.crt:ro
+      - ${P1_STATE}/web.key:/run/secrets/web.key:ro
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    networks:
+      default:
+        ipv4_address: ${LOCAL_PROXY_IP:?Run init}
+    depends_on: [core, chat, live, media-server, web]
+    restart: unless-stopped
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${LOCAL_SUBNET:?Run init}
+          ip_range: ${LOCAL_DYNAMIC_RANGE:?Run init}
+
+volumes:
+  core-db:
+  core-avatars:
+  core-banners:
+  chat-db:
+  live-db:

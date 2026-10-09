@@ -1,6 +1,12 @@
 server:
   port: ${PORT:8081}
   forward-headers-strategy: none
+  ssl:
+    enabled: ${CORE_PUBLIC_TLS_ENABLED:false}
+    key-store: ${CORE_PUBLIC_TLS_KEYSTORE:}
+    key-store-password: ${CORE_PUBLIC_TLS_KEYSTORE_PASSWORD:}
+    key-store-type: PKCS12
+    enabled-protocols: TLSv1.2,TLSv1.3
 spring:
   application:
     name: core
@@ -40,8 +46,13 @@ core:
     development-http: ${CORE_INTERNAL_DEVELOPMENT_HTTP:false}
     streaming-service-token: ${CORE_STREAMING_SERVICE_TOKEN:}
     streaming-catalog-service-token: ${CORE_STREAMING_CATALOG_SERVICE_TOKEN:}
+    chat-service-token: ${CHAT_CORE_SERVICE_TOKEN:}
     tls-keystore: ${CORE_INTERNAL_TLS_KEYSTORE:}
     tls-keystore-password: ${CORE_INTERNAL_TLS_KEYSTORE_PASSWORD:}
+  streaming:
+    base-url: ${CORE_STREAMING_BASE_URL:}
+    consumer-token: ${CORE_STREAMING_CONSUMER_TOKEN:}
+    development-http: ${CORE_STREAMING_DEVELOPMENT_HTTP:false}
   cookie-name: stream_session
   secure-cookie: ${CORE_SECURE_COOKIE:false}
   public-origin: ${WEB_ORIGIN:http://localhost:3000}

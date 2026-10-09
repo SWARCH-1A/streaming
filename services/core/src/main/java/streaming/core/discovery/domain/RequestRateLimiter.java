@@ -10,13 +10,12 @@ import java.util.function.LongSupplier;
  * Per-key limiter: a token bucket of {@code burst} tokens refilled at {@code windowMax/window}, plus a moving cap of
  * {@code windowMax} requests in the last {@code window}. The window is tracked in one-second buckets, so a request
  * stays counted for between {@code window} and {@code window}+1 s: never looser than the contract. State is local
- * to the process (P1 runs one Core replica). When the table is full a new key is let through untracked rather than
+ * to the process; retained for deterministic isolated tests. Runtime wiring uses SqlRequestLimiter across replicas.
+ * When this test limiter table is full a new key is let through untracked rather than
  * denying unrelated clients.
  */
-public final class RequestRateLimiter {
-    public record Decision(boolean allowed,long retryAfterSeconds) {
-        static final Decision ALLOWED=new Decision(true,0);
-    }
+public final class RequestRateLimiter implements RequestLimiter {
+    static final Decision ALLOWED=new Decision(true,0);
 
     private static final int MAX_KEYS=50_000;
     private final int burst, windowMax, windowSeconds;
@@ -41,7 +40,7 @@ public final class RequestRateLimiter {
         if(state==null) {
             if(states.size()>=MAX_KEYS) {
                 evictIdle(now);
-                if(states.size()>=MAX_KEYS) return Decision.ALLOWED;
+                if(states.size()>=MAX_KEYS) return ALLOWED;
             }
             state=states.computeIfAbsent(key,k->new State(now,burst,windowSeconds));
         }
@@ -56,7 +55,7 @@ public final class RequestRateLimiter {
         boolean windowFull=s.total>=windowMax;
         if(s.tokens>=1 && !windowFull) {
             s.tokens-=1; s.buckets[slot(second)]++; s.total++;
-            return Decision.ALLOWED;
+            return ALLOWED;
         }
         long retry=1;
         if(s.tokens<1) retry=Math.max(retry,(long)Math.ceil((1-s.tokens)/refillPerSecond));

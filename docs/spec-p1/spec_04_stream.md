@@ -52,7 +52,7 @@ Como broadcaster, quiero emitir una señal audiovisual desde mi canal; como espe
 
 - La UI distingue interrupción temporal de estado OFFLINE; el contrato de medio debe informar un manifiesto HLS reproducible.
 
-- Media adapter informa fuente conectada, playback listo y fuente perdida por `POST /internal/streaming/sessions/{sessionId}/source-connected`, `/playback-ready` y `/source-lost`; son HTTPS/TLS privados y autenticados. Streaming deduplica por eventId, valida sourceGeneration y confirma durablemente antes del ACK.
+- Media adapter informa fuente conectada, playback listo y fuente perdida por `POST /internal/streaming/sessions/{sessionId}/source-connected`, `/playback-ready` y `/source-lost`; son privados y autenticados. HTTP loopback se admite solo en desarrollo sin TLS según ADR-011; con TLS habilitado las llamadas al propio proceso y entre contenedores usan HTTPS con CA y hostname verificados. Streaming deduplica por eventId, valida sourceGeneration y confirma durablemente antes del ACK.
 
 ## 5. Requisitos funcionales
 
@@ -94,7 +94,7 @@ Como broadcaster, quiero emitir una señal audiovisual desde mi canal; como espe
 
 Streaming es servicio Rust independiente según ADR-005. Posee StreamConfig/streamId, claves de ingesta, StreamSession/sessionId, cupos, reloj, generaciones, leases y versiones en PostgreSQL privado con pooling. Core conserva Cuentas, Canales, Catálogo y Discovery. Para cada comando protegido Streaming solicita un contexto Core nuevo con identidad, propiedad y validación tipada/activa de categoría/tags presentes; usa IDs opacos y snapshots de labels/tombstones, sin FK entre bases ni permiso cacheado. Una autorización en vuelo tiene presupuesto acotado explícito en contratos.
 
-MediaMTX transporta RTMP/LL-HLS; el adaptador Rust autoriza ingest y envía callbacks idempotentes con ACK durable, eventId/sourceGeneration y path HLS validado. Streaming verifica manifiesto/segmento y frame antes de LIVE. Stop confirma ENDED inmediatamente y ordena cortar la fuente. Cupos cinco global/uno por canal se reservan atómicamente en SQL.
+P1 usa tres contenedores: PostgreSQL, MediaMTX y Streaming con adaptador técnico en el mismo runtime Tokio (ADR-011). El adaptador conserva base/rol y repositorio separados; comparte fallo/reinicio con Streaming. Los contratos técnicos internos usan HTTP loopback autenticado en desarrollo; el perfil persistente SPEC-13/ADR-014 usa HTTPS autenticado con CA explícita, sin contenedor adicional. MediaMTX transporta RTMP/LL-HLS; el adaptador Rust autoriza ingest y envía callbacks idempotentes con ACK durable, eventId/sourceGeneration y path HLS validado. Streaming verifica manifiesto/segmento y frame antes de LIVE. Stop confirma ENDED inmediatamente y ordena cortar la fuente. Cupos cinco global/uno por canal se reservan atómicamente en SQL.
 
 El mismo commit conserva eventos de sesión para Chat y snapshots públicos para la proyección Discovery, con entregas independientes por consumidor. Discovery aplica en Core y combina con datos públicos locales; sus filas no autorizan comandos ni mensajes. Timeline se calcula al leer/contextualizar cada envío; no se replica como muestra periódica. Claves, secretos y datos de identidad privada nunca viajan en eventos.
 

@@ -1,0 +1,12 @@
+services:
+  core:
+    image: streaming-p1-domains-core
+    environment:
+      CORE_TRUSTED_PROXIES: ${WEB_PROXY_IP:-}
+      CORE_IMAGE_STORAGE_PROVIDER: filesystem
+      CORE_STREAMING_BASE_URL: http://streaming:8091
+      CORE_STREAMING_CONSUMER_TOKEN: ${CORE_STREAMING_CONSUMER_TOKEN:?Fixture secret}
+    ports:
+      - "127.0.0.1:18082:8082"
+  chat:
+    image: streaming-p1-domains-chat

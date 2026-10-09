@@ -10,7 +10,7 @@ function New-LocalSecret {
 }
 
 $destination = Join-Path $PSScriptRoot '.env'
-$serviceSecrets = @('CORE_STREAMING_SERVICE_TOKEN', 'CORE_STREAMING_CATALOG_SERVICE_TOKEN')
+$serviceSecrets = @('CORE_STREAMING_SERVICE_TOKEN', 'CORE_STREAMING_CATALOG_SERVICE_TOKEN', 'CHAT_CORE_SERVICE_TOKEN', 'CHAT_SESSION_EVENTS_TOKEN')
 if (Test-Path -LiteralPath $destination) {
     $existing = [System.IO.File]::ReadAllText($destination)
     $updated = $existing
@@ -43,4 +43,4 @@ try {
     $bytes = [System.Text.UTF8Encoding]::new($false).GetBytes($template)
     $stream.Write($bytes, 0, $bytes.Length)
 } finally { $stream.Dispose() }
-Write-Host 'Creado infra/local/.env con cuatro secretos locales independientes. Valores no mostrados.'
+Write-Host 'Creado infra/local/.env con seis secretos locales independientes. Valores no mostrados.'

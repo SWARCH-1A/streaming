@@ -38,7 +38,7 @@ public class CoreSecurityConfiguration {
             .authorizeHttpRequests(a->a
                     .requestMatchers(HttpMethod.GET,"/api/identity/registrations/**","/api/identity/public/**",
                             "/api/identity/csrf","/api/profile/csrf","/api/profile/me","/api/profile/users/**",
-                            "/api/profile/avatars/**","/api/channels/by-handle/*","/api/channels/by-owner/*",
+                            "/api/profile/avatars/**","/api/channels/by-handle/*","/api/channels/by-owner/*","/api/channels/*",
                             "/api/channels/csrf","/api/channels/banners/*","/api/taxonomy",
                             "/actuator/health","/actuator/health/**","/actuator/info").permitAll()
                     .requestMatchers(HttpMethod.POST,"/api/identity/registrations","/api/identity/sessions",
@@ -47,12 +47,18 @@ public class CoreSecurityConfiguration {
                     .requestMatchers(HttpMethod.DELETE,"/api/identity/sessions/current").permitAll()
                     .anyRequest().denyAll())
             .exceptionHandling(e->e.accessDeniedHandler((request,response,error)-> {
-                response.setStatus(403); response.setContentType("application/json");
+                response.setStatus(403); response.setCharacterEncoding(java.nio.charset.StandardCharsets.UTF_8);
+                response.setContentType("application/json");
                 boolean csrfError=error instanceof org.springframework.security.web.csrf.CsrfException;
                 json.writeValue(response.getWriter(),CoreErrorHandler.body(
                         csrfError?"CSRF_INVALID":"ACCESS_DENIED","La solicitud no está autorizada.",request));
             }));
         return http.build();
+    }
+
+    /** Shared socket/forwarded resolution for Accounts and Discovery, never trust arbitrary callers. */
+    @Bean TrustedProxies coreTrustedProxies(@Value("${core.trusted-proxies:}") String value) {
+        return TrustedProxies.parse(value);
     }
 
     @Bean CorsConfigurationSource corsConfigurationSource(@Value("${core.public-origin}") String origin) {

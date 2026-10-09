@@ -40,6 +40,11 @@ func TestRealRedisAcceptDedupeQuotaAndSequence(t *testing.T) {
 	if err != nil || first.Outcome != Accepted || first.Ack.Sequence != 1 {
 		t.Fatalf("%+v %v", first, err)
 	}
+	for _, key := range []string{seqKey("ses_r"), dedupeKey("ses_r"), msgsKey("ses_r")} {
+		if ttl := s.rdb.PTTL(ctx, key).Val(); ttl != -1 {
+			t.Fatalf("active ACK data has idle TTL: %s %v", key, ttl)
+		}
+	}
 	if res, _ := s.Accept(ctx, input("ses_otra", "u1", "c2", "x")); res.Outcome != RateLimited || res.RetryAfter > time.Second {
 		t.Fatalf("cuota global: %+v", res)
 	}

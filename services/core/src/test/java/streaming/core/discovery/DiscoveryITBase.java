@@ -77,6 +77,8 @@ public abstract class DiscoveryITBase {
         p.add("spring.datasource.url",POSTGRES::getJdbcUrl);
         p.add("spring.datasource.username",POSTGRES::getUsername);
         p.add("spring.datasource.password",POSTGRES::getPassword);
+        // These SQL/HTTP tests do not exercise S3; its production default requires a real bucket.
+        p.add("core.images.storage-provider",()->"filesystem");
         p.add("profile.storage-root",()->DATA.resolve("avatars").toString());
         p.add("channels.storage-root",()->DATA.resolve("banners").toString());
         p.add("core.rate-limit-hmac-secret",()->"fixture_hmac_key_at_least_32_bytes");

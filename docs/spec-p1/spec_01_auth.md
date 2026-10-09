@@ -72,6 +72,8 @@ permisos de upload, publicación y limpieza. Las rutas públicas de imagen sigue
 Edición parcial se serializa por usuario. S3 es el proveedor de objetos predeterminado; si se selecciona
 filesystem, requiere volumen compartido cuando Core ejecuta más de una réplica.
 
+Las rutas públicas de imágenes sirven bytes con Content-Type image/*. Un Accept incompatible devuelve 406 NOT_ACCEPTABLE; no es un fallo 500 del almacenamiento.
+
 ## 8. Dependencias y contratos
 
 Canales crea el canal inicial mediante interfaz local y comparte la transacción. Streaming Rust solicita contexto Core nuevo por comando protegido; Cuentas/Canales/Catálogo lo validan localmente en Core. Canal y Consultas leen DTO/vistas públicas sin credenciales. Chat obtiene

@@ -4,6 +4,10 @@ El proyecto Plane es STREAMING. Las SPEC y módulos usan las responsabilidades d
 los módulos Core son agrupaciones funcionales dentro de un único proceso, no servicios separados.
 Una asignación personal no cambia la frontera arquitectónica.
 
+La [matriz de cobertura de SPEC-09](spec-p1/spec_09_int.md#cobertura-obligatoria-de-los-spec-funcionales)
+define qué flujos de cada SPEC funcional deben demostrar SPEC-10…SPEC-13. Los estados de trabajo
+del módulo no sustituyen esa aceptación integrada.
+
 | SPEC | Módulo Plane / responsabilidad | Unidad y ubicación | UI |
 | --- | --- | --- | --- |
 | SPEC-01 | Core / Cuentas: autenticación y perfil; avatares privados | services/core; cuentas y objetos de imagen | apps/web/src/modules/accounts |
@@ -14,10 +18,10 @@ Una asignación personal no cambia la frontera arquitectónica.
 | SPEC-07 | Core / Consultas y descubrimiento | services/core; lecturas SQL locales y proyección Streaming, filtros/ranking; GraphQL público | apps/web/src/modules/discovery |
 | SPEC-08 | Web / Accesibilidad | apps/web/src/accessibility y todas las vistas | Criterios transversales |
 | SPEC-09 | Integración | contracts, infra, shell y evidencia compartida | apps/web/src/shell |
-| SPEC-10 | Integración: contratos y datos | contracts/generated y tests/contracts | Contratos para consumidores |
-| SPEC-11 | Integración: flujos | tests/integration | Registro local, Core–Streaming, Streaming–Chat y Streaming–Media |
+| SPEC-10 | Integración: contratos y datos | contracts/generate.py, contracts/generated y tests/contracts; ADR-012 | Contratos neutrales generados para consumidores |
+| SPEC-11 | Integración: flujos | tests/integration/p1-domains; Accounts publica ChatContexts, Channels compone ChannelBootstrapService y adapters HTTP comunes en Core | Registro local, Core–Streaming, Streaming–Chat y Streaming–Media |
 | SPEC-12 | Integración: Web y proxy | apps/web/src/shell, infra/reverse-proxy | Rutas Core de imagen, auth, HTTP/WS/HLS |
-| SPEC-13 | Integración: despliegue y evidencia | infra/local, tests/e2e | Recorrido, perfil de carga y configuración/recuperación S3 |
+| SPEC-13 | Integración: despliegue y evidencia | infra/p1, tests/integration/p1-delivery | Recorrido TLS, carga, réplicas y recuperación de datos/imágenes con proveedor explícito |
 
 ## Capacidades futuras
 
@@ -32,7 +36,7 @@ su capacidad. Seguimiento, moderación, VOD, notificaciones y watch party tienen
 
 ## Propiedad
 
-Cuentas, Canales, Catálogo y Consultas comparten build, seguridad y PostgreSQL Core. Streaming Rust posee su PostgreSQL, inbox/outbox, claves y estado de emisiones.
+Cuentas, Canales, Catálogo y Consultas comparten build, seguridad y PostgreSQL Core. Streaming Rust posee su PostgreSQL, inbox/outbox, claves y estado de emisiones. En P1 integra el adaptador técnico Media en su proceso; el adaptador conserva base/rol/repositorio propios. ADR-011 fija PostgreSQL, Streaming y MediaMTX como tres contenedores.
 Registro cuenta/perfil/canal usa una transacción. Cada módulo escribe por su repositorio; las lecturas
 compuestas usan vistas publicadas, columnas explícitas y FK locales. Discovery posee proyección pública/inbox en Core y recibe snapshots Streaming; no consulta su SQL privado. Chat posee su almacén y Media el
 flujo audiovisual. Core es responsable del almacenamiento privado de avatares/portadas y de sus rutas
@@ -42,7 +46,9 @@ uso de negocio: coordina las rutas, la configuración y la evidencia de desplieg
 relacionan en la matriz de trazabilidad.
 Catálogo mantiene el registro SQL interno de IDs/tipos disjuntos, incluidos tombstones. Seguridad
 Core verifica los permisos por ruta de las credenciales Streaming; la credencial limitada a catálogo
-no concede acceso al contexto de propietario de Canales.
+no concede acceso al contexto de propietario de Canales. El token Chat solo accede a sus dos
+contratos privados; Accounts compone autor/permisos y Channels su bootstrap por handle/owner/ID, mediante puertos
+publicados y lecturas acotadas Streaming. Integración únicamente prueba y conecta esos dueños.
 
 ## Definición de módulos de trabajo
 
@@ -59,5 +65,14 @@ comparten proceso y stack; las de capacidades futuras organizan trabajo sin adel
 | Chat | Servicio independiente: salas por sessionId, mensajes, WebSocket, historial, dedupe, secuencia, cuota global por cuenta y entrega recuperable. RF-031…RF-035, SPEC-05 en P1; moderación RF-036…RF-037 y Replay futuros en el mismo dueño. Lectura anónima; un contexto Core por mensaje nuevo con estado/timeline actual Streaming, y lifecycle Rust; sin autorización cacheada. Go/Redis efímero según ADR-010, con persistencia antes de ACK, cuota/orden/fan-out consistentes entre réplicas. Caída Chat no corta HLS. |
 | Integración | Trabajo transversal de contratos, propiedad de datos, flujos Core–Streaming, Streaming–Chat/Media, Web/proxy, despliegue, recuperación y evidencia E2E. SPEC-09 y sus hijos SPEC-10…SPEC-13. Mantiene coherencia y restricciones SQL/NoSQL, lenguajes, conectores y la configuración/recuperación del bucket S3 privado usado por Core. No es servicio ni orquestador de casos de uso; la lógica permanece en el dueño del dominio. |
 | Core / Monetización | Capacidad futura RF-038…RF-045: planes, pagos, suscripciones y derechos premium como módulo cohesivo Core. Proveedor/adaptador, moneda, cancelación/devolución y reconciliación por SPEC/ADR de la fase. Intentos/webhooks firmados e idempotentes; estado local transaccional. No implementado en P1 ni stacks/servicios separados por pagos, suscripciones y permisos. Extraer conjuntamente solo con evidencia operativa/escala/release. |
-| Media / Procesamiento audiovisual | Unidad multimedia: ingesta RTMP, HLS, señales y verificación de reproducción en P1, con control de negocio Streaming Rust según SPEC-04. Calidades RF-027…RF-030, captura/procesado VOD RF-056…RF-062 y pistas RF-063…RF-065 futuras. Metadata de emisión y acceso pertenecen a Streaming; catálogo/identidad a Core. MediaMTX/adaptador Rust por ADR-005; workers pesados se separan de ingest cuando lo justifiquen carga/fallo. Sin servicio por calidad o idioma. |
+| Media / Procesamiento audiovisual | Unidad multimedia: ingesta RTMP, HLS, señales y verificación de reproducción en P1, con control de negocio Streaming Rust según SPEC-04. Calidades RF-027…RF-030, captura/procesado VOD RF-056…RF-062 y pistas RF-063…RF-065 futuras. Metadata de emisión y acceso pertenecen a Streaming; catálogo/identidad a Core. MediaMTX/adaptador Rust por ADR-005, adaptador en el runtime Streaming P1 por ADR-011; workers pesados se separan de ingest cuando lo justifiquen carga/fallo. Sin servicio por calidad o idioma. |
 | Web / Accesibilidad | Criterios transversales de la única aplicación Web: teclado, semántica, foco, contraste y control de autodesplazamiento Chat. SPEC-08 y RNF-035…RNF-036; aplica a formularios, canal, player, chat y búsqueda. Comparte responsable de Catálogo por asignación del equipo, sin mezclar sus fronteras. No servicio backend ni microfrontend. Subtítulos RF-063…RF-065 son una capacidad futura de Core/Media. |
+
+Web consume los contratos generados por módulo, conserva la sesión común y monta player/Chat por sessionId.
+El proxy Caddy y el player HLS se definen en ADR-013; ejemplos visuales no son fallback funcional.
+
+La instalación de equipo usa el [Compose raíz](../compose.yaml) con nueve servicios; Live es el
+nombre desplegado del módulo Streaming Rust, cuyas fuentes permanecen en services/streaming.
+El ensamblaje de aceptación usa TLS nativo y volúmenes en [infra/p1](../infra/p1/README.md), según
+[ADR-014](adr/ADR-014-perfil-integrado-tls-p1.md). Core/Chat pueden replicarse con SQL/Redis/imágenes
+compartidos; Streaming conserva su único runtime y sus tres contenedores propios.

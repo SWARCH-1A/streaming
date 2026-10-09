@@ -2,13 +2,21 @@ name: Web quality
 
 on:
   push:
+    branches: [main, develop]
     paths:
       - 'apps/web/**'
+      - 'contracts/generated/**'
       - '.github/workflows/web.yml'
+      - '!apps/web/**/*.md'
+      - '!contracts/generated/**/*.md'
   pull_request:
     paths:
       - 'apps/web/**'
+      - 'contracts/generated/**'
       - '.github/workflows/web.yml'
+      - '!apps/web/**/*.md'
+      - '!contracts/generated/**/*.md'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -20,7 +28,7 @@ concurrency:
 jobs:
   web:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: apps/web
@@ -38,7 +46,3 @@ jobs:
           run_install: false
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
-      - run: pnpm exec playwright install --with-deps chromium
-        env:
-          PLAYWRIGHT_SKIP_BROWSER_GC: '1'
-      - run: pnpm test:e2e

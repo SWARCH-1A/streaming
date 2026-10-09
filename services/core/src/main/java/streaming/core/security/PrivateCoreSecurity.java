@@ -20,6 +20,10 @@ public class PrivateCoreSecurity {
                 .sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .requestCache(c->c.disable())
                 .authorizeHttpRequests(a->a
+                        .requestMatchers(HttpMethod.POST,"/internal/core/chat/message-context")
+                        .access((authentication,context)->new AuthorizationDecision(listener.permits(context.getRequest(),PrivateCoreListener.Permission.CHAT_CONTEXT)))
+                        .requestMatchers(HttpMethod.GET,"/internal/core/chat/sessions/*")
+                        .access((authentication,context)->new AuthorizationDecision(listener.permits(context.getRequest(),PrivateCoreListener.Permission.CHAT_SNAPSHOT)))
                         .requestMatchers(HttpMethod.POST,"/internal/core/streaming/owner-context")
                         .access((authentication,context)->new AuthorizationDecision(listener.permits(context.getRequest(),PrivateCoreListener.Permission.OWNER_CONTEXT)))
                         .requestMatchers(HttpMethod.POST,"/internal/core/streaming/catalog-values")
@@ -36,6 +40,7 @@ public class PrivateCoreSecurity {
             PrivateCoreListener listener,ObjectMapper json) throws java.io.IOException {
         boolean internal=listener.isPrivate(request);
         response.setStatus(internal?401:404);
+        response.setCharacterEncoding(java.nio.charset.StandardCharsets.UTF_8);
         response.setContentType("application/json"); response.setHeader("Cache-Control","no-store");
         json.writeValue(response.getWriter(),CoreErrorHandler.body(internal?"SERVICE_UNAUTHORIZED":"NOT_FOUND",
                 "La solicitud no está autorizada.",request));

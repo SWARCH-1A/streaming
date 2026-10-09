@@ -1,4 +1,4 @@
-# Chat y su Redis. Se combina con compose.core.yaml para resolver core:8081 en la misma red.
+# Chat y su Redis. Core debe tener el listener privado habilitado; nunca usa su puerto público.
 services:
   chat-redis:
     image: redis:8-alpine
@@ -18,7 +18,9 @@ services:
     environment:
       CHAT_REDIS_URL: redis://chat-redis:6379/0
       CHAT_ALLOWED_ORIGINS: ${WEB_ORIGIN:-http://localhost:3000}
-      CHAT_CORE_BASE_URL: ${CHAT_CORE_BASE_URL:-http://core:8081}
+      CHAT_CORE_BASE_URL: ${CHAT_CORE_BASE_URL:-https://core:8082}
+      CHAT_CORE_DEVELOPMENT_HTTP: ${CHAT_CORE_DEVELOPMENT_HTTP:-false}
+      CHAT_CORE_CA_FILE: ${CHAT_CORE_CA_FILE:-}
       CHAT_CORE_SERVICE_TOKEN: ${CHAT_CORE_SERVICE_TOKEN:?Define CHAT_CORE_SERVICE_TOKEN}
       CHAT_SESSION_EVENTS_TOKEN: ${CHAT_SESSION_EVENTS_TOKEN:?Define CHAT_SESSION_EVENTS_TOKEN}
       CHAT_ENDED_RETENTION: ${CHAT_ENDED_RETENTION:-5m}

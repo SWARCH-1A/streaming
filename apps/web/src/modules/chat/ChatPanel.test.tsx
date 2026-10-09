@@ -11,7 +11,20 @@ function setup({ signedIn = true, readOnly = false, unavailable = false } = {}) 
   render(
     <SessionContext
       value={{
-        user: signedIn ? { handle: 'demo_01', displayName: 'Demo', bio: '' } : null,
+        user: signedIn
+          ? {
+              userId: 'usr_demo',
+              avatarUri: null,
+              updatedAtUtc: '2026-10-08T20:00:00Z',
+              profileVersion: 0,
+              handle: 'demo_01',
+              displayName: 'Demo',
+              bio: '',
+            }
+          : null,
+        status: 'ready',
+        error: null,
+        refresh: vi.fn(),
         signIn: vi.fn(),
         signOut: vi.fn(),
         updateProfile: vi.fn(),

@@ -7,3 +7,4 @@ pub mod config;
 pub mod domain;
 pub mod media_adapter;
 pub mod observability;
+pub mod transport;

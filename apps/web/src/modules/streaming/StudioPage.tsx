@@ -1,90 +1,189 @@
 import { useState } from 'react';
-
-import monitor from '@/public/images/studio-0.jpg';
+import type {
+  ChannelBootstrap,
+  IngestKey,
+  PublicSession,
+  StreamConfig,
+  StreamCreated,
+  StreamPatched,
+} from '@contracts/p1';
 
 import { ActionLink } from '@/src/components/atoms/ActionLink';
 import { Badge } from '@/src/components/atoms/Badge';
 import { Button } from '@/src/components/atoms/Button';
-import { Icon } from '@/src/components/atoms/Icon';
-import { Metric } from '@/src/components/molecules/Metric';
+import { Input } from '@/src/components/atoms/Input';
 import { Notice } from '@/src/components/molecules/Notice';
 import { Panel } from '@/src/components/molecules/Panel';
-import { IngestPanel } from '@/src/modules/streaming/components/IngestPanel';
-import { MetadataForm } from '@/src/modules/streaming/components/MetadataForm';
-import { Player } from '@/src/modules/streaming/components/Player';
-import { SignalPanel } from '@/src/modules/streaming/components/SignalPanel';
+import { HlsPlayer } from '@/src/modules/streaming/components/HlsPlayer';
+import { LiveMetadataForm } from '@/src/modules/streaming/components/LiveMetadataForm';
+import { useCatalog } from '@/src/modules/taxonomy/entry';
+import { errorMessage, HttpError, request } from '@/src/shared/api/http';
+import { useLifetime } from '@/src/shared/api/useLifetime';
+import { useResource } from '@/src/shared/api/useResource';
 import { useSession } from '@/src/shell/session/useSession';
 
-import type { BroadcastState, StreamMetadata } from './streaming.types';
-import styles from './StudioPage.module.css';
-
 export function StudioPage() {
-  const [state, setState] = useState<BroadcastState>('LIVE');
-  const [metadata, setMetadata] = useState<StreamMetadata>({
-    title: 'Desarrollando una arquitectura de streaming',
-    categoryId: 'science',
-    tagIds: ['programming', 'spanish', 'educational'],
-  });
   const { user } = useSession();
-  const active = state === 'LIVE' || state === 'PREPARING' || state === 'RECONNECT_GRACE';
+  const lifetime = useLifetime();
+  const [epoch, setEpoch] = useState(0),
+    [secret, setSecret] = useState(''),
+    [failure, setFailure] = useState(''),
+    [pending, setPending] = useState(false),
+    [visible, setVisible] = useState(false);
+  const catalog = useCatalog();
+  const channel = useResource(
+    `studio-channel:${user?.userId ?? ''}`,
+    (signal) =>
+      request<ChannelBootstrap>(`/api/channels/by-owner/${user?.userId ?? ''}`, { signal }),
+    4000,
+  );
+  const channelId = channel.data?.channel.channelId;
+  const configuration = useResource(
+    `studio:${channelId ?? ''}:${epoch}`,
+    async (signal) => {
+      if (!channelId) return null;
+      try {
+        return await request<StreamConfig>(`/api/channels/${channelId}/streams`, { signal });
+      } catch (error) {
+        if (error instanceof HttpError && error.status === 404) return null;
+        throw error;
+      }
+    },
+    4000,
+  );
+  const config = configuration.data;
+  const session = useResource(
+    `studio-session:${config?.sessionId ?? ''}`,
+    async (signal) =>
+      config?.sessionId
+        ? request<PublicSession>(`/api/streams/sessions/${config.sessionId}`, { signal })
+        : null,
+    4000,
+  );
+  async function command(action: 'rotate' | 'stop') {
+    if (!config) return;
+    const signal = lifetime();
+    setPending(true);
+    setFailure('');
+    try {
+      if (action === 'rotate') {
+        const result = await request<IngestKey>(
+          `/api/streams/${config.streamId}/ingest-keys/rotate`,
+          { method: 'POST', signal },
+        );
+        setSecret(result.streamKey);
+      } else if (config.sessionId) {
+        await request(`/api/streams/sessions/${config.sessionId}`, { method: 'DELETE', signal });
+        setSecret('');
+      }
+      setEpoch((previous) => previous + 1);
+    } catch (error) {
+      if (!signal.aborted) setFailure(errorMessage(error));
+    } finally {
+      if (!signal.aborted) setPending(false);
+    }
+  }
+  if (channel.loading) return <p role="status">Cargando estudio…</p>;
+  if (!channelId) return <Notice tone="error">{channel.error}</Notice>;
   return (
     <div className="stack">
-      <div className={styles.heading}>
-        <div>
-          <p className="eyebrow">Tu espacio de creación</p>
-          <h1>Estudio de emisión</h1>
-        </div>
+      <h1>Estudio de emisión</h1>
+      <nav className="row" aria-label="Herramientas del creador">
+        <ActionLink to="/studio/channel">Mi canal & portada</ActionLink>
         <ActionLink to="/profile" variant="secondary">
-          <Icon name="user" />
           Mi perfil
         </ActionLink>
-      </div>
-      <nav className="row" aria-label="Herramientas del creador">
-        <ActionLink to="/studio/channel" variant="secondary">
-          Mi canal & portada
-        </ActionLink>
-        <ActionLink to="/profile" variant="ghost">
-          Perfil
-        </ActionLink>
-        <ActionLink to="/prototype" variant="ghost">
-          Prototipo interactivo
+        <ActionLink to={`/channels/${channel.data?.handle ?? ''}`} variant="ghost">
+          Ver canal
         </ActionLink>
       </nav>
-      {!user ? (
-        <Notice>
-          Estudio de ejemplo. Puedes explorar todos los controles sin conectar un emisor real.
-        </Notice>
+      {configuration.error ? <Notice tone="error">{configuration.error}</Notice> : null}
+      {failure ? <Notice tone="error">{failure}</Notice> : null}
+      {config ? (
+        <Panel className="stack">
+          <Badge>
+            {config.availability} · {config.status}
+          </Badge>
+          <p>ID de emisión: {config.streamId}</p>
+          <p>{session.data?.viewerCount ?? 0} espectadores</p>
+          {session.data ? (
+            <HlsPlayer key={session.data.sessionId} session={session.data} title={config.title} />
+          ) : null}
+          <label htmlFor="ingest-url">Servidor RTMP</label>
+          <Input id="ingest-url" value={config.rtmpUrl} readOnly />
+          {secret ? (
+            <>
+              <label htmlFor="ingest-key">
+                Clave de emisión (solo se muestra en esta respuesta)
+              </label>
+              <Input id="ingest-key" value={secret} type={visible ? 'text' : 'password'} readOnly />
+              <Button
+                variant="secondary"
+                aria-pressed={visible}
+                onClick={() => setVisible((previous) => !previous)}
+              >
+                {visible ? 'Ocultar clave' : 'Mostrar clave'}
+              </Button>
+              <Button variant="ghost" onClick={() => setSecret('')}>
+                Descartar clave de esta vista
+              </Button>
+            </>
+          ) : (
+            <Notice>
+              La clave anterior no se puede consultar. Rótala cuando la emisión esté offline o
+              finalizada.
+            </Notice>
+          )}
+          <Button
+            variant="secondary"
+            disabled={pending || !['OFFLINE', 'ENDED'].includes(config.status)}
+            onClick={() => {
+              void command('rotate');
+            }}
+          >
+            Rotar clave
+          </Button>
+          <Button
+            variant="danger"
+            disabled={pending || !config.sessionId || config.status === 'ENDED'}
+            onClick={() => {
+              void command('stop');
+            }}
+          >
+            Terminar emisión
+          </Button>
+        </Panel>
+      ) : configuration.loading ? (
+        <p role="status">Cargando configuración…</p>
       ) : null}
-      <SignalPanel state={state} onChange={setState} />
-      <Panel className={styles.metrics}>
-        <Metric label="Tiempo al aire · demo" value={active ? '02:45:21' : '00:00:00'} />
-        <Metric label="Espectadores · demo" value={state === 'LIVE' ? '3.420' : '0'} />
-        <Badge tone={active ? 'success' : 'neutral'} dot>
-          {active ? '6500 kbps · 60 fps · demo' : 'Sin señal'}
-        </Badge>
-        <Button variant="danger" disabled={!active} onClick={() => setState('ENDED')}>
-          <Icon name="broadcast" />
-          Terminar demostración
-        </Button>
-      </Panel>
-      <div className={styles.grid}>
-        <div className="stack">
-          <Panel className="stack">
-            <h2>Monitor de retorno</h2>
-            <Player
-              poster={monitor}
-              title={metadata.title}
-              state={state}
-              onRetry={() => setState('LIVE')}
-            />
-            <p className="muted">{metadata.title}</p>
-          </Panel>
-          <IngestPanel canRotate={state === 'OFFLINE' || state === 'ENDED'} />
-        </div>
-        <div>
-          <MetadataForm onSave={setMetadata} />
-        </div>
-      </div>
+      {catalog.error ? <Notice tone="error">{catalog.error}</Notice> : null}
+      {catalog.data && !configuration.loading && !configuration.error ? (
+        <LiveMetadataForm
+          key={config?.streamId ?? 'new'}
+          initial={config ?? { title: '', categoryId: '', tagIds: [] }}
+          catalog={catalog.data}
+          labels={channel.data?.stream ?? null}
+          creating={!config}
+          save={async (values, patch, key, signal) => {
+            if (config)
+              await request<StreamPatched>(`/api/streams/${config.streamId}`, {
+                method: 'PATCH',
+                body: patch,
+                signal,
+              });
+            else {
+              const result = await request<StreamCreated>(`/api/channels/${channelId}/streams`, {
+                method: 'POST',
+                body: values,
+                headers: { 'Idempotency-Key': key },
+                signal,
+              });
+              setSecret(result.streamKey ?? '');
+              setEpoch((previous) => previous + 1);
+            }
+          }}
+        />
+      ) : null}
     </div>
   );
 }

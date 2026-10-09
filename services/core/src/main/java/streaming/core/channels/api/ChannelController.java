@@ -20,28 +20,37 @@ import streaming.core.channels.application.ChannelApplicationService;
 import streaming.core.channels.application.ChannelException;
 import streaming.core.accounts.identity.domain.IdentityRules;
 import streaming.core.channels.application.ChannelQueries;
+import streaming.core.channels.application.ChannelBootstrapService;
+import streaming.core.security.RequestAuditFilter;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 public class ChannelController {
-    private final ChannelQueries channels;
+    private final ChannelBootstrapService channels;
     private final ChannelApplicationService edits;
-    public ChannelController(ChannelQueries channels,ChannelApplicationService edits) {
+    public ChannelController(ChannelBootstrapService channels,ChannelApplicationService edits) {
         this.channels=channels; this.edits=edits;
     }
 
     @GetMapping("/api/channels/by-handle/{handle}")
-    public ResponseEntity<ChannelQueries.Bootstrap> byHandle(@PathVariable String handle) {
+    public ResponseEntity<ChannelQueries.Bootstrap> byHandle(@PathVariable String handle,HttpServletRequest request) {
         String canonical;
         try { canonical=IdentityRules.canonicalHandle(handle); }
         catch(IllegalArgumentException e) { throw new ChannelException(HttpStatus.BAD_REQUEST,"VALIDATION_ERROR",e.getMessage()); }
         return ResponseEntity.ok().cacheControl(CacheControl.noCache())
-                .body(channels.byHandle(canonical).orElseThrow(ChannelController::notFound));
+                .body(channels.byHandle(canonical,(String)request.getAttribute(RequestAuditFilter.REQUEST_ID_ATTRIBUTE)).orElseThrow(ChannelController::notFound));
+    }
+
+    @GetMapping("/api/channels/{channelId}")
+    public ResponseEntity<ChannelQueries.Bootstrap> byId(@PathVariable String channelId,HttpServletRequest request) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noCache())
+                .body(channels.byId(channelId,(String)request.getAttribute(RequestAuditFilter.REQUEST_ID_ATTRIBUTE)).orElseThrow(ChannelController::notFound));
     }
 
     @GetMapping("/api/channels/by-owner/{userId}")
-    public ResponseEntity<ChannelQueries.Bootstrap> byOwner(@PathVariable String userId) {
+    public ResponseEntity<ChannelQueries.Bootstrap> byOwner(@PathVariable String userId,HttpServletRequest request) {
         return ResponseEntity.ok().cacheControl(CacheControl.noCache())
-                .body(channels.byOwner(userId).orElseThrow(ChannelController::notFound));
+                .body(channels.byOwner(userId,(String)request.getAttribute(RequestAuditFilter.REQUEST_ID_ATTRIBUTE)).orElseThrow(ChannelController::notFound));
     }
 
     @PatchMapping(path="/api/channels/{channelId}",consumes=MediaType.APPLICATION_JSON_VALUE,produces=MediaType.APPLICATION_JSON_VALUE)

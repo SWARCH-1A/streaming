@@ -39,6 +39,19 @@ Assert-True $rejected 'Missing ref was accepted.'
 Assert-True (Test-Path -LiteralPath (Join-Path $source 'services/streaming/new-name.txt')) 'Invalid ref destroyed the previous source.'
 Write-Host 'PASS archive replacement, renamed/deleted files, invalid ref and preserved siblings.'
 
+[IO.File]::WriteAllText((Join-Path $fixture 'services/streaming/new-name.txt'), 'uncommitted change')
+[IO.File]::WriteAllText((Join-Path $fixture 'services/streaming/added.txt'), 'untracked source')
+[IO.File]::WriteAllText((Join-Path $fixture '.gitignore'), "ignored.txt`n")
+[IO.File]::WriteAllText((Join-Path $fixture 'services/streaming/ignored.txt'), 'ignored secret')
+$source = Initialize-StreamingConsumer -RepoPath $fixture
+Assert-True ([IO.File]::ReadAllText((Join-Path $source 'services/streaming/new-name.txt')) -ceq 'uncommitted change') 'Current checkout modification was lost.'
+Assert-True (Test-Path -LiteralPath (Join-Path $source 'services/streaming/added.txt')) 'New consumer source was lost.'
+Assert-True (-not (Test-Path -LiteralPath (Join-Path $source 'services/streaming/ignored.txt'))) 'Ignored file was copied.'
+Remove-Item -LiteralPath (Join-Path $fixture 'services/streaming/new-name.txt')
+$source = Initialize-StreamingConsumer -RepoPath $fixture
+Assert-True (-not (Test-Path -LiteralPath (Join-Path $source 'services/streaming/new-name.txt'))) 'Locally deleted file was copied.'
+Write-Host 'PASS current checkout modifications, new/deleted files and ignored-file exclusion.'
+
 $outside = Join-Path $scratch 'protected'
 New-Item -ItemType Directory -Path $outside | Out-Null
 [IO.File]::WriteAllText((Join-Path $outside 'marker'), 'must survive')
@@ -75,19 +88,19 @@ foreach ($case in $cases) {
     & (Join-Path $caseDir 'init-env.ps1') *> $null
     $firstRun = [IO.File]::ReadAllText($envPath)
     $values = ConvertFrom-StringData $firstRun
-    foreach ($name in @('CORE_STREAMING_SERVICE_TOKEN','CORE_STREAMING_CATALOG_SERVICE_TOKEN')) {
+    foreach ($name in @('CORE_STREAMING_SERVICE_TOKEN','CORE_STREAMING_CATALOG_SERVICE_TOKEN','CHAT_CORE_SERVICE_TOKEN','CHAT_SESSION_EVENTS_TOKEN')) {
         Assert-True ($values[$name] -match '^[A-Za-z0-9_-]{32,256}$') "Invalid generated credential: $($case.name)"
     }
     Assert-True ($values.CORE_STREAMING_SERVICE_TOKEN -cne $values.CORE_STREAMING_CATALOG_SERVICE_TOKEN) 'Service scopes share a secret.'
     if ($null -ne $case.text) {
         Assert-True ($values.CORE_DB_PASSWORD -ceq 'keep_db' -and $values.CORE_RATE_LIMIT_HMAC_SECRET -ceq 'keep_hmac') 'Existing database/HMAC secrets changed.'
     } else {
-        Assert-True ((@($values.CORE_DB_PASSWORD,$values.CORE_RATE_LIMIT_HMAC_SECRET,$values.CORE_STREAMING_SERVICE_TOKEN,$values.CORE_STREAMING_CATALOG_SERVICE_TOKEN) | Select-Object -Unique).Count -eq 4) 'New secrets are not independent.'
+        Assert-True ((@($values.CORE_DB_PASSWORD,$values.CORE_RATE_LIMIT_HMAC_SECRET,$values.CORE_STREAMING_SERVICE_TOKEN,$values.CORE_STREAMING_CATALOG_SERVICE_TOKEN,$values.CHAT_CORE_SERVICE_TOKEN,$values.CHAT_SESSION_EVENTS_TOKEN) | Select-Object -Unique).Count -eq 6) 'New secrets are not independent.'
     }
     if ($case.name -in @('missing-catalog-key','existing-secrets')) {
         Assert-True ($values.CORE_STREAMING_SERVICE_TOKEN -ceq $fullSecret) 'Existing full-access secret changed.'
     }
-    if ($case.name -eq 'existing-secrets') { Assert-True ($firstRun -ceq $case.text) 'Existing file changed.' }
+    if ($case.name -eq 'existing-secrets') { Assert-True ($values.CORE_STREAMING_CATALOG_SERVICE_TOKEN -ceq $catalogSecret) 'Existing catalog secret changed.' }
     & (Join-Path $caseDir 'init-env.ps1') *> $null
     Assert-True ([IO.File]::ReadAllText($envPath) -ceq $firstRun) 'Initialization is not idempotent.'
     Write-Host "PASS env $($case.name)"

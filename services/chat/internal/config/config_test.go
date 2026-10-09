@@ -42,3 +42,13 @@ func TestLoadRejectsMissingSecretAndInvalidDuration(t *testing.T) {
 		t.Fatal("el error no debe incluir secretos")
 	}
 }
+
+func TestLoadRejectsIncompletePublicTLSPair(t *testing.T) {
+	setRequired(t)
+	t.Setenv("CHAT_PUBLIC_TLS_CERT_FILE", "fictitious.crt")
+	t.Setenv("CHAT_PUBLIC_TLS_KEY_FILE", "")
+	_, err := Load()
+	if err == nil || !strings.Contains(err.Error(), "CHAT_PUBLIC_TLS_KEY_FILE") {
+		t.Fatalf("%v", err)
+	}
+}

@@ -1,4 +1,6 @@
-use std::{future::IntoFuture, io, process::ExitCode, time::Duration};
+use std::{io, process::ExitCode, time::Duration};
+
+use futures_util::{FutureExt, StreamExt, stream::FuturesUnordered};
 
 use streaming_service::{bootstrap, config::AppConfig};
 use tracing_subscriber::{EnvFilter, fmt};
@@ -28,37 +30,41 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let listener = tokio::net::TcpListener::bind(config.bind_addr).await?;
     let private_listener = tokio::net::TcpListener::bind(config.private_bind_addr).await?;
     let app = bootstrap::build_app(&config).await?;
+    let tls = streaming_service::transport::tls_from_env().await?;
     tracing::info!(address=%config.bind_addr,"streaming public API listening");
     tracing::info!(address=%config.private_bind_addr,"streaming private API listening");
     let (stop, stopped) = tokio::sync::watch::channel(false);
-    let server = axum::serve(listener, app.router())
-        .with_graceful_shutdown(wait_for_stop(stopped))
-        .into_future();
-    let private = axum::serve(private_listener, app.private_router())
-        .with_graceful_shutdown(wait_for_stop(stop.subscribe()))
-        .into_future();
-    tokio::pin!(server);
-    tokio::pin!(private);
+    let server = streaming_service::transport::serve(listener, app.router(), tls.clone(), stopped);
+    let private = streaming_service::transport::serve(
+        private_listener,
+        app.private_router(),
+        tls,
+        stop.subscribe(),
+    );
+    let mut servers = FuturesUnordered::new();
+    servers.push(async { server.await }.boxed());
+    servers.push(async { private.await }.boxed());
+    servers.push(streaming_service::media_adapter::serve(stop.subscribe()).boxed());
     let failure = app.worker_failure_signal();
-    let (server_result, finished) = tokio::select! {
-        result=&mut server=>(result,1),result=&mut private=>(result,2),
-        _=shutdown_signal()=>(Ok(()),0),_=failure=>(Ok(()),0),
+    let server_result: Result<(), Box<dyn std::error::Error + Send + Sync>> = tokio::select! {
+        result = servers.next() => match result {
+            Some(Err(error)) => Err(error),
+            _ => Err(io::Error::other("a service listener exited unexpectedly").into()),
+        },
+        _ = shutdown_signal() => Ok(()),
+        _ = failure => Ok(()),
     };
     stop.send_replace(true);
-    let _ = tokio::time::timeout(Duration::from_secs(5), async {
-        match finished {
-            1 => {
-                let _ = private.await;
-            }
-            2 => {
-                let _ = server.await;
-            }
-            _ => {
-                let _ = tokio::join!(&mut server, &mut private);
-            }
-        }
+    // Media owns two HTTP listeners and its worker drain; keep polling it while
+    // the control listeners finish, rather than dropping an unsupervised task.
+    if tokio::time::timeout(Duration::from_secs(15), async {
+        while servers.next().await.is_some() {}
     })
-    .await;
+    .await
+    .is_err()
+    {
+        tracing::warn!("service listeners exceeded shutdown timeout");
+    }
     let worker_failure = app.shutdown().await;
 
     if let Some(worker) = worker_failure {
@@ -104,11 +110,5 @@ async fn shutdown_signal() {
     tokio::select! {
         _ = ctrl_c => {},
         _ = terminate => {},
-    }
-}
-
-async fn wait_for_stop(mut stopped: tokio::sync::watch::Receiver<bool>) {
-    if !*stopped.borrow() {
-        let _ = stopped.changed().await;
     }
 }

@@ -95,3 +95,13 @@ allure-results/
 /infra/local/.data/
 
 # Los artefactos aprobados de contracts/generated/ se versionan intencionalmente.
+
+# Generated P1 certificates, secrets and operator state
+/infra/p1/.state/
+/infra/p1/.state-load/
+/infra/p1/.state-local/
+/infra/p1/.p1-init-*/
+/infra/p1/.manage.lock
+/infra/p1/.manage-load.lock
+/infra/p1/.manage-local.lock
+/services/chat/target/

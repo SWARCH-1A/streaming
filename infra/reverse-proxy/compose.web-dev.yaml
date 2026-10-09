@@ -1,0 +1,9 @@
+# Explicit development HTTP edge; the HTTPS acceptance profile belongs to SPEC-13.
+services:
+  web:
+    image: caddy:2-alpine
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    volumes:
+      - ../../apps/web/dist:/srv:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro

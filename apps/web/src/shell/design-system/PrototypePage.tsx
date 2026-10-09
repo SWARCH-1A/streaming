@@ -11,12 +11,12 @@ const flows = [
     steps: [
       { title: 'Explorar', to: '/' },
       { title: 'Buscar canales', to: '/search?q=valeria' },
-      { title: 'Ver un directo', to: '/watch/esports-championship' },
+      { title: 'Elegir un directo', to: '/' },
     ],
   },
   {
     name: 'Nueva cuenta',
-    description: 'Valida el registro de ejemplo y prueba tu presentación pública.',
+    description: 'Crea una cuenta y prueba tu presentación pública.',
     steps: [
       { title: 'Crear cuenta', to: '/register' },
       { title: 'Iniciar sesión', to: '/login' },
@@ -25,18 +25,18 @@ const flows = [
   },
   {
     name: 'Creador',
-    description: 'Configura metadatos, explora la señal y termina la demostración.',
+    description: 'Configura metadatos, conecta tu encoder y termina la emisión.',
     steps: [
       { title: 'Abrir estudio', to: '/studio' },
       { title: 'Ver mi perfil', to: '/profile' },
-      { title: 'Abrir canal', to: '/channels/valeria_tv' },
+      { title: 'Editar mi canal', to: '/studio/channel' },
     ],
   },
   {
     name: 'Resiliencia',
-    description: 'En el directo, prueba reconexión y fallo del chat por separado.',
+    description: 'Consulta los criterios de resiliencia y las variantes visuales.',
     steps: [
-      { title: 'Probar estados', to: '/watch/esports-championship' },
+      { title: 'Explorar directos', to: '/' },
       { title: 'Ver variantes', to: '/design-system/components' },
     ],
   },
@@ -47,7 +47,10 @@ export function PrototypePage() {
       <div>
         <p className="eyebrow">08 · Prototipo interactivo</p>
         <h1>Recorridos conectados</h1>
-        <p className="muted">Explora cada flujo con datos de demostración.</p>
+        <p className="muted">
+          Las rutas funcionales usan servicios reales. La biblioteca de componentes conserva
+          ejemplos visuales.
+        </p>
       </div>
       {flows.map((flow) => (
         <Panel key={flow.name} className={styles.flow}>

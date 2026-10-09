@@ -3,6 +3,10 @@
 `docs/` contiene la definición vigente del proyecto: requisitos, arquitectura, responsabilidades,
 contratos y criterios de aceptación. El catálogo conserva 79 RF y 50 RNF con IDs estables.
 Plane, proyecto STREAMING, contiene las mismas SPEC y agrupaciones de trabajo.
+Al cambiar una SPEC, sincronizar su descripción en Plane desde el archivo canónico e identificar
+el commit de origen. Conservar responsables, estados, comentarios y relaciones existentes;
+planes y evidencia de ejecución se registran aparte de la definición normativa. La cobertura de
+integración se define en SPEC-09 y el cierre RNF en su matriz, sin equiparar Done local a E2E.
 La documentación ubicada junto al repositorio remite a esta fuente.
 
 ## Orden de lectura
@@ -12,14 +16,13 @@ La documentación ubicada junto al repositorio remite a esta fuente.
 3. [Mapa de responsabilidades](mapa_sdd_p1.md) y [SPEC P1](spec-p1/README.md).
 4. [Contratos y datos](contratos_modelo_datos.md), [flujos](integracion_sistema_p1.md) y [Web/proxy](integracion_frontend_reverse_proxy.md).
 5. [Fases futuras](fases_futuras.md): dueño inicial y condiciones para extraer servicios.
-6. [Matriz RNF](matriz_trazabilidad_rnf.md) y [criterios de entrega P1](puertas_implementacion_p1.md).
+6. [Recorridos por RF/CA](matriz_recorridos_p1.md), [matriz RNF](matriz_trazabilidad_rnf.md) y [criterios de entrega P1](puertas_implementacion_p1.md).
 7. [Política ADR](politica_ADR.md), [registro ADR](adr/README.md) y [plantilla SPEC](sdd_template.md).
 
 ## Convenciones
 
 Una SPEC define comportamiento y aceptación; un módulo encapsula una responsabilidad; una unidad
-desplegable posee runtime, configuración, salud y release. Core contiene varios módulos. Streaming, Chat y Media
-tienen fronteras propias. Discovery combina datos locales con la proyección pública de Streaming. Integración y accesibilidad son trabajo transversal.
+desplegable posee runtime, configuración, salud y release. Core contiene varios módulos. Streaming y Chat tienen procesos propios. MediaMTX se despliega separado; el adaptador técnico Media comparte el runtime Streaming en P1 según ADR-011, conservando su frontera de datos. Discovery combina datos locales con la proyección pública de Streaming. Integración y accesibilidad son trabajo transversal.
 
 Cada módulo escribe mediante su repositorio. Dentro de Core se permiten FK, transacciones locales y
 vistas de lectura publicadas con columnas explícitas; ningún proceso externo consulta sus tablas.

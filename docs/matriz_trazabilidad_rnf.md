@@ -7,6 +7,8 @@ contribuyentes demuestran su parte en su dominio. La matriz no transfiere la pro
 Los IDs y textos normativos completos están en [Catálogo de requisitos](catalogo_requisitos.md).
 Las evidencias se ejecutarán al implementar P1; no son afirmaciones de que ya exista software o una
 prueba ejecutada.
+La [matriz de recorridos P1](matriz_recorridos_p1.md) identifica los escenarios por CA funcional y RF;
+la evidencia en Plane enlaza esos escenarios con los RNF aplicables y su SPEC primaria de esta tabla.
 
 | RNF canónico | Aplicabilidad | SPEC primario | SPEC contribuyentes | Evidencia de cierre |
 | --- | --- | --- | --- | --- |
@@ -25,7 +27,7 @@ prueba ejecutada.
 | RNF-013 | P1 | SPEC-05 | SPEC-12 e SPEC-13 | Mensaje aceptado→entrega a clientes conectados p95 <1 s bajo 20 msg/s agregados (cumple RF-033 y RNF-013 ≤1 s); se mide con relojes de servidor correlacionados. |
 | RNF-014 | P1 | SPEC-03 | SPEC-04 e SPEC-11 | Commit Streaming de cambio de disponibilidad→proyección Discovery/consulta pública ≤5 s; estados PLAYABLE/RECONNECTING/OFFLINE diferenciados. |
 | RNF-015 | P1 | SPEC-13 | SPEC-01, SPEC-03…SPEC-07 y SPEC-10…SPEC-12 | Escalar una instancia/capacidad del servicio seleccionado conserva schema/path y no requiere cambios de código/configuración en frontend ni consumidores ajenos. |
-| RNF-016 | P1 | SPEC-13 | SPEC-04, SPEC-05, SPEC-12 | Prueba demuestra capacidad independiente de Chat, Core, Streaming y Media sin modificar schemas/paths/consumidores; módulos Core se escalan juntos. Documentar orden/fan-out/cuotas de Chat y SQL/volumen Core y fencing/clock/owner Streaming antes de varias réplicas. |
+| RNF-016 | P1 | SPEC-13 | SPEC-04, SPEC-05, SPEC-12 | Prueba demuestra capacidad independiente de Chat, Core, Streaming y Media sin modificar schemas/paths/consumidores; módulos Core se escalan juntos. Documentar orden/fan-out/cuotas de Chat y SQL/volumen Core y fencing/clock/owner Streaming antes de varias réplicas. En P1 el adaptador escala/reinicia junto a Streaming; el motor MediaMTX conserva contenedor propio según ADR-011. |
 | RNF-017 | P1 | SPEC-04 | SPEC-13 | Cinco fuentes simultáneas y 100 reproducciones concurrentes totales durante 10 min; el sexto stream recibe rechazo controlado. |
 | RNF-018 | P1 | SPEC-05 | SPEC-13 | 20 mensajes/s agregados entre salas durante 10 min; cada cuenta puede enviar como máximo un mensaje aceptado en cualquier ventana móvil de 1000 ms, sin burst allowance. Se documentan pérdidas, duplicados, error rate y latencia. |
 | RNF-019 | P1 | SPEC-05 | SPEC-04, SPEC-12, SPEC-13 | Se detiene Chat durante playback y se verifica que HLS continúa; UI muestra chat no disponible y recupera lectura. |
@@ -59,7 +61,7 @@ prueba ejecutada.
 | RNF-047 | P1 | SPEC-10 | SPEC-01, SPEC-03…SPEC-08 y SPEC-11…SPEC-12 | Cliente consumidor compila/valida desde schema público; no importa modelo/SDK privado del lenguaje del proveedor. |
 | RNF-048 | P1 | SPEC-13 | SPEC-01, SPEC-03, SPEC-04 | Dueños justifican relaciones con integridad en SQL; prueba valida FK cuenta-canal en Core y config-sesión/leases en Rust; referencias entre bases validadas por contexto Core, sin FK entre bases. |
 | RNF-049 | P1 | SPEC-13 | SPEC-04, SPEC-05 | ADR vincula cada uso NoSQL a estado/acceso temporal o eventos; si no hay justificación, no se cuenta como cumplimiento. |
-| RNF-050 | P1 | SPEC-13 | SPEC-01, SPEC-03, SPEC-04, SPEC-05 | Reiniciar procesos y consultar Core y Streaming desde sus SQL privados, reconstruir proyección Discovery con snapshot/watermark y recuperar Chat por backup/snapshot/eventos preserva IDs/estado sin volver a crear cuentas/canales/contenido manualmente. |
+| RNF-050 | P1 | SPEC-13 | SPEC-01, SPEC-03, SPEC-04, SPEC-05 | Reiniciar procesos y consultar Core y Streaming desde sus SQL privados, reconstruir proyección Discovery con snapshot/watermark y recuperar Chat preservando IDs/estado sin recreación manual. AOF/backup recupera mensajes con ACK dentro de su retención; snapshot/eventos/enumeración Streaming recuperan solo inventario/lifecycle de salas, nunca mensajes perdidos ni historial tras los 5 min de ENDED. |
 
 ## Reglas de ownership de la evidencia
 

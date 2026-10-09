@@ -4,20 +4,17 @@ import java.time.Duration;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import streaming.core.discovery.domain.RequestRateLimiter;
-import streaming.core.discovery.domain.TrustedProxies;
+import streaming.core.discovery.domain.RequestLimiter;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Configuration
 class DiscoveryConfiguration {
-    /** One limiter per process: P1 runs a single Core replica; sharing it across replicas needs a shared store. */
-    @Bean RequestRateLimiter discoveryRateLimiter(@Value("${discovery.rate-limit.burst:20}") int burst,
+    @Bean RequestLimiter discoveryRateLimiter(@Value("${discovery.rate-limit.burst:20}") int burst,
             @Value("${discovery.rate-limit.window-max:600}") int windowMax,
-            @Value("${discovery.rate-limit.window:PT60S}") Duration window) {
-        return new RequestRateLimiter(burst,windowMax,window,System::nanoTime);
+            @Value("${discovery.rate-limit.window:PT60S}") Duration window,
+            @Value("${core.rate-limit-hmac-secret}") String secret,JdbcClient jdbc,TransactionTemplate transactions) {
+        return new SqlRequestLimiter(jdbc,transactions,burst,windowMax,window,secret);
     }
 
-    /** Fails startup on a malformed list so a typo cannot silently disable the per-IP limit. */
-    @Bean TrustedProxies discoveryTrustedProxies(@Value("${core.trusted-proxies:}") String trustedProxies) {
-        return TrustedProxies.parse(trustedProxies);
-    }
 }

@@ -44,7 +44,7 @@ Como integrante del equipo, quiero arrancar y verificar desde checkout limpio to
 
 ### Supuestos acordados
 
-- Docker Compose es candidato, no decisión; herramienta final requiere ADR y comandos reproducibles.
+- Docker Compose está seleccionado para el stack propio Streaming/Media de tres contenedores en ADR-011. El Compose raíz ensambla los nueve servicios locales según ADR-014; los fixtures de aceptación conservan su configuración y evidencia separadas.
 
 - REST, GraphQL sobre HTTP/JSON y WebSocket HTTP Upgrade quedan definidos como tres patrones HTTP demostrables. El perfil incluye ejercicios de REST/GraphQL/WebSocket; RTMP/HLS son transportes de medios y no sustituyen conectores HTTP. La aceptación del RNF académico de “dos tipos de conectores basados en HTTP” se marca pendiente hasta confirmar que la guía/docente cuenta al menos dos de esos patrones como distintos; no afirmar cumplimiento sin esa evidencia.
 
@@ -74,7 +74,7 @@ Como integrante del equipo, quiero arrancar y verificar desde checkout limpio to
 
 - **CA-05:** REST, GraphQL y WebSocket HTTP Upgrade se prueban cada uno con petición/mensaje nominal, error y timeout. No contar RTMP/HLS como conector HTTP; registrar en el informe docente/evaluador qué dos patrones reconoce para el RNF y no marcarlo cumplido sin esa confirmación.
 
-- **CA-06:** el perfil nominal completo de carga arriba se ejecuta durante 10 min con dependencias sanas. RNF-011 mide 10 req/s totales de API, incluyendo 2 logins correctos/s; cada endpoint informa su submuestra y p95 ≤2 s. RNF-012 mide las 100 solicitudes de inicio de player de la rampa y **todas** llegan al primer frame ≤5 s. RNF-013 mide solo mensajes aceptados y exige p95 <1 s hasta entrega (criterio estricto RF-033, también cumple RNF-013 ≤1 s). Cada envío nuevo Chat implica contexto Core y estado/timeline actual Streaming: hasta20 solicitudes/s en cada hop. Contexto<=400ms incluyendo Core→Streaming<=200ms; commit<=500ms desde iniciar contexto. Sin lookup Profile remoto ni timeline replicado. Registrar p95/error/timeout y tiempo previo al commit aparte. Cualquier timeout, 5xx, 429 inesperado o respuesta no exitosa de una operación válida reprueba el run nominal; los p95 se calculan sobre respuestas 2xx y no pueden esconder fallos, que además se informan aparte. Ejecutar además los runs de falla descritos arriba y validar su comportamiento esperado sin confundirlos con la medición nominal. Reportar muestras, status/error rate, pérdida/duplicación, host y red.
+- **CA-06:** el perfil nominal completo de carga arriba se ejecuta durante 10 min con dependencias sanas. RNF-011 mide 10 req/s totales de API, incluyendo 2 logins correctos/s; cada endpoint informa su submuestra y p95 ≤2 s. RNF-012 mide las 100 solicitudes de inicio de player de la rampa y **todas** llegan al primer frame ≤5 s. RNF-013 mide solo mensajes aceptados y exige p95 <1 s hasta entrega (criterio estricto RF-033, también cumple RNF-013 ≤1 s). Cada envío nuevo Chat implica contexto Core y estado/timeline actual Streaming: hasta20 solicitudes/s en cada hop. Contexto<=400ms incluyendo Core→Streaming<=200ms; intento de persistencia<=500ms desde iniciar contexto (ADR-010); un resultado ambiguo Redis se recupera con el mismo clientMessageId. Sin lookup Profile remoto ni timeline replicado. Registrar p95/error/timeout y tiempo hasta intentar persistir aparte. Cualquier timeout, 5xx, 429 inesperado o respuesta no exitosa de una operación válida reprueba el run nominal; los p95 se calculan sobre respuestas 2xx y no pueden esconder fallos, que además se informan aparte. Ejecutar además los runs de falla descritos arriba y validar su comportamiento esperado sin confundirlos con la medición nominal. Reportar muestras, status/error rate, pérdida/duplicación, host y red.
 
 - **CA-07:** E2E valida registro/canal, browse, reproducción, sala, grace/fin, viewer expiry y estado público.
 
@@ -86,11 +86,13 @@ Como integrante del equipo, quiero arrancar y verificar desde checkout limpio to
 
 - **CA-11:** escalar en forma aislada al menos una réplica de Chat y una de Core mantiene paths/schemas y servicio a consumidores sin modificar frontend ni módulo no afectado; las réplicas Core comparten el bucket S3, mientras filesystem requiere volumen compartido; se documenta qué estado requiere afinidad/compartición.
 
-- **CA-12:** crear cuenta, canal, stream metadata y eventos persistentes; reiniciar Core, Streaming, Chat y Media por separado y confirmar mismos IDs/datos sin creación manual. Core conserva las referencias de avatar/portada y las sirve desde el bucket S3 privado configurado (o filesystem explícito). Comprobar Channel desde datos Core y batch Streaming, Discovery desde SQL Core con proyección pública y reconstrucción mediante corte consistente/watermark e inbox durable durante rebuild. Chat recupera salas conocidas mediante snapshot/outbox; pérdida total requiere backup/inventario o enumeración consistente, no lookups puntuales.
+- **CA-12:** crear cuenta, canal, stream metadata y eventos persistentes; reiniciar Core, Streaming (incluido el adaptador Media), Chat y MediaMTX por separado y confirmar mismos IDs/datos de cuenta, canal y configuración sin creación manual. Conservar también los IDs de sesiones/eventos históricos. Conforme SPEC-04, perder el clock monotónico al reiniciar Streaming termina la sesión anterior; la reconexión automática del encoder con la misma configuración/clave crea una nueva sesión, sin reconstruir el clock ni extender gracia. Reiniciar MediaMTX puede recuperar la misma sesión dentro de su gracia verificable. Core conserva las referencias de avatar/portada y las sirve desde el bucket S3 privado configurado (o filesystem explícito). Comprobar Channel desde datos Core y batch Streaming, Discovery desde SQL Core con proyección pública y reconstrucción mediante corte consistente/watermark e inbox durable durante rebuild. Chat recupera salas conocidas mediante snapshot/outbox; pérdida total requiere backup/inventario o enumeración consistente, no lookups puntuales.
 
 - **CA-13:** revisión de arquitectura confirma que añadir VOD, notificaciones, watch party o premium usa contratos/nuevos componentes o extensiones acotadas, sin cambios sustanciales en componentes no relacionados.
 - **CA-14:** E2E fuerza fallo entre escrituras de registro y rollback total; después pierde respuesta tras commit Core y repite misma clave sin duplicar cuenta/perfil/canal. No PENDING nuevo ni 404 temporal por activación. Callback media repetido tras perder ACK produce una sola transición, y un cambio de viewers aparece en proyección SQL Discovery en<=5s con freshness correcta; duplicados/desorden/ENDED/rebuild concurrente no regresan datos.
 - **CA-15:** con reloj controlable, callbacks sin respuesta reciben retry al calendario fijado, alertan una vez al alcanzar 30 s y detienen el envío automático al cumplir 15 min dejando registro durable en dead-letter. El redrive manual reutiliza eventId/payload y abre una nueva ventana de 15 min; una respuesta 410 resuelve el evento como obsoleto sin reintento.
+
+- **CA-16:** la evidencia identifica commit/configuración, escenario y resultado por cada RF P1, CA funcional y RNF aplicable de la matriz SPEC-09/matriz RNF. Incluye imágenes reales y recuperación, catálogo nuevo sin rebuild, filtros/ranking/paginación, límites/auth negativos y revisión manual de accesibilidad SPEC-08. Un mock, schema, prueba local o estado de Plane no cierra por sí solo un recorrido integrado; pendientes y confirmación académica RNF-006 permanecen explícitos.
 
 ## 7. Diseño técnico y datos
 
@@ -98,9 +100,18 @@ Como integrante del equipo, quiero arrancar y verificar desde checkout limpio to
 
 - SQL/NoSQL/seed según ADR de dueños; documentar backup o cleanup pertinente a demo y límites del estado guardado.
 
+- Chat recupera mensajes con ACK mediante AOF/backup mientras estén dentro de la retención de ADR-010; un snapshot/enumeración Streaming solo recupera identidad/lifecycle de salas. Tras pérdida total del almacén, probar restauración del backup antes de afirmar recuperación de mensajes; no volver a crear contenido desde datos de demostración ni prometer historial después de los 5 min de ENDED.
+
+- Stack SPEC-04: `db`, `streaming` (control y adaptador en un runtime) y `mediamtx`, sin job de inicialización. PostgreSQL prepara el rol/base Media en cada arranque y declara readiness después; Streaming exige ambos checks 8080/8090 y MediaMTX espera únicamente `service_started` para evitar ciclos. HLS público se sirve en Streaming:8888. Reiniciar Streaming interrumpe ambos módulos; el motor MediaMTX se reinicia por separado.
+
 - Health no consulta dependencias sin timeout; logs incluyen request/event ID y excluyen passwords, tokens, stream key y datos privados.
 
 - Runner de carga usa cinco fuentes controladas y rampa de 100 clientes; mantiene métricas separadas de egreso/bitrate HLS, 10 solicitudes/s de API, 10 heartbeats/s adicionales después de rampa, creación de leases, tráfico WebSocket y mensajes. Reporta resultados por operación, muestra, p95/máximo según RNF, fallos, pérdidas/duplicados y configuración de CPU/RAM/NIC/red.
+
+El [Compose raíz](../../compose.yaml) ofrece la instalación local de equipo con nueve servicios
+(core/core-db, chat/chat-db Redis, live/live-db/media-server, web/proxy separados), build Web en
+Docker y TLS en todos los saltos. El [README raíz](../../README.md) es su guía de arranque. Los
+fixtures de aceptación conservan sus proyectos y topología de réplicas separados, según ADR-014.
 
 ## 8. Dependencias y contratos de integración
 
