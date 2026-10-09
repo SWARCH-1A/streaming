@@ -95,6 +95,8 @@ class CoreIT {
         assertThat(body.get("stream").isNull()).isTrue();
         assertThat(bootstrap.body()).doesNotContain("email","password","credential","fingerprint");
         assertThat(request("GET","/api/channels/by-owner/"+result.userId(),null,false).body()).isEqualTo(bootstrap.body());
+        assertThat(request("GET","/api/channels/"+result.channelId(),null,false).body()).isEqualTo(bootstrap.body());
+        assertThat(request("GET","/api/channels/chn_missing",null,false).statusCode()).isEqualTo(404);
     }
 
     @ParameterizedTest

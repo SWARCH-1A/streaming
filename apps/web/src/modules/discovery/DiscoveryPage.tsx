@@ -1,136 +1,225 @@
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
+import queries from '@contracts/graphql-queries.json';
+import type { GqlChannelConnection, GqlStreamConnection, GraphQLResponse } from '@contracts/p1';
 
+import { Avatar } from '@/src/components/atoms/Avatar';
+import { Badge } from '@/src/components/atoms/Badge';
 import { Button } from '@/src/components/atoms/Button';
 import { Select } from '@/src/components/atoms/Select';
 import { EmptyState } from '@/src/components/molecules/EmptyState';
 import { FormField } from '@/src/components/molecules/FormField';
-import { SectionHeading } from '@/src/components/molecules/SectionHeading';
-import { CategoryRibbon } from '@/src/modules/discovery/components/CategoryRibbon';
-import { ChannelCard } from '@/src/modules/discovery/components/ChannelCard';
-import { FeaturedStream } from '@/src/modules/discovery/components/FeaturedStream';
-import { StreamGrid } from '@/src/modules/discovery/components/StreamGrid';
-import { demoChannels, demoStreams } from '@/src/modules/discovery/mock/streams';
-import { demoCatalog } from '@/src/modules/taxonomy/entry';
+import { Notice } from '@/src/components/molecules/Notice';
+import { Panel } from '@/src/components/molecules/Panel';
+import { useCatalog } from '@/src/modules/taxonomy/entry';
+import { request } from '@/src/shared/api/http';
+import { useResource } from '@/src/shared/api/useResource';
 
 import styles from './DiscoveryPage.module.css';
-import { filterChannels, filterStreams } from './filterStreams';
 
+interface Results {
+  streams: GqlStreamConnection;
+  channels: GqlChannelConnection | null;
+}
 export function DiscoveryPage({ search = false }: { search?: boolean }) {
   const [params, setParams] = useSearchParams();
-  const filters = {
-    query: params.get('q') ?? '',
-    categoryId: params.get('category') ?? '',
-    tagId: params.get('tag') ?? '',
-  };
-  const streams = filterStreams(demoStreams, filters);
-  const channels = search ? filterChannels(demoChannels, filters.query) : [];
-  const featured = demoStreams[0];
-  const invalid =
-    (!!filters.categoryId &&
-      !demoCatalog.categories.some((value) => value.id === filters.categoryId)) ||
-    (!!filters.tagId && !demoCatalog.tags.some((value) => value.id === filters.tagId));
+  const q = params.get('q') ?? '',
+    categoryId = params.get('category') ?? '',
+    tagId = params.get('tag') ?? '';
+  const cursor = params.get('cursor'),
+    channelCursor = params.get('channelCursor');
+  const catalog = useCatalog();
+  const resource = useResource(
+    JSON.stringify([q, categoryId, tagId, cursor, channelCursor, search]),
+    async (signal) => {
+      async function query(name: string, variables: Record<string, unknown>) {
+        const operation = queries.find((item) => item.name === name);
+        if (!operation) throw new Error('Consulta no generada.');
+        const response = await request<GraphQLResponse>('/api/discovery/graphql', {
+          method: 'POST',
+          body: { query: operation.query, variables },
+          signal,
+        });
+        if (response.errors?.length)
+          throw new Error(
+            response.errors
+              .map(
+                (item) =>
+                  `${item.message} (${item.extensions.code} · ${item.extensions.requestId})`,
+              )
+              .join(' '),
+          );
+        if (!response.data) throw new Error('Discovery no devolvió datos.');
+        return response.data;
+      }
+      const [streams, channels] = await Promise.all([
+        query('LiveStreams', {
+          q,
+          categoryId: categoryId || null,
+          tagId: tagId || null,
+          cursor,
+          limit: 20,
+        }),
+        search ? query('Channels', { q, cursor: channelCursor, limit: 20 }) : Promise.resolve(null),
+      ]);
+      return {
+        streams: streams.streams as GqlStreamConnection,
+        channels: channels?.channels as GqlChannelConnection | null,
+      } satisfies Results;
+    },
+  );
   function update(key: string, value: string) {
     setParams((previous) => {
       const next = new URLSearchParams(previous);
+      next.delete('cursor');
+      next.delete('channelCursor');
       if (value) next.set(key, value);
       else next.delete(key);
       return next;
     });
   }
+  const data = resource.data;
   return (
     <div className={styles.page}>
-      {!search && featured ? (
-        <FeaturedStream stream={featured} />
-      ) : (
-        <div>
-          <p className="eyebrow">Encuentra tu comunidad</p>
-          <h1>
-            {filters.query
-              ? `Resultados para “${filters.query}”`
-              : 'Buscar canales y transmisiones'}
-          </h1>
-        </div>
-      )}
-      {search ? (
+      <div>
+        <p className="eyebrow">Encuentra tu comunidad</p>
+        <h1>
+          {q
+            ? `Resultados para “${q}”`
+            : search
+              ? 'Buscar canales y transmisiones'
+              : 'Explorar transmisiones'}
+        </h1>
+      </div>
+      <div className="row">
+        <FormField id="category-filter" label="Categoría">
+          <Select
+            id="category-filter"
+            value={categoryId}
+            disabled={!catalog.data}
+            onChange={(event) => update('category', event.target.value)}
+          >
+            <option value="">Todas las categorías</option>
+            {categoryId && !catalog.data?.categories.some((item) => item.id === categoryId) ? (
+              <option value={categoryId}>Categoría no disponible</option>
+            ) : null}
+            {catalog.data?.categories.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </Select>
+        </FormField>
+        <FormField id="tag-filter" label="Etiqueta">
+          <Select
+            id="tag-filter"
+            value={tagId}
+            disabled={!catalog.data}
+            onChange={(event) => update('tag', event.target.value)}
+          >
+            <option value="">Todas las etiquetas</option>
+            {tagId && !catalog.data?.tags.some((item) => item.id === tagId) ? (
+              <option value={tagId}>Etiqueta no disponible</option>
+            ) : null}
+            {catalog.data?.tags.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </Select>
+        </FormField>
+        <Button variant="secondary" onClick={() => setParams({})}>
+          Limpiar filtros
+        </Button>
+      </div>
+      {catalog.error ? <Notice tone="error">Catálogo: {catalog.error}</Notice> : null}
+      {resource.loading ? (
+        <p role="status">Cargando resultados…</p>
+      ) : resource.error ? (
+        <Notice tone="error">{resource.error}</Notice>
+      ) : null}
+      {search && data?.channels ? (
         <section>
-          <SectionHeading title={`Canales encontrados (${channels.length})`} />
+          <h2>Canales encontrados</h2>
+          {!data.channels.statusFresh ? (
+            <Notice tone="warning">El estado de emisiones no está actualizado.</Notice>
+          ) : null}
           <div className={styles.channels}>
-            {channels.map((channel) => (
-              <ChannelCard key={channel.handle} channel={channel} />
+            {data.channels.items.map((item) => (
+              <Panel key={item.channelId}>
+                <Avatar
+                  name={item.displayName}
+                  {...(item.avatarUri ? { src: item.avatarUri } : {})}
+                />
+                <Link to={`/channels/${item.handle}`}>
+                  {item.displayName} (@{item.handle})
+                </Link>
+                <Badge>{item.statusFresh ? item.availability : 'UNKNOWN'}</Badge>
+              </Panel>
             ))}
           </div>
-          {channels.length === 0 ? (
-            <p className="muted">No hay canales con ese nombre. Prueba con otro handle.</p>
+          {!data.channels.items.length ? <p>No hay canales para esta búsqueda.</p> : null}
+          {data.channels.nextCursor ? (
+            <Button
+              onClick={() => {
+                setParams((previous) => {
+                  const next = new URLSearchParams(previous);
+                  next.set('channelCursor', data.channels?.nextCursor ?? '');
+                  return next;
+                });
+              }}
+            >
+              Más canales
+            </Button>
           ) : null}
         </section>
-      ) : (
+      ) : null}
+      {data?.streams ? (
         <section>
-          <SectionHeading eyebrow="Exploración temática" title="Categorías destacadas" />
-          <CategoryRibbon
-            catalog={demoCatalog}
-            selected={filters.categoryId}
-            onSelect={(id) => update('category', id)}
-          />
+          <h2>Transmisiones en vivo</h2>
+          <p role="status">{data.streams.items.length} transmisiones · Más populares</p>
+          {!data.streams.statusFresh ? (
+            <Notice tone="warning">El estado de emisiones no está actualizado.</Notice>
+          ) : null}
+          <div className={styles.channels}>
+            {data.streams.items.map((item) => (
+              <Panel key={item.streamId} className="stack">
+                <Badge tone="live">EN VIVO</Badge>
+                <Link to={`/watch/${item.streamId}`}>
+                  <h3>{item.title}</h3>
+                </Link>
+                <Link to={`/channels/${item.channel.handle}`}>{item.channel.displayName}</Link>
+                <p>
+                  {item.category.name} · {item.tags.map((tag) => tag.name).join(' · ')}
+                </p>
+                <p>
+                  {item.viewerCountFresh
+                    ? `${item.viewerCount} espectadores`
+                    : 'Conteo no actualizado'}
+                </p>
+              </Panel>
+            ))}
+          </div>
+          {!data.streams.items.length ? (
+            <EmptyState
+              title="No encontramos transmisiones"
+              description="Prueba otra búsqueda o elimina los filtros."
+            />
+          ) : null}
+          {data.streams.nextCursor ? (
+            <Button
+              onClick={() => {
+                setParams((previous) => {
+                  const next = new URLSearchParams(previous);
+                  next.set('cursor', data.streams.nextCursor ?? '');
+                  return next;
+                });
+              }}
+            >
+              Más transmisiones
+            </Button>
+          ) : null}
         </section>
-      )}
-      <section aria-labelledby="streams-heading">
-        <div className={styles.filters}>
-          <div>
-            <p className="eyebrow">Parrilla global</p>
-            <h2 id="streams-heading">
-              {search ? 'Directos para tu búsqueda' : 'Transmisiones que marcan tendencia'}
-            </h2>
-          </div>
-          <div className="row">
-            <FormField id="category-filter" label="Categoría">
-              <Select
-                id="category-filter"
-                value={filters.categoryId}
-                onChange={(event) => update('category', event.target.value)}
-              >
-                <option value="">Todas las categorías</option>
-                {demoCatalog.categories.map((value) => (
-                  <option key={value.id} value={value.id}>
-                    {value.name}
-                  </option>
-                ))}
-              </Select>
-            </FormField>
-            <FormField id="tag-filter" label="Etiqueta">
-              <Select
-                id="tag-filter"
-                value={filters.tagId}
-                onChange={(event) => update('tag', event.target.value)}
-              >
-                <option value="">Todas las etiquetas</option>
-                {demoCatalog.tags.map((value) => (
-                  <option key={value.id} value={value.id}>
-                    {value.name}
-                  </option>
-                ))}
-              </Select>
-            </FormField>
-          </div>
-        </div>
-        <p className={styles.results} role="status">
-          {streams.length} transmisiones · Más populares
-        </p>
-        {invalid ? (
-          <EmptyState
-            title="Filtro no disponible"
-            description="Selecciona una categoría o etiqueta del catálogo."
-            action={<Button onClick={() => setParams({})}>Limpiar filtros</Button>}
-          />
-        ) : streams.length ? (
-          <StreamGrid streams={streams} />
-        ) : (
-          <EmptyState
-            title="No encontramos transmisiones"
-            description="Prueba otra búsqueda o elimina los filtros para descubrir más directos."
-            action={<Button onClick={() => setParams({})}>Limpiar filtros</Button>}
-          />
-        )}
-      </section>
+      ) : null}
     </div>
   );
 }

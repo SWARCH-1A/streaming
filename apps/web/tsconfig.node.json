@@ -19,7 +19,8 @@
     "skipLibCheck": true,
     "jsx": "react-jsx",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@contracts/*": ["../../contracts/generated/*"]
     },
     "tsBuildInfoFile": "./node_modules/.cache/tsconfig.node.tsbuildinfo",
     "types": ["node"]

@@ -4,10 +4,22 @@ on:
   push:
     paths:
       - 'apps/web/**'
+      - 'contracts/**'
+      - 'docs/contratos_modelo_datos.md'
+      - 'services/**'
+      - 'infra/local/**'
+      - 'infra/reverse-proxy/**'
+      - 'tests/integration/**'
       - '.github/workflows/web.yml'
   pull_request:
     paths:
       - 'apps/web/**'
+      - 'contracts/**'
+      - 'docs/contratos_modelo_datos.md'
+      - 'services/**'
+      - 'infra/local/**'
+      - 'infra/reverse-proxy/**'
+      - 'tests/integration/**'
       - '.github/workflows/web.yml'
 
 permissions:
@@ -20,7 +32,7 @@ concurrency:
 jobs:
   web:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 35
     defaults:
       run:
         working-directory: apps/web
@@ -36,9 +48,14 @@ jobs:
         with:
           package_json_file: apps/web/package.json
           run_install: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r ../../tests/integration/p1-domains/requirements.txt
+      - run: python ../../contracts/generate.py --check
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - run: pnpm exec playwright install --with-deps chromium
         env:
           PLAYWRIGHT_SKIP_BROWSER_GC: '1'
-      - run: pnpm test:e2e
+      - run: python ../../tests/integration/p1-domains/run.py --web

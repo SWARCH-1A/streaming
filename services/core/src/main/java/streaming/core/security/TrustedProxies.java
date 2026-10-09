@@ -1,4 +1,4 @@
-package streaming.core.discovery.domain;
+package streaming.core.security;
 
 import java.net.InetAddress;
 import java.util.ArrayList;

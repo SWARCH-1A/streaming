@@ -450,6 +450,35 @@
     "visibility": "public"
   },
   {
+    "auth": "public",
+    "consumer": "Web",
+    "id": "channels.by-id",
+    "idempotency": "none",
+    "limits": "Description <=500 Unicode code points. Banner file <=10 MB, decoded JPEG/PNG/GIF, recommended1200x480; upload single-use TTL15min. One bounded bootstrap request, no per-row remote calls.",
+    "method": "GET",
+    "owner": "Core",
+    "path": "/api/channels/{channelId}",
+    "provider": "Core",
+    "recovery": "Report structured error; do not replace with demo data.",
+    "request": null,
+    "responses": {
+      "200": "ChannelBootstrap",
+      "400": "Error",
+      "401": "Error",
+      "403": "Error",
+      "404": "Error",
+      "413": "Error",
+      "415": "Error",
+      "422": "Error",
+      "429": "Error",
+      "503": "Error"
+    },
+    "spec": "SPEC-03",
+    "timeoutMs": 2000,
+    "traceability": "docs/spec-p1/spec_03_channel.md",
+    "visibility": "public"
+  },
+  {
     "auth": "session-csrf",
     "consumer": "Web",
     "id": "channels.patch",

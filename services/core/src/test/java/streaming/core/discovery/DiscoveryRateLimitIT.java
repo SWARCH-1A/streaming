@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import streaming.core.discovery.domain.RequestRateLimiter;
-import streaming.core.discovery.domain.TrustedProxies;
+import streaming.core.security.TrustedProxies;
 import tools.jackson.databind.JsonNode;
 
 import static org.assertj.core.api.Assertions.assertThat;

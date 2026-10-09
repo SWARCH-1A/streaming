@@ -31,6 +31,8 @@ rechaza nombres sensibles recursivamente en datos públicos. Respuestas owner qu
 clave una sola vez, leases y contextos privados se distinguen de DTO públicos. El schema no
 sustituye validación de permisos, normalización Unicode, transacciones, versiones ni deadlines.
 
+La generación incluye p1.d.ts desde los mismos schemas y tipos GraphQL desde el SDL; Web consume esas declaraciones y las consultas generadas sin DTO manuales paralelos.
+
 Cada operación declara proveedor, consumidor, ownership, auth, request/response, status/errors,
 timeout, idempotencia y recuperación. Imágenes/HLS se describen como transporte binario; sus bytes,
 MIME y reproducción se prueban en SPEC-12/13. Las interfaces locales Core se documentan en el

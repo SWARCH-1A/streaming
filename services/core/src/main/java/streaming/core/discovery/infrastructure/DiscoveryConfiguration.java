@@ -5,7 +5,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import streaming.core.discovery.domain.RequestRateLimiter;
-import streaming.core.discovery.domain.TrustedProxies;
 
 @Configuration
 class DiscoveryConfiguration {
@@ -16,8 +15,4 @@ class DiscoveryConfiguration {
         return new RequestRateLimiter(burst,windowMax,window,System::nanoTime);
     }
 
-    /** Fails startup on a malformed list so a typo cannot silently disable the per-IP limit. */
-    @Bean TrustedProxies discoveryTrustedProxies(@Value("${core.trusted-proxies:}") String trustedProxies) {
-        return TrustedProxies.parse(trustedProxies);
-    }
 }

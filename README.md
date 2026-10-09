@@ -38,10 +38,9 @@ arranca Core/PostgreSQL; `./infra/local/init-env.ps1` genera configuración loca
 deduplicación y eventos de sesión. Pruebas: `go test ./...` en `services/chat`.
 [Streaming](services/streaming/README.md) contiene el servicio Rust de control, el adaptador Media y su stack MediaMTX/PostgreSQL. La integración con Core, Chat y Web y la aceptación del sistema se rigen por SPEC-09…SPEC-13. El [runner de contratos](tests/contracts/README.md) comprueba su cliente real contra Core y reinicios con volúmenes persistentes.
 
-La vista Web de Discovery, la composición de emisiones en Canales, la integración Chat/Web y la evidencia E2E
-siguen pendientes. El backend Catálogo no cierra por sí solo RF-066…RF-069 ni SPEC-06.
-[Web](apps/web/README.md) tiene una base React/TypeScript/SWC ejecutable con pnpm, diseño de Stitch,
-componentes atómicos y tests; organiza su esqueleto en `src/modules`, `src/shell` y
-`src/accessibility`. Sus vistas usan datos de demostración; las integraciones HTTP/WS/HLS y
-autorización real siguen pendientes. Ejecutar desde `apps/web`: `pnpm install --frozen-lockfile` y
-`pnpm dev` (puerto 3000). Calidad: `pnpm check`; navegador: `pnpm test:e2e`.
+[Web](apps/web/README.md) conecta Accounts/Channels/Taxonomy/Discovery, Streaming y Chat mediante
+HTTP/GraphQL/WS/HLS reales, cookies/CSRF, uploads y leases. Caddy sirve el build con rutas explícitas;
+los ejemplos visuales se limitan a la biblioteca de componentes. Calidad: desde apps/web, `pnpm check`.
+Recorrido real de dominios y Web: `python tests/integration/p1-domains/run.py --web`, con las
+[dependencias y condiciones del fixture](tests/integration/p1-domains/README.md). El perfil HTTP de
+desarrollo no acredita TLS, S3 o carga P1 de SPEC-13; la revisión manual de SPEC-08 permanece separada.

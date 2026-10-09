@@ -18,39 +18,6 @@
 .top svg {
   color: var(--color-error);
 }
-.channels {
-  padding: 0.75rem;
-}
-.channels > a {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.65rem 0.4rem;
-  border-radius: var(--radius-sm);
-}
-.channels > a:hover {
-  background: var(--color-raised);
-}
-.channels > a > div {
-  flex: 1;
-  min-width: 0;
-}
-.channels strong {
-  display: block;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-size: 0.75rem;
-}
-.channels div > span {
-  display: block;
-  font-size: 0.6875rem;
-  color: var(--color-muted);
-}
-.channels b {
-  color: var(--color-error);
-  font-size: 0.625rem;
-}
 .section {
   padding: 1.25rem 1rem;
   border-top: 1px solid rgb(255 255 255 / 5%);

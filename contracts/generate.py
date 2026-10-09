@@ -120,12 +120,42 @@ def verify(bundle, sdl):
         raise ValueError(f"Negative example unexpectedly valid: {negative['name']}")
 
 
+def typescript(bundle, sdl):
+    def ts(schema):
+        if "$ref" in schema: return schema["$ref"].split("/")[-1]
+        if "const" in schema: return json.dumps(schema["const"])
+        if "enum" in schema: return " | ".join(json.dumps(v) for v in schema["enum"])
+        if "anyOf" in schema: return " | ".join(ts(v) for v in schema["anyOf"])
+        kind = schema.get("type")
+        if isinstance(kind, list): return " | ".join(ts({"type": v}) for v in kind)
+        if kind == "array": return "Array<" + ts(schema["items"]) + ">"
+        if kind == "object":
+            props = schema.get("properties", {})
+            if not props: return "Record<string, unknown>"
+            required = schema.get("required", [])
+            return "{ " + "; ".join(json.dumps(k) + ("" if k in required else "?") + ": " + ts(v) for k, v in props.items()) + " }"
+        return {"string": "string", "integer": "number", "number": "number", "boolean": "boolean", "null": "null"}.get(kind, "unknown")
+    lines = ["// Generated from docs/contratos_modelo_datos.md by contracts/generate.py; do not edit."]
+    lines += ["export type " + name + " = " + ts(schema) + ";" for name, schema in sorted(bundle["schemas"].items())]
+    from graphql import GraphQLObjectType, GraphQLNonNull, GraphQLList
+    def gql(t):
+        if isinstance(t, GraphQLNonNull): return gql_inner(t.of_type)
+        return gql_inner(t) + " | null"
+    def gql_inner(t):
+        if isinstance(t, GraphQLList): return "Array<" + gql(t.of_type) + ">"
+        return {"ID":"string", "String":"string", "DateTime":"string", "Int":"number", "Boolean":"boolean"}.get(t.name, "Gql" + t.name)
+    for name, obj in sorted(build_schema(sdl).type_map.items()):
+        if isinstance(obj, GraphQLObjectType) and not name.startswith("__"):
+            lines.append("export type Gql" + name + " = { " + "; ".join(json.dumps(k) + ": " + gql(v.type) for k,v in obj.fields.items()) + " };")
+    return "\n".join(lines) + "\n"
+
+
 def artifacts(bundle, sdl):
     encode = lambda value: json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
     schema = {"$schema": "https://json-schema.org/draft/2020-12/schema", "$defs": bundle["schemas"]}
     files = {"p1.schema.json": encode(schema), "operations.json": encode(bundle["operations"]),
              "discovery.graphqls": sdl, "graphql-queries.json": encode(bundle["graphqlQueries"]),
-             "local-interfaces.json": encode(bundle["localInterfaces"])}
+             "local-interfaces.json": encode(bundle["localInterfaces"]), "p1.d.ts": typescript(bundle, sdl)}
     files["manifest.json"] = encode({"source": "docs/contratos_modelo_datos.md", "version": bundle["version"],
         "sha256": {name: hashlib.sha256(content.encode()).hexdigest() for name, content in files.items()}})
     return files

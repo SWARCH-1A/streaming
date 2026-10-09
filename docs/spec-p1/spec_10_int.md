@@ -67,6 +67,8 @@ SPEC-01, SPEC-03…SPEC-08 aportan comportamiento; SPEC-11 secuencia; SPEC-12 pr
 
 Preservar contratos públicos donde no contradigan topología; registrar cambios de registro/lectura compuesta/contexto Chat. La aceptación requiere schemas neutrales y verificación de presupuestos entre proveedor y consumidor.
 
+Los artefactos incluyen p1.d.ts derivado de schemas JSON y tipos GraphQL derivados del SDL; Web consume esos tipos y las queries sin DTO paralelos.
+
 ## 10. Verificación
 
 - Validación schema y ejemplos por CI una vez elegida la herramienta.

@@ -47,7 +47,7 @@ relacionan en la matriz de trazabilidad.
 Catálogo mantiene el registro SQL interno de IDs/tipos disjuntos, incluidos tombstones. Seguridad
 Core verifica los permisos por ruta de las credenciales Streaming; la credencial limitada a catálogo
 no concede acceso al contexto de propietario de Canales. El token Chat solo accede a sus dos
-contratos privados; Accounts compone autor/permisos y Channels su bootstrap, mediante puertos
+contratos privados; Accounts compone autor/permisos y Channels su bootstrap por handle/owner/ID, mediante puertos
 publicados y lecturas acotadas Streaming. Integración únicamente prueba y conecta esos dueños.
 
 ## Definición de módulos de trabajo
@@ -67,3 +67,6 @@ comparten proceso y stack; las de capacidades futuras organizan trabajo sin adel
 | Core / Monetización | Capacidad futura RF-038…RF-045: planes, pagos, suscripciones y derechos premium como módulo cohesivo Core. Proveedor/adaptador, moneda, cancelación/devolución y reconciliación por SPEC/ADR de la fase. Intentos/webhooks firmados e idempotentes; estado local transaccional. No implementado en P1 ni stacks/servicios separados por pagos, suscripciones y permisos. Extraer conjuntamente solo con evidencia operativa/escala/release. |
 | Media / Procesamiento audiovisual | Unidad multimedia: ingesta RTMP, HLS, señales y verificación de reproducción en P1, con control de negocio Streaming Rust según SPEC-04. Calidades RF-027…RF-030, captura/procesado VOD RF-056…RF-062 y pistas RF-063…RF-065 futuras. Metadata de emisión y acceso pertenecen a Streaming; catálogo/identidad a Core. MediaMTX/adaptador Rust por ADR-005, adaptador en el runtime Streaming P1 por ADR-011; workers pesados se separan de ingest cuando lo justifiquen carga/fallo. Sin servicio por calidad o idioma. |
 | Web / Accesibilidad | Criterios transversales de la única aplicación Web: teclado, semántica, foco, contraste y control de autodesplazamiento Chat. SPEC-08 y RNF-035…RNF-036; aplica a formularios, canal, player, chat y búsqueda. Comparte responsable de Catálogo por asignación del equipo, sin mezclar sus fronteras. No servicio backend ni microfrontend. Subtítulos RF-063…RF-065 son una capacidad futura de Core/Media. |
+
+Web consume los contratos generados por módulo, conserva la sesión común y monta player/Chat por sessionId.
+El proxy Caddy y el player HLS se definen en ADR-013; ejemplos visuales no son fallback funcional.

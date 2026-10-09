@@ -1,13 +1,35 @@
 import { MemoryRouter } from 'react-router';
+import schema from '@contracts/p1.schema.json';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SessionProvider } from '@/src/shell/session/SessionProvider';
 
 import { AuthPage } from './AuthPage';
 
 function setup() {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((path: string) =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify(
+            path === '/api/identity/csrf'
+              ? schema.$defs.Csrf.examples[0]
+              : path === '/api/identity/registrations'
+                ? schema.$defs.Registration.examples[0]
+                : { code: 'AUTH_REQUIRED', message: 'Sesión requerida', requestId: 'req_test' },
+          ),
+          {
+            status:
+              path === '/api/profile/me' ? 401 : path === '/api/identity/registrations' ? 201 : 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        ),
+      ),
+    ),
+  );
   render(
     <SessionProvider>
       <MemoryRouter>
@@ -16,10 +38,11 @@ function setup() {
     </SessionProvider>,
   );
 }
+afterEach(() => vi.unstubAllGlobals());
 describe('formulario de registro', () => {
   it('asocia errores a campos y lleva el foco al primero', async () => {
     setup();
-    await userEvent.click(screen.getByRole('button', { name: 'Crear cuenta de demostración' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Crear cuenta' }));
     expect(screen.getByLabelText('Correo electrónico')).toHaveFocus();
     expect(screen.getByLabelText('Correo electrónico')).toHaveAttribute(
       'aria-describedby',
@@ -32,10 +55,8 @@ describe('formulario de registro', () => {
     await userEvent.type(screen.getByLabelText('Correo electrónico'), 'demo@example.test');
     await userEvent.type(screen.getByLabelText('Handle'), 'demo_01');
     await userEvent.type(screen.getByLabelText('Contraseña'), 'demopassword12');
-    await userEvent.click(screen.getByRole('button', { name: 'Crear cuenta de demostración' }));
-    expect(
-      screen.getByText('Formulario validado. Continúa con una sesión de demostración.'),
-    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Crear cuenta' }));
+    expect(await screen.findByText('Cuenta creada. Ya puedes iniciar sesión.')).toBeInTheDocument();
     expect(screen.queryByLabelText('Contraseña')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Ir a iniciar sesión →' })).toHaveAttribute(
       'href',

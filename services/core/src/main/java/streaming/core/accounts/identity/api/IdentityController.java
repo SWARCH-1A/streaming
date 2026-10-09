@@ -33,16 +33,17 @@ public class IdentityController {
     private final IdentityApplicationService identity;
     private final String cookieName;
     private final boolean secureCookie;
+    private final streaming.core.security.TrustedProxies proxies;
     public IdentityController(IdentityApplicationService identity,
             @Value("${core.cookie-name:stream_session}") String cookieName,
-            @Value("${core.secure-cookie:false}") boolean secureCookie) {
-        this.identity=identity; this.cookieName=cookieName; this.secureCookie=secureCookie;
+            @Value("${core.secure-cookie:false}") boolean secureCookie,streaming.core.security.TrustedProxies proxies) {
+        this.identity=identity; this.cookieName=cookieName; this.secureCookie=secureCookie; this.proxies=proxies;
     }
 
     @PostMapping(path="/api/identity/registrations", consumes=MediaType.APPLICATION_JSON_VALUE, produces=MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<RegistrationResponse> register(@RequestHeader("Idempotency-Key") UUID key,
             @Valid @RequestBody RegistrationRequest request, HttpServletRequest servletRequest) {
-        RegistrationView result=identity.register(key,request.email(),request.handle(),request.password(),servletRequest.getRemoteAddr());
+        RegistrationView result=identity.register(key,request.email(),request.handle(),request.password(),proxies.clientAddress(servletRequest.getRemoteAddr(),java.util.Collections.list(servletRequest.getHeaders("X-Forwarded-For"))));
         return registrationResponse(result,true);
     }
     @GetMapping(path="/api/identity/registrations/{registrationId}", produces=MediaType.APPLICATION_JSON_VALUE)
@@ -57,7 +58,7 @@ public class IdentityController {
 
     @PostMapping(path="/api/identity/sessions", consumes=MediaType.APPLICATION_JSON_VALUE, produces=MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<SessionResponse> login(@Valid @RequestBody LoginRequest request,HttpServletRequest servletRequest,HttpServletResponse response) {
-        LoginResult result=identity.login(request.login(),request.password(),servletRequest.getRemoteAddr());
+        LoginResult result=identity.login(request.login(),request.password(),proxies.clientAddress(servletRequest.getRemoteAddr(),java.util.Collections.list(servletRequest.getHeaders("X-Forwarded-For"))));
         Duration maxAge=Duration.between(Instant.now(),result.expiresAt());
         response.addHeader("Set-Cookie",ResponseCookie.from(cookieName,result.credential()).httpOnly(true).secure(secureCookie).sameSite("Lax").path("/").maxAge(maxAge).build().toString());
         return ResponseEntity.ok().header("Cache-Control","no-store").body(new SessionResponse(result.userId(),result.expiresAt()));

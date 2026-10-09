@@ -82,6 +82,7 @@ def main():
     parser.add_argument("--streaming-image", help="Reuse an already built image of the unchanged current Streaming sources")
     parser.add_argument("--skip-build", action="store_true", help="Only after building all current sources with this fixture")
     parser.add_argument("--build-only", action="store_true", help="Build current sources, then leave the disposable fixture stopped")
+    parser.add_argument("--web", action="store_true", help="Also run same-origin real-browser Web integration against Caddy")
     args = parser.parse_args()
     spec = importlib.util.spec_from_file_location("p1contracts", ROOT / "contracts/generate.py")
     contracts = importlib.util.module_from_spec(spec)
@@ -104,10 +105,10 @@ def main():
                 "STREAMING_HTTP_PORT": "18080", "STREAMING_HLS_PORT": "18888", "STREAMING_RTMP_PORT": "11935", "STREAMING_DB_PORT": "15438", "WEB_ORIGIN": ORIGIN})
     if args.streaming_image:
         env["P1_STREAMING_IMAGE"] = args.streaming_image
-    command = ["docker", "compose", "-p", PROJECT, "-f", str(FIXTURE / "compose.yaml")]
+    command = ["docker", "compose", "-p", PROJECT, "-f", str(FIXTURE / ("compose.web.yaml" if args.web else "compose.yaml"))]
     publisher = None
     connections = []
-    with nullcontext(tempfile.mkdtemp(prefix="streaming-p1-domains-", dir="/private/tmp")) as scratch:
+    with nullcontext(tempfile.mkdtemp(prefix="streaming-p1-domains-", dir=tempfile.gettempdir())) as scratch:
         with open(Path(scratch) / "docker.log", "w+") as log:
             def compose(*args, capture=False):
                 result = subprocess.run([*command, *args], cwd=ROOT, env=env, text=True,
@@ -156,6 +157,13 @@ def main():
                 if args.build_only:
                     return
                 compose("up", "-d", "--no-build", "--wait", "--wait-timeout", "120")
+                if args.web:
+                    web_id = compose("ps", "-q", "web", capture=True).strip()
+                    inspected = json.loads(subprocess.check_output(["docker", "inspect", web_id], env=env, text=True))[0]
+                    addresses = [n["IPAddress"] for n in inspected["NetworkSettings"]["Networks"].values() if n.get("IPAddress")]
+                    assert len(addresses) == 1
+                    env["WEB_PROXY_IP"] = addresses[0]
+                    compose("up", "-d", "--no-build", "--force-recreate", "core")
                 anonymous = Client()
                 for base, path in [(CORE, "/actuator/health"), (STREAMING, "/health/ready"), (CHAT, "/readyz")]:
                     eventually(lambda: anonymous.call(base, path), lambda value: value is not None)
@@ -271,6 +279,10 @@ def main():
                 ended = eventually(lambda: anonymous.call(CHAT, history_path), lambda h: h["roomStatus"] == "READ_ONLY", timeout=40)
                 assert ended["snapshotSequence"] == 2
                 eventually(lambda: streams({}), lambda ids: ids == set())
+                if args.web:
+                    browser_env = {**env, "P1_WEB_INTEGRATION":"1", "P1_WEB_ORIGIN":ORIGIN, "P1_COMPOSE_PROJECT":PROJECT,
+                                   "P1_COMPOSE_FILE":str(FIXTURE / "compose.web.yaml")}
+                    subprocess.run(["pnpm", "test:e2e"], cwd=ROOT / "apps/web", env=browser_env, check=True)
                 print(f"PASS real Core/Streaming/MediaMTX/Chat/Redis: HLS frame, channel states, fresh context/author, WS dedupe, AOF restart, grace, independent delivery, logout, UNKNOWN, fail-closed outages, leases, taxonomy limits and Discovery AND/normalization/exact sets; {checked} neutral payload validations")
             except BaseException:
                 # Diagnostic data stays in the private temporary folder; never publish it unreviewed.

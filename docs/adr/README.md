@@ -9,11 +9,13 @@
 | [ADR-005](ADR-005-streaming-rust-y-proyeccion-discovery.md) | Aceptada | Streaming Rust/SQL privado, MediaMTX, Discovery en Core con proyección pública y contratos de contexto. |
 | [ADR-006](ADR-006-taxonomia-en-core.md) | Propuesta | Catálogo SQL Core, versión/tombstones y contratos privados owner/catálogo con Streaming. |
 | [ADR-010](ADR-010-chat-go-redis-efimero.md) | Aceptada | Chat en Go con Redis efímero: script atómico, AOF, Stream como outbox y retención de 5 min tras el fin. |
-| [ADR-007](ADR-007-web-react-typescript.md) | Aceptada | Web React/TypeScript/SWC, pnpm, componentes atómicos, calidad y mocks locales. |
+| [ADR-007](ADR-007-web-react-typescript.md) | Aceptada | Web React/TypeScript/SWC, pnpm, componentes atómicos, calidad y muestras visuales (integración en ADR-013). |
 | [ADR-008](ADR-008-descubrimiento-en-core.md) | Aceptada | Descubrimiento en Core: graphql-java con controlador propio, recepción atómica de snapshots, reconstrucción con watermark, ranking paginado y límites públicos. |
 | [ADR-009](ADR-009-s3-image-storage.md) | Aceptada | Bucket S3 privado para avatares/portadas y rutas públicas Core estables. |
 | [ADR-011](ADR-011-streaming-tres-contenedores-p1.md) | Aceptada | Stack Streaming P1 de tres contenedores; adaptador en el runtime Rust, bases separadas y preparación PostgreSQL sin job. |
 | [ADR-012](ADR-012-contratos-generados-p1.md) | Aceptada | Schemas JSON y SDL desde la fuente canónica; generación determinista, checks de drift y consumidores del checkout actual. |
+
+| [ADR-013](ADR-013-web-integrada-caddy-hls.md) | Aceptada | Web con APIs reales/CSRF, Caddy same-origin, HLS nativo/hls.js, leases y chat recuperable; tipos/validación desde contratos. |
 
 Chat está seleccionado en ADR-010; las herramientas pendientes de operación y despliegue se registran conforme
 a la [política ADR](../politica_ADR.md). Las alternativas candidatas requieren decisión del responsable.

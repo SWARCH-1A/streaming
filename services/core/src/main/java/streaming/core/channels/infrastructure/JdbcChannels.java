@@ -34,6 +34,7 @@ public class JdbcChannels implements ChannelInitializer, ChannelQueries, Channel
     }
 
     public Optional<Bootstrap> byHandle(String canonicalHandle) { return read("a.handle",canonicalHandle); }
+    public Optional<Bootstrap> byId(String channelId) { return read("c.channel_id",channelId); }
     public Optional<Bootstrap> byOwner(String userId) { return read("c.owner_user_id",userId); }
 
     @Override public Optional<Channel> find(String channelId) {

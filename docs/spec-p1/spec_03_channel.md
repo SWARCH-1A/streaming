@@ -56,7 +56,7 @@ Como visitante o propietario, quiero consultar y mantener la página del canal, 
 
 - CA-01: registro confirmado crea exactamente un canal por cuenta en la misma transacción; retry conserva channelId. FK y UNIQUE ownerUserId, no provisión HTTP.
 - CA-02: owner edita descripción/banner; otro usuario 403, inválido conserva anterior. La publicación usa el proveedor seleccionado, S3 privado por defecto, y un fallo conserva la portada anterior.
-- CA-03: /channels/{handle} usa GET /api/channels/by-handle/{handle}, composición local de canal, handle y perfil; bootstrap agrega metadata/estado desde batch Streaming; fallo conserva canal con UNKNOWN. El player consulta directamente la sesión autoritativa. No join Identity→Profile→Channels en navegador.
+- CA-03: /channels/{handle} usa GET /api/channels/by-handle/{handle}, composición local de canal, handle y perfil; GET /api/channels/{channelId} publica el mismo bootstrap para resolver Watch directo; bootstrap agrega metadata/estado desde batch Streaming; fallo conserva canal con UNKNOWN. El player consulta directamente la sesión autoritativa. No join Identity→Profile→Channels en navegador.
 - CA-04: cambio de disponibilidad confirmado por Emisiones aparece en <=5 s; proyección de emisiones aplicada en SQL Core; estado no confirmado se marca UNKNOWN, sin demorar publicación de cuenta/canal.
 - CA-05: LIVE muestra sesión PLAYABLE; gracia indica reconectando, OFFLINE no inventa VOD.
 - CA-06: cuentas activas publicables desde commit, inexistente/no activo 404 uniforme; channelVersion inicia 0 y sube solo por cambio real.

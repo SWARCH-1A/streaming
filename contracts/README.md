@@ -20,6 +20,7 @@ Los números/versiones interoperables se limitan a enteros exactos de JavaScript
 `--payload PublicStream archivo.json --public` valida una respuesta capturada sin imprimir su contenido.
 
 `operations.json` inventaría HTTP/WS/binarios y `local-interfaces.json` distingue los límites Core.
+p1.d.ts deriva tipos TypeScript de los schemas JSON y tipos GraphQL del SDL; Web importa estos tipos y graphql-queries.json mediante @contracts. No editar declaraciones generadas a mano.
 Los ejemplos verifican forma; las [pruebas de consumidores reales](../tests/contracts/README.md)
 verifican permisos, errores y comportamiento. Contextos Chat y bootstrap necesitan SPEC-11;
 schemas generados no acreditan que esos endpoints estén implementados.

@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 import streaming.core.discovery.application.DiscoveryException;
 import streaming.core.discovery.domain.RequestRateLimiter;
-import streaming.core.discovery.domain.TrustedProxies;
+import streaming.core.security.TrustedProxies;
 import streaming.core.discovery.infrastructure.graphql.DiscoveryGraphQl;
 import streaming.core.discovery.infrastructure.graphql.GraphQlQueryGuard;
 import streaming.core.security.RequestAuditFilter;

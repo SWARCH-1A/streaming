@@ -32,7 +32,7 @@ CSS usa tokens y capas, con estilos encapsulados por componente mediante CSS Mod
 Mocks tipados pertenecen a cada módulo y viven únicamente en memoria. Son modelos de presentación,
 no nuevos contratos de backend. La identidad local es una demostración, no autorización. No se
 almacenan contraseñas, claves reales, tokens o sesiones en navegador. Player representa estados
-con un póster estático; no declara ni inicia HLS. La conexión real tendrá clientes de cada módulo,
+con un póster estático; no declara ni inicia HLS. ADR-013 incorpora los clientes reales de cada módulo,
 CSRF, cookies HttpOnly, contexto Chat y bootstrap según contratos existentes.
 
 Vitest + Testing Library verifican comportamientos, límites Unicode, filtros y formularios;
@@ -47,8 +47,7 @@ Playwright cubre rutas y recorridos responsive. Un workflow ejecuta calidad, bui
 
 ## Consecuencias
 
-Se fija un stack reproducible y límites de módulo verificables. Mocks no acreditan SPEC integradas;
-seguirán pendientes HTTP/WS/HLS, autorización real, cargas de archivos y proxy. Capacidades futuras
+Se fija un stack reproducible y límites de módulo verificables. Las muestras visuales no acreditan SPEC integradas. ADR-013 conecta HTTP/WS/HLS, autorización, uploads y proxy conservando esta base. Capacidades futuras
 presentes en Stitch (pagos, drops, VOD, moderación) no adquieren implementación P1.
 El servidor de despliegue deberá respetar fallback solo para rutas SPA, nunca para API o /internal.
 

@@ -41,6 +41,12 @@ public class ChannelController {
                 .body(channels.byHandle(canonical,(String)request.getAttribute(RequestAuditFilter.REQUEST_ID_ATTRIBUTE)).orElseThrow(ChannelController::notFound));
     }
 
+    @GetMapping("/api/channels/{channelId}")
+    public ResponseEntity<ChannelQueries.Bootstrap> byId(@PathVariable String channelId,HttpServletRequest request) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noCache())
+                .body(channels.byId(channelId,(String)request.getAttribute(RequestAuditFilter.REQUEST_ID_ATTRIBUTE)).orElseThrow(ChannelController::notFound));
+    }
+
     @GetMapping("/api/channels/by-owner/{userId}")
     public ResponseEntity<ChannelQueries.Bootstrap> byOwner(@PathVariable String userId,HttpServletRequest request) {
         return ResponseEntity.ok().cacheControl(CacheControl.noCache())

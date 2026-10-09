@@ -3,7 +3,7 @@
 SPEC-10/11: Core actual (Java/PostgreSQL), Streaming y adaptador actual (Rust/PostgreSQL),
 MediaMTX real, Chat actual (Go) y Redis/AOF. El stack propio de Streaming sigue teniendo tres
 contenedores; la composición completa de esta prueba tiene siete. El fixture selecciona filesystem
-explícitamente: no demuestra S3, Web, proxy, accesibilidad ni el perfil de carga de SPEC-12/13.
+explícitamente: sin --web no incluye Web/proxy. Ninguna variante de este fixture acredita S3/TLS ni el perfil de carga SPEC-13.
 
 Desde la raíz, con Docker Compose >=2.24, Python 3.12+ y un entorno Python separado:
 
@@ -46,3 +46,28 @@ exactos Discovery con categoría+tag AND, normalización y exclusión de gracia/
 seleccionadas se validan independientemente contra los schemas generados; no se guardan DTO manuales
 alternativos. Inventario/estado recuperable no reconstruye mensajes de un volumen perdido: hace falta
 su AOF/backup dentro de la retención.
+
+## Web integrada (SPEC-12)
+
+Con Node >=22.12/pnpm 11.17, desde apps/web ejecutar install --frozen-lockfile, check y
+`pnpm exec playwright install chromium`. Después, desde la raíz:
+
+```sh
+pnpm --dir apps/web build
+python tests/integration/p1-domains/run.py --web
+```
+
+Añade Caddy como octavo contenedor del sistema completo; Streaming mantiene sus tres. Requiere
+localhost:3000 libre y el build actual dist. El runner detecta la IP de Caddy, configura la confianza
+exacta Core y ejecuta la suite real de escritorio/móvil. Esta cubre registro/login/refresh/logout,
+perfil/avatar/canal/banner, catálogo desde API, configuración/metadata/rotación/stop, RTMP/HLS con
+frame en navegador y lease, historial/WS con ACK perdido y reintento del mismo ID, caída/reinicio
+Chat sin cortar video, Discovery/AND, UNKNOWN y rutas profundas/errores sin fallback HTML, Axe y
+teclado. Los cambios de fixtures de catálogo ocurren únicamente en su PostgreSQL desechable para
+verificar opciones nuevas sin rebuild y tombstones; no representan una API de administración P1.
+La suite fuera de este runner se omite explícitamente; un skip no acredita integración. No habilitar
+trazas de navegador que guarden passwords/keys; stdout tampoco debe imprimir DTO owner.
+
+La biblioteca visual /design-system usa ejemplos explícitos, mientras las rutas funcionales usan
+proveedores reales. Automatización no acredita por sí sola lector de pantalla ni conformidad WCAG
+global. Este perfil filesystem/HTTP sigue sin acreditar S3/TLS/carga de SPEC-13.

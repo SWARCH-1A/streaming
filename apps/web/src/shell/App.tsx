@@ -11,6 +11,7 @@ import { PrototypePage } from '@/src/shell/design-system/PrototypePage';
 import { ChannelRoute } from '@/src/shell/routes/ChannelRoute';
 import { NotFoundPage } from '@/src/shell/routes/NotFoundPage';
 import { WatchRoute } from '@/src/shell/routes/WatchRoute';
+import { RequireSession } from '@/src/shell/session/RequireSession';
 import { SessionProvider } from '@/src/shell/session/SessionProvider';
 
 function AppRoutes() {
@@ -24,9 +25,11 @@ function AppRoutes() {
         <Route path="channels/:handle" element={<ChannelRoute />} />
         <Route path="login" element={<AuthPage key="login" mode="login" />} />
         <Route path="register" element={<AuthPage key="register" mode="register" />} />
-        <Route path="profile" element={<ProfilePage />} />
-        <Route path="studio" element={<StudioPage />} />
-        <Route path="studio/channel" element={<ChannelEditorPage />} />
+        <Route element={<RequireSession />}>
+          <Route path="profile" element={<ProfilePage />} />
+          <Route path="studio" element={<StudioPage />} />
+          <Route path="studio/channel" element={<ChannelEditorPage />} />
+        </Route>
         <Route path="design-system" element={<FoundationsPage />} />
         <Route path="design-system/components" element={<ComponentsPage />} />
         <Route path="prototype" element={<PrototypePage />} />

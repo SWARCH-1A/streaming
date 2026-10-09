@@ -12,7 +12,7 @@ Accesibilidad se aplica según SPEC-08 en cada vista, sin servicio “Accessibil
 / y /search consultan GraphQL Discovery de Core. /register y /login conservan formularios y CSRF;
 registro confirma cuenta/canal o error, sin polling PENDING nuevo. /channels/{handle}
 consume un bootstrap Core con cuenta/perfil/canal locales y un batch Streaming; fallo Streaming conserva el canal con estado UNKNOWN. Handle
-case-insensitive se canonicaliza con 308. /watch/{streamId} obtiene bootstrap y monta HLS + Chat por
+case-insensitive se canonicaliza con history replace en la SPA; bootstrap API conserva 200. /watch/{streamId} obtiene bootstrap y monta HLS + Chat por
 sessionId; RECONNECTING informa pérdida temporal sin anunciar playback confirmado.
 
 ## Tabla única de rutas
@@ -23,7 +23,7 @@ sessionId; RECONNECTING informa pérdida temporal sin anunciar playback confirma
 | /api/identity/* | Core | Cookie/CSRF/idempotencia/correlación; registro transaccional |
 | /api/profile/* | Core | Perfil self/público, multipart <=10 MB + overhead, lectura pública de avatar desde Core |
 | /api/channels/{channelId}/streams (POST/GET) | Streaming | Regla de path exacto previa al prefijo Canales; contexto owner Core |
-| /api/channels/* | Core | Canal/por handle/por owner, edición/banner/CSRF |
+| /api/channels/* | Core | Bootstrap por ID/handle/owner, edición/banner/CSRF |
 | /api/streams/* | Streaming | Configuración/sesión/metadata/leases y stop; secretos excluidos de lectura pública |
 | /api/taxonomy | Core | Catálogo público/versionado |
 | /api/discovery/graphql | Core | GraphQL SQL local con proyección pública Streaming, límites de costo/cuerpo/rate |
@@ -42,18 +42,17 @@ cookie, X-Session-Credential, streamKey, token de lease o Idempotency-Key en log
 services/core contiene Cuentas, Canales, Catálogo y Discovery, con build/seguridad comunes y proyección pública SQL. services/streaming contiene el control Rust y el adaptador técnico Media en el mismo proceso P1, con bases/roles separados y pooling según ADR-011. services/chat contiene Chat; infra/media documenta MediaMTX; configuración del motor y código del adaptador están en services/streaming.
 apps/web tiene un build y código en src/: modules/accounts, channels, streaming, chat, taxonomy y
 discovery; shell compone rutas y accessibility contiene utilidades compartidas. No crear aplicaciones
-por módulo. ADR-007 selecciona React/TypeScript/SWC y pnpm; `src/main.tsx` inicia la SPA. Esta base usa
-datos de demostración y no acredita integraciones HTTP/WS/HLS. contracts/generated contiene artefactos generados;
+por módulo. ADR-007 selecciona React/TypeScript/SWC y pnpm; `src/main.tsx` inicia la SPA. ADR-013 conecta HTTP/GraphQL/WS/HLS reales y selecciona Caddy/hls.js. Las muestras visuales explícitas no acreditan integración ni reemplazan respuestas fallidas. contracts/generated contiene artefactos generados;
 infra mantiene configuración y tests/ la evidencia compartida. El mapa_sdd_p1 define la propiedad.
 
 ## Puertos y configuración
 
-Core usa 8081, Streaming 8080, Chat reserva 8085 y Web reserva 3000. P1 usa HLS en Streaming:8888 y RTMP en MediaMTX:1935; autorización Media en Streaming:8090 y contrato interno en Streaming:8091, sin publicar estos últimos. ADR-011 fija la composición de tres contenedores.
+Core usa 8081, Streaming 8080, Chat usa 8085 y Web/proxy usan 3000. P1 usa HLS en Streaming:8888 y RTMP en MediaMTX:1935; autorización Media en Streaming:8090 y contrato interno en Streaming:8091, sin publicar estos últimos. ADR-011 fija la composición de tres contenedores.
 Bases en red privada y bucket S3 privado predeterminado para imágenes; filesystem, si se selecciona
 explícitamente, requiere volumen persistente.
 Las URLs públicas de avatar/portada permanecen bajo Core; el proxy no expone el endpoint S3. El runbook de cada unidad declara variables,
 comando y health; Web ejecuta `pnpm dev` en apps/web, en 127.0.0.1:3000; `pnpm build` genera dist y
-`pnpm preview` sirve esa salida en el mismo puerto. Las reservas pendientes se concretan al implementarlas.
+`pnpm preview` sirve esa salida en el mismo puerto. Caddy sirve dist en 3000 en el perfil HTTP local explícito; el perfil HTTPS pertenece a SPEC-13.
 
 Una configuración/env de ejemplo central por unidad desplegable; no secreto por módulo Core ni
 cliente HTTP a localhost para comunicar módulos locales. Core comparte security/CSRF y sesión opaca.
@@ -63,9 +62,7 @@ Core ejecutable usa CORE_DB_URL/USER/PASSWORD, CORE_RATE_LIMIT_HMAC_SECRET, CORE
 WEB_ORIGIN, CORE_IMAGE_STORAGE_PROVIDER, CORE_IMAGE_S3_BUCKET/REGION/ENDPOINT/PATH_STYLE_ACCESS,
 AWS_* (credenciales temporales si no se usa un rol) y PROFILE_AVATAR_PUBLIC_BASE/CHANNELS_BANNER_PUBLIC_BASE;
 los directorios PROFILE_AVATAR_STORAGE y CHANNELS_BANNER_STORAGE se usan en modo filesystem. El [runbook Core](../services/core/README.md)
-y [Compose local](../infra/local/README.md) contienen comandos, health y volúmenes. El backend directo
-ignora headers forwarded; al implementar el proxy se configurará confianza únicamente en sus
-IP/redes y se verificará la cuota por IP antes de habilitar ese despliegue.
+y [Compose local](../infra/local/README.md) contienen comandos, health y volúmenes. El backend directo ignora forwarded de peers no confiables; CORE_TRUSTED_PROXIES enumera solo la IP/red del proxy. Accounts y Discovery comparten resolución de IP para sus cuotas. El fixture obtiene la IP efectiva de Caddy y recrea Core con esa confianza; si cambia la IP se reconfigura Core. No confiar en una red compartida completa por comodidad.
 
 ## Reglas de evolución
 
@@ -73,3 +70,25 @@ Cambiar path/schema/auth exige actualizar inventario, SPEC consumidores y tabla 
 incompatibles tienen transición explícita; no esconder excepciones en gateway. La futura extracción
 de una API de Core debe cumplir la puerta de fases_futuras, incluyendo costo/consistencia/migración.
 Un motor de despliegue inicia procesos, no coordina casos de uso de negocio.
+
+## Reproducción, historial y desarrollo
+
+Las vistas usan cookies same-origin y schemas/tipos/queries generados. Sesión se restaura desde
+Profile self e identidad pública; las rutas protegidas esperan restauración. Errores preservan
+formularios y no activan datos demo. Un cambio de recurso aborta lecturas y descarta respuestas tardías.
+
+HLS solo se carga para LIVE/PLAYABLE. HLS nativo o hls.js diferido usa controles HTML; el primer frame
+decodificado abre lease, heartbeat cada 10 s y cierre en pausa, pagehide, salida, error o cambio de
+sesión. La expiración de 30 s limita cierres/creaciones sin respuesta. Un 401 de lease no revoca la
+sesión Accounts. El backend conserva autoridad de availability, conteo y permisos.
+
+Chat abre WS antes de historial, fusiona por secuencia y repara huecos dentro de los 50 mensajes
+retenidos; avisa cuando ya no son recuperables. Un envío pendiente conserva clientMessageId y texto
+hasta ACK o descarte explícito. Reconecta con backoff hasta 15 s; cleanup cierra conexiones anteriores.
+Ocultar Chat no afecta HLS. Autoscroll puede pausarse y no roba foco.
+
+La [configuración Caddy](../infra/reverse-proxy/README.md) define rutas y ejecución. No hay access
+logs con payloads/credenciales; playlists y segmentos conservan types/ranges/cache del adaptador
+Media (playlist no-cache, segmentos inmutables según su respuesta). No cachear errores o inventar LIVE.
+Vite puede activar proxy HTTP local con VITE_P1_PROXY=1; sin él devuelve errores JSON explícitos de
+configuración para APIs. Solo Caddy es el proxy integrado y Vite preview no acredita despliegue.

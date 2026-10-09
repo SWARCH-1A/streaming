@@ -11,6 +11,7 @@ public class ChannelBootstrapService {
     private final StreamingChannelSnapshots streaming;
     public ChannelBootstrapService(ChannelQueries channels,StreamingChannelSnapshots streaming) { this.channels=channels; this.streaming=streaming; }
     public Optional<ChannelQueries.Bootstrap> byHandle(String handle,String requestId) { return channels.byHandle(handle).map(b->compose(b,requestId)); }
+    public Optional<ChannelQueries.Bootstrap> byId(String channelId,String requestId) { return channels.byId(channelId).map(b->compose(b,requestId)); }
     public Optional<ChannelQueries.Bootstrap> byOwner(String owner,String requestId) { return channels.byOwner(owner).map(b->compose(b,requestId)); }
     private ChannelQueries.Bootstrap compose(ChannelQueries.Bootstrap local,String requestId) {
         try {

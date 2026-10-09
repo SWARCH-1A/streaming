@@ -60,6 +60,7 @@ Las interfaces requieren schema neutro, correlación y presupuesto acotado.
 | GET /api/identity/public/handles/{handle}; /users/{userId} | Core / Web | Solo cuenta activa y datos públicos mínimos; 404 uniforme |
 | GET /api/profile/users/{userId}; GET/PATCH /api/profile/me | Core / Web | Perfil público y edición self; validación local de sesión |
 | POST /api/profile/me/avatar-uploads; GET /api/profile/avatars/{key} | Core / Web | Upload de un uso y URI pública Core a objeto inmutable en almacenamiento privado |
+| GET /api/channels/{channelId} | Core / Web | Bootstrap público por ID para Watch directo; misma composición/404/UNKNOWN |
 | GET /api/channels/by-owner/{userId} | Core / Web | Canal de cuenta activa; sin gate de evento |
 | GET /api/channels/by-handle/{handle} | Core / Web | Canal + handle + perfil compuestos localmente; bootstrap incluye stream actual con estado autoritativo Streaming |
 | PATCH /api/channels/{channelId}; POST /api/channels/{channelId}/banner-uploads | Core / Web | Propietario; descripción/banner, versión y reglas de imagen |
@@ -140,7 +141,8 @@ anterior; borrar antiguo/temporales después de commit y reconciliar huérfanos 
 `avatarUri` y `bannerUri` apuntan a las rutas públicas de Core (o a un CDN que las proxifique), no a
 una URL directa del bucket. Con S3 el bucket permanece privado y Core obtiene y sirve los bytes.
 
-`GET /api/channels/by-handle/{handle}` devuelve 200 con un DTO de composición pública:
+`GET /api/channels/by-handle/{handle}`, `GET /api/channels/by-owner/{userId}` y
+`GET /api/channels/{channelId}` devuelven 200 con un DTO de composición pública:
 
 ```json
 {"channel":{"channelId":"chn_…","ownerUserId":"usr_…","description":"","bannerUri":null,"channelVersion":0},"handle":"caster_01","profile":{"userId":"usr_…","displayName":"caster_01","bio":"","avatarUri":null,"updatedAtUtc":"2026-10-01T20:00:00Z","profileVersion":0},"stream":null,"streamStatusFresh":true,"availability":"OFFLINE"}
@@ -152,7 +154,7 @@ si existe, contiene el snapshot público autoritativo obtenido por Core mediante
 Session ENDED conserva su identidad y availability=OFFLINE; playbackUrl es null fuera de PLAYABLE.
 Core obtiene cuenta/perfil/canal localmente y hace una consulta batch de snapshots públicos a Streaming para este bootstrap. Una respuesta confirma ausencia/configuración/sesión; falla Streaming devuelve stream:null, streamStatusFresh:false y availability:UNKNOWN, conservando el canal/perfil. No se interpreta el fallo como OFFLINE. Discovery no usa este batch por fila.
 Handle se busca sin distinguir mayúsculas; inexistente/no activo da 404 uniforme, fallo Core/SQL 503.
-Web usa el handle devuelto para redirigir casing a URL canónica con 308 y monta player/Chat desde
+Web usa el handle devuelto para reemplazar el casing de su URL por la forma canónica sin añadir historial y monta player/Chat desde
 stream/sessionId. No entregar entidades de cuenta/ORM ni ejecutar un join entre servicios en el shell.
 
 PATCH canal permite solo description (hasta 500 puntos de código; null limpia a cadena vacía) y
@@ -4731,6 +4733,35 @@ campos aditivos, pero datos públicos rechazan secretos mediante la comprobació
       "id": "channels.by-owner",
       "method": "GET",
       "path": "/api/channels/by-owner/{userId}",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core",
+      "auth": "public",
+      "request": null,
+      "responses": {
+        "200": "ChannelBootstrap",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "413": "Error",
+        "415": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Report structured error; do not replace with demo data.",
+      "spec": "SPEC-03",
+      "visibility": "public",
+      "limits": "Description <=500 Unicode code points. Banner file <=10 MB, decoded JPEG/PNG/GIF, recommended1200x480; upload single-use TTL15min. One bounded bootstrap request, no per-row remote calls.",
+      "traceability": "docs/spec-p1/spec_03_channel.md"
+    },
+    {
+      "id": "channels.by-id",
+      "method": "GET",
+      "path": "/api/channels/{channelId}",
       "provider": "Core",
       "consumer": "Web",
       "owner": "Core",
