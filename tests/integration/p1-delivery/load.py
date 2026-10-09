@@ -50,6 +50,20 @@ def run(diagnostic):
     if not diagnostic and v.sql("SELECT count(*) FROM channels.channels")!="100":
         raise RuntimeError("Full load requires exactly 100 channels; reset own disposable data before seed")
     firefox_profile()
+    # Encode before measurement; the five independent real RTMPS publishers only remux during load.
+    media_fixture=v.manage.STATE/"load-source.mp4"
+    v.manage.run(["ffmpeg","-hide_banner","-loglevel","error","-y","-f","lavfi","-i","testsrc2=size=1280x720:rate=30",
+        "-f","lavfi","-i","sine=frequency=1000:sample_rate=48000","-t","30","-c:v","libx264","-threads","2",
+        "-preset","ultrafast","-g","30","-b:v","2200k","-maxrate","2300k","-bufsize","4600k","-pix_fmt","yuv420p",
+        "-c:a","aac","-b:a","96k",str(media_fixture)],timeout=90)
+    media_fixture.chmod(0o600)
+    source_info=json.loads(v.manage.run(["ffprobe","-v","error","-show_streams","-of","json",str(media_fixture)]))
+    video=next(x for x in source_info["streams"] if x["codec_type"]=="video")
+    audio=next(x for x in source_info["streams"] if x["codec_type"]=="audio")
+    if (video["codec_name"],video["width"],video["height"],video["avg_frame_rate"],audio["codec_name"])!=("h264",1280,720,"30/1","aac"):
+        raise RuntimeError("Load media fixture does not match the required profile")
+    source_bitrate=int(video["bit_rate"])+int(audio["bit_rate"])
+    if source_bitrate>2_500_000:raise RuntimeError("Load media bitrate exceeds the required profile")
     clients=[]; csrf=[]
     for i in range(100):
         client=v.Client(timeout=2)
@@ -57,7 +71,9 @@ def run(diagnostic):
     owners=[]; configs=[]; sessions=[]; sources=[]; sockets=[]; threads=[]; log=None; driver=None
     stop=threading.Event();lock=threading.Lock();resources=None
     stats={"mode":"diagnostic-NOT-acceptance" if diagnostic else "full-P1", "durationSeconds":duration,"warmupSeconds":60,
-           "players":players,"sources":5,"api":{},"failures":[],"apiScheduleLate":0,"chatScheduleLate":0,
+           "players":players,"sources":5,"sourceMode":"pre-encoded 720p30 H264/AAC; five independent real-time RTMPS publishers",
+           "sourceAverageBitrateBitsPerSecond":source_bitrate,
+           "api":{},"failures":[],"apiScheduleLate":0,"chatScheduleLate":0,
            "chatSent":0,"chatAck":0,"chatDelivery":0,"chatAckMs":[],"chatDeliveryMs":[],"chatDuplicates":0,"chatSequenceGaps":0}
     sent={};acked=set();delivered=set();last_sequence={}
     def failure(operation,error):
@@ -103,7 +119,7 @@ def run(diagnostic):
                 config=owner.call(path,"POST",{"title":("Coincidencia P1 " if i%2==0 else "Otra emisión ")+str(i),
                     "categoryId":catalog["categories"][i%7]["id"],"tagIds":[catalog["tags"][i%8]["id"]]},
                     {"Idempotency-Key":str(uuid.uuid4())},201)
-            configs.append(config);sources.append(v.publish(config,log))
+            configs.append(config);sources.append(v.publish(config,log,media_fixture))
         for config in configs:
             live=v.eventually(lambda:v.Client().call("/api/streams/"+config["streamId"]),lambda s:s["availability"]=="PLAYABLE")
             sessions.append(live["sessionId"])
@@ -242,6 +258,16 @@ def run(diagnostic):
             try:owner.call("/api/streams/sessions/"+sid,"DELETE",expect=204)
             except Exception:pass
         if log:log.close()
+        # Preserve useful summaries even when the browser driver fails before normal aggregation.
+        for metric in stats["api"].values():
+            if "ms" in metric:
+                metric["p95Ms"]=percentile(metric.pop("ms"))
+                metric["errorRate"]=(metric["attempts"]-metric["success"])/metric["attempts"]
+        for name,target in (("chatAckMs","chatAckP95Ms"),("chatDeliveryMs","chatDeliveryP95Ms")):
+            if name in stats:stats[target]=percentile(stats.pop(name))
+        if resources and hasattr(resources,"start") and "resources" not in stats:
+            try:stats["resources"]=resources.finish(duration*20)
+            except Exception:failure("metrics","Incomplete resource/authorization capture")
         stats["recordedAtUtc"]=datetime.now(timezone.utc).isoformat()
         stats["host"]={"os":platform.platform(),"machine":platform.machine(),"logicalCpu":os.cpu_count()}
         stats["baseCommit"]=v.manage.run(["git","rev-parse","HEAD"],cwd=v.ROOT).strip()

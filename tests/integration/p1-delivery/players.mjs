@@ -165,8 +165,10 @@ try {
   }
   // Let requests begun inside the measured window reach their 5 s deadline before cleanup.
   await sleep(measuredEnd + 5000 - Date.now());
-  for (const page of pages) {
-    const quality = await page.evaluate(() => window.p1Stop()).catch(() => ({ total: 0, dropped: 0 }));
+  // Stop decoding in every page before waiting for lease DELETEs; serial cleanup can exceed the drain.
+  const qualities = await Promise.all(pages.map(page =>
+    page.evaluate(() => window.p1Stop()).catch(() => ({ total: 0, dropped: 0 }))));
+  for (const quality of qualities) {
     report.players.push(quality);
     report.decodedFrames += quality.total; report.droppedFrames += quality.dropped;
   }

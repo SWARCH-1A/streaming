@@ -52,7 +52,10 @@ python tests/integration/p1-delivery/load.py --confirm-disposable
 El seed crea 100 cuentas/perfiles/canales ficticios en Core; la primera cuenta se registra por API,
 y las otras usan SQL exclusivo del fixture. Nunca fuerza LIVE ni escribe SQL de Streaming.
 El runner comprueba siete categorías, ocho tags y exactamente 100 canales para el perfil completo.
-Cinco fuentes reales 720p30 H.264/AAC preceden el calentamiento de 60 s, con cinco players,
+El runner codifica previamente un vídeo ficticio 720p30 H.264/AAC de 30 s con bitrate acotado y verifica
+sus codecs/dimensiones/fps con ffprobe. Durante la carga cinco procesos RTMPS independientes lo repiten
+en tiempo real con stream copy; la codificación no compite por CPU con los players medidos.
+Cinco fuentes reales preceden el calentamiento de 60 s, con cinco players,
 10 req/s de API y 20 envíos Chat/s. Tras un segundo separado de drenaje, los 600 s medidos incluyen la rampa de 100 players,
 uno por fuente cada 3 s durante los primeros 60 s. Login rota las cuentas con credenciales correctas;
 CSRF se obtiene antes de medir. Lease, heartbeat cada 10 s y HLS se cuentan por separado.

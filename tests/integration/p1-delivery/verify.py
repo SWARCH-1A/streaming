@@ -114,11 +114,15 @@ def frame(ws,kind,client_id=None,message_id=None):
         if value["type"]=="error":raise AssertionError("Unexpected Chat error: "+value["code"])
         ws.p1_pending.append(value)
     raise AssertionError("Expected WS frame missing")
-def publish(config,log):
+def publish(config,log,media_fixture=None):
     url=config["ingestUrl"] if "ingestUrl" in config else "rtmps://localhost:"+ENV.get("P1_RTMPS_PORT","11936")+"/live/"+config["streamId"]+"?user=publisher&pass="+urllib.parse.quote(config["streamKey"],safe="")
-    cmd=["ffmpeg","-hide_banner","-loglevel","error","-re","-f","lavfi","-i","testsrc2=size=1280x720:rate=30","-f","lavfi","-i","sine=frequency=1000:sample_rate=48000",
-         "-c:v","libx264","-threads","2","-preset","ultrafast","-tune","zerolatency","-g","30","-b:v","2200k","-maxrate","2300k","-bufsize","4600k","-pix_fmt","yuv420p","-c:a","aac","-b:a","96k",
-         "-tls_verify","1","-ca_file",str(CA),"-f","flv",url]
+    cmd=["ffmpeg","-hide_banner","-loglevel","error"]
+    if media_fixture:
+        cmd += ["-re","-stream_loop","-1","-i",str(media_fixture),"-c","copy"]
+    else:
+        cmd += ["-re","-f","lavfi","-i","testsrc2=size=1280x720:rate=30","-f","lavfi","-i","sine=frequency=1000:sample_rate=48000",
+         "-c:v","libx264","-threads","2","-preset","ultrafast","-tune","zerolatency","-g","30","-b:v","2200k","-maxrate","2300k","-bufsize","4600k","-pix_fmt","yuv420p","-c:a","aac","-b:a","96k"]
+    cmd += ["-tls_verify","1","-ca_file",str(CA),"-f","flv",url]
     return Publisher(cmd,log)
 
 class Publisher:
