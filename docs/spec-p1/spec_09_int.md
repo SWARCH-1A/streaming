@@ -59,7 +59,7 @@ Todo salto real especifica proveedor/dueño/consumidor/auth/deadline/recovery. D
 
 - La documentación `/docs` contiene el alcance y los contratos necesarios para implementar el proyecto.
 
-En P1, ADR-011 integra el adaptador técnico en el proceso Streaming. Autorización/callbacks internos conservan HTTP loopback autenticado y persistencia separada. HLS público se enruta al listener 8888 del contenedor Streaming; RTMP sigue en MediaMTX. Reinicios/fallos del proceso afectan al control y al adaptador juntos.
+En P1, ADR-011 integra el adaptador técnico en el proceso Streaming. Autorización/callbacks internos conservan HTTP loopback autenticado en desarrollo y HTTPS con CA explícita en el perfil persistente ADR-014, con persistencia separada. HLS público se enruta al listener 8888 del contenedor Streaming; ingest RTMP/RTMPS sigue en MediaMTX. Reinicios/fallos del proceso afectan al control y al adaptador juntos. El perfil integrado usa ocho contenedores, diez con dos réplicas Core/Chat; el stack propio Streaming mantiene tres.
 
 ## 8. Dependencias y contratos de integración
 
@@ -70,6 +70,9 @@ SPEC-10 define APIs públicas/internas públicas y privadas; SPEC-11 registro lo
 Esta tabla define el alcance de integración, no acredita implementación. SPEC-10 materializa y valida
 todos los contratos de las filas; SPEC-13 ejecuta los recorridos y consolida la evidencia. Cada
 escenario identifica los CA funcionales que demuestra, incluidas sus variantes negativas y de fallo.
+La [matriz de recorridos P1](../matriz_recorridos_p1.md) desarrolla cada uno de los 68 CA funcionales
+con escenario, RF, proveedor/consumidor, hijo responsable y resultado requerido. Es obligatoria junto
+a la matriz RNF; la evidencia por escenario/commit y los pendientes se registran en Plane.
 
 | SPEC origen / requisitos | Flujo y consumidores que deben conectarse | Aceptación de integración |
 | --- | --- | --- |
@@ -91,7 +94,7 @@ de ejecución se registran en Plane y no se incorporan como archivos locales al 
 
 ## 9. Decisiones y preguntas abiertas
 
-Arquitectura en ADR-005; base Web React/TypeScript/SWC y pnpm en [ADR-007](../adr/ADR-007-web-react-typescript.md); Chat Go/Redis efímero en ADR-010 y stack Streaming de tres contenedores en ADR-011. La integración y los artefactos del despliegue completo siguen pendientes. Catálogo conserva ADR-006 en propuesta hasta decisión de su responsable. No fijar stacks diferentes para cada módulo Core ni contabilizar un candidato como evidencia.
+Arquitectura en ADR-005; base Web React/TypeScript/SWC y pnpm en [ADR-007](../adr/ADR-007-web-react-typescript.md); Chat Go/Redis efímero en ADR-010 y stack Streaming de tres contenedores en ADR-011. [ADR-014](../adr/ADR-014-perfil-integrado-tls-p1.md) define el perfil persistente TLS y su [runbook](../../infra/p1/README.md), con filesystem seleccionado explícitamente o S3 privado externo. Los artefactos implementados no acreditan por sí solos aceptación completa: carga, recorridos faltantes y revisiones manuales requieren evidencia por criterio. Catálogo conserva ADR-006 en propuesta hasta decisión de su responsable. No fijar stacks diferentes para cada módulo Core ni contabilizar un candidato como evidencia.
 
 ## 10. Verificación
 

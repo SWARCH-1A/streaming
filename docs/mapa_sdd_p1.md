@@ -21,7 +21,7 @@ del módulo no sustituyen esa aceptación integrada.
 | SPEC-10 | Integración: contratos y datos | contracts/generate.py, contracts/generated y tests/contracts; ADR-012 | Contratos neutrales generados para consumidores |
 | SPEC-11 | Integración: flujos | tests/integration/p1-domains; Accounts publica ChatContexts, Channels compone ChannelBootstrapService y adapters HTTP comunes en Core | Registro local, Core–Streaming, Streaming–Chat y Streaming–Media |
 | SPEC-12 | Integración: Web y proxy | apps/web/src/shell, infra/reverse-proxy | Rutas Core de imagen, auth, HTTP/WS/HLS |
-| SPEC-13 | Integración: despliegue y evidencia | infra/local, tests/e2e | Recorrido, perfil de carga y configuración/recuperación S3 |
+| SPEC-13 | Integración: despliegue y evidencia | infra/p1, tests/integration/p1-delivery | Recorrido TLS, carga, réplicas y recuperación de datos/imágenes con proveedor explícito |
 
 ## Capacidades futuras
 

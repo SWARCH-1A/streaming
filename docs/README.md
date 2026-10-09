@@ -16,7 +16,7 @@ La documentación ubicada junto al repositorio remite a esta fuente.
 3. [Mapa de responsabilidades](mapa_sdd_p1.md) y [SPEC P1](spec-p1/README.md).
 4. [Contratos y datos](contratos_modelo_datos.md), [flujos](integracion_sistema_p1.md) y [Web/proxy](integracion_frontend_reverse_proxy.md).
 5. [Fases futuras](fases_futuras.md): dueño inicial y condiciones para extraer servicios.
-6. [Matriz RNF](matriz_trazabilidad_rnf.md) y [criterios de entrega P1](puertas_implementacion_p1.md).
+6. [Recorridos por RF/CA](matriz_recorridos_p1.md), [matriz RNF](matriz_trazabilidad_rnf.md) y [criterios de entrega P1](puertas_implementacion_p1.md).
 7. [Política ADR](politica_ADR.md), [registro ADR](adr/README.md) y [plantilla SPEC](sdd_template.md).
 
 ## Convenciones

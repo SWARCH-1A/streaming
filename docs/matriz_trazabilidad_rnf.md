@@ -7,6 +7,8 @@ contribuyentes demuestran su parte en su dominio. La matriz no transfiere la pro
 Los IDs y textos normativos completos están en [Catálogo de requisitos](catalogo_requisitos.md).
 Las evidencias se ejecutarán al implementar P1; no son afirmaciones de que ya exista software o una
 prueba ejecutada.
+La [matriz de recorridos P1](matriz_recorridos_p1.md) identifica los escenarios por CA funcional y RF;
+la evidencia en Plane enlaza esos escenarios con los RNF aplicables y su SPEC primaria de esta tabla.
 
 | RNF canónico | Aplicabilidad | SPEC primario | SPEC contribuyentes | Evidencia de cierre |
 | --- | --- | --- | --- | --- |
