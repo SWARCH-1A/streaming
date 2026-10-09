@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { cpus, freemem, loadavg } from 'node:os';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const state = resolve(root, 'infra/p1/.state');
@@ -10,51 +11,70 @@ const require = createRequire(resolve(root, 'apps/web/package.json'));
 const { firefox } = require('@playwright/test');
 const hlsScript = require.resolve('hls.js/dist/hls.js');
 const config = JSON.parse(readFileSync(resolve(state, 'load-players.json'), 'utf8'));
-if (!/^https:\/\/localhost:\d+$/.test(config.origin) || ![5, 100].includes(config.players))
+if (!/^https:\/\/localhost:\d+$/.test(config.origin) || ![5, 100].includes(config.players) ||
+    config.proxyPorts?.length !== config.players || !config.proxyPorts.every(p => Number.isInteger(p) && p > 0 && p <= 65535))
   throw new Error('Only the own loopback P1 fixture is supported');
 const sleep = (ms) => new Promise((r) => setTimeout(r, Math.max(ms, 0)));
 const report = { browser: '', firstFramesMs: [], failures: [], hlsRequests: 0, hlsBytes: 0,
   leaseCreates: 0, heartbeats: 0, leaseDeletes: 0, decodedFrames: 0, droppedFrames: 0, players: [],
   driverMemorySamples: [],
-  network: { perPlayerDownMbps: 15, deliveryRttMs: 20, configuredLossPercent: 0,
-    mechanism: 'serialized per-page HLS response delivery; loopback upstream; buffered application shaping' } };
+  network: { perPlayerDownMbps: 15, initialDelayPerDirectionMs: 10, configuredLossPercent: 0,
+    mechanism: 'opaque loopback CONNECT; aggregate downstream per player; TLS end-to-end',
+    hlsBytesMeaning: 'encoded response bodies from browser requestfinished metadata' } };
 let measuredStart = Infinity;
 let measuredEnd = Infinity;
 const measured = () => Date.now() >= measuredStart && Date.now() < measuredEnd;
 let context;
-const memoryTimer = setInterval(() => { if (measured()) report.driverMemorySamples.push({ elapsedSeconds: (Date.now() - measuredStart) / 1000, ...process.memoryUsage() }); }, 10000);
+const playerContexts = [];
+let lastCpu = process.cpuUsage();
+let lastSample = Date.now();
+let lastHostCpu = cpus();
+const memoryTimer = setInterval(() => {
+  const now = Date.now(); const usage = process.cpuUsage(); const host = cpus();
+  const total = cpu => Object.values(cpu.times).reduce((sum, value) => sum + value, 0);
+  const hostTotal = host.reduce((sum, cpu, i) => sum + total(cpu) - total(lastHostCpu[i]), 0);
+  const hostIdle = host.reduce((sum, cpu, i) => sum + cpu.times.idle - lastHostCpu[i].times.idle, 0);
+  if (measured()) report.driverMemorySamples.push({ elapsedSeconds: (now - measuredStart) / 1000,
+    ...process.memoryUsage(), nodeCpuPercent: (usage.user + usage.system - lastCpu.user - lastCpu.system) / ((now - lastSample) * 10),
+    hostCpuPercent: hostTotal ? (1 - hostIdle / hostTotal) * 100 : null,
+    hostLoadAverage: loadavg(), hostFreeMemoryBytes: freemem() });
+  lastCpu = usage; lastSample = now; lastHostCpu = host;
+}, 10000);
 try {
   context = await firefox.launchPersistentContext(resolve(state, 'firefox-load-profile'), {
     headless: true, baseURL: config.origin, viewport: { width: 640, height: 480 },
-    firefoxUserPrefs: { 'media.suspend-bkgnd-video.enabled': false },
+    firefoxUserPrefs: { 'media.suspend-bkgnd-video.enabled': false,
+      'network.proxy.allow_hijacking_localhost': true },
   });
   report.browser = context.browser()?.version() ?? 'Firefox persistent context';
   const pages = [];
   for (let i = 0; i < config.players; i++) {
-    const page = await context.newPage();
-    let nextDelivery = 0;
-    await page.route('**/hls/**', async (route) => {
-      let response;
-      const requestedAt = Date.now();
-      const requestMeasured = requestedAt >= measuredStart && requestedAt < measuredEnd;
-      try {
-        response = await route.fetch({ timeout: 5000, maxRetries: 0 });
-        const body = await response.body();
-        // All parallel HLS transfers of a player share one 15 Mbit/s delivery queue.
-        nextDelivery = Math.max(nextDelivery, Date.now()) + 20 + body.length * 8 / 15000;
-        await sleep(nextDelivery - Date.now());
-        if (requestMeasured) {
-          report.hlsRequests++; report.hlsBytes += body.length;
-          if (!response.ok()) report.failures.push({ operation: 'hls', status: response.status(), player: i, file: new URL(route.request().url()).pathname.split('/').pop(), elapsedSeconds: (Date.now() - measuredStart) / 1000 });
-        }
-        await route.fulfill({ response, body });
-      } catch {
-        if (requestMeasured) report.failures.push({ operation: 'hls', error: 'transport/deadline', player: i });
-        await route.abort().catch(() => {});
-      } finally {
-        // APIRequestContext retains every fetched body until explicitly disposed.
-        await response?.dispose().catch(() => {});
-      }
+    const playerContext = await context.browser().newContext({ baseURL: config.origin,
+      viewport: { width: 640, height: 480 },
+      proxy: { server: `http://127.0.0.1:${config.proxyPorts[i]}` } });
+    playerContexts.push(playerContext);
+    const page = await playerContext.newPage();
+    const starts = new WeakMap();
+    page.on('request', request => {
+      if (new URL(request.url()).pathname.startsWith('/hls/')) starts.set(request, Date.now());
+    });
+    const requestMeasured = request => {
+      const start = starts.get(request);
+      return start >= measuredStart && start < measuredEnd;
+    };
+    page.on('response', response => {
+      if (!requestMeasured(response.request())) return;
+      report.hlsRequests++;
+      if (!response.ok()) report.failures.push({ operation: 'hls', status: response.status(), player: i,
+        file: new URL(response.url()).pathname.split('/').pop(), elapsedSeconds: (Date.now() - measuredStart) / 1000 });
+    });
+    page.on('requestfinished', async request => {
+      if (!requestMeasured(request)) return;
+      try { report.hlsBytes += (await request.sizes()).responseBodySize; }
+      catch { report.failures.push({ operation: 'hls-metrics', error: 'missing transfer size', player: i }); }
+    });
+    page.on('requestfailed', request => {
+      if (requestMeasured(request)) report.failures.push({ operation: 'hls', error: 'transport/deadline', player: i });
     });
     await page.goto('/design-system'); // CA/SAN validation is required; never ignore HTTPS errors.
     if (i === 0) {
@@ -172,12 +192,14 @@ try {
     report.players.push(quality);
     report.decodedFrames += quality.total; report.droppedFrames += quality.dropped;
   }
-} catch {
+} catch (error) {
+  console.error(error); // Private driver log only; never publish it without redaction.
   report.failures.push({ operation: 'player-driver', error: 'setup/runtime failure; inspect private diagnostics' });
 } finally {
   clearInterval(memoryTimer);
   report.leaseContinuityPass = report.players.length === config.players && report.players.every(p =>
     p.leaseCreated && p.heartbeatCount > 0 && p.maxHeartbeatGapMs <= 15000 && p.maxPlaybackStallMs <= 5000) && report.leaseDeletes === config.players;
+  await Promise.all(playerContexts.map(playerContext => playerContext.close().catch(() => {})));
   await context?.close().catch(() => {});
   writeFileSync(resolve(state, 'load-players-report.json'), JSON.stringify(report, null, 2), { mode: 0o600 });
 }

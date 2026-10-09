@@ -62,12 +62,27 @@ CSRF se obtiene antes de medir. Lease, heartbeat cada 10 s y HLS se cuentan por 
 
 El navegador confía únicamente en la CA del fixture mediante un perfil NSS dedicado; no cambia
 la confianza del sistema ni omite TLS. Firefox provisto por Playwright no acredita la puerta de
-versiones estables de Chrome/Firefox. Cada página serializa la entrega de respuestas HLS a
-15 Mbit/s más 20 ms de retardo, con pérdida configurada cero. Es **shaping de respuestas HTTP**
-sobre loopback; no acredita por sí solo un enlace físico de 250 Mbit/s ni emula pérdida de paquetes.
-El informe registra bytes/egreso observado, mecanismo, versión, CPU/RAM Docker y muestras por
-contenedor de CPU, memoria, NetIO y BlockIO. No interpretar bytes de segmentos compartidos como
-capacidad medida de una NIC externa.
+versiones estables de Chrome/Firefox. Cada player usa su propio contexto y un túnel CONNECT del
+generador, escuchando solo en un puerto efímero de `127.0.0.1`. El destino permitido es exclusivamente
+el origin HTTPS localhost del fixture; métodos/destinos ajenos se rechazan. TLS permanece entre
+Firefox y Caddy, con CA/SAN verificados. Todas las conexiones de un player comparten una cola
+downstream de 15 Mbit/s. Cada dirección añade 10 ms al iniciar el túnel; no se añade esa demora a cada
+registro TLS ni se afirma un RTT fijo por paquete. La pérdida configurada es cero.
+Es **shaping de bytes TLS sobre loopback**; no acredita por sí solo un enlace físico de 250 Mbit/s
+ni emula pérdida de paquetes. No se leen/copían los bodies HLS mediante RPC Playwright.
+Los bytes HLS provienen de metadatos `requestfinished` del navegador y se separan de los bytes
+cifrados del túnel. La prueba exige tráfico real por el túnel de cada player durante preflight y
+medición. El informe registra egreso observado, mecanismo, versión, CPU/RAM Docker, CPU/memoria del
+driver Node y carga/CPU del host completo (incluye otros procesos), además de muestras por contenedor
+de CPU, memoria, NetIO y BlockIO. No interpretar esos bytes como capacidad medida de una NIC externa.
+
+Las pruebas del túnel comprueban destino fijo, buffers/teardown, cuota agregada y aislamiento entre
+players. La opción TLS prueba el certificado real del fixture con CA confiable y no confiable:
+
+```sh
+python tests/integration/p1-delivery/test_network.py
+python tests/integration/p1-delivery/test_network.py --tls-origin https://localhost:3443 --ca infra/p1/.state/ca.crt
+```
 
 `infra/p1/.state/load-report.json` conserva submuestras/p95 de cada operación, fallos, atrasos del
 generador, ACK/entrega, duplicados/huecos, primer frame, continuidad y borrado de leases,

@@ -23,6 +23,7 @@ import websocket
 import verify as v
 from seed import seed
 from metrics import Metrics
+from network import PlayerNetwork
 
 
 def private_json(path,value):
@@ -69,7 +70,7 @@ def run(diagnostic):
         client=v.Client(timeout=2)
         csrf.append(client.call("/api/identity/csrf"));clients.append(client)
     owners=[]; configs=[]; sessions=[]; sources=[]; sockets=[]; threads=[]; log=None; driver=None
-    stop=threading.Event();lock=threading.Lock();resources=None
+    stop=threading.Event();lock=threading.Lock();resources=None;network=None
     stats={"mode":"diagnostic-NOT-acceptance" if diagnostic else "full-P1", "durationSeconds":duration,"warmupSeconds":60,
            "players":players,"sources":5,"sourceMode":"pre-encoded 720p30 H264/AAC; five independent real-time RTMPS publishers",
            "sourceAverageBitrateBitsPerSecond":source_bitrate,
@@ -128,6 +129,9 @@ def run(diagnostic):
             ws=v.connect(person,sessions[i%5]);ready=v.frame(ws,"chat.ready");ws.settimeout(1)
             if i<5:last_sequence[sessions[i]]=ready["lastSequence"]
             sockets.append(ws)
+            # recv() also services Ping/Pong. Keep connections alive while all
+            # 100 browser contexts are prepared, before warm-up sends begin.
+            thread=threading.Thread(target=receiver,args=(i,ws),daemon=True);thread.start();threads.append(thread)
         queries=json.loads((v.ROOT/"contracts/generated/graphql-queries.json").read_text())
         # One documented endpoint operation per slot. CSRF is prefetched outside the measured API rate.
         operations=["login","discovery","discovery","channel-search","taxonomy","login","channel","profile","stream","discovery"]
@@ -157,7 +161,8 @@ def run(diagnostic):
         profile_id=owners[0].call("/api/profile/me")["userId"]
         for name in ("load-start.json","load-players-ready.json","load-players-report.json"):
             (v.manage.STATE/name).unlink(missing_ok=True)
-        private_json(v.manage.STATE/"load-players.json",{"origin":v.ORIGIN,"players":players,"sessions":sessions})
+        network=PlayerNetwork(v.ORIGIN,players).__enter__()
+        private_json(v.manage.STATE/"load-players.json",{"origin":v.ORIGIN,"players":players,"sessions":sessions,"proxyPorts":network.ports})
         driver_log_path=v.manage.STATE/"load-player-driver.log"
         with open(driver_log_path,"w") as driver_log:
             os.chmod(driver_log_path,0o600)
@@ -165,12 +170,13 @@ def run(diagnostic):
                 env={**v.ENV,"NODE_EXTRA_CA_CERTS":str(v.CA)},stdout=driver_log,stderr=driver_log)
             v.eventually(lambda:(v.manage.STATE/"load-players-ready.json").exists() or driver.poll() is not None,lambda x:x,timeout=180)
             if driver.poll() is not None:raise RuntimeError("Browser TLS/profile setup failed; inspect private driver log")
+            if not all(p["connections"] and p["downTlsBytes"] for p in network.snapshot()["players"]):
+                raise RuntimeError("Every browser player must use its own CONNECT tunnel during preflight")
             print("Players prepared with explicit NSS CA; 60 s warm-up",flush=True)
-            for i,ws in enumerate(sockets):
-                thread=threading.Thread(target=receiver,args=(i,ws),daemon=True);thread.start();threads.append(thread)
             # All five sources, players, API mix and Chat rate participate in warm-up.
             resources=Metrics()
             warm=time.monotonic()+2;warm_end=warm+60;start=warm_end+1;end=start+duration
+            network.begin(start,end)
             stats["warmupDrainSeconds"]=1
             warm_utc=int(time.time()*1000+2000)
             private_json(v.manage.STATE/"load-start.json",{"warmupStartUtcMs":warm_utc,"startUtcMs":warm_utc+61000,"durationSeconds":duration})
@@ -219,6 +225,9 @@ def run(diagnostic):
                 time.sleep(max(0,end+3-time.monotonic()))
             driver.wait(timeout=60)
         stats["playerReport"]=json.loads((v.manage.STATE/"load-players-report.json").read_text())
+        stats["network"]=network.snapshot()
+        stats["network"]["allPlayersUsedTunnelDuringMeasurement"]=all(
+            p["measuredDownTlsBytes"] and p["measuredUpTlsBytes"] for p in stats["network"]["players"])
         stats["apiSamplesExpected"]=duration*10;stats["chatSamplesExpected"]=duration*20
         for metric in stats["api"].values():
             metric["p95Ms"]=percentile(metric.pop("ms"))
@@ -229,6 +238,7 @@ def run(diagnostic):
         stats["firstFrameMaxMs"]=max(frames,default=None)
         stats["hlsAverageMbps"]=stats["playerReport"]["hlsBytes"]*8/duration/1_000_000
         stats["nominalThresholdsPass"]=sum(m["attempts"] for m in stats["api"].values())==duration*10 and \
+            stats["network"]["allPlayersUsedTunnelDuringMeasurement"] and \
             stats["resources"]["authorization"]["budgetsPass"] and not stats["resources"]["errors"] and \
             stats["playerReport"]["leaseContinuityPass"] and not stats["failures"] and not stats["playerReport"]["failures"] and \
             stats["apiScheduleLate"]==stats["chatScheduleLate"]==stats["chatDuplicates"]==stats["chatSequenceGaps"]==0 and \
@@ -250,6 +260,13 @@ def run(diagnostic):
             driver.terminate()
             try:driver.wait(timeout=10)
             except subprocess.TimeoutExpired:driver.kill();driver.wait()
+        if network:
+            try:
+                stats.setdefault("network",network.snapshot())
+                network.close()
+                stats["network"]["closed"]=True
+            except Exception:
+                failure("network","Tunnel cleanup/capture failed");stats["acceptancePass"]=False;stats["nominalThresholdsPass"]=False
         for source in sources:
             source.terminate()
             try:source.wait(timeout=6)
