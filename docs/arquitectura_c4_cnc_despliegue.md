@@ -131,9 +131,11 @@ ningún proceso consulta tablas ajenas ni mantiene transacciones entre bases.
 Topología: proxy, Web, Core, Streaming con adaptador Rust, Chat, MediaMTX, PostgreSQL Core/Streaming,
 Redis Chat (AOF) y bucket S3 privado para imágenes. Bases separadas con credenciales privadas pueden compartir motor físico sin compartir tablas. El stack propio SPEC-04 usa exactamente tres contenedores: PostgreSQL (bases Streaming/Media), Streaming con adaptador y MediaMTX, según ADR-011.
 Core accede a imágenes en S3 o filesystem explícito compartido; Media conserva segmentos.
-[ADR-014](adr/ADR-014-perfil-integrado-tls-p1.md) materializa ocho contenedores con una réplica Core/Chat
-y diez con dos réplicas, sin añadir runtime de integración. Caddy sirve Web y proxy juntos. Solo se
-publican HTTPS localhost:3443 y RTMPS localhost:11936 por defecto. Core8081/8082, Streaming8080/8091,
+[ADR-014](adr/ADR-014-perfil-integrado-tls-p1.md) materializa el [Compose raíz](../compose.yaml) de
+nueve servicios: core/core-db, chat/chat-db, live/live-db/media-server y web/proxy separados.
+HTTPS localhost:3445 y RTMPS localhost:11938 son las entradas locales predeterminadas.
+Los fixtures de aceptación conservan ocho contenedores con Web/proxy juntos y diez con dos
+réplicas Core/Chat, usando HTTPS3443 y RTMPS11936. Core8081/8082, Streaming8080/8091,
 Chat8085/8086, autorización Media8090 y HLS8888 son TLS privados; SQL y Redis también usan TLS.
 El [runbook](../infra/p1/README.md) configura readiness, CA, secretos y proveedor de imágenes.
 /internal/* queda bloqueado públicamente. TLS privado y secretos específicos por consumidor/operación.

@@ -1,6 +1,7 @@
 # Web · STREAMING
 
 Una SPA React/TypeScript/SWC con pnpm, diseño Dark Cinema Broadcast y módulos internos.
+Para ejecutar el sistema completo, usar el [Compose raíz y la guía local](../../README.md).
 [ADR-007](../../docs/adr/ADR-007-web-react-typescript.md) define la base;
 [ADR-013](../../docs/adr/ADR-013-web-integrada-caddy-hls.md) conecta los proveedores reales.
 
@@ -70,7 +71,7 @@ reintentar el mismo clientMessageId. No se anuncia éxito sin ACK. Pausar autosc
 Componentes/tokens en src/components y src/styles; módulos publican entry.tsx y no comparten internals.
 Shell posee sesión, router, layout y boundaries; accessibility mantiene foco/título al navegar.
 Aliases @/src y @/public conservan imports internos, y @contracts usa ../../contracts/generated.
-Los schemas, tipos p1.d.ts y queries vienen de docs/contratos_modelo_datos.md; ejecutar su generador
+Los schemas, tipos p1.d.ts y queries se derivan de contracts/p1.json y del SDL en docs/contratos_modelo_datos.md; ejecutar su generador
 antes de pnpm check cuando cambie el contrato. Los modelos demo solo son presentación para pruebas.
 
 TypeScript es estricto; ESLint comprueba tipos/hooks/accesibilidad/límites; Prettier define formato.

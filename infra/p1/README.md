@@ -1,5 +1,8 @@
 # Perfil integrado persistente P1
 
+Para probar la aplicación en equipo, usar el [Compose raíz de nueve servicios](../../README.md).
+Este perfil conserva los fixtures de aceptación, réplicas y carga.
+
 Implementación de [SPEC-13](../../docs/spec-p1/spec_13_int.md) y
 [ADR-014](../../docs/adr/ADR-014-perfil-integrado-tls-p1.md). Ocho contenedores con una réplica de
 Core/Chat; el stack propio Streaming conserva exactamente tres: PostgreSQL, Streaming con adaptador

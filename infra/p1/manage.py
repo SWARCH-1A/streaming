@@ -7,21 +7,27 @@ from __future__ import annotations
 import argparse
 import fcntl
 import json
+import ipaddress
 import os
 from pathlib import Path
 import re
 import secrets
 import subprocess
 import tempfile
+import ssl
+import time
+import urllib.request
+import urllib.error
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 PROFILES = {
     "default": (".state", "streaming-p1", "3443", "11936", ".manage.lock"),
     "load": (".state-load", "streaming-p1-load", "3444", "11937", ".manage-load.lock"),
+    "local": (".state-local", "streaming-local", "3445", "11938", ".manage-local.lock"),
 }
 PROFILE = os.environ.get("P1_PROFILE", "default")
-if PROFILE not in PROFILES: raise RuntimeError("P1_PROFILE must be default or load")
+if PROFILE not in PROFILES: raise RuntimeError("P1_PROFILE must be default, load or local")
 STATE_NAME, PROJECT, HTTPS_PORT, RTMPS_PORT, LOCK_NAME = PROFILES[PROFILE]
 STATE = HERE / STATE_NAME
 
@@ -51,8 +57,36 @@ def render_proxy():
         tls_trust_pool file /run/secrets/ca.crt
         response_header_timeout 10s
       }""")
+    if PROFILE == "local":
+        source = source.replace("https://streaming:", "https://live:")
+        source = source.replace("  root * /srv\n", "")
+        transport = "transport http {\n        tls_trust_pool file /run/secrets/ca.crt\n      }"
+        source = source.replace("file_server @assets", "reverse_proxy @assets https://web:3443 {\n      " + transport + "\n    }")
+        source = source.replace("      file_server\n", "      reverse_proxy https://web:3443 {\n        " + transport + "\n      }\n")
     # Host-only session cookies remain on the public origin; private credentials never enter logs.
     return source
+
+
+def local_network():
+    """Choose an unused private Docker subnet; allow an explicit subnet/IP pair."""
+    configured = os.environ.get("LOCAL_SUBNET")
+    if configured:
+        subnet = ipaddress.ip_network(configured)
+    else:
+        ids = run(["docker", "network", "ls", "-q"]).split()
+        networks = json.loads(run(["docker", "network", "inspect", *ids])) if ids else []
+        occupied = [ipaddress.ip_network(c["Subnet"]) for n in networks for c in (n.get("IPAM", {}).get("Config") or []) if c.get("Subnet")]
+        candidates = (ipaddress.ip_network(f"192.168.{octet}.0/24") for octet in range(240, 255))
+        subnet = next((c for c in candidates if not any(c.overlaps(n) for n in occupied if n.version == 4)), None)
+        if subnet is None:
+            raise RuntimeError("Choose an unused LOCAL_SUBNET and LOCAL_PROXY_IP before init")
+    proxy_ip = ipaddress.ip_address(os.environ.get("LOCAL_PROXY_IP", str(subnet.network_address + 2)))
+    if subnet.version != 4 or not subnet.is_private or subnet.prefixlen > 28:
+        raise RuntimeError("LOCAL_SUBNET must be a private IPv4 network with room for nine services")
+    dynamic_range = list(subnet.subnets(prefixlen_diff=1))[1]
+    if proxy_ip not in subnet or proxy_ip in dynamic_range or proxy_ip in (subnet.network_address, subnet.broadcast_address, subnet.network_address + 1):
+        raise RuntimeError("LOCAL_PROXY_IP must be a usable address in the private IPv4 LOCAL_SUBNET")
+    return {"LOCAL_SUBNET": str(subnet), "LOCAL_PROXY_IP": str(proxy_ip), "LOCAL_DYNAMIC_RANGE": str(dynamic_range)}
 
 
 def initialize():
@@ -66,13 +100,15 @@ def initialize():
     os.chmod(temporary, 0o700)
     try:
         def openssl(*args, **kwargs): return run(["openssl", *args], cwd=temporary, **kwargs)
-        openssl("req","-x509","-newkey","rsa:2048","-nodes","-keyout","ca.key","-out","ca.crt","-days","30","-sha256","-subj","/CN=STREAMING P1 local CA")
+        openssl("req","-x509","-newkey","rsa:2048","-nodes","-keyout","ca.key","-out","ca.crt","-days","365" if PROFILE == "local" else "30","-sha256","-subj","/CN=STREAMING P1 local CA")
         names = ("core","streaming","chat","mediamtx","postgres","db","chat-redis","web")
         for name in names:
             openssl("req","-newkey","rsa:2048","-nodes","-keyout",name+".key","-out",name+".csr","-subj","/CN="+name)
             extension = temporary / (name+".ext")
-            extension.write_text("basicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\nsubjectAltName=DNS:"+name+",DNS:localhost,IP:127.0.0.1\n")
-            openssl("x509","-req","-in",name+".csr","-CA","ca.crt","-CAkey","ca.key","-CAcreateserial","-out",name+".crt","-days","14","-sha256","-extfile",str(extension))
+            alias = {"streaming": "live", "mediamtx": "media-server", "postgres": "core-db", "db": "live-db", "chat-redis": "chat-db", "web": "proxy"}.get(name)
+            extra = ",DNS:" + alias if PROFILE == "local" and alias else ""
+            extension.write_text("basicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\nsubjectAltName=DNS:"+name+extra+",DNS:localhost,IP:127.0.0.1\n")
+            openssl("x509","-req","-in",name+".csr","-CA","ca.crt","-CAkey","ca.key","-CAcreateserial","-out",name+".crt","-days","90" if PROFILE == "local" else "14","-sha256","-extfile",str(extension))
         keys = ("CORE_DB_PASSWORD","STREAMING_DB_PASSWORD","CORE_RATE_LIMIT_HMAC_SECRET","CORE_STREAMING_SERVICE_TOKEN",
                 "CORE_STREAMING_CATALOG_SERVICE_TOKEN","CORE_STREAMING_CONSUMER_TOKEN","CHAT_CORE_SERVICE_TOKEN",
                 "CHAT_SESSION_EVENTS_TOKEN","MEDIA_AUTH_TOKEN","MEDIA_HLS_SECRET","MEDIA_CONTROL_PASSWORD",
@@ -89,6 +125,8 @@ def initialize():
         fingerprint = openssl("x509","-in","streaming.crt","-noout","-fingerprint","-sha256").strip().split("=")[-1].replace(":","").lower()
         env.update({"P1_STATE":str(STATE),"P1_HTTPS_PORT":https_port,"P1_RTMPS_PORT":rtmps_port,"WEB_ORIGIN":"https://localhost:"+https_port,"CORE_INTERNAL_TLS_KEYSTORE":str(STATE / "core-internal.p12"),
                     "STREAMING_CERT_FINGERPRINT":fingerprint})
+        if PROFILE == "local":
+            env.update(local_network())
         (temporary / "Caddyfile").write_text(render_proxy())
         (temporary / "environment.env").write_text("".join(f"{key}={value}\n" for key,value in sorted(env.items())))
         (temporary / "owner.json").write_text(json.dumps({"project":PROJECT,"root":str(ROOT)},indent=2)+"\n")
@@ -136,10 +174,31 @@ def configured_ports(env):
 
 def command(env, *args, s3=False, timeout=180):
     if env.get("P1_STATE") != str(STATE): raise RuntimeError("Command state differs from the selected profile")
-    cmd = ["docker","compose","--env-file",str(STATE / "environment.env"),"-p",PROJECT,"-f",str(HERE / ("compose.s3.yaml" if s3 else "compose.yaml"))]
+    if PROFILE == "local" and s3:
+        raise RuntimeError("The local nine-service installation uses filesystem; use the P1 profile for external S3")
+    compose = ROOT / "compose.yaml" if PROFILE == "local" else HERE / ("compose.s3.yaml" if s3 else "compose.yaml")
+    cmd = ["docker","compose","--env-file",str(STATE / "environment.env"),"-p",PROJECT,"-f",str(compose)]
     if s3 and env.get("CORE_IMAGE_S3_ENDPOINT") and not env["CORE_IMAGE_S3_ENDPOINT"].startswith("https://"):
         raise RuntimeError("The TLS profile requires an HTTPS S3 endpoint")
     return run([*cmd,*args],cwd=ROOT,env=env,timeout=timeout)
+
+
+def wait_local(env, timeout=180):
+    """Check TLS and both real public API and the separately built Web image."""
+    context = ssl.create_default_context(cafile=str(STATE / "ca.crt"))
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPSHandler(context=context))
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with opener.open(env["WEB_ORIGIN"] + "/api/taxonomy", timeout=5) as response:
+                assert "categories" in json.load(response)
+            request = urllib.request.Request(env["WEB_ORIGIN"] + "/", headers={"Accept": "text/html"})
+            with opener.open(request, timeout=5) as response:
+                assert '<div id="root">' in response.read().decode()
+            return
+        except (urllib.error.URLError, TimeoutError, ValueError, AssertionError):
+            time.sleep(2)
+    raise RuntimeError("Local Web/API did not become ready; inspect compose ps/logs")
 
 
 def main():
@@ -149,6 +208,8 @@ def main():
     parser.add_argument("--replicas", type=int, choices=(1,2), default=1)
     parser.add_argument("--confirm-disposable", action="store_true", help="Required to remove only this project's volumes")
     args = parser.parse_args()
+    if PROFILE == "local" and args.replicas != 1:
+        raise RuntimeError("The local installation has exactly nine services; use P1 for replica tests")
     # Lock outside .state so initialization is serialized too.
     with open(HERE / LOCK_NAME,"a") as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
@@ -157,6 +218,10 @@ def main():
         elif args.action=="up":
             (STATE / "Caddyfile").write_text(render_proxy())
             command(env,"up","-d","--scale",f"core={args.replicas}","--scale",f"chat={args.replicas}",s3=args.s3)
+            if PROFILE == "local":
+                wait_local(env)
+                print(f"Ready {PROJECT}: {env['WEB_ORIGIN']} (nine services; local CA required in the browser)")
+                return
             web_id = command(env,"ps","-q","web",s3=args.s3).strip()
             networks = json.loads(run(["docker","inspect",web_id]))[0]["NetworkSettings"]["Networks"]
             if len(networks)!=1: raise RuntimeError("Review trusted proxy when changing topology")

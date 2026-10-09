@@ -60,7 +60,7 @@ class Profiles(unittest.TestCase):
                 load.environment()
 
     def test_volume_removal_command_targets_only_selected_project(self):
-        for profile in ("default", "load"):
+        for profile in ("default", "load", "local"):
             selected = module(profile)
             env = {"P1_STATE": str(selected.STATE)}
             with patch.object(selected, "run", return_value="") as run:
@@ -68,10 +68,34 @@ class Profiles(unittest.TestCase):
                 args = run.call_args.args[0]
                 self.assertEqual(args[args.index("-p") + 1], selected.PROJECT)
                 self.assertEqual(args[args.index("--env-file") + 1], str(selected.STATE / "environment.env"))
+                expected = selected.ROOT / "compose.yaml" if profile == "local" else selected.HERE / "compose.yaml"
+                self.assertEqual(args[args.index("-f") + 1], str(expected))
                 self.assertEqual(run.call_args.kwargs["env"], env)
                 with self.assertRaisesRegex(RuntimeError, "Command state"):
                     selected.command({"P1_STATE": "/foreign/state"}, "down", "--volumes")
                 self.assertEqual(run.call_count, 1)
+
+    def test_local_profile_has_separate_state_and_verified_web_upstream(self):
+        local = module("local")
+        self.assertEqual((local.STATE.name, local.PROJECT, local.HTTPS_PORT, local.RTMPS_PORT, local.LOCK_NAME),
+                         (".state-local", "streaming-local", "3445", "11938", ".manage-local.lock"))
+        proxy = local.render_proxy()
+        self.assertIn("https://live:8080", proxy)
+        self.assertIn("https://web:3443", proxy)
+        self.assertNotIn("file_server", proxy)
+        self.assertNotIn("https://streaming:", proxy)
+        self.assertNotIn("tls_insecure_skip_verify", proxy)
+        with self.assertRaisesRegex(RuntimeError, "filesystem"):
+            local.command({"P1_STATE": str(local.STATE)}, "up", s3=True)
+
+    def test_local_subnet_avoids_existing_docker_networks(self):
+        local = module("local")
+        with patch.dict(os.environ, {}, clear=True), patch.object(local, "run", side_effect=["network-id", '[{"IPAM":{"Config":null}},{"IPAM":{"Config":[{"Subnet":"192.168.240.0/24"}]}}]']):
+            self.assertEqual(local.local_network(), {"LOCAL_SUBNET": "192.168.241.0/24", "LOCAL_PROXY_IP": "192.168.241.2", "LOCAL_DYNAMIC_RANGE": "192.168.241.128/25"})
+        for invalid in ("192.168.240.0", "192.168.240.1", "192.168.240.255", "192.168.241.2", "192.168.240.130"):
+            with patch.dict(os.environ, {"LOCAL_SUBNET": "192.168.240.0/24", "LOCAL_PROXY_IP": invalid}):
+                with self.assertRaisesRegex(RuntimeError, "usable address"):
+                    local.local_network()
 
 
 if __name__ == "__main__":

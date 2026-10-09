@@ -44,7 +44,7 @@ Como integrante del equipo, quiero arrancar y verificar desde checkout limpio to
 
 ### Supuestos acordados
 
-- Docker Compose está seleccionado para el stack propio Streaming/Media de tres contenedores en ADR-011. La composición integrada de los demás componentes requiere su configuración y evidencia.
+- Docker Compose está seleccionado para el stack propio Streaming/Media de tres contenedores en ADR-011. El Compose raíz ensambla los nueve servicios locales según ADR-014; los fixtures de aceptación conservan su configuración y evidencia separadas.
 
 - REST, GraphQL sobre HTTP/JSON y WebSocket HTTP Upgrade quedan definidos como tres patrones HTTP demostrables. El perfil incluye ejercicios de REST/GraphQL/WebSocket; RTMP/HLS son transportes de medios y no sustituyen conectores HTTP. La aceptación del RNF académico de “dos tipos de conectores basados en HTTP” se marca pendiente hasta confirmar que la guía/docente cuenta al menos dos de esos patrones como distintos; no afirmar cumplimiento sin esa evidencia.
 
@@ -107,6 +107,11 @@ Como integrante del equipo, quiero arrancar y verificar desde checkout limpio to
 - Health no consulta dependencias sin timeout; logs incluyen request/event ID y excluyen passwords, tokens, stream key y datos privados.
 
 - Runner de carga usa cinco fuentes controladas y rampa de 100 clientes; mantiene métricas separadas de egreso/bitrate HLS, 10 solicitudes/s de API, 10 heartbeats/s adicionales después de rampa, creación de leases, tráfico WebSocket y mensajes. Reporta resultados por operación, muestra, p95/máximo según RNF, fallos, pérdidas/duplicados y configuración de CPU/RAM/NIC/red.
+
+El [Compose raíz](../../compose.yaml) ofrece la instalación local de equipo con nueve servicios
+(core/core-db, chat/chat-db Redis, live/live-db/media-server, web/proxy separados), build Web en
+Docker y TLS en todos los saltos. El [README raíz](../../README.md) es su guía de arranque. Los
+fixtures de aceptación conservan sus proyectos y topología de réplicas separados, según ADR-014.
 
 ## 8. Dependencias y contratos de integración
 

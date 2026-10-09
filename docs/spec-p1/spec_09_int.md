@@ -59,7 +59,7 @@ Todo salto real especifica proveedor/dueño/consumidor/auth/deadline/recovery. D
 
 - La documentación `/docs` contiene el alcance y los contratos necesarios para implementar el proyecto.
 
-En P1, ADR-011 integra el adaptador técnico en el proceso Streaming. Autorización/callbacks internos conservan HTTP loopback autenticado en desarrollo y HTTPS con CA explícita en el perfil persistente ADR-014, con persistencia separada. HLS público se enruta al listener 8888 del contenedor Streaming; ingest RTMP/RTMPS sigue en MediaMTX. Reinicios/fallos del proceso afectan al control y al adaptador juntos. El perfil integrado usa ocho contenedores, diez con dos réplicas Core/Chat; el stack propio Streaming mantiene tres.
+En P1, ADR-011 integra el adaptador técnico en el proceso Streaming. Autorización/callbacks internos conservan HTTP loopback autenticado en desarrollo y HTTPS con CA explícita en el perfil persistente ADR-014, con persistencia separada. HLS público se enruta al listener 8888 del contenedor Streaming; ingest RTMP/RTMPS sigue en MediaMTX. Reinicios/fallos del proceso afectan al control y al adaptador juntos. La instalación local de equipo usa el Compose raíz de nueve servicios, con Live como nombre desplegado de Streaming y Web/proxy separados. Los fixtures de aceptación conservan ocho contenedores, diez con dos réplicas Core/Chat; el stack propio Streaming mantiene tres.
 
 ## 8. Dependencias y contratos de integración
 

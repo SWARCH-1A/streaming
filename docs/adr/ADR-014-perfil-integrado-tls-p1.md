@@ -2,7 +2,7 @@
 
 - Estado: aceptada
 - Fecha: 2026-10-08
-- Responsable: integración, por encargo explícito del usuario
+- Responsable: integración
 - SPEC afectadas: SPEC-09…SPEC-13; RNF-025, RNF-043…050
 
 ## Contexto
@@ -13,14 +13,17 @@ servicio de integración. El perfil académico necesita ejecutarse sin credencia
 
 ## Decisión
 
-Compose coordina ocho contenedores: Core/PostgreSQL, Streaming/PostgreSQL/MediaMTX, Chat/Redis y
-Caddy. Solo HTTPS Web y RTMPS de ingest tienen puertos host, en loopback por defecto. Cada runtime
+El Compose raíz coordina nueve contenedores: core/core-db, chat/chat-db (Redis),
+live/live-db/media-server y web/proxy separados. Web se compila dentro de Docker; el proxy
+verifica también su upstream HTTPS. El proyecto local conserva CA, secretos y volúmenes propios.
+Los fixtures de aceptación de infra/p1 conservan Web/proxy juntos: ocho contenedores con una
+réplica Core/Chat y diez con dos. Solo HTTPS Web y RTMPS de ingest tienen puertos host, en loopback por defecto. Cada runtime
 termina TLS en sus listeners de red; las llamadas privadas conservan credenciales por consumidor.
 Caddy verifica certificados de upstream, además de servir HTTPS al navegador. MediaMTX valida la
 autorización HTTPS por fingerprint; control y HLS privados usan TLS. PostgreSQL verifica TLS por
 hostname y Redis usa rediss. Los clientes confían en una CA explícita; no se admite skip-verify.
 
-El perfil integrado selecciona HLS fMP4 con segmentos de un segundo, conservando siete segmentos
+Los perfiles locales seleccionan HLS fMP4 con segmentos de un segundo, conservando siete segmentos
 en la ventana y el límite de cinco segundos a primer frame. Evita las peticiones adicionales de
 partes LL-HLS al reproducir cien clientes. El stack de desarrollo mantiene su variante Low-Latency
 HLS; seleccionar la variante segmentada no acredita por sí solo rendimiento ni baja latencia.
