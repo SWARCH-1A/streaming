@@ -23,6 +23,10 @@ $dockerArguments = @(
 )
 
 if ($Mode -eq 'Integration') {
+    # Linux runners need an explicit route to sibling containers' published ports.
+    if ($IsLinux) {
+        $dockerArguments += @('--add-host', 'host.docker.internal:host-gateway')
+    }
     $dockerArguments += @(
         '--mount', 'type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock',
         '--env', 'DOCKER_HOST=unix:///var/run/docker.sock',

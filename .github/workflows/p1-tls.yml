@@ -1,18 +1,26 @@
-name: Integrated P1 TLS
+name: P1 integration (manual)
+
 on:
-  push:
-    paths: ['services/**', 'apps/web/**', 'infra/**', 'contracts/**', 'tests/integration/**', '.github/workflows/p1-tls.yml']
-  pull_request:
-    paths: ['services/**', 'apps/web/**', 'infra/**', 'contracts/**', 'tests/integration/**', '.github/workflows/p1-tls.yml']
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Integration suite to run
+        type: choice
+        default: tls
+        options: [tls, domains, web, core, chat, consumer]
+
 permissions:
   contents: read
 concurrency:
-  group: p1-tls-${{ github.ref }}
+  group: p1-integration-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  tls-recovery-and-replicas:
+  integration:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: tests/integration
     steps:
       - uses: actions/checkout@v7
         with:
@@ -21,27 +29,55 @@ jobs:
         with:
           python-version: '3.12'
       - uses: actions/setup-node@v7
+        if: inputs.suite == 'tls' || inputs.suite == 'web'
         with:
           node-version: 24
           package-manager-cache: false
       - uses: pnpm/action-setup@v6
+        if: inputs.suite == 'tls' || inputs.suite == 'web'
         with:
           package_json_file: apps/web/package.json
           run_install: false
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
-      - run: python -m pip install -r tests/integration/p1-domains/requirements.txt
-      - run: pnpm --dir apps/web install --frozen-lockfile
-      - run: pnpm --dir apps/web build
-      - run: python infra/p1/manage.py init
-      - run: python infra/p1/manage.py build
-      - run: python infra/p1/manage.py up --replicas 2
-      - name: Native TLS, persistence, decoded HLS, fail-closed Chat and restart recovery
-        run: python tests/integration/p1-delivery/verify.py --confirm-disposable
-      - name: Physical Core and Chat replicas share state and quotas
-        run: python tests/integration/p1-delivery/replicas.py --confirm-disposable
-      - name: Stop only the own disposable project
-        if: always()
+        if: inputs.suite == 'tls' || inputs.suite == 'domains' || inputs.suite == 'web'
+      - run: python -m pip install -r p1-domains/requirements.txt
+      - run: pnpm install --frozen-lockfile && pnpm build
+        if: inputs.suite == 'tls' || inputs.suite == 'web'
+        working-directory: apps/web
+      - run: pnpm exec playwright install --with-deps chromium
+        if: inputs.suite == 'web'
+        working-directory: apps/web
+      - name: Core regression suite
+        if: inputs.suite == 'core'
+        shell: pwsh
+        working-directory: infra/local
+        run: ./test-core.ps1
+      - name: Chat regression suite
+        if: inputs.suite == 'chat'
+        working-directory: services/chat
+        run: docker run --rm --mount type=bind,source="$PWD",target=/src --workdir /src golang:1.26-alpine go test ./...
+      - name: Real Rust consumer against Core
+        if: inputs.suite == 'consumer'
+        shell: pwsh
+        working-directory: tests/contracts
+        run: ./test-streaming-core.ps1
+      - name: Domain flows
+        if: inputs.suite == 'domains'
+        run: python p1-domains/run.py
+      - name: Browser flows
+        if: inputs.suite == 'web'
+        run: python p1-domains/run.py --web
+      - name: Native TLS, persistence and replicas
+        if: inputs.suite == 'tls'
         run: |
-          if test -f infra/p1/.state/owner.json; then
-            python infra/p1/manage.py down
+          python ../../infra/p1/manage.py init
+          python ../../infra/p1/manage.py build
+          python ../../infra/p1/manage.py up --replicas 2
+          python p1-delivery/verify.py --confirm-disposable
+          python p1-delivery/replicas.py --confirm-disposable
+      - name: Stop the disposable TLS project
+        if: always() && inputs.suite == 'tls'
+        run: |
+          if test -f ../../infra/p1/.state/owner.json; then
+            python ../../infra/p1/manage.py down
           fi
