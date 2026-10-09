@@ -13,7 +13,7 @@ const require = createRequire(resolve(root, 'apps/web/package.json'));
 const { firefox } = require('@playwright/test');
 const hlsScript = require.resolve('hls.js/dist/hls.js');
 const config = JSON.parse(readFileSync(resolve(state, 'load-players.json'), 'utf8'));
-if (!/^https:\/\/localhost:\d+$/.test(config.origin) || ![5, 100].includes(config.players) ||
+if (!/^https:\/\/localhost:\d+$/.test(config.origin) || ![5, 25, 50, 75, 100].includes(config.players) ||
     config.proxyPorts?.length !== config.players || !config.proxyPorts.every(p => Number.isInteger(p) && p > 0 && p <= 65535))
   throw new Error('Only the own loopback P1 fixture is supported');
 const sleep = (ms) => new Promise((r) => setTimeout(r, Math.max(ms, 0)));

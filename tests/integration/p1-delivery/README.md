@@ -39,6 +39,16 @@ python tests/integration/p1-delivery/load.py --confirm-disposable --diagnostic
 ```
 
 El diagnóstico usa cinco players y 30 segundos medidos; **nunca** acredita CA-06.
+Para localizar el límite del host, `--diagnostic --diagnostic-players N` permite 5/25/50/75/100
+players, cinco fuentes y la misma carga API/Chat. Los tamaños mayores se miden durante
+45/60/75/90 segundos respectivamente, dejando al menos 30 s después de la última tanda de rampa
+para observar heartbeats y continuidad. Mantiene 60 s de warm-up, TLS, medio real y todos los
+umbrales/fallos; `acceptancePass` siempre es false. La opción sin `--diagnostic` se rechaza.
+
+```sh
+P1_PROFILE=load python tests/integration/p1-delivery/load.py --confirm-disposable --diagnostic --diagnostic-players 50
+```
+
 Para el perfil completo, detener las fuentes, restablecer **solo los datos desechables propios**
 y esperar readiness. Reset conserva CA, contraseñas e imágenes compiladas:
 

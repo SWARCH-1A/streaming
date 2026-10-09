@@ -1,7 +1,7 @@
 """SPEC-13 open-loop load against the own TLS fixture. Failures are never excluded from acceptance.
 
 Full: 60 s warm-up + 600 s, 5 sources/100 real Firefox players/10 API req/s/20 Chat sends/s.
---diagnostic uses 5 players and 30 measured seconds, explicitly NOT P1 acceptance.
+--diagnostic defaults to 5 players/30 measured seconds; larger diagnostics remain NOT P1 acceptance.
 """
 from __future__ import annotations
 import argparse
@@ -40,9 +40,11 @@ def firefox_profile():
     if not (profile/"cert9.db").exists():v.manage.run([binary,"-N","--empty-password","-d","sql:"+str(profile)])
     v.manage.run([binary,"-A","-n","STREAMING P1 local CA","-t","C,,","-i",str(v.CA),"-d","sql:"+str(profile)])
 
-def run(diagnostic):
-    duration=30 if diagnostic else 600
-    players=5 if diagnostic else 100
+def run(diagnostic,diagnostic_players=None):
+    if diagnostic_players is not None and (not diagnostic or diagnostic_players not in (5,25,50,75,100)):
+        raise ValueError("Diagnostic player count requires diagnostic mode and an allowed size")
+    players=(diagnostic_players or 5) if diagnostic else 100
+    duration=(30 if players==5 else 30+players//5*3) if diagnostic else 600
     # `up` starts containers before Core is ready, including its migrations.
     v.eventually(lambda:v.Client().call("/api/taxonomy"),lambda value:bool(value),timeout=90)
     fixture=seed()
@@ -301,7 +303,9 @@ def run(diagnostic):
 if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--confirm-disposable",action="store_true");parser.add_argument("--diagnostic",action="store_true")
+    parser.add_argument("--diagnostic-players",type=int,choices=(5,25,50,75,100),help="Requires --diagnostic; never changes the nominal profile")
     args=parser.parse_args()
+    if args.diagnostic_players is not None and not args.diagnostic:parser.error("--diagnostic-players requires --diagnostic")
     if not args.confirm_disposable:parser.error("--confirm-disposable required for isolated fixture SQL and load")
-    result=run(args.diagnostic)
+    result=run(args.diagnostic,args.diagnostic_players)
     raise SystemExit(0 if result.get("nominalThresholdsPass") else 1)
