@@ -23,6 +23,20 @@ class ContractGateTest(unittest.TestCase):
         contracts.verify(self.bundle, self.sdl)
         contracts.check_core_sdl(self.sdl)
 
+    def test_media_control_inventories_both_publisher_collections(self):
+        operations = {(op["method"], op["path"]): op for op in self.bundle["operations"]
+                      if op["provider"] == "MediaMTX"}
+        for protocol in ("rtmp", "rtmps"):
+            for method, action, success in (("GET", "get", "MediaControlStatus"),
+                                            ("POST", "kick", None)):
+                with self.subTest(protocol=protocol, action=action):
+                    op = operations[(method, f"/v3/{protocol}/conns/{action}/{{publisherId}}")]
+                    self.assertEqual(op["auth"], "private-basic")
+                    self.assertEqual(op["visibility"], "private")
+                    self.assertEqual(op["responses"]["200"], success)
+                    self.assertEqual(op["responses"]["404"], "MediaControlError")
+                    self.assertEqual(op["timeoutMs"], 2000)
+
     def test_generation_is_deterministic_and_drift_fails(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(contracts, "OUTPUT", Path(directory)):
             with patch.object(sys, "argv", ["generate.py", "--write"]):

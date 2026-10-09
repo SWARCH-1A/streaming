@@ -27,14 +27,10 @@ export function HlsPlayer({ session, title }: { session: PublicSession; title: s
       lease = null;
     }
     function startLease() {
-      if (
-        disposed ||
-        element!.paused ||
-        element!.readyState < 2 ||
-        element!.videoWidth === 0 ||
-        lease
-      )
+      if (disposed || element!.paused || element!.readyState < 2 || element!.videoWidth === 0)
         return;
+      setFailure('');
+      if (lease) return;
       lease = new ViewerLeaseController(session.sessionId, (message) => {
         if (!disposed) setLeaseError(message);
       });

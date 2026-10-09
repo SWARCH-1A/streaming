@@ -52,7 +52,7 @@ Como broadcaster, quiero emitir una señal audiovisual desde mi canal; como espe
 
 - La UI distingue interrupción temporal de estado OFFLINE; el contrato de medio debe informar un manifiesto HLS reproducible.
 
-- Media adapter informa fuente conectada, playback listo y fuente perdida por `POST /internal/streaming/sessions/{sessionId}/source-connected`, `/playback-ready` y `/source-lost`; son privados y autenticados; HTTP loopback dentro del proceso P1 según ADR-011, HTTPS/TLS cuando crucen contenedores. Streaming deduplica por eventId, valida sourceGeneration y confirma durablemente antes del ACK.
+- Media adapter informa fuente conectada, playback listo y fuente perdida por `POST /internal/streaming/sessions/{sessionId}/source-connected`, `/playback-ready` y `/source-lost`; son privados y autenticados. HTTP loopback se admite solo en desarrollo sin TLS según ADR-011; con TLS habilitado las llamadas al propio proceso y entre contenedores usan HTTPS con CA y hostname verificados. Streaming deduplica por eventId, valida sourceGeneration y confirma durablemente antes del ACK.
 
 ## 5. Requisitos funcionales
 

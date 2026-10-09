@@ -257,6 +257,13 @@ OFFLINE con `POST /api/streams/{streamId}/ingest-keys/rotate`, que invalida la a
 una vez. Al encoder se le configura rtmpUrl y streamKey como password RTMP; el secreto nunca se
 incluye en URL, respuesta pública, evento ni log.
 
+La Control API privada MediaMTX mantiene colecciones separadas RTMP y RTMPS. El adaptador consulta
+`GET /v3/rtmp/conns/get/{publisherId}` y luego `GET /v3/rtmps/conns/get/{publisherId}` ante 404;
+la fuente solo está ausente si ambas devuelven 404. Para cortar usa los POST correspondientes
+`/v3/rtmp/conns/kick/{publisherId}` y `/v3/rtmps/conns/kick/{publisherId}`: cualquier 2xx confirma
+el corte; 404 en ambas significa que ya no existe. Otros fallos mantienen la operación pendiente.
+Ambas variantes usan Basic privado, UUID del publisher y timeout de 2 s; no se exponen por el proxy.
+
 El media adapter llama por HTTPS/TLS en red privada a `POST /internal/streaming/ingest/authorize` en
 cada intento RTMP válido. Una
 clave válida reserva un cupo y crea (o reanuda dentro de RECONNECT_GRACE) un sessionId en PREPARING;

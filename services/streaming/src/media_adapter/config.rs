@@ -29,10 +29,15 @@ impl MediaConfig {
         if production {
             crate::config::require_postgres_tls("MEDIA_DATABASE_URL", &database_url)?;
         }
-        let streaming_url = http_url("MEDIA_STREAMING_URL", production, true)?;
-        let streaming_public_url = http_url("MEDIA_STREAMING_PUBLIC_URL", production, true)?;
-        let control_url = http_url("MEDIA_CONTROL_URL", production, false)?;
-        let hls_url = http_url("MEDIA_HLS_URL", false, false)?;
+        // Self-calls reach the same listeners as network clients. Their scheme
+        // must match TLS even when certificates are enabled in development.
+        let streaming_tls = production
+            || env::var_os("STREAMING_TLS_CERT_FILE").is_some()
+            || env::var_os("STREAMING_TLS_KEY_FILE").is_some();
+        let streaming_url = http_url("MEDIA_STREAMING_URL", streaming_tls)?;
+        let streaming_public_url = http_url("MEDIA_STREAMING_PUBLIC_URL", streaming_tls)?;
+        let control_url = http_url("MEDIA_CONTROL_URL", production)?;
+        let hls_url = http_url("MEDIA_HLS_URL", false)?;
         let streaming_token = secret("MEDIA_STREAMING_TOKEN")?;
         let control_user = required("MEDIA_CONTROL_USER")?;
         let control_password = secret("MEDIA_CONTROL_PASSWORD")?;
@@ -99,26 +104,18 @@ fn secret(name: &str) -> Result<String, Box<dyn std::error::Error + Send + Sync>
     }
     Ok(value)
 }
-fn http_url(
-    name: &str,
-    https: bool,
-    allow_loopback: bool,
-) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    validate_http_url(name, &required(name)?, https, allow_loopback)
+fn http_url(name: &str, https: bool) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    validate_http_url(name, &required(name)?, https)
 }
 
 fn validate_http_url(
     name: &str,
     value: &str,
     https: bool,
-    allow_loopback: bool,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let url = reqwest::Url::parse(value)?;
     if !matches!(url.scheme(), "http" | "https")
-        || (https
-            && url.scheme() != "https"
-            && !(allow_loopback
-                && matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"))))
+        || (https && url.scheme() != "https")
         || url.host_str().is_none()
         || !url.username().is_empty()
         || url.password().is_some()
@@ -135,14 +132,14 @@ mod tests {
     use super::validate_http_url;
 
     #[test]
-    fn production_http_is_only_allowed_for_internal_loopback_contracts() {
+    fn tls_listeners_require_https_even_for_loopback_self_calls() {
         for url in [
             "http://127.0.0.1:8091",
             "http://[::1]:8091",
             "http://localhost:8091",
         ] {
-            assert!(validate_http_url("test", url, true, true).is_ok());
-            assert!(validate_http_url("test", url, true, false).is_err());
+            assert!(validate_http_url("test", url, true).is_err());
+            assert!(validate_http_url("test", url, false).is_ok());
         }
         for url in [
             "http://streaming:8091",
@@ -150,8 +147,30 @@ mod tests {
             "http://localhost@remote:8091",
             "http://127.0.0.1:8091?token=x",
         ] {
-            assert!(validate_http_url("test", url, true, true).is_err());
+            assert!(validate_http_url("test", url, true).is_err());
         }
-        assert!(validate_http_url("test", "https://streaming:8091", true, true).is_ok());
+        for url in [
+            "https://live:8091",
+            "https://live:8080",
+            "https://localhost:8091",
+            "https://127.0.0.1:8080",
+            "https://[::1]:8091",
+        ] {
+            assert!(validate_http_url("test", url, true).is_ok());
+        }
+    }
+
+    #[test]
+    fn self_call_urls_reject_embedded_credentials_and_invalid_transports() {
+        for url in [
+            "ftp://live:8091",
+            "https://user:password@live:8091",
+            "https://live:8091?token=x",
+            "https://live:8091#fragment",
+        ] {
+            for tls in [false, true] {
+                assert!(validate_http_url("test", url, tls).is_err());
+            }
+        }
     }
 }

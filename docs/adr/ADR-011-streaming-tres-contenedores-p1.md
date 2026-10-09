@@ -24,10 +24,12 @@ Las dos bases, roles, repositorios y migraciones se conservan separados. Postgre
 idempotentemente el rol/base Media antes de declarar readiness, también al reutilizar un
 volumen existente; no hay contenedor de inicialización. No se borran ni trasladan datos.
 
-Los contratos privados de autorización, callbacks y consulta se conservan mediante HTTP
-loopback dentro del contenedor. Esa frontera técnica permite una extracción posterior;
-no autoriza lecturas cruzadas de tablas. Los saltos entre contenedores mantienen TLS privado
-en producción. Loopback interno usa HTTP y credenciales, sin publicar sus listeners.
+Los contratos privados de autorización, callbacks y consulta se conservan mediante las APIs
+del mismo contenedor. Esa frontera técnica permite una extracción posterior;
+no autoriza lecturas cruzadas de tablas. HTTP loopback autenticado se admite solo en desarrollo
+sin TLS. Con TLS habilitado, las llamadas al propio proceso usan HTTPS con CA confiable y
+hostname presente en el certificado, igual que los saltos entre contenedores en producción.
+Los listeners privados no se publican al host.
 
 La API pública mantiene 8080; el contrato interno Streaming usa 8091; la autorización Media
 usa 8090; HLS público usa 8888; MediaMTX publica RTMP 1935. Readiness del contenedor exige

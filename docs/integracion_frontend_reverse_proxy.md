@@ -33,7 +33,7 @@ sessionId; RECONNECTING informa pérdida temporal sin anunciar playback confirma
 | /internal/* | Bloqueada (404/deny) | Ninguna ruta privada se expone por el listener web |
 | Listener RTMP | Media | Puerto TCP dedicado, no fingir ruta HTTP |
 
-Los mensajes HTTP privados entre contenedores Core–Streaming/Chat y Streaming–Chat viajan en TLS y credenciales distintas por consumidor/operación. Autorización/callbacks entre control Streaming y su adaptador Media admiten HTTP loopback autenticado dentro del mismo contenedor según ADR-011; la excepción no permite HTTP entre contenedores. Proxy no autentica usuario ni interpreta reglas de dominio. Sobrescribir X-Forwarded-For/
+Los mensajes HTTP privados entre contenedores Core–Streaming/Chat y Streaming–Chat viajan en TLS y credenciales distintas por consumidor/operación. Autorización/callbacks entre control Streaming y su adaptador Media admiten HTTP loopback autenticado en desarrollo sin TLS según ADR-011; con TLS habilitado usan HTTPS y verificación de CA/hostname también dentro del mismo contenedor. Proxy no autentica usuario ni interpreta reglas de dominio. Sobrescribir X-Forwarded-For/
 X-Real-IP del cliente con IP observada; backend confía solo en proxy configurado. No imprimir body,
 cookie, X-Session-Credential, streamKey, token de lease o Idempotency-Key en logs.
 
