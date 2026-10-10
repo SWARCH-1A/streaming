@@ -111,6 +111,26 @@ class DiscoveryIT extends DiscoveryITBase {
         assertThat(field(streams(Map.of("q","' OR 1=1 --")),"streamId")).as("user text is a parameter").isEmpty();
     }
 
+    @Test void searchTextPostgreSqlCannotStoreIsAFieldErrorNotAnOutage() throws Exception {
+        sendAll(live("nul",channel("nul_c",null),1,5));
+        for(String escaped:List.of("\\u0000","abc\\u0000def","\\u0000x","x\\u0000")) {   // JSON escape of a NUL character
+            for(String root:List.of("streams","channels")) {
+                String body="{\"query\":\"query($q:String){"+root+"(q:$q){items{"+(root.equals("streams")?"streamId":"handle")+"}}}\",\"variables\":{\"q\":\""+escaped+"\"}}";
+                var response=graphqlRaw(body);
+                assertThat(response.statusCode()).as(root+" "+escaped+" "+response.body()).isEqualTo(200);
+                JsonNode error=firstError(response);
+                assertThat(error.at("/extensions/code").textValue()).isEqualTo("INVALID_FILTER");
+                assertThat(error.at("/extensions/httpStatus").intValue()).isEqualTo(422);
+                assertThat(error.at("/extensions/fieldErrors/q").textValue()).isEqualTo("INVALID_TEXT");
+                assertThat(json.readTree(response.body()).at("/data/"+root).isNull()).isTrue();
+            }
+        }
+        // an unpaired surrogate is not a NUL: whatever the JSON layer decides, it must never become a server error
+        var lone=graphqlRaw("{\"query\":\"query($q:String){streams(q:$q){items{streamId}}}\",\"variables\":{\"q\":\"\\ud800\"}}");
+        assertThat(lone.statusCode()).as(lone.body()).isLessThan(500);
+        assertThat(field(streams(Map.of("q","directo nul")),"streamId")).as("normal searches are unaffected").containsExactly("str_nul");
+    }
+
     // ---- CA-05 / CA-07 filters and tombstones
 
     @Test void categoryAndSingleTagAreCombinedWithAnd() throws Exception {
