@@ -84,6 +84,19 @@ class DiscoveryQueryServiceTest {
         verifyNoInteractions(read);
     }
 
+    @Test void searchTextWithNulIsAFieldErrorBeforeAnyQueryRuns() {
+        for(String bad:new String[]{"\0","a\0b","\0x","x\0"}) {
+            assertThatThrownBy(()->service.streams(bad,null,null,null,null)).isInstanceOfSatisfying(DiscoveryException.class,e->{
+                assertThat(e.code()).isEqualTo("INVALID_FILTER");
+                assertThat(e.status()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+                assertThat(e.fieldErrors()).containsEntry("q","INVALID_TEXT");
+            });
+            assertThatThrownBy(()->service.channels(bad,null,null)).isInstanceOfSatisfying(DiscoveryException.class,
+                    e->assertThat(e.fieldErrors()).containsEntry("q","INVALID_TEXT"));
+        }
+        verifyNoInteractions(read,snapshots,catalog,projection);
+    }
+
     @Test void unknownInactiveOrWrongKindFiltersAreRejectedAsFieldErrors() {
         catalogHas(new CatalogContexts.Value(CAT,ValueType.CATEGORY,"Conversación",true),new CatalogContexts.Value(TAG,ValueType.TAG,"Español",false));
         assertThatThrownBy(()->service.streams(null,"cat_unknown",null,null,null)).isInstanceOfSatisfying(DiscoveryException.class,e->{
