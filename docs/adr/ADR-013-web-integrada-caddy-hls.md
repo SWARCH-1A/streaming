@@ -17,6 +17,10 @@ Web usa cookies HttpOnly del servidor, CSRF por operación Core y clientes same-
 TypeScript y validaciones JSON provienen del contrato canónico generado; Ajv 2020 valida respuestas
 antes de publicarlas a las vistas. Consultas independientes se ejecutan en paralelo; cambios de
 recurso cancelan lecturas y descartan respuestas tardías. Las escrituras no se reintentan solas.
+El login confirma perfil self e identidad pública antes de navegar al estudio. Las comprobaciones
+de sesión pertenecen a una generación del contexto Web y sus 401 se procesan en esa generación;
+una respuesta anónima anterior no expira un login posterior. El cliente descarta respuestas
+canceladas antes de emitir eventos de expiración y un login fallido no cierra otra sesión vigente.
 
 Caddy sirve el build estático y enruta APIs exactas, WS y HLS; no autoriza casos de negocio. No hay
 fallback HTML para APIs, realtime, HLS ni rutas privadas. El socket observado reemplaza forwarded IP;
@@ -29,6 +33,12 @@ rechaza. Solo el frame decodificado abre un lease; pausa, error, cambio de sesi�
 La expiración del servidor limita resultados de cierre/creación desconocidos. Tokens viven en memoria.
 Chat abre WS antes de solicitar historial, fusiona por secuencia y conserva clientMessageId al
 reintentar mensajes con resultado ambiguo. Una caída Chat no desmonta el player.
+
+El estudio adapta las credenciales de ingesta al cliente OBS sin cambiar el contrato del backend:
+servidor base sin credenciales y clave de retransmisión con nombre de stream y query `user`/`pass`
+que MediaMTX admite. OBS usa Servicio: Personalizado con «Usar autenticación» desactivado. El valor
+se construye en memoria tras crear/rotar la clave, se oculta por defecto y se puede copiar o
+descartar; no se guarda en storage ni se publica en URLs públicas/eventos/logs.
 
 Channels publica GET /api/channels/{channelId} con el bootstrap existente, composición local y el
 mismo batch Streaming/404/UNKNOWN. Bootstrap conserva HTTP 200; la SPA normaliza casing con history replace, sin atribuirle un status HTTP 308 que un router cliente no puede emitir. La consulta es pública para cuentas activas; no escribe ni agrega

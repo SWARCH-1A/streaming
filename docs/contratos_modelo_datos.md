@@ -116,6 +116,11 @@ HTTPS, Max-Age tiempo restante. Credencial opaca >=256 bits, solo hash en servid
 sin extensión. Login incorrecto 401 uniforme. Logout 204 idempotente, revoca inmediatamente; toda
 validación posterior rechaza. Validaciones locales Core consultan interfaz de Cuentas, sin HTTP.
 Mutaciones web/login/registro usan CSRF; GET /api/identity/csrf entrega el token de Spring Security.
+Web conserva la identidad de sesión solo en memoria y confirma `GET /api/profile/me` y el lookup
+público de identidad después de login 200. Cada comprobación aplica únicamente al intento vigente;
+los resultados de peticiones canceladas y los 401 de consultas anónimas anteriores no expiran una
+sesión posterior. Un login incorrecto no revoca una cookie válida existente. Al terminar logout,
+Web descarta el principal y toda comprobación de sesión anterior.
 
 Login: máximo cinco fallos por identificador normalizado y cincuenta por IP en ventana móvil de 15 min;
 éxito reinicia contador del identificador. Registro: diez claves nuevas/IP/hora, retry de clave no
@@ -254,8 +259,13 @@ stream; esta se crea con `POST /api/channels/{channelId}/streams` y
 secreto, en vez de crear otra. La primera respuesta `201` contiene `streamId`, campos guardados,
 `metadataVersion`, `rtmpUrl` y `streamKey` secreta. Solo se muestra esa vez. Si se pierde, owner puede rotarla
 OFFLINE con `POST /api/streams/{streamId}/ingest-keys/rotate`, que invalida la anterior y la muestra
-una vez. Al encoder se le configura rtmpUrl y streamKey como password RTMP; el secreto nunca se
-incluye en URL, respuesta pública, evento ni log.
+una vez. `rtmpUrl` conserva el endpoint completo sin credenciales y `streamKey` conserva el secreto
+sin formato de cliente. MediaMTX recibe el secreto como parámetro `pass` de publicación RTMP.
+Para OBS, Web separa `rtmpUrl` en servidor base y nombre de stream, y construye en memoria
+la clave de retransmisión `streamId?user=publisher&pass=<streamKey codificada como componente URL>`;
+se pega completa en «Clave de retransmisión», con «Usar autenticación» desactivado. El servidor
+OBS queda sin credenciales. El secreto nunca aparece en URLs públicas, eventos ni logs, y Web
+no lo persiste en storage. La query privada de publicación viaja por RTMPS en el perfil TLS.
 
 La Control API privada MediaMTX mantiene colecciones separadas RTMP y RTMPS. El adaptador consulta
 `GET /v3/rtmp/conns/get/{publisherId}` y luego `GET /v3/rtmps/conns/get/{publisherId}` ante 404;

@@ -11,11 +11,11 @@ import type {
 import { ActionLink } from '@/src/components/atoms/ActionLink';
 import { Badge } from '@/src/components/atoms/Badge';
 import { Button } from '@/src/components/atoms/Button';
-import { Input } from '@/src/components/atoms/Input';
 import { Notice } from '@/src/components/molecules/Notice';
 import { Panel } from '@/src/components/molecules/Panel';
 import { HlsPlayer } from '@/src/modules/streaming/components/HlsPlayer';
 import { LiveMetadataForm } from '@/src/modules/streaming/components/LiveMetadataForm';
+import { ObsIngestSettings } from '@/src/modules/streaming/components/ObsIngestSettings';
 import { useCatalog } from '@/src/modules/taxonomy/entry';
 import { errorMessage, HttpError, request } from '@/src/shared/api/http';
 import { useLifetime } from '@/src/shared/api/useLifetime';
@@ -28,8 +28,7 @@ export function StudioPage() {
   const [epoch, setEpoch] = useState(0),
     [secret, setSecret] = useState(''),
     [failure, setFailure] = useState(''),
-    [pending, setPending] = useState(false),
-    [visible, setVisible] = useState(false);
+    [pending, setPending] = useState(false);
   const catalog = useCatalog();
   const channel = useResource(
     `studio-channel:${user?.userId ?? ''}`,
@@ -109,31 +108,11 @@ export function StudioPage() {
           {session.data ? (
             <HlsPlayer key={session.data.sessionId} session={session.data} title={config.title} />
           ) : null}
-          <label htmlFor="ingest-url">Servidor RTMP</label>
-          <Input id="ingest-url" value={config.rtmpUrl} readOnly />
-          {secret ? (
-            <>
-              <label htmlFor="ingest-key">
-                Clave de emisión (solo se muestra en esta respuesta)
-              </label>
-              <Input id="ingest-key" value={secret} type={visible ? 'text' : 'password'} readOnly />
-              <Button
-                variant="secondary"
-                aria-pressed={visible}
-                onClick={() => setVisible((previous) => !previous)}
-              >
-                {visible ? 'Ocultar clave' : 'Mostrar clave'}
-              </Button>
-              <Button variant="ghost" onClick={() => setSecret('')}>
-                Descartar clave de esta vista
-              </Button>
-            </>
-          ) : (
-            <Notice>
-              La clave anterior no se puede consultar. Rótala cuando la emisión esté offline o
-              finalizada.
-            </Notice>
-          )}
+          <ObsIngestSettings
+            rtmpUrl={config.rtmpUrl}
+            streamKey={secret}
+            onDiscard={() => setSecret('')}
+          />
           <Button
             variant="secondary"
             disabled={pending || !['OFFLINE', 'ENDED'].includes(config.status)}

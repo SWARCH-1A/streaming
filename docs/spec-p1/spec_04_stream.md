@@ -26,7 +26,7 @@ Como broadcaster, quiero emitir una señal audiovisual desde mi canal; como espe
 
 - Cada emisión nueva incrementa `streamGeneration` monotónica por `streamId`; reconexión dentro de gracia reutiliza `sessionId`/generación y crea sourceGeneration nueva.
 
-- Crear y editar metadata tanto OFFLINE como LIVE; crear la configuración entrega una clave privada RTMP una vez y se puede rotar solo estando OFFLINE.
+- Crear y editar metadata tanto OFFLINE como LIVE; crear la configuración entrega una clave privada RTMP una vez y se puede rotar solo estando OFFLINE. Para OBS, el estudio entrega servidor base sin credenciales y clave de retransmisión completa con `streamId?user=publisher&pass=<streamKey codificada>`; se usa Servicio: Personalizado con «Usar autenticación» desactivado. El secreto permanece en memoria y conserva la entrega única/rotación existente.
 
 - Máximo una sesión no terminada por canal y cinco en plataforma contando PREPARING, LIVE y RECONNECT_GRACE; ENDED libera el slot.
 

@@ -102,14 +102,21 @@ test('real P1 owner/viewer flow, HTTP/WS/HLS, uploads, failures and keyboard', a
     await page.getByLabel('Categoría obligatoria').selectOption(categoryId);
     await page.getByRole('button', { name: tagName, exact: true }).click();
     await page.getByRole('button', { name: 'Configurar emisión', exact: true }).click();
-    await expect(page.getByLabel('Servidor RTMP', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('Servidor OBS', { exact: true })).toBeVisible();
+    const server = await page.getByLabel('Servidor OBS', { exact: true }).inputValue();
     const key = await page
-      .getByLabel('Clave de emisión (solo se muestra en esta respuesta)', { exact: true })
+      .getByLabel('Clave de retransmisión OBS (solo se muestra ahora)', { exact: true })
       .inputValue();
     const config = (await (
       await page.request.get(`/api/channels/${bootstrap.channel.channelId}/streams`)
     ).json()) as StreamConfig;
-    const url = `rtmp://mediamtx:1935/live/${config.streamId}?user=publisher&pass=${encodeURIComponent(key)}`;
+    expect(server).toBe(config.rtmpUrl.slice(0, config.rtmpUrl.lastIndexOf('/')));
+    expect(server).not.toContain('?');
+    expect(key).toMatch(new RegExp(`^${config.streamId}\\?user=publisher&pass=sk_`));
+    const encoderServer = new URL(server);
+    encoderServer.hostname = 'mediamtx';
+    encoderServer.port = '1935';
+    const url = `${encoderServer}/${key}`;
     publisher = spawn(
       'docker',
       [
@@ -296,7 +303,7 @@ test('real P1 owner/viewer flow, HTTP/WS/HLS, uploads, failures and keyboard', a
     publisher = null;
     await page.getByRole('button', { name: 'Rotar clave', exact: true }).click();
     await expect(
-      page.getByLabel('Clave de emisión (solo se muestra en esta respuesta)', { exact: true }),
+      page.getByLabel('Clave de retransmisión OBS (solo se muestra ahora)', { exact: true }),
     ).toBeVisible();
     await page.goto(`/watch/${config.streamId}`);
     await expect(page.getByText('El chat está en modo lectura.')).toBeVisible();

@@ -35,8 +35,9 @@ respondan por HTTPS. El [Compose raíz](compose.yaml) levanta estos **nueve cont
 | `proxy` | Entrada pública HTTPS y rutas Web/API/WebSocket/HLS |
 
 Abrir **[https://localhost:3445](https://localhost:3445)**. Antes, confiar en
-`infra/p1/.state-local/ca.crt` en el navegador/perfil de pruebas: importar solo ese certificado
-público como CA y reiniciar el navegador. Firefox permite importarlo en Ajustes → Privacidad y
+`infra/p1/.state-local/ca.crt` en el sistema donde corren OBS y el navegador, siguiendo la
+[guía de certificados para Linux, macOS y Windows/WSL](infra/local/certificados.md).
+Importar solo ese certificado público como CA y reiniciar ambas aplicaciones. Firefox permite importarlo en Ajustes → Privacidad y
 seguridad → Certificados → Autoridades; Chromium/Brave utiliza el gestor de certificados del
 sistema o del navegador. Los certificados de servicio duran 90 días y la CA un año.
 Una advertencia TLS indica que falta confianza o que el certificado expiró; no desactivar su verificación.
@@ -51,8 +52,11 @@ curl --fail --cacert infra/p1/.state-local/ca.crt https://localhost:3445/api/tax
 
 Registrarse en `/register` e iniciar sesión en `/login`. En `/profile` se edita el perfil y avatar;
 `/studio/channel` permite editar el canal y su portada. `/studio` crea una emisión, muestra la URL y
-clave de ingest y permite detenerla. Publicar con OBS u otro encoder compatible con **RTMPS** usando
-esos valores; el encoder también debe confiar en la CA local. Ingest usa `localhost:11938`.
+clave de ingest y permite detenerla. Para **OBS**, seleccionar Servicio: Personalizado, copiar
+«Servidor OBS» en «Servidor» y «Clave de retransmisión OBS» completa en «Clave de retransmisión»;
+desactivar «Usar autenticación». El servidor no contiene credenciales; la clave ya incluye el
+identificador de emisión y los parámetros de publicación. El encoder debe ser compatible con
+**RTMPS** y confiar en la CA local. Ingest usa `localhost:11938`.
 El perfil soporta H.264/AAC; con señal activa, abrir el canal o `/watch/{streamId}` desde otra pestaña
 para reproducir HLS y probar el chat. Discovery se actualiza desde las emisiones reales.
 
