@@ -2,7 +2,7 @@
 # through the RTMP listener and the Rust adapter's session-scoped HLS listener.
 logLevel: warn
 logStructured: true
-readTimeout: 2s
+readTimeout: 10s
 writeTimeout: 2s
 writeQueueSize: 512
 authMethod: http
