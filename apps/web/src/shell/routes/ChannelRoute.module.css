@@ -1,0 +1,45 @@
+.banner {
+  position: relative;
+  min-height: 17rem;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  display: flex;
+  align-items: end;
+  background: var(--color-surface);
+  isolation: isolate;
+}
+.banner > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: -1;
+}
+.identity {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  width: 100%;
+  padding: 3rem 2rem 2rem;
+  background: linear-gradient(transparent, rgb(13 14 18 / 90%));
+}
+.identity > span:last-child {
+  margin-left: auto;
+}
+.identity h1 {
+  overflow-wrap: anywhere;
+  font-size: clamp(1.3rem, 3vw, 2.5rem);
+}
+.identity p:last-child {
+  color: var(--color-muted);
+}
+@media (max-width: 600px) {
+  .banner {
+    min-height: 15rem;
+  }
+  .identity {
+    padding: 2.5rem 1.25rem 1.25rem;
+  }
+}

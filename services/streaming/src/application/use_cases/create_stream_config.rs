@@ -126,11 +126,7 @@ where
             return Err(CreateStreamConfigError::Forbidden);
         }
 
-        let rtmp_url = format!(
-            "{}/{}",
-            rtmp_ingest_base_url.trim_end_matches('/'),
-            result.config.stream_id.as_str()
-        );
+        let rtmp_url = rtmp_ingest_base_url.trim_end_matches('/').to_owned();
 
         Ok(CreatedStreamConfig {
             stream_id: result.config.stream_id,

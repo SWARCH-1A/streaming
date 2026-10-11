@@ -1,0 +1,57 @@
+.placeholder {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.placeholder > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.caption {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: end;
+  align-items: start;
+  gap: 0.65rem;
+  padding: clamp(1.25rem, 3vw, 2.5rem);
+  background: linear-gradient(transparent 30%, rgb(13 14 18 / 94%));
+}
+.caption h2 {
+  max-width: 28ch;
+  font-size: clamp(1.1rem, 2.2vw, 1.65rem);
+  text-wrap: balance;
+}
+.caption p {
+  max-width: 48ch;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+.marker {
+  width: 2rem;
+  height: 3px;
+  background: var(--color-primary-soft);
+  margin-bottom: 0.4rem;
+}
+
+@media (max-width: 600px) {
+  .caption {
+    padding: 1rem;
+    gap: 0.4rem;
+  }
+  .caption h2 {
+    font-size: 1rem;
+  }
+  .caption p {
+    font-size: 0.75rem;
+    line-height: 1.35;
+  }
+  .marker {
+    margin-bottom: 0.1rem;
+  }
+}

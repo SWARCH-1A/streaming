@@ -26,15 +26,17 @@ Como broadcaster, quiero emitir una señal audiovisual desde mi canal; como espe
 
 - Cada emisión nueva incrementa `streamGeneration` monotónica por `streamId`; reconexión dentro de gracia reutiliza `sessionId`/generación y crea sourceGeneration nueva.
 
-- Crear y editar metadata tanto OFFLINE como LIVE; crear la configuración entrega una clave privada RTMP una vez y se puede rotar solo estando OFFLINE.
+- Crear y editar metadata tanto OFFLINE como LIVE; crear la configuración entrega una clave privada RTMP una vez y se puede rotar solo estando OFFLINE. Para OBS, el estudio entrega servidor base sin credenciales y únicamente la clave opaca `sk_...` como clave de retransmisión, sin streamId ni parámetros de usuario/contraseña; se usa Servicio: Personalizado con «Usar autenticación» desactivado. Streaming identifica la emisión por el hash único de la clave. El secreto permanece en memoria, no se persiste en texto claro ni aparece en logs del motor, HLS público o eventos, y conserva la entrega única/rotación existente.
 
 - Máximo una sesión no terminada por canal y cinco en plataforma contando PREPARING, LIVE y RECONNECT_GRACE; ENDED libera el slot.
 
 - LIVE solo tras confirmación de medio reproducible; HLS para playback anónimo.
 
+- Media produce vistas previas JPEG de emisiones LIVE/PLAYABLE en `/hls/{sessionId}/preview.jpg`: fotograma 640×360, hasta 512 KiB, renovado como máximo una vez cada 15 s por fuente. El adaptador reutiliza la lectura HLS validada y FFmpeg con plazo de 2 s; guarda como máximo cinco imágenes en memoria durante 45 s, ligadas al publisher vigente. GET solo lee esa caché, no ejecuta FFmpeg, no persiste vídeo y no crea leases. ENDED responde 410; ausencia, caducidad o señal no reproducible responde 503. Fallar la captura no cambia estado LIVE ni interrumpe ingest/playback.
+
 - Desconexión: mantener la sesión/chat por 30 s; reconexión en ventana conserva sessionId; al expirar se finaliza y luego se crea nueva sesión.
 
-- Stop voluntario inmediato.
+- Stop voluntario inmediato del control; el player termina los segmentos de su búfer local.
 
 - Contar sesiones de reproducción anónimas/autenticadas; expirar heartbeat a 30 s.
 
@@ -72,11 +74,11 @@ Como broadcaster, quiero emitir una señal audiovisual desde mi canal; como espe
 
 - CA-02 — intento de segunda fuente en un canal con una sesión PREPARING, LIVE o RECONNECT_GRACE se rechaza; nunca hay más de cinco sesiones no terminadas a nivel de plataforma.
 
-- CA-03 — desde que el espectador solicita reproducir hasta el primer frame visible transcurren como máximo 5 s en el perfil de red/carga normal documentado por SPEC-13; el umbral es máximo, no percentil.
+- CA-03 — desde que el espectador solicita reproducir hasta el primer frame visible transcurren como máximo 5 s en el perfil de red/carga normal documentado por SPEC-13; el umbral es máximo, no percentil. Una pausa de cinco segundos no provoca error de reproducción; al reanudar se consume el búfer local disponible y, si se agotó o el punto pausado salió de la ventana HLS, se retoma desde una posición disponible de la señal.
 
 - CA-04 — pérdida de fuente pone la misma sesión en `RECONNECT_GRACE` durante 30 s; el estado de ciclo sigue activo, availability=RECONNECTING, Channel lo muestra como LIVE · reconectando, Discovery no lo ofrece en resultados reproducibles y Chat conserva lectura/escritura. Core obtiene de Streaming el timeline vigente por mensaje y lo incluye en el contexto autorizado; un mensaje cercano al segundo 29 se valida contra ese estado. Una reconexión gana solo si MediaPlaybackReady se valida antes del deadline; al medir `elapsed >= 30 s` desde la pérdida con reloj monotónico gana la finalización, transición atómica a ENDED/OFFLINE y callback tardío se ignora. Retorno posterior requiere sessionId nuevo.
 
-- CA-05 — stop del propietario finaliza inmediatamente y los cambios de estado llegan a consultas en 5 s.
+- CA-05 — stop del propietario finaliza la sesión inmediatamente y los cambios de estado llegan a consultas en 5 s. El player conserva y consume los segmentos ya descargados antes de mostrar la finalización; también permite reanudar ese búfer si estaba pausado. No descarga nuevos segmentos ni mantiene leases después de ENDED.
 
 - CA-06 — cambio de metadatos durante LIVE aparece tras confirmación en canal y Discovery dentro de la frescura definida; categoría una, tags 0–5.
 

@@ -9,6 +9,8 @@ Accesibilidad en cada recorrido: [SPEC-08](../../../../../docs/spec-p1/spec_08_a
 ## Base frontend
 
 La entrada pública es `entry.tsx`; los consumidores no importan componentes/estado internos.
-La implementación actual usa modelos de presentación y datos locales de demostración.
-Contratos e integración real siguen la SPEC del módulo. Ejecución y reglas en
+Las vistas funcionales consultan GraphQL Core con filtros, paginación y datos públicos reales.
+`previewUri` permite solicitar un JPEG de Media por HTTP, sin reproductores ni leases en el listado.
+El listado se refresca cada 10 s y el fotograma cada 15 s; una imagen ausente usa el SVG del sistema
+y reintenta a los 5 s. Las muestras locales pertenecen solo a demos explícitas y pruebas. Ejecución y reglas en
 [README Web](../../../README.md). Tests locales junto al código.

@@ -35,7 +35,7 @@ sequenceDiagram
   CH-->>S: ACK tras inbox durable
 ```
 
-LIVE no espera a Discovery ni Chat. Core no genera/recibe claves; Streaming conserva solo hash y las muestra una vez. Validación Core y commit Streaming no son transacción compartida: contextos nuevos, no cacheados, con presupuesto <=1 s. RTMP valida clave de configuración y cupo; no exige una sesión de navegador activa del encoder.
+LIVE no espera a Discovery ni Chat. Core no genera/recibe claves; Streaming conserva solo hash y las muestra una vez. Validación Core y commit Streaming no son transacción compartida: contextos nuevos, no cacheados, con presupuesto <=1 s. OBS entrega solo la clave opaca; Streaming resuelve la configuración por su hash único y RTMP valida clave y cupo; no exige una sesión de navegador activa del encoder.
 
 ## C — Pérdida, gracia, retorno y stop
 
@@ -68,7 +68,7 @@ Chat conserva una llamada Core por mensaje nuevo; Core consulta Streaming dentro
 
 ## F — Player, leases y bootstrap canal
 
-Core compone cuenta/perfil/canal localmente y solicita un batch público Streaming para bootstrap; conserva datos del canal con UNKNOWN si falla Streaming. Web obtiene playback/estado/timeline actual desde Streaming y HLS desde Media. Después de primer frame crea lease idempotente; heartbeat 10 s, expiración 30 s y cierre/ENDED inmediato. Conteo best-effort deriva de leases, no de Chat ni valores cliente. Snapshots agrupados se entregan a Discovery; no transportan tokens.
+Core compone cuenta/perfil/canal localmente y solicita un batch público Streaming para bootstrap; conserva datos del canal con UNKNOWN si falla Streaming. Web obtiene playback/estado/timeline actual desde Streaming y HLS desde Media. Después de primer frame crea lease idempotente; heartbeat 10 s, expiración 30 s y cierre/ENDED inmediato del lease. Pausar conserva el búfer de vídeo; ENDED detiene nuevas descargas y el player consume los segmentos locales antes de mostrar la finalización. Conteo best-effort deriva de leases, no de Chat ni valores cliente. Snapshots agrupados se entregan a Discovery; no transportan tokens.
 
 ## Fallos y recuperación
 

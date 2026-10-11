@@ -78,9 +78,11 @@ archivos individuales read-only para que los UID sin privilegios puedan leerlos.
 se monta. El truststore Java conserva las CA públicas del JDK y agrega la CA local; no contiene claves privadas. `changeit` es su contraseña de integridad,
 no una credencial privada. `JAVA_TOOL_OPTIONS` puede mostrarla al arrancar Java.
 
-No se instala la CA en el sistema operativo. Para uso interactivo, importar únicamente `ca.crt` en un
-perfil de navegador dedicado o usar certificados de una CA ya confiable; registrar versión y confianza
-configurada. La suite automatizada no acredita versiones estables instaladas ni lector de pantalla.
+`init` genera la CA sin instalarla en el sistema operativo. Para usar OBS y la Web, instalar
+únicamente `infra/p1/.state/ca.crt` en el sistema del cliente según la
+[guía Linux/macOS/Windows](../local/certificados.md), y reiniciar OBS y el navegador. Usar un
+perfil de navegador dedicado; registrar versión y confianza configurada.
+La suite automatizada no acredita versiones estables instaladas ni lector de pantalla.
 No publicar `.state`, cookies, DTO owner, URLs RTMPS con clave, logs multimedia, HAR o traces. Los
 errores de comandos se capturan en `.state/diagnostics.log`, que debe revisarse localmente.
 

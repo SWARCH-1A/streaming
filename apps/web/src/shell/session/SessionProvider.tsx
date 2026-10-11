@@ -15,7 +15,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async (signal?: AbortSignal, requireSession = false) => {
     const version = ++generation.current.version;
     try {
-      const profile = await request<Profile>('/api/profile/me', signal ? { signal } : {});
+      // This probe belongs to this refresh version. An anonymous response from before
+      // login must not emit a global expiration for the new session.
+      const profile = await request<Profile>('/api/profile/me', {
+        ...(signal ? { signal } : {}),
+        expireSessionOnUnauthorized: false,
+      });
       const identity = await request<PublicIdentity>(
         `/api/identity/public/users/${encodeURIComponent(profile.userId)}`,
         signal ? { signal } : {},
@@ -62,10 +67,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
   }, [refresh]);
   async function signIn(login: string, password = '') {
+    generation.current.version++;
     await request('/api/identity/sessions', {
       method: 'POST',
       body: { login, password },
       coreMutation: true,
+      expireSessionOnUnauthorized: false,
     });
     await refresh(undefined, true);
   }

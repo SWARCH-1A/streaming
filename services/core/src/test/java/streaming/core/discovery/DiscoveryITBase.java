@@ -154,7 +154,7 @@ public abstract class DiscoveryITBase {
     // --- GraphQL over the real public port
 
     protected static final String STREAMS="query Streams($q:String,$categoryId:ID,$tagId:ID,$limit:Int,$cursor:String){streams(q:$q,categoryId:$categoryId,tagId:$tagId,limit:$limit,cursor:$cursor)"
-            +"{items{streamId sessionId channel{channelId handle displayName avatarUri} title category{id name} tags{id name} status availability viewerCount viewerCountFresh "
+            +"{items{streamId sessionId previewUri channel{channelId handle displayName avatarUri} title category{id name} tags{id name} status availability viewerCount viewerCountFresh "
             +"viewerCountObservedAtUtc startedAtUtc metadataVersion sessionVersion statusFresh} nextCursor generatedAtUtc statusFresh}}";
     protected static final String CHANNELS="query Channels($q:String,$limit:Int,$cursor:String){channels(q:$q,limit:$limit,cursor:$cursor)"
             +"{items{channelId userId handle displayName avatarUri status availability title channelVersion metadataVersion sessionVersion statusFresh} nextCursor generatedAtUtc statusFresh}}";

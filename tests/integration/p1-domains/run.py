@@ -118,7 +118,7 @@ def main():
                 return result.stdout
 
             def publish(config):
-                url = "rtmp://mediamtx:1935/live/" + config["streamId"] + "?user=publisher&pass=" + urllib.parse.quote(config["streamKey"], safe="")
+                url = "rtmp://mediamtx:1935/live/" + config["streamKey"]
                 return subprocess.Popen([*command, "exec", "-T", "streaming", "sh", "-c",
                     'echo $$ > /tmp/p1-source.pid; exec "$@"', "p1", "ffmpeg", "-hide_banner", "-loglevel", "error", "-re",
                     "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=25", "-f", "lavfi", "-i", "sine=frequency=1000:sample_rate=48000",

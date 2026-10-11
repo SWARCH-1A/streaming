@@ -87,11 +87,7 @@ where
         }) {
             return Err(GetStreamConfigError::InvalidStoredData);
         }
-        let rtmp_url = format!(
-            "{}/{}",
-            rtmp_ingest_base_url.trim_end_matches('/'),
-            config.stream_id.as_str()
-        );
+        let rtmp_url = rtmp_ingest_base_url.trim_end_matches('/').to_owned();
         Ok(OwnedStreamConfigView {
             config,
             active_session,

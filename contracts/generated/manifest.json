@@ -1,12 +1,12 @@
 {
   "semantics": "docs/contratos_modelo_datos.md",
   "sha256": {
-    "discovery.graphqls": "963c1bcea2ca4b9d8506bf7610915a7c5edc4c6611cdf39d865cc63b97137d23",
-    "graphql-queries.json": "7483c15a0c662a0f844156d4c17e63c4b1f0bf4cc6cdde0c496e7a1a8ff7185b",
+    "discovery.graphqls": "9a54658bbf5dd2fc8bd84c2cd49087bd232acc2a12261a12e9e95584ecffdfcc",
+    "graphql-queries.json": "67e435c576ba0e5ec46fb709d4f25614f7a0ae1ddffa2c0a68f3e1b77571a811",
     "local-interfaces.json": "1d46fcef39a1a8bda27c42f06e210dd8ac2908a7722b39c454419f53d6ef6ecd",
-    "operations.json": "905bcffdb7481bf0c2c6b8e17b83808c24258323d83efe5d60b673ec54ef632c",
-    "p1.d.ts": "6ec12da542181684edf30889d89ee19752b9795e80b5ae2c60090a3305872348",
-    "p1.schema.json": "2b4d0e61617603daccee0f4382eab3520941a576a713a0848305c956b024fdef"
+    "operations.json": "5c8aafaa8f5c626f4262b7ae5c1bf97fc058a14cb249efa6c3e54ca8f51dbc22",
+    "p1.d.ts": "0b0780c5a7ed28c36886bd8cc9e8da0ec5c4721329ea80ab103c7b1178e7a096",
+    "p1.schema.json": "7612542347a2d9bc40f66d8088a424b0d90186bedc57edf688c984bb56a0bc29"
   },
   "source": "contracts/p1.json",
   "version": 1

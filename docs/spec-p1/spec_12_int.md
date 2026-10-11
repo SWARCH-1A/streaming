@@ -52,6 +52,12 @@ Como usuario final, quiero recorrer registro, canal, emisión, chat y búsqueda 
 
 - Links directos/refresh cargan rutas profundas; auth/401/403/expiración se comunican sin pantalla negra.
 
+- `/studio` sigue la composición de `07_08_estudio_prototipo_interactivo` de Stitch: estado de señal y métricas arriba; monitor permanente y credenciales en la columna izquierda; metadatos en la derecha. En pantallas estrechas se apilan sin desbordar. El monitor tiene formato 16:9 antes de configurar o iniciar la emisión. Estado, espectadores y tiempo de señal provienen del API; el mockup no introduce telemetría ficticia.
+
+- La portada de canal, el editor y los estados sin señal/finalizada usan `signal-grid.svg` cuando no existe bannerUri. Es un gráfico vectorial propio con la paleta y tipografía existentes; las imágenes de referencia de Stitch se reservan para demos explícitas. Una portada subida por el usuario tiene prioridad. Al finalizar, el fondo aparece después de agotar el búfer del player, sin desmontarlo anticipadamente.
+
+- Exploración presenta fotogramas reales de LIVE usando `previewUri` del contrato GraphQL; imágenes servidas por Media a través del mismo proxy. Un error de captura conserva los datos reales de la tarjeta con el fondo gráfico y reintenta la imagen.
+
 ## 6. Criterios de aceptación
 
 - **CA-01:** tabla única de rutas, puertos de desarrollo, comando, upstream, owner y health no tiene conflictos.
@@ -72,9 +78,9 @@ Como usuario final, quiero recorrer registro, canal, emisión, chat y búsqueda 
 - **CA-09:** canal por handle usa bootstrap Core; ACTIVE ya tiene canal/perfil desde commit. Inexistente/no activo 404 uniforme; Core no disponible error explícito; Streaming no disponible conserva canal/perfil con streamStatusFresh=false/UNKNOWN.
 
 - **CA-10:** todos los recorridos de la matriz SPEC-09 usan proveedores reales en el perfil integrado. Fixtures/mocks se habilitan solo en pruebas o modo demo explícito; no sustituyen una respuesta fallida. Cambiar ruta/sesión cancela suscripciones y leases anteriores y evita mostrar respuestas tardías de otro recurso.
-- **CA-11:** registro/login/logout y refresh respetan cookie opaca/CSRF/expiración; edición de perfil/avatar y canal/portada usa uploads reales y conserva datos tras error. Studio configura metadata, muestra la clave solo en la respuesta autorizada, rota solo cuando procede y permite stop owner; no guarda credenciales en storage del navegador ni obtiene identidad de datos demo.
+- **CA-11:** registro/login/logout y refresh respetan cookie opaca/CSRF/expiración. Login confirma perfil self e identidad pública antes de navegar; cada comprobación de sesión solo publica resultados del intento vigente y los 401 de consultas anónimas anteriores o peticiones canceladas no invalidan el login actual. Un login fallido comunica su error sin cerrar otra sesión vigente. Edición de perfil/avatar y canal/portada usa uploads reales y conserva datos tras error. Studio configura metadata, muestra la clave solo en la respuesta autorizada, rota solo cuando procede y permite stop owner; no guarda credenciales en storage del navegador ni obtiene identidad de datos demo. El estudio muestra botones «Copiar servidor» y «Copiar clave», independientes del programa de emisión, y permite copiar servidor base sin credenciales y únicamente la clave opaca `sk_...` como clave de retransmisión, sin streamId ni parámetros de usuario/contraseña, oculta por defecto y descartable, indicando autenticación por usuario y contraseña desactivada.
 - **CA-12:** opciones de categorías/tags provienen de GET Taxonomy y cambian sin rebuild; búsqueda/listado consume GraphQL real con filtros exactos AND, ranking/cursor y estados vacío/error/UNKNOWN. Metadata editada y labels tombstone conservan la semántica de SPEC-06/07.
-- **CA-13:** player reproduce medio real y crea lease solo tras primer frame, heartbeat 10 s y cierre/expiración 30 s; al cambiar sessionId reinicia el contexto de player/chat. Chat abre WS antes del backlog, fusiona por sequence, reintenta un envío con el mismo clientMessageId y muestra errores/read-only/retención sin detener HLS. Teclado, foco y autoscroll siguen SPEC-08.
+- **CA-13:** player reproduce medio real y crea lease solo tras primer frame, heartbeat 10 s y cierre/expiración 30 s; al cambiar sessionId reinicia el contexto de player/chat. Una pausa de cinco segundos conserva el búfer sin error; al reanudar continúa desde segmentos disponibles o la señal actual si el punto pausado ya no está disponible. ENDED cierra el lease y la carga de HLS, conserva los segmentos descargados y muestra la finalización al agotar ese búfer, incluso si el usuario debe reanudarlo. Chat abre WS antes del backlog, fusiona por sequence, reintenta un envío con el mismo clientMessageId y muestra errores/read-only/retención sin detener HLS. Teclado, foco y autoscroll siguen SPEC-08.
 
 ## 7. Diseño técnico y configuración
 

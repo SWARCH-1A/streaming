@@ -781,7 +781,7 @@
         {
           "channelId": "chn_fixture",
           "ingestKeyVersion": 1,
-          "rtmpUrl": "rtmp://localhost:1935/live/str_fixture",
+          "rtmpUrl": "rtmp://localhost:1935/live",
           "streamId": "str_fixture",
           "streamKey": "fictitious-stream-key"
         }
@@ -904,8 +904,8 @@
         {
           "action": "publish",
           "id": "00000000-0000-4000-8000-000000000001",
-          "password": "fictitious-stream-key",
-          "path": "live/str_fixture",
+          "password": "",
+          "path": "live/sk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
           "protocol": "rtmp",
           "user": ""
         }
@@ -976,6 +976,20 @@
         }
       },
       "required": [],
+      "type": "object"
+    },
+    "MediaPublisher": {
+      "additionalProperties": true,
+      "description": "Private publisher connection. Its secret ingest path is transient and never persisted, logged or exposed publicly.",
+      "examples": [
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "path": "live/sk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "state": "publish"
+        }
+      ],
+      "properties": {"id": {"format": "uuid", "type": "string"}, "path": {"type": "string"}, "state": {"type": "string"}},
+      "required": ["id", "state", "path"],
       "type": "object"
     },
     "MessageAccepted": {
@@ -1352,7 +1366,7 @@
           "categoryId": "cat_00000000000000000000000000000001",
           "channelId": "chn_fixture",
           "metadataVersion": 1,
-          "rtmpUrl": "rtmp://localhost:1935/live/str_fixture",
+          "rtmpUrl": "rtmp://localhost:1935/live",
           "sessionId": null,
           "sessionVersion": null,
           "status": "OFFLINE",
@@ -1427,7 +1441,7 @@
           "categoryId": "cat_00000000000000000000000000000001",
           "channelId": "chn_fixture",
           "metadataVersion": 1,
-          "rtmpUrl": "rtmp://localhost:1935/live/str_fixture",
+          "rtmpUrl": "rtmp://localhost:1935/live",
           "streamId": "str_fixture",
           "streamKey": "fictitious-stream-key",
           "tagIds": [],

@@ -80,4 +80,53 @@ describe('same-origin HTTP contract', () => {
     expect(expired).not.toHaveBeenCalled();
     window.removeEventListener('session-expired', expired);
   });
+  it('leaves session probes to their caller but expires the session on a protected 401', async () => {
+    const expired = vi.fn();
+    window.addEventListener('session-expired', expired);
+    try {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() =>
+          Promise.resolve(
+            json(
+              { code: 'AUTH_REQUIRED', message: 'Sesión requerida', requestId: 'req_auth' },
+              401,
+            ),
+          ),
+        ),
+      );
+      await expect(
+        request('/api/profile/me', { expireSessionOnUnauthorized: false }),
+      ).rejects.toBeInstanceOf(HttpError);
+      expect(expired).not.toHaveBeenCalled();
+      await expect(
+        request('/api/channels/chn_fixture', { method: 'PATCH' }),
+      ).rejects.toBeInstanceOf(HttpError);
+      expect(expired).toHaveBeenCalledOnce();
+    } finally {
+      window.removeEventListener('session-expired', expired);
+    }
+  });
+  it('ignores a 401 from a cancelled request even when the transport returns a late response', async () => {
+    const expired = vi.fn();
+    window.addEventListener('session-expired', expired);
+    try {
+      const controller = new AbortController();
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => {
+          controller.abort();
+          return Promise.resolve(
+            json({ code: 'AUTH_REQUIRED', message: 'Sesión requerida', requestId: 'req_old' }, 401),
+          );
+        }),
+      );
+      await expect(
+        request('/api/profile/me', { signal: controller.signal }),
+      ).rejects.toHaveProperty('name', 'AbortError');
+      expect(expired).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener('session-expired', expired);
+    }
+  });
 });

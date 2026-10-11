@@ -69,7 +69,14 @@ comparten proceso y stack; las de capacidades futuras organizan trabajo sin adel
 | Web / Accesibilidad | Criterios transversales de la única aplicación Web: teclado, semántica, foco, contraste y control de autodesplazamiento Chat. SPEC-08 y RNF-035…RNF-036; aplica a formularios, canal, player, chat y búsqueda. Comparte responsable de Catálogo por asignación del equipo, sin mezclar sus fronteras. No servicio backend ni microfrontend. Subtítulos RF-063…RF-065 son una capacidad futura de Core/Media. |
 
 Web consume los contratos generados por módulo, conserva la sesión común y monta player/Chat por sessionId.
-El proxy Caddy y el player HLS se definen en ADR-013; ejemplos visuales no son fallback funcional.
+Streaming resuelve la emisión por el hash de la clave opaca de ingesta; Media vincula el publisher autorizado a HLS por sessionId sin persistir ni exponer la clave.
+
+Media genera y conserva en RAM los fotogramas JPEG LIVE; Core/Discovery deriva `previewUri`
+por sessionId sin lecturas de red por fila. Web solicita el JPEG por el proxy, no crea leases
+en exploración y usa el gráfico propio si la captura no está disponible. SPEC-04/07/12 y ADR-013
+fijan caducidad, límites y composición del estudio.
+El proxy Caddy y el player HLS se definen en ADR-013; el player conserva segmentos locales al pausar
+y consume su búfer tras ENDED antes de mostrar la finalización. Ejemplos visuales no son fallback funcional.
 
 La instalación de equipo usa el [Compose raíz](../compose.yaml) con nueve servicios; Live es el
 nombre desplegado del módulo Streaming Rust, cuyas fuentes permanecen en services/streaming.

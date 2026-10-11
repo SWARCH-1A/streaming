@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import type { BootstrapStream, StreamPatchRequest, Taxonomy } from '@contracts/p1';
 
 import { Button } from '@/src/components/atoms/Button';
+import { Icon } from '@/src/components/atoms/Icon';
 import { Input } from '@/src/components/atoms/Input';
 import { Select } from '@/src/components/atoms/Select';
 import { FormField } from '@/src/components/molecules/FormField';
@@ -77,7 +78,11 @@ export function LiveMetadataForm({ initial, catalog, labels, creating, save }: P
     }
   }
   return (
-    <Panel>
+    <Panel className="stack">
+      <h2 style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
+        <Icon name="settings" />
+        Metadatos de la emisión
+      </h2>
       <form
         className="stack"
         onSubmit={(event) => {
@@ -85,7 +90,7 @@ export function LiveMetadataForm({ initial, catalog, labels, creating, save }: P
         }}
       >
         <fieldset disabled={pending} className="stack">
-          <legend>Metadatos de la emisión</legend>
+          <legend className="sr-only">Metadatos de la emisión</legend>
           {error ? <Notice tone="error">{error}</Notice> : null}
           <FormField
             id="stream-title"

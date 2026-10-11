@@ -5,6 +5,7 @@ mod config;
 mod handlers;
 mod mediamtx;
 mod operator;
+mod previews;
 mod repository;
 mod workers;
 
@@ -22,9 +23,20 @@ pub(crate) struct MediaState {
     config: MediaConfig,
     repository: MediaRepository,
     client: Client,
+    previews: std::sync::RwLock<std::collections::HashMap<String, previews::Preview>>,
 }
 
 type MediaError = Box<dyn std::error::Error + Send + Sync>;
+
+fn ingest_key(path: &str) -> Option<&str> {
+    let key = path.strip_prefix("live/")?;
+    let secret = key.strip_prefix("sk_")?;
+    (secret.len() == 64
+        && secret
+            .bytes()
+            .all(|b| b.is_ascii_digit() || matches!(b, b'a'..=b'f')))
+    .then_some(key)
+}
 
 /// Operator CLI only. The server is supervised by `streaming-service`.
 pub async fn run_operator_cli() -> Result<(), MediaError> {
@@ -89,6 +101,7 @@ async fn serve_inner(stopped: watch::Receiver<bool>) -> Result<(), MediaError> {
         client: crate::adapters::outbound::http_clients::build_client(Duration::from_secs(2))?,
         config,
         repository: MediaRepository::new(pool),
+        previews: Default::default(),
     });
     let (shutdown, worker_stopped) = watch::channel(false);
     let worker = tokio::spawn(workers::run(Arc::clone(&state), worker_stopped));

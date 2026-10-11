@@ -1,3 +1,9 @@
+.page {
+  display: grid;
+  gap: 1.75rem;
+  max-width: 1440px;
+  margin-inline: auto;
+}
 .heading {
   display: flex;
   align-items: center;
@@ -5,31 +11,181 @@
   flex-wrap: wrap;
   gap: 1rem;
 }
-.metrics {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2rem;
-}
-.metrics button {
-  margin-left: auto;
-}
 .grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(340px, 1fr);
+  grid-template-columns: minmax(0, 1.4fr) minmax(18rem, 1fr);
   align-items: start;
   gap: 1.5rem;
 }
-@media (max-width: 1150px) {
+.grid > * {
+  min-width: 0;
+}
+.metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+}
+.connection input {
+  font-size: 0.8125rem;
+}
+.actions {
+  display: grid;
+  gap: 0.75rem;
+  border-top: 1px solid var(--color-outline);
+  padding-top: 1.25rem;
+}
+.steps {
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 1.25rem;
+  color: var(--color-muted);
+  line-height: 1.6;
+}
+.steps li {
+  padding-left: 0.5rem;
+}
+.steps li::marker {
+  color: var(--color-primary-soft);
+  font-weight: 700;
+}
+.note {
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+  padding-inline: 0.25rem;
+  line-height: 1.6;
+}
+@media (max-width: 1050px) {
   .grid {
     grid-template-columns: 1fr;
   }
 }
 @media (max-width: 600px) {
   .metrics {
-    gap: 1.25rem;
+    gap: 0.75rem;
+  }
+  .heading nav {
+    width: 100%;
+  }
+}
+
+.navigation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border-radius: 999px;
+  background: var(--color-canvas);
+}
+.navigation > span {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-radius: 999px;
+  padding: 0.7rem 1rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+.statusStrip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+.signal {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.signal svg {
+  color: var(--color-success);
+}
+.states {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  background: var(--color-canvas);
+  padding: 0.25rem;
+  border-radius: var(--radius-sm);
+}
+.states > span {
+  padding: 0.5rem 0.75rem;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.states > .activeState {
+  color: var(--color-primary-soft);
+  background: var(--color-raised);
+  border-radius: var(--radius-sm);
+}
+.states > .liveState {
+  color: white;
+  background: var(--color-live);
+  border-radius: var(--radius-sm);
+}
+.statusStrip .metrics {
+  width: 100%;
+  align-items: center;
+  color: var(--color-text);
+}
+.metrics > div {
+  display: grid;
+  gap: 0.25rem;
+  border-right: 1px solid var(--color-outline);
+  padding-right: 1.5rem;
+}
+.metrics > div > span {
+  color: var(--color-muted);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.metrics strong {
+  font: 700 1.35rem var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+.monitorTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.monitorTitle svg {
+  color: var(--color-primary-soft);
+}
+@media (max-width: 600px) {
+  .navigation {
+    border-radius: var(--radius-lg);
+  }
+  .statusStrip .metrics {
+    gap: 1rem;
   }
   .metrics button {
     width: 100%;
   }
+  .states {
+    width: 100%;
+  }
+}
+
+.page > header {
+  display: grid;
+  justify-content: start;
+  gap: 1.25rem;
+}
+
+.page > header h1 {
+  font-size: clamp(1.35rem, 1.7vw, 1.6rem);
+  font-weight: 600;
+}
+.monitorTitle,
+.connection h2,
+.grid > aside h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
 }

@@ -17,18 +17,46 @@ Web usa cookies HttpOnly del servidor, CSRF por operación Core y clientes same-
 TypeScript y validaciones JSON provienen del contrato canónico generado; Ajv 2020 valida respuestas
 antes de publicarlas a las vistas. Consultas independientes se ejecutan en paralelo; cambios de
 recurso cancelan lecturas y descartan respuestas tardías. Las escrituras no se reintentan solas.
+El login confirma perfil self e identidad pública antes de navegar al estudio. Las comprobaciones
+de sesión pertenecen a una generación del contexto Web y sus 401 se procesan en esa generación;
+una respuesta anónima anterior no expira un login posterior. El cliente descarta respuestas
+canceladas antes de emitir eventos de expiración y un login fallido no cierra otra sesión vigente.
 
 Caddy sirve el build estático y enruta APIs exactas, WS y HLS; no autoriza casos de negocio. No hay
 fallback HTML para APIs, realtime, HLS ni rutas privadas. El socket observado reemplaza forwarded IP;
 Core confía únicamente en el proxy configurado. No se registran cuerpos, queries ni headers secretos.
 HTTP local es un perfil explícito de desarrollo; no acredita el despliegue HTTPS de SPEC-13.
 
-El player usa HLS nativo cuando existe y carga hls.js dinámicamente en los demás navegadores con
-MediaSource. Controles HTML nativos, autoplay muted opcional y gesto del usuario si el navegador lo
+El player carga hls.js dinámicamente en navegadores con MediaSource para controlar pausa y
+consumo del búfer; usa HLS nativo cuando MediaSource/hls.js no está disponible. Controles HTML nativos, autoplay muted opcional y gesto del usuario si el navegador lo
 rechaza. Solo el frame decodificado abre un lease; pausa, error, cambio de sesión y salida lo cierran.
 La expiración del servidor limita resultados de cierre/creación desconocidos. Tokens viven en memoria.
+Pausar conserva segmentos locales y reanudar usa una posición disponible, con retorno a la señal
+actual si el búfer se agotó. ENDED detiene carga y lease sin desmontar MediaSource: el player consume
+el búfer descargado, permite reanudarlo y después muestra la finalización.
 Chat abre WS antes de solicitar historial, fusiona por secuencia y conserva clientMessageId al
 reintentar mensajes con resultado ambiguo. Una caída Chat no desmonta el player.
+
+El estudio presenta `rtmpUrl` como servidor base sin credenciales y `streamKey` como única clave
+opaca de emisión. OBS usa Servicio: Personalizado con «Usar autenticación» desactivado. Streaming
+resuelve la emisión por el hash SHA-256 de la clave; MediaMTX recibe `live/{streamKey}` en RTMPS.
+El adaptador persiste solo hash e IDs y recupera la ruta secreta transitoriamente desde la conexión
+privada del publisher, verificando su hash y fuente. HLS público conserva `sessionId`; los logs del
+motor están desactivados para no registrar paths secretos. Readiness y callbacks siguen en el
+adaptador. La clave se muestra una vez, oculta, copiable y descartable, sin storage Web.
+
+Discovery entrega una URL de fotograma por sesión en GraphQL. Media reutiliza el decoder FFmpeg
+ya existente para generar JPEG 640×360 desde HLS validado, con captura periódica y caché RAM
+acotada a cinco imágenes/45 s. Solicitar imágenes nunca ejecuta procesos ni crea espectadores.
+La captura no requiere otro runtime, base o biblioteca de procesamiento; sus fallos no afectan
+la señal. El fotograma se renueva como máximo una vez cada 15 s, suficiente para exploración;
+la vista previa del estudio sigue siendo el player real.
+
+El estudio conserva monitor y credenciales a la izquierda y metadatos a la derecha, con estado
+arriba y columnas apiladas en móvil, siguiendo el export de Stitch `07_08_estudio_prototipo_interactivo`.
+Los estados offline/finalizada y los canales sin portada utilizan un SVG propio que comparte
+paleta con la Web. La finalización visual espera a que el reproductor termine su búfer.
+Autenticación y perfil usan ese gráfico; las fotografías de referencia quedan en las demos.
 
 Channels publica GET /api/channels/{channelId} con el bootstrap existente, composición local y el
 mismo batch Streaming/404/UNKNOWN. Bootstrap conserva HTTP 200; la SPA normaliza casing con history replace, sin atribuirle un status HTTP 308 que un router cliente no puede emitir. La consulta es pública para cuentas activas; no escribe ni agrega

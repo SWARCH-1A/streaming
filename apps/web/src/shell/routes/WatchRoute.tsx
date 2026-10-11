@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router';
 import type { ChannelBootstrap, PublicSession, PublicStream } from '@contracts/p1';
 
 import { Button } from '@/src/components/atoms/Button';
+import { BroadcastPlaceholder } from '@/src/components/molecules/BroadcastPlaceholder';
 import { Notice } from '@/src/components/molecules/Notice';
 import { Panel } from '@/src/components/molecules/Panel';
 import { LiveChatPanel } from '@/src/modules/chat/entry';
@@ -64,9 +65,18 @@ export function WatchRoute() {
         <div className="stack">
           <ViewErrorBoundary name="El reproductor">
             {session ? (
-              <HlsPlayer key={session.sessionId} session={session} title={stream.title} />
+              <HlsPlayer
+                key={session.sessionId}
+                session={session}
+                title={stream.title}
+                poster={channel.data?.channel.bannerUri}
+              />
             ) : (
-              <Notice>El canal está offline.</Notice>
+              <BroadcastPlaceholder
+                title="El canal está offline."
+                description="Aquí aparecerá su próxima emisión."
+                image={channel.data?.channel.bannerUri}
+              />
             )}
           </ViewErrorBoundary>
           <Panel className="stack">
@@ -78,10 +88,18 @@ export function WatchRoute() {
               <p>{channel.error ?? 'Cargando canal…'}</p>
             )}
             <p>
-              {stream.category.name} · {stream.tags.map((tag) => tag.name).join(' · ')}
+              {stream.category.name}
+              {stream.tags.length ? ` · ${stream.tags.map((tag) => tag.name).join(' · ')}` : ''}
             </p>
             <p role="status">
-              {stream.availability} · {session?.viewerCount ?? 0} espectadores
+              {stream.availability === 'PLAYABLE'
+                ? 'En vivo'
+                : stream.availability === 'RECONNECTING'
+                  ? 'Reconectando'
+                  : stream.status === 'PREPARING'
+                    ? 'Preparando señal'
+                    : 'Offline'}{' '}
+              · {session?.viewerCount ?? 0} espectadores
             </p>
           </Panel>
         </div>

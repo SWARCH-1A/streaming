@@ -15,6 +15,7 @@ export interface RequestOptions {
   signal?: AbortSignal;
   coreMutation?: boolean;
   keepalive?: boolean;
+  expireSessionOnUnauthorized?: boolean;
 }
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   if (!path.startsWith('/api/')) throw new Error('La API debe usar el mismo origen.');
@@ -45,15 +46,21 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       : {}),
     keepalive: options.keepalive ?? false,
   });
-  if (response.status === 401 && !path.includes('/viewer-leases'))
-    window.dispatchEvent(new Event('session-expired'));
+  signal.throwIfAborted();
   if (response.status === 204) return undefined as T;
   if (!response.headers.get('content-type')?.toLowerCase().includes('application/json')) {
     throw new Error(`Respuesta inesperada del servicio (${response.status}).`);
   }
   const body: unknown = await response.json();
+  signal.throwIfAborted();
   if (!response.ok) {
     const detail = body as Partial<ApiError>;
+    if (
+      response.status === 401 &&
+      options.expireSessionOnUnauthorized !== false &&
+      !path.includes('/viewer-leases')
+    )
+      window.dispatchEvent(new Event('session-expired'));
     throw new HttpError(response.status, {
       code: typeof detail?.code === 'string' ? detail.code : 'HTTP_ERROR',
       message:

@@ -42,8 +42,8 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         stop.subscribe(),
     );
     let mut servers = FuturesUnordered::new();
-    servers.push(async { server.await }.boxed());
-    servers.push(async { private.await }.boxed());
+    servers.push(server.boxed());
+    servers.push(private.boxed());
     servers.push(streaming_service::media_adapter::serve(stop.subscribe()).boxed());
     let failure = app.worker_failure_signal();
     let server_result: Result<(), Box<dyn std::error::Error + Send + Sync>> = tokio::select! {

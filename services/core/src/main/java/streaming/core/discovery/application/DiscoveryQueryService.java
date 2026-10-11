@@ -129,7 +129,7 @@ public class DiscoveryQueryService {
     private static LiveStream toStream(StreamRow row,Instant now) {
         Instant countObserved=row.viewerCountObservedAt()==null?row.stateObservedAt():row.viewerCountObservedAt();
         boolean countFresh=row.viewerCountObservedAt()!=null && FreshnessRules.fresh(row.viewerCountObservedAt(),now);
-        return new LiveStream(row.streamId(),row.sessionId(),new PublicChannel(row.channelId(),row.handle(),row.displayName(),row.avatarUri()),
+        return new LiveStream(row.streamId(),row.sessionId(),"/hls/"+row.sessionId()+"/preview.jpg",new PublicChannel(row.channelId(),row.handle(),row.displayName(),row.avatarUri()),
                 row.title(),new TaxonomyValue(row.categoryId(),row.categoryName()),
                 row.tags().stream().map(t->new TaxonomyValue(t.id(),t.name())).toList(),row.status(),row.availability(),
                 row.viewerCount(),countFresh,countObserved,row.startedAt(),row.metadataVersion(),row.sessionVersion(),true);

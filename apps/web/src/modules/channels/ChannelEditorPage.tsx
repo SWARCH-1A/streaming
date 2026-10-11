@@ -2,6 +2,8 @@ import type { FormEvent } from 'react';
 import { useState } from 'react';
 import type { ChannelBootstrap } from '@contracts/p1';
 
+import artwork from '@/public/images/signal-grid.svg';
+
 import { ActionLink } from '@/src/components/atoms/ActionLink';
 import { Button } from '@/src/components/atoms/Button';
 import { Input } from '@/src/components/atoms/Input';
@@ -14,6 +16,8 @@ import { useLifetime } from '@/src/shared/api/useLifetime';
 import { useResource } from '@/src/shared/api/useResource';
 import { codePointLength } from '@/src/shared/format';
 import { useSession } from '@/src/shell/session/useSession';
+
+import styles from './ChannelEditorPage.module.css';
 
 export function ChannelEditorPage() {
   const { user } = useSession();
@@ -68,12 +72,21 @@ function Editor({ initial }: { initial: ChannelBootstrap }) {
     }
   }
   return (
-    <div className="stack">
+    <div className={styles.editor}>
       <h1>Personalización del canal</h1>
       <p>@{initial.handle}</p>
-      {channel.bannerUri ? (
-        <img src={channel.bannerUri} alt="Portada de tu canal" style={{ maxWidth: '100%' }} />
-      ) : null}
+      <div className={styles.banner}>
+        <img
+          src={channel.bannerUri || artwork}
+          alt="Portada de tu canal"
+          width="1280"
+          height="480"
+        />
+        <div>
+          <h2>{initial.profile.displayName}</h2>
+          <p>@{initial.handle}</p>
+        </div>
+      </div>
       <Panel>
         <form
           onSubmit={(event) => {

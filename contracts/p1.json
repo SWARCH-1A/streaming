@@ -350,7 +350,7 @@
           "categoryId": "cat_00000000000000000000000000000001",
           "tagIds": [],
           "metadataVersion": 1,
-          "rtmpUrl": "rtmp://localhost:1935/live/str_fixture",
+          "rtmpUrl": "rtmp://localhost:1935/live",
           "streamKey": "fictitious-stream-key"
         }
       ]
@@ -401,7 +401,7 @@
         {
           "streamId": "str_fixture",
           "channelId": "chn_fixture",
-          "rtmpUrl": "rtmp://localhost:1935/live/str_fixture",
+          "rtmpUrl": "rtmp://localhost:1935/live",
           "streamKey": "fictitious-stream-key",
           "ingestKeyVersion": 1
         }
@@ -513,7 +513,7 @@
           "tagIds": [],
           "metadataVersion": 1,
           "streamGeneration": 0,
-          "rtmpUrl": "rtmp://localhost:1935/live/str_fixture",
+          "rtmpUrl": "rtmp://localhost:1935/live",
           "status": "OFFLINE",
           "availability": "OFFLINE",
           "statusFresh": true,
@@ -1531,9 +1531,9 @@
           "action": "publish",
           "protocol": "rtmp",
           "id": "00000000-0000-4000-8000-000000000001",
-          "path": "live/str_fixture",
+          "path": "live/sk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
           "user": "",
-          "password": "fictitious-stream-key"
+          "password": ""
         }
       ]
     },
@@ -1557,6 +1557,18 @@
       "required": [],
       "additionalProperties": true,
       "examples": [{"online": true, "ready": true, "source": {"id": "00000000-0000-4000-8000-000000000001", "type": "rtmpConn"}}]
+    },
+    "MediaPublisher": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "string", "format": "uuid"},
+        "state": {"type": "string"},
+        "path": {"type": "string"}
+      },
+      "required": ["id", "state", "path"],
+      "additionalProperties": true,
+      "description": "Private publisher connection. Its secret ingest path is transient and never persisted, logged or exposed publicly.",
+      "examples": [{"id": "00000000-0000-4000-8000-000000000001", "state": "publish", "path": "live/sk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]
     },
     "MediaControlStatus": {
       "type": "object",
@@ -2987,6 +2999,34 @@
       "traceability": "docs/spec-p1/spec_04_stream.md"
     },
     {
+      "id": "media.preview",
+      "method": "GET",
+      "path": "/hls/{sessionId}/preview.jpg",
+      "provider": "MediaAdapter",
+      "consumer": "Web",
+      "owner": "MediaAdapter",
+      "auth": "public",
+      "request": null,
+      "responses": {
+        "200": "Binary",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "422": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "none",
+      "recovery": "Use the channel artwork while the snapshot is unavailable; retry after five seconds.",
+      "spec": "SPEC-04",
+      "visibility": "public",
+      "limits": "JPEG 640x360 <=512KiB. LIVE/PLAYABLE only; capture at most once per source every 15 seconds, cache <=5 images for <=45 seconds in RAM; no-store. HTTP reads do not run FFmpeg or create viewer leases. ENDED returns 410; absent/stale snapshot returns 503.",
+      "traceability": "docs/spec-p1/spec_04_stream.md"
+    },
+    {
       "id": "media.hls",
       "method": "GET",
       "path": "/hls/{sessionId}/{file}",
@@ -3148,7 +3188,7 @@
       "recovery": "404 missing resource; other failures remain unavailable; never publish private control API",
       "spec": "SPEC-04",
       "visibility": "private",
-      "limits": "Control API is private and version-pinned by MediaMTX image; Basic service credential. Path response <=64KiB; publisherId UUID, ingestPath live/{streamId}. HLS transport bytes and readiness must be verified, not schema alone."
+      "limits": "Control API is private and version-pinned by MediaMTX image; Basic service credential. Path response <=64KiB; publisherId UUID, secret ingestPath live/{streamKey}, obtained transiently from the private publisher connection; never persist or expose it. HLS transport bytes and readiness must be verified, not schema alone."
     },
     {
       "id": "motor.path",
@@ -3165,7 +3205,7 @@
       "recovery": "404 missing resource; other failures remain unavailable; never publish private control API",
       "spec": "SPEC-04",
       "visibility": "private",
-      "limits": "Control API is private and version-pinned by MediaMTX image; Basic service credential. Path response <=64KiB; publisherId UUID, ingestPath live/{streamId}. HLS transport bytes and readiness must be verified, not schema alone."
+      "limits": "Control API is private and version-pinned by MediaMTX image; Basic service credential. Path response <=64KiB; publisherId UUID, secret ingestPath live/{streamKey}, obtained transiently from the private publisher connection; never persist or expose it. HLS transport bytes and readiness must be verified, not schema alone."
     },
     {
       "id": "motor.publisher",
@@ -3176,13 +3216,13 @@
       "owner": "MediaMTX",
       "auth": "private-basic",
       "request": null,
-      "responses": {"200": "MediaControlStatus", "400": "MediaControlError", "401": "MediaControlError", "404": "MediaControlError"},
+      "responses": {"200": "MediaPublisher", "400": "MediaControlError", "401": "MediaControlError", "404": "MediaControlError"},
       "timeoutMs": 2000,
       "idempotency": "Read-only",
       "recovery": "After RTMP 404, check RTMPS; absent only when both return 404. Other failures remain unavailable.",
       "spec": "SPEC-04",
       "visibility": "private",
-      "limits": "Control API is private and version-pinned by MediaMTX image; Basic service credential. Path response <=64KiB; publisherId UUID, ingestPath live/{streamId}. HLS transport bytes and readiness must be verified, not schema alone."
+      "limits": "Control API is private and version-pinned by MediaMTX image; Basic service credential. Path response <=64KiB; publisherId UUID, secret ingestPath live/{streamKey}, obtained transiently from the private publisher connection; never persist or expose it. HLS transport bytes and readiness must be verified, not schema alone."
     },
     {
       "id": "motor.kick",
@@ -3199,7 +3239,7 @@
       "recovery": "After RTMP 404, kick RTMPS; any 2xx succeeds, both 404 mean already gone. Other failures remain unavailable.",
       "spec": "SPEC-04",
       "visibility": "private",
-      "limits": "Control API is private and version-pinned by MediaMTX image; Basic service credential. Path response <=64KiB; publisherId UUID, ingestPath live/{streamId}. HLS transport bytes and readiness must be verified, not schema alone."
+      "limits": "Control API is private and version-pinned by MediaMTX image; Basic service credential. Path response <=64KiB; publisherId UUID, secret ingestPath live/{streamKey}, obtained transiently from the private publisher connection; never persist or expose it. HLS transport bytes and readiness must be verified, not schema alone."
     },
     {
       "id": "motor.rtmps.publisher",
@@ -3210,7 +3250,7 @@
       "owner": "MediaMTX",
       "auth": "private-basic",
       "request": null,
-      "responses": {"200": "MediaControlStatus", "400": "MediaControlError", "401": "MediaControlError", "404": "MediaControlError"},
+      "responses": {"200": "MediaPublisher", "400": "MediaControlError", "401": "MediaControlError", "404": "MediaControlError"},
       "timeoutMs": 2000,
       "idempotency": "Read-only",
       "recovery": "After RTMP 404, check RTMPS; absent only when both return 404. Other failures remain unavailable.",
@@ -3250,7 +3290,7 @@
       "recovery": "Manifest <=128KiB; initialization/media <=8MiB; real decoded-frame evidence before LIVE",
       "spec": "SPEC-04",
       "visibility": "private",
-      "limits": "Control API is private and version-pinned by MediaMTX image; Basic service credential. Path response <=64KiB; publisherId UUID, ingestPath live/{streamId}. HLS transport bytes and readiness must be verified, not schema alone."
+      "limits": "Control API is private and version-pinned by MediaMTX image; Basic service credential. Path response <=64KiB; publisherId UUID, secret ingestPath live/{streamKey}, obtained transiently from the private publisher connection; never persist or expose it. HLS transport bytes and readiness must be verified, not schema alone."
     }
   ],
   "localInterfaces": [
@@ -3279,7 +3319,7 @@
   "graphqlQueries": [
     {
       "name": "LiveStreams",
-      "query": "query LiveStreams($q:String,$categoryId:ID,$tagId:ID,$limit:Int,$cursor:String){streams(q:$q,categoryId:$categoryId,tagId:$tagId,limit:$limit,cursor:$cursor){items{streamId sessionId channel{channelId handle displayName avatarUri} title category{id name} tags{id name} status availability viewerCount viewerCountFresh viewerCountObservedAtUtc startedAtUtc metadataVersion sessionVersion statusFresh} nextCursor generatedAtUtc statusFresh}}"
+      "query": "query LiveStreams($q:String,$categoryId:ID,$tagId:ID,$limit:Int,$cursor:String){streams(q:$q,categoryId:$categoryId,tagId:$tagId,limit:$limit,cursor:$cursor){items{streamId sessionId previewUri channel{channelId handle displayName avatarUri} title category{id name} tags{id name} status availability viewerCount viewerCountFresh viewerCountObservedAtUtc startedAtUtc metadataVersion sessionVersion statusFresh} nextCursor generatedAtUtc statusFresh}}"
     },
     {
       "name": "Channels",

@@ -17,8 +17,7 @@ use uuid::Uuid;
 
 use super::MediaState;
 use crate::{
-    application::ports::ingest_authorization::IngestAuthorization,
-    domain::ids::{SessionId, StreamId},
+    application::ports::ingest_authorization::IngestAuthorization, domain::ids::SessionId,
 };
 
 pub(super) fn router(state: Arc<MediaState>) -> Router {
@@ -32,8 +31,44 @@ pub(super) fn router(state: Arc<MediaState>) -> Router {
 
 pub(super) fn hls_router(state: Arc<MediaState>) -> Router {
     Router::new()
+        .route("/hls/{session}/preview.jpg", get(preview))
         .route("/hls/{session}/{*file}", get(hls))
         .with_state(state)
+}
+
+async fn preview(State(state): State<Arc<MediaState>>, Path(session): Path<String>) -> Response {
+    if SessionId::parse(session.clone()).is_none() {
+        return error(StatusCode::NOT_FOUND, "PREVIEW_NOT_FOUND");
+    }
+    match state.session_state(&session).await {
+        Ok(value) if value.status == "LIVE" && value.availability == "PLAYABLE" => {}
+        Ok(value) if value.status == "ENDED" => return error(StatusCode::GONE, "SESSION_ENDED"),
+        _ => return error(StatusCode::SERVICE_UNAVAILABLE, "PREVIEW_UNAVAILABLE"),
+    }
+    let source = match state.repository.binding(&session).await {
+        Ok(Some(source)) if source.retired_at.is_none() && source.lost_at.is_none() => source,
+        _ => return error(StatusCode::SERVICE_UNAVAILABLE, "PREVIEW_UNAVAILABLE"),
+    };
+    let bytes = state.previews.read().ok().and_then(|cache| {
+        cache
+            .get(&session)
+            .filter(|preview| {
+                preview.publisher == source.publisher_id
+                    && preview.captured.elapsed() < std::time::Duration::from_secs(45)
+            })
+            .map(|preview| Arc::clone(&preview.bytes))
+    });
+    match bytes {
+        Some(bytes) => (
+            [
+                (header::CONTENT_TYPE, "image/jpeg"),
+                (header::CACHE_CONTROL, "no-store"),
+            ],
+            bytes.to_vec(),
+        )
+            .into_response(),
+        None => error(StatusCode::SERVICE_UNAVAILABLE, "PREVIEW_UNAVAILABLE"),
+    }
 }
 fn credential_matches(headers: &HeaderMap, expected: &str) -> bool {
     if headers.get_all(header::AUTHORIZATION).iter().count() != 1 {
@@ -109,11 +144,7 @@ async fn authorize(
             error(StatusCode::UNAUTHORIZED, "CONTROL_AUTH_REQUIRED")
         };
     }
-    let Some(stream) = request
-        .path
-        .strip_prefix("live/")
-        .and_then(|s| StreamId::parse(s.to_owned()))
-    else {
+    let Some(stream_key) = super::ingest_key(&request.path) else {
         return error(StatusCode::FORBIDDEN, "INVALID_INGEST_PATH");
     };
     let Some(id) = request.id else {
@@ -121,8 +152,8 @@ async fn authorize(
     };
     if request.action != "publish"
         || request.protocol.as_deref() != Some("rtmp")
-        || request.password.is_empty()
-        || request.password.len() > 4096
+        || !request.password.is_empty()
+        || !request.user.is_empty()
     {
         return error(StatusCode::FORBIDDEN, "PUBLISH_NOT_ALLOWED");
     }
@@ -134,7 +165,7 @@ async fn authorize(
     {
         return error(StatusCode::SERVICE_UNAVAILABLE, "MEDIA_QUEUE_CAPACITY");
     }
-    let hash = Sha256::digest(format!("{}\0{}", request.path, request.password).as_bytes());
+    let hash = Sha256::digest(stream_key.as_bytes());
     match state.repository.source(id).await {
         Ok(Some(existing)) => {
             if existing
@@ -164,9 +195,7 @@ async fn authorize(
             state.config.streaming_url
         ))
         .bearer_auth(&state.config.streaming_token)
-        .json(
-            &json!({"ingestAttemptId":id,"streamId":stream.as_str(),"streamKey":request.password}),
-        )
+        .json(&json!({"ingestAttemptId":id,"streamKey":stream_key}))
         .send()
         .await
     {
@@ -180,13 +209,7 @@ async fn authorize(
         .await
         .and_then(|bytes| serde_json::from_slice::<IngestAuthorization>(&bytes).map_err(|_| ()))
     {
-        Ok(value)
-            if value.stream_id == stream
-                && value.stream_generation > 0
-                && value.source_generation > 0 =>
-        {
-            value
-        }
+        Ok(value) if value.stream_generation > 0 && value.source_generation > 0 => value,
         _ => return error(StatusCode::BAD_GATEWAY, "INVALID_AUTHORIZATION"),
     };
     if !state
@@ -198,7 +221,8 @@ async fn authorize(
     }
     if state
         .repository
-        .save_source(id, &request.path, hash.as_slice(), &authorization)
+        // Persist the public identifier and hash, never the secret MediaMTX path.
+        .save_source(id, hash.as_slice(), &authorization)
         .await
         .is_err()
     {
@@ -259,12 +283,12 @@ async fn hls(
             Err(_) => return error(StatusCode::SERVICE_UNAVAILABLE, "STREAMING_UNAVAILABLE"),
         }
     }
-    if !state.matches_source(&source).await.unwrap_or(false) {
+    let Some(ingest_path) = state.source_path(&source).await.ok().flatten() else {
         return error(StatusCode::SERVICE_UNAVAILABLE, "SOURCE_UNAVAILABLE");
-    }
+    };
     let mut url = match reqwest::Url::parse(&format!(
         "{}/{}/{}",
-        state.config.hls_url, source.ingest_path, file
+        state.config.hls_url, ingest_path, file
     )) {
         Ok(url) => url,
         Err(_) => return error(StatusCode::SERVICE_UNAVAILABLE, "MEDIA_CONFIGURATION_ERROR"),

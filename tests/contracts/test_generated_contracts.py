@@ -27,7 +27,7 @@ class ContractGateTest(unittest.TestCase):
         operations = {(op["method"], op["path"]): op for op in self.bundle["operations"]
                       if op["provider"] == "MediaMTX"}
         for protocol in ("rtmp", "rtmps"):
-            for method, action, success in (("GET", "get", "MediaControlStatus"),
+            for method, action, success in (("GET", "get", "MediaPublisher"),
                                             ("POST", "kick", None)):
                 with self.subTest(protocol=protocol, action=action):
                     op = operations[(method, f"/v3/{protocol}/conns/{action}/{{publisherId}}")]

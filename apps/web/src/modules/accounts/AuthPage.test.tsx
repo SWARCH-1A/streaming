@@ -1,10 +1,11 @@
 import { MemoryRouter, Route, Routes } from 'react-router';
 import schema from '@contracts/p1.schema.json';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SessionProvider } from '@/src/shell/session/SessionProvider';
+import { useSession } from '@/src/shell/session/useSession';
 
 import { AuthPage } from './AuthPage';
 
@@ -142,5 +143,62 @@ describe('confirmación del inicio de sesión', () => {
     expect(screen.queryByRole('heading', { name: 'Estudio confirmado' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('Handle o correo')).toHaveValue('fixture_01');
     expect(screen.getByRole('button', { name: 'Iniciar sesión' })).toBeEnabled();
+  });
+
+  it('conserva la sesión nueva cuando la consulta anónima inicial devuelve un 401 tardío', async () => {
+    let completeAnonymous!: (response: Response) => void;
+    const anonymous = new Promise<Response>((resolve) => {
+      completeAnonymous = resolve;
+    });
+    let profileReads = 0;
+    const fetcher = vi.fn((path: string) => {
+      if (path === '/api/profile/me' && profileReads++ === 0) return anonymous;
+      const value =
+        path === '/api/identity/csrf'
+          ? schema.$defs.Csrf.examples[0]
+          : path === '/api/identity/sessions'
+            ? schema.$defs.Login.examples[0]
+            : path === '/api/profile/me'
+              ? schema.$defs.Profile.examples[0]
+              : schema.$defs.PublicIdentity.examples[0];
+      return Promise.resolve(
+        new Response(JSON.stringify(value), {
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+    });
+    vi.stubGlobal('fetch', fetcher);
+    function CurrentUser() {
+      const { user } = useSession();
+      return <p data-testid="current-user">{user?.userId ?? 'anonymous'}</p>;
+    }
+    render(
+      <SessionProvider>
+        <MemoryRouter initialEntries={['/login']}>
+          <CurrentUser />
+          <Routes>
+            <Route path="/login" element={<AuthPage mode="login" />} />
+            <Route path="/studio" element={<h1>Estudio confirmado</h1>} />
+          </Routes>
+        </MemoryRouter>
+      </SessionProvider>,
+    );
+    await submitLogin();
+    expect(await screen.findByRole('heading', { name: 'Estudio confirmado' })).toBeInTheDocument();
+    expect(screen.getByTestId('current-user')).toHaveTextContent('usr_fixture');
+    await act(async () => {
+      completeAnonymous(
+        new Response(
+          JSON.stringify({
+            code: 'AUTH_REQUIRED',
+            message: 'Se requiere una sesión activa.',
+            requestId: 'req_before_login',
+          }),
+          { status: 401, headers: { 'Content-Type': 'application/json' } },
+        ),
+      );
+      await anonymous;
+    });
+    expect(screen.getByTestId('current-user')).toHaveTextContent('usr_fixture');
   });
 });

@@ -3,7 +3,9 @@ use crate::{
     application::ports::ingest_authorization::IngestAuthorization,
     domain::ids::{SessionId, StreamId},
 };
+use sha2::{Digest, Sha256};
 use sqlx::{PgPool, postgres::PgPoolOptions};
+const FIXTURE_KEY: &str = "sk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 use std::{error::Error, time::Duration};
 use uuid::Uuid;
 type TestError = Box<dyn Error + Send + Sync>;
@@ -54,7 +56,7 @@ async fn durable_media_observations_dedupe_and_do_not_revive_a_lost_source() -> 
         source_generation: 1,
     };
     repository
-        .save_source(publisher, "live/fixture", &[1; 32], &authorization)
+        .save_source(publisher, &[1; 32], &authorization)
         .await?;
     let source = repository.source(publisher).await?.ok_or("source")?;
     repository.observe(&source, "source-connected").await?;
@@ -78,9 +80,7 @@ async fn durable_media_observations_dedupe_and_do_not_revive_a_lost_source() -> 
         source_generation: 2,
         ..authorization
     };
-    repository
-        .save_source(second, "live/fixture", &[2; 32], &next)
-        .await?;
+    repository.save_source(second, &[2; 32], &next).await?;
     let source = repository.source(second).await?.ok_or("second source")?;
     repository.observe(&source, "source-connected").await?;
     repository.observe(&source, "source-lost").await?;
@@ -103,7 +103,7 @@ async fn expired_media_claim_cannot_ack_after_waiting_for_a_row_lock() -> Result
         source_generation: 1,
     };
     repository
-        .save_source(publisher, "live/fixture", &[1; 32], &authorization)
+        .save_source(publisher, &[1; 32], &authorization)
         .await?;
     let source = repository.source(publisher).await?.ok_or("source")?;
     repository.observe(&source, "source-connected").await?;
@@ -138,8 +138,7 @@ async fn media_dead_letter_redrive_preserves_event_and_manual_close_does_not_ack
     repository
         .save_source(
             publisher,
-            "live/fixture",
-            &[1; 32],
+            Sha256::digest(FIXTURE_KEY.as_bytes()).as_slice(),
             &IngestAuthorization {
                 stream_id: StreamId::new(),
                 session_id: SessionId::new(),
@@ -206,6 +205,7 @@ async fn serve(router: axum::Router) -> Result<TestServer, TestError> {
 
 #[derive(Clone)]
 struct EngineFixture {
+    publisher: Uuid,
     session: std::sync::Arc<std::sync::Mutex<serde_json::Value>>,
     path: std::sync::Arc<std::sync::Mutex<(axum::http::StatusCode, String)>>,
     hls_reads: std::sync::Arc<std::sync::atomic::AtomicUsize>,
@@ -214,6 +214,7 @@ struct EngineFixture {
 impl EngineFixture {
     fn new(publisher: Uuid) -> Self {
         Self {
+            publisher,
             session: std::sync::Arc::new(std::sync::Mutex::new(serde_json::json!({
                 "status":"LIVE", "availability":"PLAYABLE"
             }))),
@@ -231,6 +232,9 @@ impl EngineFixture {
     fn router(&self) -> axum::Router {
         use axum::{Json, Router, extract::State, routing::get};
         Router::new()
+            .route("/v3/rtmp/conns/get/{id}", get(async |State(f): State<Self>| {
+                Json(serde_json::json!({"id":f.publisher,"state":"publish","path":format!("live/{FIXTURE_KEY}")}))
+            }))
             .route(
                 "/api/streams/sessions/{session}",
                 get(async |State(f): State<Self>| {
@@ -247,7 +251,7 @@ impl EngineFixture {
                 }),
             )
             .route(
-                "/live/fixture/{file}",
+                "/live/{key}/{file}",
                 get(async |State(f): State<Self>| {
                     f.hls_reads
                         .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -260,6 +264,7 @@ impl EngineFixture {
 fn media_state(pool: PgPool, server: &TestServer) -> Result<super::MediaState, TestError> {
     Ok(super::MediaState {
         repository: MediaRepository::new(pool),
+        previews: Default::default(),
         client: reqwest::Client::builder()
             .timeout(Duration::from_millis(200))
             .build()?,
@@ -347,7 +352,7 @@ async fn public_hls_waits_for_playable_while_private_reconnect_probe_can_read()
     let previous = Uuid::new_v4();
     state
         .repository
-        .save_source(previous, "live/fixture", &[1; 32], &authorization)
+        .save_source(previous, &[1; 32], &authorization)
         .await?;
     let old_source = state
         .repository
@@ -363,8 +368,48 @@ async fn public_hls_waits_for_playable_while_private_reconnect_probe_can_read()
     };
     state
         .repository
-        .save_source(publisher, "live/fixture", &[2; 32], &reconnect)
+        .save_source(
+            publisher,
+            Sha256::digest(FIXTURE_KEY.as_bytes()).as_slice(),
+            &reconnect,
+        )
         .await?;
+    let source = state.repository.source(publisher).await?.ok_or("source")?;
+    assert_eq!(
+        state
+            .source_path(&source)
+            .await
+            .map_err(|_| "control fixture")?,
+        Some(format!("live/{FIXTURE_KEY}"))
+    );
+    let mut wrong_key = source.clone();
+    wrong_key.request_hash = vec![0; 32];
+    assert!(
+        state
+            .source_path(&wrong_key)
+            .await
+            .map_err(|_| "control fixture")?
+            .is_none()
+    );
+    let mut wrong_publisher = source;
+    wrong_publisher.publisher_id = Uuid::new_v4();
+    assert!(
+        state
+            .source_path(&wrong_publisher)
+            .await
+            .map_err(|_| "control fixture")?
+            .is_none()
+    );
+    let stored_path: String =
+        sqlx::query_scalar("SELECT ingest_path FROM media_sources WHERE publisher_id=$1")
+            .bind(publisher)
+            .fetch_one(&pool)
+            .await?;
+    assert_eq!(
+        stored_path,
+        format!("live/{}", reconnect.stream_id.as_str())
+    );
+    assert!(!stored_path.contains(FIXTURE_KEY));
     let hls = serve(super::handlers::hls_router(state)).await?;
     let url = format!(
         "{}/hls/{}/index.m3u8",
@@ -431,8 +476,7 @@ async fn control_api_faults_do_not_record_loss_or_retire_a_connected_publisher()
         .repository
         .save_source(
             publisher,
-            "live/fixture",
-            &[1; 32],
+            Sha256::digest(FIXTURE_KEY.as_bytes()).as_slice(),
             &IngestAuthorization {
                 stream_id: StreamId::new(),
                 session_id: SessionId::new(),
@@ -489,6 +533,104 @@ async fn control_api_faults_do_not_record_loss_or_retire_a_connected_publisher()
             .fetch_one(&pool)
             .await?;
     assert_eq!(losses, 1);
+    pool.close().await;
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requiere STREAMING_TEST_DATABASE_URL PostgreSQL desechable"]
+async fn previews_are_cached_public_images_bound_to_the_active_publisher() -> Result<(), TestError>
+{
+    use axum::http::StatusCode;
+    use std::{
+        sync::{Arc, atomic::Ordering},
+        time::Instant,
+    };
+    let pool = database().await?;
+    let publisher = Uuid::new_v4();
+    let fixture = EngineFixture::new(publisher);
+    let engine = serve(fixture.router()).await?;
+    let state = Arc::new(media_state(pool.clone(), &engine)?);
+    let authorization = IngestAuthorization {
+        stream_id: StreamId::new(),
+        session_id: SessionId::new(),
+        stream_generation: 1,
+        source_generation: 1,
+    };
+    state
+        .repository
+        .save_source(publisher, &[1; 32], &authorization)
+        .await?;
+    let hls = serve(super::handlers::hls_router(Arc::clone(&state))).await?;
+    let url = format!(
+        "{}/hls/{}/preview.jpg",
+        hls.url,
+        authorization.session_id.as_str()
+    );
+    let client = reqwest::Client::new();
+    assert_eq!(
+        client.get(&url).send().await?.status(),
+        StatusCode::SERVICE_UNAVAILABLE
+    );
+    let jpeg: Arc<[u8]> = vec![0xff, 0xd8, 0xff, 0xd9].into();
+    state
+        .previews
+        .write()
+        .map_err(|_| "cache poisoned")?
+        .insert(
+            authorization.session_id.as_str().into(),
+            super::previews::Preview {
+                bytes: Arc::clone(&jpeg),
+                captured: Instant::now(),
+                publisher,
+            },
+        );
+    let response = client.get(&url).send().await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()["content-type"], "image/jpeg");
+    assert_eq!(response.headers()["cache-control"], "no-store");
+    assert_eq!(response.bytes().await?.as_ref(), jpeg.as_ref());
+    for availability in ["RECONNECTING", "OFFLINE"] {
+        *fixture.session.lock().map_err(|_| "fixture poisoned")? =
+            serde_json::json!({ "status":"LIVE", "availability":availability });
+        assert_eq!(
+            client.get(&url).send().await?.status(),
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+    }
+    *fixture.session.lock().map_err(|_| "fixture poisoned")? =
+        serde_json::json!({ "status":"LIVE", "availability":"PLAYABLE" });
+    state
+        .previews
+        .write()
+        .map_err(|_| "cache poisoned")?
+        .get_mut(authorization.session_id.as_str())
+        .ok_or("preview")?
+        .captured = Instant::now() - Duration::from_secs(46);
+    assert_eq!(
+        client.get(&url).send().await?.status(),
+        StatusCode::SERVICE_UNAVAILABLE
+    );
+    {
+        let mut cache = state.previews.write().map_err(|_| "cache poisoned")?;
+        let preview = cache
+            .get_mut(authorization.session_id.as_str())
+            .ok_or("preview")?;
+        preview.captured = Instant::now();
+        preview.publisher = Uuid::new_v4();
+    }
+    assert_eq!(
+        client.get(&url).send().await?.status(),
+        StatusCode::SERVICE_UNAVAILABLE
+    );
+    *fixture.session.lock().map_err(|_| "fixture poisoned")? =
+        serde_json::json!({ "status":"ENDED", "availability":"OFFLINE" });
+    assert_eq!(client.get(&url).send().await?.status(), StatusCode::GONE);
+    assert_eq!(
+        fixture.hls_reads.load(Ordering::Relaxed),
+        0,
+        "HTTP reads never fetch source media or run the decoder"
+    );
     pool.close().await;
     Ok(())
 }

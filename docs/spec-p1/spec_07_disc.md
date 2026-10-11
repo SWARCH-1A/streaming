@@ -30,6 +30,8 @@ Como espectador, quiero descubrir streams activos por popularidad, título, cate
 
 - Datos de consulta reflejan cambios de título/categoría/etiquetas y conteo de espectadores dentro de los límites de frescura aceptados.
 
+- Las tarjetas de emisiones LIVE muestran un fotograma real mediante `previewUri`, una ruta pública del mismo origen `/hls/{sessionId}/preview.jpg`. GraphQL entrega la URL sin consultar Media por fila; el JPEG se solicita por HTTP. Si aún no hay fotograma o falla su descarga, la tarjeta usa el fondo gráfico del sistema y vuelve a intentarlo; conserva título, canal y estado real. La vista actualiza el listado cada 10 s y las imágenes cada 15 s, con reintento de imagen a los 5 s tras error.
+
 ### Fuera de P1
 
 - Búsqueda VOD, historial de canales, recomendaciones personalizadas, relevancia ML, filtros de idioma/ubicación, selección simultánea de varios tagIds y ordenamientos alternativos.
@@ -64,6 +66,8 @@ Como espectador, quiero descubrir streams activos por popularidad, título, cate
 - CA-08: rechazar forma/costo GraphQL (aliases/fragments/introspection, >50 filas/conexión, >100 agregado, >16 KiB), 600 req/IP/60 s burst20, 429/Retry-After. IP confiable de proxy.
 - CA-09: commit de registro es puerta de visibilidad; cuenta/perfil/canal aparecen juntos, nunca PENDING/parcial. Lectura local de cuentas/canales desde SQL Core; publicación del canal no depende de eventos Streaming.
 - CA-10: estado/conteo/metadata provienen de la proyección pública Streaming aplicada en SQL Core. Cambio <=5 s con presupuesto observación/publicación <=2 s y entrega/aplicación <=3 s. viewerCountFresh=false si observación >5 s; estado no confirmado/fuera de frescura se excluye de streams y se muestra UNKNOWN en canales. ENDED no es PLAYABLE; inbox/versiones y snapshot con watermark permiten recuperación comprobable.
+
+- CA-11: cada resultado LIVE expone `previewUri` derivada de sessionId, sin stream key, usuario, contraseña ni URI privada MediaMTX. La tarjeta muestra el JPEG real cuando está disponible; ausencia/error muestra el fondo gráfico sin simular una señal. Las consultas HTTP de imagen no cuentan como espectadores ni abren leases.
 
 ## 7. Diseño técnico y datos
 
