@@ -291,3 +291,32 @@ func TestApplyEventDeduplicatesByEventID(t *testing.T) {
 		t.Fatalf("got %s", got)
 	}
 }
+
+func TestUnendedRoomsListsOnlyRoomsWithoutRetention(t *testing.T) {
+	s, mr := newStore(t)
+	ctx := context.Background()
+	s.ApplyState(ctx, state("ses_open", 1, 1, chat.RoomOpen))
+	s.Accept(ctx, input("ses_open", "u1", "c1", "hola"))
+	s.ApplyState(ctx, state("ses_ended", 1, 1, chat.RoomOpen))
+	s.Accept(ctx, input("ses_ended", "u2", "c2", "hola"))
+	s.ApplyState(ctx, state("ses_ended", 1, 2, chat.RoomReadOnly))
+	s.ApplyState(ctx, state("ses_empty", 1, 1, chat.RoomOpen)) // sin mensajes: su caché expira sola
+
+	// El fin nunca observado sobrevive a la caché de estado: sigue listado aunque room ya expiró.
+	mr.FastForward(13 * time.Hour)
+	sids, err := s.UnendedRooms(ctx)
+	if err != nil || len(sids) != 1 || sids[0] != "ses_open" {
+		t.Fatalf("solo la sala sin retención debe listarse: %v %v", sids, err)
+	}
+
+	if err := s.ExpireRoom(ctx, "ses_open"); err != nil {
+		t.Fatal(err)
+	}
+	if sids, _ := s.UnendedRooms(ctx); len(sids) != 0 {
+		t.Fatalf("una sala expirada ya no se lista: %v", sids)
+	}
+	mr.FastForward(5 * time.Minute)
+	if _, msgs, _ := s.History(ctx, "ses_open", 50); len(msgs) != 0 {
+		t.Fatal("ExpireRoom debe borrar los mensajes tras la retención")
+	}
+}

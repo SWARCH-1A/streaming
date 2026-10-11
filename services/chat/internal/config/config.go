@@ -32,6 +32,7 @@ type Config struct {
 	RoomIdleTTL         time.Duration
 	InboxTTL            time.Duration
 	ReaderBlock         time.Duration
+	RoomSweepInterval   time.Duration
 	LogLevel            string
 }
 
@@ -79,6 +80,7 @@ func Load() (Config, error) {
 		RoomIdleTTL:         dur("CHAT_ROOM_IDLE_TTL", "12h"),
 		InboxTTL:            dur("CHAT_EVENT_INBOX_TTL", "24h"),
 		ReaderBlock:         dur("CHAT_READER_BLOCK", "2s"),
+		RoomSweepInterval:   dur("CHAT_ROOM_SWEEP_INTERVAL", "1m"),
 		LogLevel:            str("CHAT_LOG_LEVEL", "info"),
 	}
 	for _, o := range strings.Split(required("CHAT_ALLOWED_ORIGINS"), ",") {

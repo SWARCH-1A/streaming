@@ -9,7 +9,7 @@ cada SPEC con su módulo y unidad desplegable. SPEC-10…SPEC-13 pertenecen a SP
 | SPEC-01 Cuentas, autenticación y perfil P1 | [spec_01_auth.md](spec_01_auth.md) |
 | SPEC-03 Canal público y propiedad P1 | [spec_03_channel.md](spec_03_channel.md) |
 | SPEC-04 Sesión en vivo e integración multimedia P1 | [spec_04_stream.md](spec_04_stream.md) |
-| SPEC-05 Chat en vivo y eventos para Replay P1 | [spec_05_chat.md](spec_05_chat.md) |
+| SPEC-05 Chat en vivo P1 | [spec_05_chat.md](spec_05_chat.md) |
 | SPEC-06 Catálogo de categorías y etiquetas P1 | [spec_06_tax.md](spec_06_tax.md) |
 | SPEC-07 Descubrimiento P1 | [spec_07_disc.md](spec_07_disc.md) |
 | SPEC-08 Accesibilidad del recorrido P1 | [spec_08_a11y.md](spec_08_a11y.md) |

@@ -36,21 +36,23 @@ func NewHub(s *store.Store, log *slog.Logger, block time.Duration) *Hub {
 // chat.ready siempre es el primer frame. Todo mensaje confirmado después llega en vivo y lo anterior
 // está en el historial que el cliente pide a continuación.
 func (h *Hub) Join(ctx context.Context, sid string, c *client, ready func(lastSequence int64) []byte) error {
+	// Redis se lee antes del bloqueo para no frenar la difusión de todas las salas. Un lastSequence
+	// algo anterior es inocuo: el cliente pide el historial después de chat.ready y fusiona por sequence.
+	last, err := h.store.LastSequence(ctx, sid)
+	if err != nil {
+		return err
+	}
+	room, err := h.store.Room(ctx, sid)
+	if err != nil {
+		return err
+	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.closed {
 		return context.Canceled
 	}
-	last, err := h.store.LastSequence(ctx, sid)
-	if err != nil {
-		return err
-	}
 	feed, ok := h.rooms[sid]
 	if !ok {
-		room, err := h.store.Room(ctx, sid)
-		if err != nil {
-			return err
-		}
 		fctx, cancel := context.WithCancel(context.Background())
 		feed = &roomFeed{clients: map[*client]struct{}{}, cancel: cancel}
 		h.rooms[sid] = feed

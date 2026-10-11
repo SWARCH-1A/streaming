@@ -1,4 +1,4 @@
-# SPEC-05 Chat en vivo y eventos para Replay P1
+# SPEC-05 Chat en vivo P1
 
 - **Módulo:** chat
 - **Padre:** Ninguno
@@ -89,7 +89,7 @@ clientMessageId con otro texto canónico da MESSAGE_ID_CONFLICT.
 
 Estado de sala recibe notificaciones Streaming de sesión deduplicadas y se reconcilia por snapshot; eventos no autorizan writes. Nuevos envíos siempre consultan autoridad. Un evento ENDED atrasado no abre una sesión vieja. Lectura de sala conocida/ENDED puede seguir sin Core; sala desconocida requiere snapshot. Origin validado también para anónimos; no es identidad.
 
-Retención: al conocer ENDED, todas las claves de la sala expiran a los 5 minutos; después el historial queda vacío. El TTL de caché de estado no elimina mensajes, secuencia ni dedupe activos;
+Retención: al conocer ENDED, todas las claves de la sala expiran a los 5 minutos; después el historial queda vacío. Un ENDED no recibido se descubre con un barrido periódico por snapshot de las salas con mensajes sin retención iniciada. El TTL de caché de estado no elimina mensajes, secuencia ni dedupe activos;
 reentregar ENDED no extiende la retención. Moderación y consultas replay futuras tendrán el mismo dueño Chat. P1 no implementa esos RF futuros ni un servicio Replay aparte.
 
 ## 8. Dependencias y contratos de integración

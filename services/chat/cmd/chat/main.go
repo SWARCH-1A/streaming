@@ -87,6 +87,21 @@ func main() {
 
 	stop, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+	sweepCtx, stopSweep := context.WithCancel(context.Background())
+	defer stopSweep()
+	// Un ENDED que nunca llegó dejaría la sala sin TTL; el barrido lo recupera por snapshot.
+	go func() {
+		ticker := time.NewTicker(cfg.RoomSweepInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-sweepCtx.Done():
+				return
+			case <-ticker.C:
+				svc.ReconcileUnendedRooms(sweepCtx)
+			}
+		}
+	}()
 	select {
 	case <-stop.Done():
 	case err := <-errc:
@@ -96,6 +111,7 @@ func main() {
 	}
 	ctx, done := context.WithTimeout(context.Background(), 10*time.Second)
 	defer done()
+	stopSweep()
 	hub.Close()
 	_ = public.Shutdown(ctx)
 	_ = internal.Shutdown(ctx)
