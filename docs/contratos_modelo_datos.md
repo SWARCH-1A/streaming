@@ -73,7 +73,7 @@ Las interfaces requieren schema neutro, correlación y presupuesto acotado.
 | POST /api/discovery/graphql | Core / Web | streams/channels, filtros/ranking/paginación locales; schema conservado abajo |
 | GET /api/chat/sessions/{sessionId}/messages; WS /realtime/chat/sessions/{sessionId} | Chat / Web | Historial 1–50, eventos/ACK, anónimo lee, autenticado escribe |
 | POST /internal/core/chat/message-context | Core / Chat | Una autorización nueva por mensaje lógico: sesión usuario + estado emisión + autor + timeline; sin caché de permisos |
-| GET /internal/core/chat/sessions/{sessionId} | Core / Chat | Snapshot de existencia/estado/generación y timeline para abrir/reconciliar sala; sin identidad privada |
+| GET /internal/core/chat/sessions/{sessionId} | Core / Chat | Snapshot de existencia/estado/generación y timeline para abrir/reconciliar sala y barrido periódico de salas sin fin observado; 404 SESSION_NOT_FOUND inicia retención; sin identidad privada |
 | POST /internal/chat/session-events | Chat / Streaming | Notificación durable idempotente de estado de emisión; no autoriza escrituras |
 | POST /internal/streaming/ingest/authorize | Streaming / adaptador Media | streamKey e ingestAttemptId; reserva idempotente de cupo en Streaming tras configuración autorizada |
 | POST /internal/streaming/sessions/{sessionId}/source-connected; /playback-ready; /source-lost | Streaming / adaptador Media | ACK durable, generaciones/eventId/path validados; detalle abajo |
@@ -431,6 +431,17 @@ GET snapshot privado de sesión al abrir/reconciliar incluye estado, generacione
 sin identidad privada. Historia de sala ya conocida ENDED puede leerse sin Core mientras Chat conserva
 su estado; apertura de sesión desconocida con Core o Streaming caído falla 503, no “sala vacía”.
 
+Barrido de retención: cada réplica Chat, cada `CHAT_ROOM_SWEEP_INTERVAL` (1 min por defecto), pide
+este snapshot una vez por cada sala con mensajes cuya retención no inició (fin no observado), en serie
+y con el mismo timeout por llamada. La carga sobre Core es como máximo réplicas × salas sin fin
+observado por intervalo; las salas que ya conocen ENDED no se consultan. Respuestas: ENDED inicia la
+retención de 5 minutos; LIVE/RECONNECTING deja la sala igual; 404 SESSION_NOT_FOUND (sesión inexistente
+para Core/Streaming) también inicia la retención, porque no hay sesión que pueda reabrir la sala;
+503 CORE_UNAVAILABLE/STREAMING_UNAVAILABLE o timeout no cambia nada y se reintenta en el siguiente
+intervalo. Una sala con retención iniciada sale del barrido; si dos réplicas la expiran en el mismo
+intervalo, la retención efectiva queda en 5 minutos desde la última, sin acumularse. El barrido nunca
+abre la sala ni autoriza escrituras.
+
 ## Eventos durables entre procesos P1
 
 Streaming guarda cambios de sesión destinados a Chat en outbox SQL dentro del commit. Dispatcher llama
@@ -444,7 +455,8 @@ se consulta a Core por contexto, así que un evento tardío no concede permiso.
 Timeout por intento 1 s; retry de red/408/429/5xx con backoff 1/2/5/10 s, luego 10 s, hasta 15 min;
 respetar Retry-After, alerta deduplicada al atraso >5 s. Al agotar/permanente, retener en dead-letter
 durable para redrive con mismo ID; no TTL automático ni pérdida silenciosa. GET snapshot repara
-estado de sala conocida al reconectar; Streaming conserva outbox sin ACK y un snapshot de sesiones por IDs. Core delega snapshots de sala a Streaming; no usa Discovery como permiso.
+estado de sala conocida al reconectar y, mediante el barrido de retención, descubre un ENDED cuyo
+evento se agotó en dead-letter; Streaming conserva outbox sin ACK y un snapshot de sesiones por IDs. Core delega snapshots de sala a Streaming; no usa Discovery como permiso.
 Para recuperar tras pérdida total de Chat, implementar enumeración paginada privada de sesiones con
 watermark/snapshot antes de declarar reconstrucción automática; no simularla con lookups puntuales.
 Esta enumeración recupera inventario/lifecycle, no texto ni ACK de mensajes. Mensajes con ACK se

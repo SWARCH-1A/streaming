@@ -48,6 +48,8 @@ Listener interno (`CHAT_INTERNAL_ADDR`, 8086), nunca publicado por el proxy:
 | `CHAT_ENDED_RETENTION` | `5m` | Tiempo legible tras ENDED antes de borrar la sala. |
 | `CHAT_ROOM_IDLE_TTL` | `12h` | TTL de caché de estado. No vence mensajes, sequence ni dedupe de una sesión activa. |
 | `CHAT_EVENT_INBOX_TTL` | `24h` | Retención de eventIds deduplicados. |
+| `CHAT_ROOM_SWEEP_INTERVAL` | `1m` | Cada cuánto se consulta el snapshot de salas con mensajes cuyo fin no se observó; un ENDED perdido inicia ahí la retención. |
+| `CHAT_READER_BLOCK` | `2s` | Espera máxima de cada lectura bloqueante del Stream de una sala. |
 | `CHAT_SESSION_COOKIE` | `stream_session` | Cookie de sesión Core. |
 | `CHAT_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error`. |
 

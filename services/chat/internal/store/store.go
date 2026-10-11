@@ -324,6 +324,41 @@ func (s *Store) ApplyState(ctx context.Context, st chat.SessionState) (ApplyResu
 	return ApplyResult(res), err
 }
 
+// UnendedRooms lista las salas con mensajes cuyo fin aún no inició la retención: su sequence no
+// tiene TTL. Sirve para reconciliar un ENDED que nunca llegó (p. ej. evento en dead-letter).
+func (s *Store) UnendedRooms(ctx context.Context) ([]string, error) {
+	var sids []string
+	iter := s.rdb.Scan(ctx, 0, "chat:{*}:seq", 100).Iterator()
+	for iter.Next(ctx) {
+		sid, ok := strings.CutPrefix(iter.Val(), "chat:{")
+		if !ok {
+			continue
+		}
+		if sid, ok = strings.CutSuffix(sid, "}:seq"); !ok || !chat.ValidSessionID(sid) {
+			continue
+		}
+		ttl, err := s.rdb.PTTL(ctx, seqKey(sid)).Result()
+		if err != nil {
+			return nil, err
+		}
+		if ttl == -1 { // -1: sin expiración; -2: la clave expiró entre SCAN y PTTL
+			sids = append(sids, sid)
+		}
+	}
+	return sids, iter.Err()
+}
+
+// ExpireRoom inicia la retención de todas las claves de una sala cuya sesión ya no existe.
+func (s *Store) ExpireRoom(ctx context.Context, sid string) error {
+	_, err := s.rdb.TxPipelined(ctx, func(p redis.Pipeliner) error {
+		for _, k := range []string{roomKey(sid), seqKey(sid), dedupeKey(sid), msgsKey(sid)} {
+			p.PExpire(ctx, k, s.opts.EndedRetention)
+		}
+		return nil
+	})
+	return err
+}
+
 // ApplyEvent registra el eventId en la inbox y aplica el estado en la misma operación atómica.
 // Reintento idéntico devuelve DUPLICATE; mismo eventId con otro fingerprint devuelve CONFLICT.
 func (s *Store) ApplyEvent(ctx context.Context, eventID, fingerprint string, st chat.SessionState) (ApplyResult, error) {

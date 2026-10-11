@@ -177,6 +177,32 @@ func displayName(mc core.MessageContext) string {
 	return mc.Handle
 }
 
+// ReconcileUnendedRooms consulta el snapshot de cada sala con mensajes cuyo fin no se observó. Un
+// ENDED perdido inicia aquí su retención y una sesión inexistente se expira; si Core no responde, la
+// sala queda igual y se reintenta en el siguiente barrido.
+func (s *Service) ReconcileUnendedRooms(ctx context.Context) {
+	sids, err := s.store.UnendedRooms(ctx)
+	if err != nil {
+		s.log.Warn("listar salas sin fin observado", "err", err)
+		return
+	}
+	for _, sid := range sids {
+		if ctx.Err() != nil {
+			return
+		}
+		status, cerr := s.ResolveRoom(ctx, sid, true)
+		ended := cerr == nil && status == chat.RoomReadOnly
+		if !ended && (cerr == nil || cerr.Code != chat.CodeSessionNotFound) {
+			continue
+		}
+		// ApplyState ya inicia la retención de un ENDED nuevo; repetirla cubre una sala terminada
+		// cuyas claves quedaron sin TTL, que ApplyState ignora por ser READ_ONLY terminal.
+		if err := s.store.ExpireRoom(ctx, sid); err != nil {
+			s.log.Warn("iniciar retención de sala", "sessionId", sid, "err", err)
+		}
+	}
+}
+
 // ApplySessionEvent registra una notificación durable de estado; no autoriza escrituras.
 func (s *Service) ApplySessionEvent(ctx context.Context, eventID, fingerprint string, st chat.SessionState) (store.ApplyResult, error) {
 	return s.store.ApplyEvent(ctx, eventID, fingerprint, st)
