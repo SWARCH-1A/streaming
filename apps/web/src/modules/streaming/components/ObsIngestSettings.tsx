@@ -1,9 +1,11 @@
 import { useState } from 'react';
 
 import { Button } from '@/src/components/atoms/Button';
+import { Icon } from '@/src/components/atoms/Icon';
 import { Input } from '@/src/components/atoms/Input';
 import { Notice } from '@/src/components/molecules/Notice';
-import { obsIngest } from '@/src/modules/streaming/obsIngest';
+
+import styles from './ObsIngestSettings.module.css';
 
 export function ObsIngestSettings({
   rtmpUrl,
@@ -16,7 +18,6 @@ export function ObsIngestSettings({
 }) {
   const [visible, setVisible] = useState(false);
   const [message, setMessage] = useState('');
-  const settings = obsIngest(rtmpUrl, streamKey);
 
   async function copy(value: string, label: string) {
     try {
@@ -29,39 +30,39 @@ export function ObsIngestSettings({
 
   return (
     <div className="stack">
-      <h2>Configuración para OBS</h2>
+      <h2 className={styles.heading}>
+        <Icon name="key" />
+        Credenciales de emisión
+      </h2>
       <p>
-        En Ajustes → Emisión, selecciona Servicio: Personalizado. Pega estos valores en «Servidor» y
-        «Clave de retransmisión» y desactiva «Usar autenticación».
+        Usa estos valores como servidor y clave de retransmisión en tu programa de emisión.
+        Desactiva la autenticación por usuario y contraseña.
       </p>
-      <label htmlFor="ingest-url">Servidor OBS</label>
-      <Input id="ingest-url" value={settings.server} readOnly />
-      <Button
-        variant="secondary"
-        onClick={() => {
-          void copy(settings.server, 'Servidor copiado.');
-        }}
-      >
-        Copiar servidor
-      </Button>
+      <label htmlFor="ingest-url">Servidor</label>
+      <div className={styles.copyRow}>
+        <Input id="ingest-url" value={rtmpUrl} readOnly />
+        <Button
+          variant="secondary"
+          onClick={() => {
+            void copy(rtmpUrl, 'Servidor copiado.');
+          }}
+        >
+          <Icon name="copy" /> Copiar servidor
+        </Button>
+      </div>
       {streamKey ? (
         <>
-          <label htmlFor="ingest-key">Clave de retransmisión OBS (solo se muestra ahora)</label>
-          <Input
-            id="ingest-key"
-            value={settings.key}
-            type={visible ? 'text' : 'password'}
-            readOnly
-          />
-          <p>La clave incluye todos los datos de publicación. Cópiala completa en OBS.</p>
+          <label htmlFor="ingest-key">Clave de retransmisión (solo se muestra ahora)</label>
+          <Input id="ingest-key" value={streamKey} type={visible ? 'text' : 'password'} readOnly />
+          <p>La clave es privada y solo se muestra ahora. Guárdala en un lugar seguro.</p>
           <div className="row">
             <Button
               variant="secondary"
               onClick={() => {
-                void copy(settings.key, 'Clave copiada.');
+                void copy(streamKey, 'Clave copiada.');
               }}
             >
-              Copiar clave para OBS
+              Copiar clave
             </Button>
             <Button
               variant="secondary"

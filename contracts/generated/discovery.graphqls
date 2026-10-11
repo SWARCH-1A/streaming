@@ -13,6 +13,7 @@ type StreamConnection {
 type LiveStream {
   streamId: ID!
   sessionId: ID!
+  previewUri: String!
   channel: PublicChannel!
   title: String!
   category: TaxonomyValue!

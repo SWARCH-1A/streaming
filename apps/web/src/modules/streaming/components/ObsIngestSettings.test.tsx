@@ -4,30 +4,30 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ObsIngestSettings } from './ObsIngestSettings';
 
-const rtmpUrl = 'rtmps://localhost:11936/live/str_fixture';
+const rtmpUrl = 'rtmps://localhost:11936/live';
 
-describe('configuración OBS', () => {
-  it('copia un servidor limpio y una clave que conserva path y contraseña al publicarse', async () => {
+describe('configuración de emisión', () => {
+  it('copia un servidor limpio y únicamente la clave opaca de emisión', async () => {
     const user = userEvent.setup();
-    const streamKey = 'fixture+password&with?reserved=/characters';
+    const streamKey = `sk_${'a'.repeat(64)}`;
     render(<ObsIngestSettings rtmpUrl={rtmpUrl} streamKey={streamKey} onDiscard={vi.fn()} />);
-    const server = screen.getByLabelText('Servidor OBS');
-    const key = screen.getByLabelText('Clave de retransmisión OBS (solo se muestra ahora)');
+    const server = screen.getByLabelText('Servidor');
+    const key = screen.getByLabelText('Clave de retransmisión (solo se muestra ahora)');
     expect(server).toHaveValue('rtmps://localhost:11936/live');
     expect(key).toHaveAttribute('type', 'password');
-    const expectedKey = `str_fixture?user=publisher&pass=${encodeURIComponent(streamKey)}`;
-    expect(key).toHaveValue(expectedKey);
-    const publish = new URL(`rtmps://localhost:11936/live/${expectedKey}`);
-    expect(publish.pathname).toBe('/live/str_fixture');
-    expect(publish.searchParams.get('user')).toBe('publisher');
-    expect(publish.searchParams.get('pass')).toBe(streamKey);
-    expect(screen.getByText(/desactiva «Usar autenticación»/)).toBeInTheDocument();
+    expect(key).toHaveValue(streamKey);
+    const publish = new URL(`rtmps://localhost:11936/live/${streamKey}`);
+    expect(publish.pathname).toBe(`/live/${streamKey}`);
+    expect(publish.search).toBe('');
+    expect(
+      screen.getByText(/Desactiva la autenticación por usuario y contraseña/),
+    ).toBeInTheDocument();
 
     const clipboard = vi.spyOn(navigator.clipboard, 'writeText');
     await user.click(screen.getByRole('button', { name: 'Copiar servidor' }));
     expect(clipboard).toHaveBeenLastCalledWith('rtmps://localhost:11936/live');
-    await user.click(screen.getByRole('button', { name: 'Copiar clave para OBS' }));
-    expect(clipboard).toHaveBeenLastCalledWith(expectedKey);
+    await user.click(screen.getByRole('button', { name: 'Copiar clave' }));
+    expect(clipboard).toHaveBeenLastCalledWith(streamKey);
     expect(screen.getByRole('status')).toHaveTextContent('Clave copiada.');
     expect(screen.getByRole('status')).not.toHaveTextContent(streamKey);
   });
@@ -39,14 +39,14 @@ describe('configuración OBS', () => {
       <ObsIngestSettings rtmpUrl={rtmpUrl} streamKey="fixture-only" onDiscard={onDiscard} />,
     );
     await user.click(screen.getByRole('button', { name: 'Mostrar clave' }));
-    expect(screen.getByLabelText(/Clave de retransmisión OBS/)).toHaveAttribute('type', 'text');
+    expect(screen.getByLabelText(/Clave de retransmisión/)).toHaveAttribute('type', 'text');
     await user.click(screen.getByRole('button', { name: 'Ocultar clave' }));
-    expect(screen.getByLabelText(/Clave de retransmisión OBS/)).toHaveAttribute('type', 'password');
+    expect(screen.getByLabelText(/Clave de retransmisión/)).toHaveAttribute('type', 'password');
     await user.click(screen.getByRole('button', { name: 'Descartar clave de esta vista' }));
     expect(onDiscard).toHaveBeenCalledOnce();
     rerender(<ObsIngestSettings rtmpUrl={rtmpUrl} streamKey="" onDiscard={onDiscard} />);
-    expect(screen.queryByLabelText(/Clave de retransmisión OBS/)).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Servidor OBS')).toHaveValue('rtmps://localhost:11936/live');
+    expect(screen.queryByLabelText(/Clave de retransmisión/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Servidor')).toHaveValue('rtmps://localhost:11936/live');
     expect(screen.getByText(/La clave anterior no se puede consultar/)).toBeInTheDocument();
   });
 
@@ -54,7 +54,7 @@ describe('configuración OBS', () => {
     const user = userEvent.setup();
     vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('Clipboard denied'));
     render(<ObsIngestSettings rtmpUrl={rtmpUrl} streamKey="fixture-only" onDiscard={vi.fn()} />);
-    await user.click(screen.getByRole('button', { name: 'Copiar clave para OBS' }));
+    await user.click(screen.getByRole('button', { name: 'Copiar clave' }));
     expect(screen.getByRole('status')).toHaveTextContent('Selecciona el campo y copia');
   });
 });

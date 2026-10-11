@@ -157,6 +157,8 @@ channel contiene exactamente los campos del ejemplo; description inicial vacía 
 profile tiene el mismo contrato que GET perfil público. streamStatusFresh/availability son campos obligatorios del bootstrap: snapshot confirmado usa su disponibilidad y true; ausencia confirmada de configuración usa OFFLINE/true. stream es null si no hay configuración;
 si existe, contiene el snapshot público autoritativo obtenido por Core mediante batch de canales Streaming y un campo session con el snapshot de sesión/timeline (null antes de la primera emisión).
 Session ENDED conserva su identidad y availability=OFFLINE; playbackUrl es null fuera de PLAYABLE.
+Ese estado detiene nuevas descargas y leases; el player puede terminar los segmentos ya descargados
+antes de mostrar la finalización, sin modificar el estado autoritativo ni habilitar VOD.
 Core obtiene cuenta/perfil/canal localmente y hace una consulta batch de snapshots públicos a Streaming para este bootstrap. Una respuesta confirma ausencia/configuración/sesión; falla Streaming devuelve stream:null, streamStatusFresh:false y availability:UNKNOWN, conservando el canal/perfil. No se interpreta el fallo como OFFLINE. Discovery no usa este batch por fila.
 Handle se busca sin distinguir mayúsculas; inexistente/no activo da 404 uniforme, fallo Core/SQL 503.
 Web usa el handle devuelto para reemplazar el casing de su URL por la forma canónica sin añadir historial y monta player/Chat desde
@@ -172,7 +174,6 @@ límite defensivo de 40 MP. Publicar antes de commit, conservar archivo anterior
 reconciliar objetos sin referencias después de una gracia de un día. Las portadas se sirven en
 /api/channels/banners/{key}. Las lecturas de imagen requieren Accept compatible con su tipo binario (image/* o */*); un Accept incompatible devuelve 406 NOT_ACCEPTABLE. Cuenta/canal desconocidos dan 404; otro usuario 403, sin sesión 401,
 CSRF inválido 403, carga inválida 400 INVALID_BANNER (413 si excede el límite HTTP).
-
 
 El limitador Discovery conserva buckets/eventos de cuota en SQL Core, compartidos entre réplicas;
 la clave es HMAC de la IP observada con contexto Discovery. No expone IP ni credenciales en DTO,
@@ -259,13 +260,34 @@ stream; esta se crea con `POST /api/channels/{channelId}/streams` y
 secreto, en vez de crear otra. La primera respuesta `201` contiene `streamId`, campos guardados,
 `metadataVersion`, `rtmpUrl` y `streamKey` secreta. Solo se muestra esa vez. Si se pierde, owner puede rotarla
 OFFLINE con `POST /api/streams/{streamId}/ingest-keys/rotate`, que invalida la anterior y la muestra
-una vez. `rtmpUrl` conserva el endpoint completo sin credenciales y `streamKey` conserva el secreto
-sin formato de cliente. MediaMTX recibe el secreto como parámetro `pass` de publicación RTMP.
-Para OBS, Web separa `rtmpUrl` en servidor base y nombre de stream, y construye en memoria
-la clave de retransmisión `streamId?user=publisher&pass=<streamKey codificada como componente URL>`;
-se pega completa en «Clave de retransmisión», con «Usar autenticación» desactivado. El servidor
-OBS queda sin credenciales. El secreto nunca aparece en URLs públicas, eventos ni logs, y Web
-no lo persiste en storage. La query privada de publicación viaja por RTMPS en el perfil TLS.
+una vez. `rtmpUrl` es el servidor base sin credenciales (por ejemplo `rtmps://localhost:11938/live`)
+y `streamKey` es una clave opaca `sk_` seguida de 64 caracteres hexadecimales aleatorios (256 bits).
+En OBS se pegan directamente en «Servidor» y «Clave de retransmisión», con Servicio: Personalizado
+y «Usar autenticación» desactivado. No se añade streamId, usuario ni contraseña.
+
+MediaMTX recibe la publicación privada en `live/{streamKey}`; el adaptador extrae la clave y
+Streaming busca su hash SHA-256 único para resolver y autorizar la emisión. Las bases guardan
+solo hashes, IDs y la ruta canónica no secreta `live/{streamId}`, nunca la ruta privada con la clave.
+El adaptador obtiene la ruta real transitoriamente desde la conexión del publisher en la Control API
+privada y verifica publisherId, hash y fuente antes de servir HLS. Playback público conserva
+`/hls/{sessionId}/...`; el secreto no aparece en URLs públicas, respuestas públicas ni eventos.
+
+**Vista previa pública.** `LiveStream.previewUri: String!` contiene exclusivamente
+`/hls/{sessionId}/preview.jpg`. Core deriva esta URL desde su proyección de sesión, sin llamadas
+HTTP por fila ni bytes de imagen en GraphQL. Media ofrece GET anónimo con `image/jpeg`,
+`Cache-Control: no-store`, resolución 640×360 y máximo 512 KiB. Un worker del adaptador captura
+un fotograma de HLS solo en LIVE/PLAYABLE, como máximo una vez cada 15 s por fuente. La caché
+es local en RAM, contiene hasta cinco imágenes, caduca a los 45 s y valida el publisher vigente.
+No hay persistencia de imágenes, VOD, jobs adicionales ni leases de espectador.
+HTTP no dispara decodificación: 503 `PREVIEW_UNAVAILABLE` si falta una captura vigente o la señal
+no está reproducible, 410 `SESSION_ENDED` tras finalizar. FFmpeg recibe solo archivos privados
+con bytes HLS validados, nunca la URL privada, clave o credenciales; conserva plazo de 2 s y limpieza
+de temporales. Una captura fallida no modifica disponibilidad ni corta la señal. Web valida que la
+URL coincide con sessionId, muestra el fondo gráfico ante error y reintenta a los 5 s; con éxito
+actualiza cada 15 s. El listado se vuelve a consultar cada 10 s.
+Los logs del motor MediaMTX están desactivados porque sus mensajes incluyen paths privados;
+readiness y callbacks se observan mediante el adaptador. Web mantiene la clave solo en memoria,
+oculta y descartable. En despliegue la publicación y las llamadas privadas usan TLS.
 
 La Control API privada MediaMTX mantiene colecciones separadas RTMP y RTMPS. El adaptador consulta
 `GET /v3/rtmp/conns/get/{publisherId}` y luego `GET /v3/rtmps/conns/get/{publisherId}` ante 404;
@@ -528,6 +550,7 @@ type StreamConnection {
 type LiveStream {
   streamId: ID!
   sessionId: ID!
+  previewUri: String!
   channel: PublicChannel!
   title: String!
   category: TaxonomyValue!
@@ -613,7 +636,6 @@ establecer la IP confiable para que este límite no sea evadible mediante header
 ```
 
 Vocabulario: `status` de un canal es `LIVE`, `OFFLINE` o `UNKNOWN`; `availability` es `PLAYABLE`, `RECONNECTING`, `OFFLINE` o `UNKNOWN`. Un canal sin fila de proyección es `OFFLINE` solo si un corte completo de menos de 5 s confirma que no tiene configuración; de lo contrario `UNKNOWN`. `limit` menor que 1 o sin sentido numérico válido produce `INVALID_LIMIT`; mayor que 50, `QUERY_LIMIT_EXCEEDED`. Un error de campo (`INVALID_FILTER`, `INVALID_LIMIT`, `INVALID_CURSOR`) responde HTTP 200 con `extensions.httpStatus=422` y deja intactos los demás campos; cuerpo, sintaxis o variables inválidos responden `400 BAD_REQUEST`; un Content-Type distinto de `application/json`, `415`. La consulta pública es de solo lectura, no usa la cookie de sesión y por eso queda fuera de la protección CSRF. El cursor de `streams` es `snapshotId.offset` sobre un snapshot de ranking de 5 min atado al filtro; expirado o de otro filtro da `INVALID_CURSOR`. El cursor de `channels` es de clave y no tiene estado. Sin coincidencias devuelve una conexión válida con `items: []` y `nextCursor: null`. Las lecturas de Discovery identifican la freshness de estado y conteo por fila; `statusFresh` y `viewerCountFresh` son señales independientes. Si no se puede confirmar el estado actual, no afirman PLAYABLE ni inventan OFFLINE: canales pueden tener availability=UNKNOWN con `statusFresh=false`; streams no confirmados se excluyen de resultados reproducibles. Si un proveedor falla, devolver error 503/504 con requestId; los root fields GraphQL independientes conservan los datos que sí se pudieron obtener.
-
 
 Las lecturas SQL entre módulos Core usan vistas/proyecciones de lectura publicadas por el dueño,
 columnas explícitas y permisos de solo lectura; no acceso irrestricto a tablas privadas. Son contrato

@@ -30,6 +30,7 @@ class DiscoveryIT extends DiscoveryITBase {
         var result=streams(Map.of());
 
         assertThat(field(result,"streamId")).containsExactly("str_d","str_b","str_c","str_a");
+        assertThat(result.get("items")).allSatisfy(item -> assertThat(item.get("previewUri").textValue()).isEqualTo("/hls/"+item.get("sessionId").textValue()+"/preview.jpg"));
         assertThat(result.get("nextCursor").isNull()).isTrue();
         assertThat(result.get("statusFresh").booleanValue()).isTrue();
         assertThat(count("discovery.ranking_snapshots")).as("a single page needs no frozen ordering").isZero();

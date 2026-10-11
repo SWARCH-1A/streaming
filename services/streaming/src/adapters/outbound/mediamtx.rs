@@ -174,7 +174,7 @@ impl MediaServerGateway for MediaMtxHlsGateway {
     }
 }
 
-fn find_segment_uri(playlist: &str) -> Option<&str> {
+pub(crate) fn find_segment_uri(playlist: &str) -> Option<&str> {
     playlist.lines().find_map(|line| {
         let line = line.trim();
         if let Some(attributes) = line.strip_prefix("#EXT-X-PART:") {
@@ -226,7 +226,7 @@ fn valid_manifest_path(path: &str) -> bool {
         })
 }
 
-fn resolve_segment_url(manifest_url: &Url, segment_reference: &str) -> Option<Url> {
+pub(crate) fn resolve_segment_url(manifest_url: &Url, segment_reference: &str) -> Option<Url> {
     if !valid_segment_uri(segment_reference) {
         return None;
     }
@@ -244,12 +244,12 @@ fn same_origin(left: &Url, right: &Url) -> bool {
         && left.port_or_known_default() == right.port_or_known_default()
 }
 
-fn uri_attribute(attributes: &str) -> Option<&str> {
+pub(crate) fn uri_attribute(attributes: &str) -> Option<&str> {
     let start = attributes.find("URI=\"")? + 5;
     let tail = attributes.get(start..)?;
     tail.get(..tail.find('"')?)
 }
-fn find_variant_uri(playlist: &str) -> Option<&str> {
+pub(crate) fn find_variant_uri(playlist: &str) -> Option<&str> {
     let mut next = false;
     for line in playlist.lines().map(str::trim) {
         if line.starts_with("#EXT-X-STREAM-INF:") {
@@ -260,7 +260,7 @@ fn find_variant_uri(playlist: &str) -> Option<&str> {
     }
     None
 }
-fn resolve_reference(manifest: &Url, reference: &str, suffix: &str) -> Option<Url> {
+pub(crate) fn resolve_reference(manifest: &Url, reference: &str, suffix: &str) -> Option<Url> {
     if !reference.ends_with(suffix)
         || reference.starts_with('/')
         || reference.contains(['?', '#', '\\', '%', ':'])

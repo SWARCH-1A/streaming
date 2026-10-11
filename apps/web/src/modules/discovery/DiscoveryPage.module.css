@@ -8,7 +8,7 @@
   display: flex;
   align-items: end;
   flex-wrap: wrap;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 1rem;
 }
 .filters select {
@@ -33,4 +33,85 @@
 
 .page > section {
   min-width: 0;
+}
+
+.streams {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  gap: 1.8rem 1.25rem;
+}
+.stream {
+  min-width: 0;
+}
+.preview {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+.preview > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.preview:hover > img {
+  filter: brightness(1.08);
+}
+.preview > img {
+  transition: filter 180ms;
+}
+.live {
+  position: absolute;
+  left: 0.75rem;
+  top: 0.75rem;
+}
+.viewers {
+  position: absolute;
+  bottom: 0.75rem;
+  right: 0.75rem;
+  background: rgb(13 14 18 / 88%);
+  border-radius: 0.3rem;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+.metadata {
+  display: flex;
+  gap: 0.85rem;
+  padding: 1rem 0.1rem 0;
+}
+.details {
+  min-width: 0;
+}
+.details h3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1rem;
+}
+.details p,
+.channel {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+}
+.channel {
+  display: inline-block;
+  padding: 0.3rem 0;
+}
+.channel:hover {
+  color: var(--color-primary-soft);
+}
+.page section > h2 {
+  margin-bottom: 0.5rem;
+}
+.page section > p {
+  margin-bottom: 1.5rem;
+}
+
+.filters > button {
+  margin-left: auto;
 }

@@ -206,6 +206,7 @@ class DiscoveryQueryServiceTest {
         when(read.streams(anyList(),any(),any())).thenReturn(List.of(row("a",9,NOW)));
         var s=service.streams(null,null,null,null,null).items().getFirst();
         assertThat(s.sessionId()).isEqualTo("ses_a");
+        assertThat(s.previewUri()).isEqualTo("/hls/ses_a/preview.jpg");
         assertThat(s.channel().handle()).isEqualTo("h_a");
         assertThat(s.category().id()).isEqualTo(CAT);
         assertThat(s.tags()).extracting(t->t.id()).containsExactly(TAG);

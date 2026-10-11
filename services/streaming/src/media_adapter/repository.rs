@@ -16,7 +16,6 @@ pub(super) struct Source {
     pub session_id: String,
     pub stream_generation: i64,
     pub source_generation: i64,
-    pub ingest_path: String,
     pub request_hash: Vec<u8>,
     pub created_at: OffsetDateTime,
     pub connected_at: Option<OffsetDateTime>,
@@ -45,13 +44,13 @@ impl MediaRepository {
     pub async fn save_source(
         &self,
         id: Uuid,
-        path: &str,
         hash: &[u8],
         authorization: &IngestAuthorization,
     ) -> Result<(), sqlx::Error> {
         sqlx::query("INSERT INTO media_sources (publisher_id,stream_id,session_id,stream_generation,source_generation,ingest_path,request_hash) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (publisher_id) DO NOTHING")
             .bind(id).bind(authorization.stream_id.as_str()).bind(authorization.session_id.as_str())
-            .bind(authorization.stream_generation).bind(authorization.source_generation).bind(path).bind(hash)
+            .bind(authorization.stream_generation).bind(authorization.source_generation)
+            .bind(format!("live/{}", authorization.stream_id.as_str())).bind(hash)
             .execute(&self.pool).await?;
         Ok(())
     }

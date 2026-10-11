@@ -2,12 +2,17 @@ import { useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import type { ChannelBootstrap } from '@contracts/p1';
 
+import artwork from '@/public/images/signal-grid.svg';
+
+import { ActionLink } from '@/src/components/atoms/ActionLink';
 import { Avatar } from '@/src/components/atoms/Avatar';
 import { Badge } from '@/src/components/atoms/Badge';
 import { Notice } from '@/src/components/molecules/Notice';
 import { Panel } from '@/src/components/molecules/Panel';
 import { request } from '@/src/shared/api/http';
 import { useResource } from '@/src/shared/api/useResource';
+
+import styles from './ChannelRoute.module.css';
 
 export function ChannelRoute() {
   const { handle = '' } = useParams();
@@ -30,25 +35,30 @@ export function ChannelRoute() {
   const { channel, profile, stream, availability } = resource.data;
   return (
     <div className="stack">
-      {channel.bannerUri ? (
-        <img
-          src={channel.bannerUri}
-          alt=""
-          style={{ maxWidth: '100%', maxHeight: '18rem', objectFit: 'cover' }}
-        />
-      ) : null}
-      <div className="row">
-        <Avatar
-          name={profile.displayName}
-          {...(profile.avatarUri ? { src: profile.avatarUri } : {})}
-          size="lg"
-        />
-        <div>
-          <h1>{profile.displayName}</h1>
-          <p>@{canonical}</p>
+      <header className={styles.banner}>
+        <img src={channel.bannerUri || artwork} alt="" width="1280" height="480" />
+        <div className={styles.identity}>
+          <Avatar
+            name={profile.displayName}
+            {...(profile.avatarUri ? { src: profile.avatarUri } : {})}
+            size="lg"
+          />
+          <div>
+            <p className="eyebrow">Canal</p>
+            <h1>{profile.displayName}</h1>
+            <p>@{canonical}</p>
+          </div>
+          <Badge tone={availability === 'PLAYABLE' ? 'live' : 'neutral'}>
+            {availability === 'PLAYABLE'
+              ? 'En vivo'
+              : availability === 'RECONNECTING'
+                ? 'Reconectando'
+                : availability === 'UNKNOWN'
+                  ? 'Estado no disponible'
+                  : 'Offline'}
+          </Badge>
         </div>
-        <Badge tone={availability === 'PLAYABLE' ? 'live' : 'neutral'}>{availability}</Badge>
-      </div>
+      </header>
       {availability === 'UNKNOWN' ? (
         <Notice tone="warning">
           El estado de la emisión no está disponible. Los datos del canal siguen disponibles.
@@ -56,9 +66,13 @@ export function ChannelRoute() {
       ) : null}
       {stream ? (
         <Panel className="stack">
+          <p className="eyebrow">
+            {availability === 'PLAYABLE' ? 'Ahora en directo' : 'Emisión del canal'}
+          </p>
           <h2>{stream.title}</h2>
           <p>
-            {stream.category.name} · {stream.tags.map((tag) => tag.name).join(' · ')}
+            {stream.category.name}
+            {stream.tags.length ? ` · ${stream.tags.map((tag) => tag.name).join(' · ')}` : ''}
           </p>
           {stream.sessionId ? (
             <Link to={`/watch/${stream.streamId}`}>Ver transmisión y chat</Link>
@@ -67,12 +81,24 @@ export function ChannelRoute() {
           )}
         </Panel>
       ) : (
-        <p>Sin emisión confirmada.</p>
+        <Panel className="stack">
+          <h2>
+            {availability === 'UNKNOWN' ? 'Emisión no disponible' : 'Este canal está offline'}
+          </h2>
+          <p>
+            {availability === 'UNKNOWN'
+              ? 'Puedes consultar la información del canal mientras se recupera su estado.'
+              : 'Vuelve para su próxima emisión o descubre otros canales en vivo.'}
+          </p>
+          <ActionLink to="/" variant="secondary">
+            Explorar directos
+          </ActionLink>
+        </Panel>
       )}
       <Panel>
         <h2>Acerca del canal</h2>
-        <p>{channel.description}</p>
-        <p>{profile.bio}</p>
+        <p>{channel.description || 'Este canal aún no ha añadido una descripción.'}</p>
+        {profile.bio ? <p>{profile.bio}</p> : null}
       </Panel>
     </div>
   );

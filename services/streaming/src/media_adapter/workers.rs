@@ -9,8 +9,9 @@ use super::MediaState;
 pub(super) async fn run(state: Arc<MediaState>, shutdown: watch::Receiver<bool>) {
     let observations = observation_loop(Arc::clone(&state), shutdown.clone());
     let metrics = metrics_loop(Arc::clone(&state), shutdown.clone());
+    let previews = super::previews::run(Arc::clone(&state), shutdown.clone());
     let deliveries = delivery_loop(state, shutdown);
-    tokio::join!(observations, deliveries, metrics);
+    tokio::join!(observations, deliveries, metrics, previews);
 }
 async fn observation_loop(state: Arc<MediaState>, mut shutdown: watch::Receiver<bool>) {
     let mut interval = tokio::time::interval(Duration::from_millis(500));
@@ -88,8 +89,8 @@ pub(super) async fn observe_sources(state: &MediaState) -> Result<(), ()> {
                     .map_err(|_| ())?;
                 return Ok::<(), ()>(());
             }
-            match state.matches_source(&source).await {
-                Ok(true) => {
+            match state.source_path(&source).await {
+                Ok(Some(ingest_path)) => {
                     if source.connected_at.is_none() {
                         state
                             .repository
@@ -102,7 +103,7 @@ pub(super) async fn observe_sources(state: &MediaState) -> Result<(), ()> {
                             .client
                             .get(format!(
                                 "{}/{}/index.m3u8",
-                                state.config.hls_url, source.ingest_path
+                                state.config.hls_url, ingest_path
                             ))
                             .bearer_auth(&state.config.hls_secret)
                             .send()
@@ -125,14 +126,14 @@ pub(super) async fn observe_sources(state: &MediaState) -> Result<(), ()> {
                         }
                     }
                 }
-                Ok(false) if source.connected_at.is_some() => {
+                Ok(None) if source.connected_at.is_some() => {
                     state
                         .repository
                         .observe(&source, "source-lost")
                         .await
                         .map_err(|_| ())?;
                 }
-                Ok(false)
+                Ok(None)
                     if time::OffsetDateTime::now_utc() - source.created_at
                         > time::Duration::seconds(2)
                         && !state.publisher_exists(source.publisher_id).await? =>

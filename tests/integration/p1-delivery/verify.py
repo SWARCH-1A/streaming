@@ -115,7 +115,7 @@ def frame(ws,kind,client_id=None,message_id=None):
         ws.p1_pending.append(value)
     raise AssertionError("Expected WS frame missing")
 def publish(config,log,media_fixture=None):
-    url=config["ingestUrl"] if "ingestUrl" in config else "rtmps://localhost:"+ENV.get("P1_RTMPS_PORT","11936")+"/live/"+config["streamId"]+"?user=publisher&pass="+urllib.parse.quote(config["streamKey"],safe="")
+    url=config["ingestUrl"] if "ingestUrl" in config else "rtmps://localhost:"+ENV.get("P1_RTMPS_PORT","11936")+"/live/"+config["streamKey"]
     cmd=["ffmpeg","-hide_banner","-loglevel","error"]
     if media_fixture:
         cmd += ["-re","-stream_loop","-1","-i",str(media_fixture),"-c","copy"]
@@ -200,6 +200,11 @@ def smoke():
             live=eventually(lambda:anon.call("/api/streams/"+config["streamId"],schema="PublicStream"),lambda v:v["availability"]=="PLAYABLE")
             sid=live["sessionId"];decoded(sid)
             print("PASS RTMPS source and decoded HTTPS HLS",flush=True)
+            preview=eventually(lambda:anon.call("/hls/"+sid+"/preview.jpg",raw=True),lambda image:image.startswith(b"\xff\xd8"),timeout=45)
+            assert len(preview)<=512*1024
+            assert any(preview[i:i+2]==b"\xff\xc0" and preview[i+4:i+9]==bytes([8,1,104,2,128]) for i in range(len(preview)-9))
+            assert anon.call("/api/streams/sessions/"+sid)["viewerCount"]==0
+            print("PASS real JPEG preview 640x360 without viewer leases",flush=True)
             before=anon.call("/api/streams/sessions/"+sid)
             replay_callback(sid)
             after=anon.call("/api/streams/sessions/"+sid)
@@ -213,7 +218,7 @@ def smoke():
             def projected_count(expected):
                 result=anon.call("/api/discovery/graphql","POST",{"query":query,"variables":{"limit":20}})
                 assert not result.get("errors")
-                return any(item["sessionId"]==sid and item["viewerCount"]==expected and item["viewerCountFresh"]
+                return any(item["sessionId"]==sid and item["previewUri"]=="/hls/"+sid+"/preview.jpg" and item["viewerCount"]==expected and item["viewerCountFresh"]
                            for item in result["data"]["streams"]["items"])
             started=time.monotonic()
             lease=anon.call("/api/streams/sessions/"+sid+"/viewer-leases","POST",headers={"Idempotency-Key":str(uuid.uuid4())},expect=201,schema="ViewerLease")

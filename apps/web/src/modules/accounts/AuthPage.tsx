@@ -2,7 +2,7 @@ import type { FormEvent } from 'react';
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 
-import background from '@/public/images/studio-1.jpg';
+import background from '@/public/images/signal-grid.svg';
 
 import { Button } from '@/src/components/atoms/Button';
 import { Icon } from '@/src/components/atoms/Icon';

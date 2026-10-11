@@ -95,8 +95,9 @@ La primera prueba devuelve Taxonomy; la segunda muestra `Verification: OK` o
 `Verify return code: 0 (ok)`. Estas pruebas usan la CA explícitamente: después de instalarla,
 abre la Web sin advertencia TLS y transmite desde OBS para comprobar la confianza del cliente.
 
-En **OBS → Ajustes → Emisión**, usa **Servicio: Personalizado**, copia **Servidor OBS** y
-**Clave de retransmisión OBS** completos desde `/studio`, y desactiva **Usar autenticación**.
+En **OBS → Ajustes → Emisión**, usa **Servicio: Personalizado**, copia **Servidor** y
+**Clave de retransmisión** desde `/studio`, y desactiva **Usar autenticación**.
+Pega únicamente la clave `sk_...`, sin añadir usuario, contraseña ni streamId.
 El servidor local es `rtmps://localhost:11938/live` (aceptación P1: `11936`); usa el valor del estudio.
 
 Si OBS rechaza el certificado, comprueba la CA del perfil, reinicia OBS y revisa la fecha del equipo

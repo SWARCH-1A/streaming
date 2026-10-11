@@ -53,9 +53,9 @@ curl --fail --cacert infra/p1/.state-local/ca.crt https://localhost:3445/api/tax
 Registrarse en `/register` e iniciar sesión en `/login`. En `/profile` se edita el perfil y avatar;
 `/studio/channel` permite editar el canal y su portada. `/studio` crea una emisión, muestra la URL y
 clave de ingest y permite detenerla. Para **OBS**, seleccionar Servicio: Personalizado, copiar
-«Servidor OBS» en «Servidor» y «Clave de retransmisión OBS» completa en «Clave de retransmisión»;
-desactivar «Usar autenticación». El servidor no contiene credenciales; la clave ya incluye el
-identificador de emisión y los parámetros de publicación. El encoder debe ser compatible con
+«Servidor» en «Servidor» y «Clave de retransmisión» completa en «Clave de retransmisión»;
+desactivar «Usar autenticación». El servidor no contiene credenciales; copia únicamente la clave `sk_...`,
+sin usuario, contraseña ni identificador adicional. Streaming identifica la emisión por su hash. El encoder debe ser compatible con
 **RTMPS** y confiar en la CA local. Ingest usa `localhost:11938`.
 El perfil soporta H.264/AAC; con señal activa, abrir el canal o `/watch/{streamId}` desde otra pestaña
 para reproducir HLS y probar el chat. Discovery se actualiza desde las emisiones reales.

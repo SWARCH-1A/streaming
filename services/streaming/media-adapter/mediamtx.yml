@@ -2,14 +2,14 @@
 # through the RTMP listener and the Rust adapter's session-scoped HLS listener.
 logLevel: warn
 logStructured: true
+# Engine paths contain publishing secrets. Health and callbacks are observed by the adapter.
+logDestinations: []
 readTimeout: 10s
 writeTimeout: 2s
 writeQueueSize: 512
 authMethod: http
 # Address and secrets are supplied through MTX_AUTHHTTPADDRESS / MTX_HLSCDNSECRET.
-authHTTPExclude:
-  - action: read
-    path: '~^live/str_[0-9a-f-]+$'
+authHTTPExclude: []
 api: true
 apiAddress: :9997
 apiAllowOrigins: []
@@ -38,4 +38,4 @@ pathDefaults:
   maxReaders: 128
   record: false
 paths:
-  '~^live/str_[0-9a-f-]+$': {}
+  '~^live/sk_[0-9a-f]{64}$': {}

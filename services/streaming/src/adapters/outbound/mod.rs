@@ -1,5 +1,5 @@
 pub mod http_clients;
-mod media_frame_probe;
+pub(crate) mod media_frame_probe;
 pub mod media_node_assignment;
 pub mod mediamtx;
 pub mod monotonic_clock;

@@ -108,11 +108,7 @@ where
         if result.config.owner_user_id != context.user_id {
             return Err(RotateIngestKeyError::Forbidden);
         }
-        let rtmp_url = format!(
-            "{}/{}",
-            rtmp_ingest_base_url.trim_end_matches('/'),
-            result.config.stream_id.as_str()
-        );
+        let rtmp_url = rtmp_ingest_base_url.trim_end_matches('/').to_owned();
         Ok(RotatedIngestKey {
             stream_id: result.config.stream_id,
             channel_id: result.config.channel_id,

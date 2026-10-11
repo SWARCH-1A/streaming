@@ -10,6 +10,7 @@ import { EmptyState } from '@/src/components/molecules/EmptyState';
 import { FormField } from '@/src/components/molecules/FormField';
 import { Notice } from '@/src/components/molecules/Notice';
 import { Panel } from '@/src/components/molecules/Panel';
+import { StreamPreview } from '@/src/modules/discovery/components/StreamPreview';
 import { useCatalog } from '@/src/modules/taxonomy/entry';
 import { request } from '@/src/shared/api/http';
 import { useResource } from '@/src/shared/api/useResource';
@@ -66,6 +67,7 @@ export function DiscoveryPage({ search = false }: { search?: boolean }) {
         channels: channels?.channels as GqlChannelConnection | null,
       } satisfies Results;
     },
+    10000,
   );
   function update(key: string, value: string) {
     setParams((previous) => {
@@ -90,7 +92,7 @@ export function DiscoveryPage({ search = false }: { search?: boolean }) {
               : 'Explorar transmisiones'}
         </h1>
       </div>
-      <div className="row">
+      <div className={styles.filters}>
         <FormField id="category-filter" label="Categoría">
           <Select
             id="category-filter"
@@ -180,23 +182,49 @@ export function DiscoveryPage({ search = false }: { search?: boolean }) {
           {!data.streams.statusFresh ? (
             <Notice tone="warning">El estado de emisiones no está actualizado.</Notice>
           ) : null}
-          <div className={styles.channels}>
+          <div className={styles.streams}>
             {data.streams.items.map((item) => (
-              <Panel key={item.streamId} className="stack">
-                <Badge tone="live">EN VIVO</Badge>
-                <Link to={`/watch/${item.streamId}`}>
-                  <h3>{item.title}</h3>
+              <article key={item.streamId} className={styles.stream}>
+                <Link
+                  to={`/watch/${item.streamId}`}
+                  className={styles.preview}
+                  aria-label={`Ver ${item.title}`}
+                >
+                  <StreamPreview
+                    key={item.sessionId}
+                    uri={item.previewUri}
+                    sessionId={item.sessionId}
+                  />
+                  <span className={styles.live}>
+                    <Badge tone="live" dot>
+                      EN VIVO
+                    </Badge>
+                  </span>
+                  <span className={styles.viewers}>
+                    {item.viewerCountFresh
+                      ? `${item.viewerCount} espectadores`
+                      : 'Conteo no actualizado'}
+                  </span>
                 </Link>
-                <Link to={`/channels/${item.channel.handle}`}>{item.channel.displayName}</Link>
-                <p>
-                  {item.category.name} · {item.tags.map((tag) => tag.name).join(' · ')}
-                </p>
-                <p>
-                  {item.viewerCountFresh
-                    ? `${item.viewerCount} espectadores`
-                    : 'Conteo no actualizado'}
-                </p>
-              </Panel>
+                <div className={styles.metadata}>
+                  <Avatar
+                    name={item.channel.displayName}
+                    {...(item.channel.avatarUri ? { src: item.channel.avatarUri } : {})}
+                  />
+                  <div className={styles.details}>
+                    <Link to={`/watch/${item.streamId}`}>
+                      <h3>{item.title}</h3>
+                    </Link>
+                    <Link to={`/channels/${item.channel.handle}`} className={styles.channel}>
+                      {item.channel.displayName}
+                    </Link>
+                    <p>
+                      {item.category.name}
+                      {item.tags.length ? ` · ${item.tags.map((tag) => tag.name).join(' · ')}` : ''}
+                    </p>
+                  </div>
+                </div>
+              </article>
             ))}
           </div>
           {!data.streams.items.length ? (

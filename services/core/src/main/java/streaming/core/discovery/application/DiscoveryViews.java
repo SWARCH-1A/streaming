@@ -10,7 +10,7 @@ public final class DiscoveryViews {
     public record TaxonomyValue(String id,String name) { }
     public record PublicChannel(String channelId,String handle,String displayName,String avatarUri) { }
 
-    public record LiveStream(String streamId,String sessionId,PublicChannel channel,String title,TaxonomyValue category,
+    public record LiveStream(String streamId,String sessionId,String previewUri,PublicChannel channel,String title,TaxonomyValue category,
             List<TaxonomyValue> tags,String status,String availability,int viewerCount,boolean viewerCountFresh,
             Instant viewerCountObservedAtUtc,Instant startedAtUtc,long metadataVersion,long sessionVersion,boolean statusFresh) { }
 

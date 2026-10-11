@@ -1,0 +1,28 @@
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.heading svg {
+  color: var(--color-primary-soft);
+}
+.copyRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.copyRow input {
+  flex: 1;
+  min-width: 0;
+}
+.copyRow button {
+  flex-shrink: 0;
+}
+@media (max-width: 600px) {
+  .copyRow {
+    flex-wrap: wrap;
+  }
+  .copyRow input {
+    flex-basis: 100%;
+  }
+}

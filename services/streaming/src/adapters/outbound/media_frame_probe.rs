@@ -21,10 +21,24 @@ fn decode(initialization: Vec<u8>, segment: Vec<u8>) -> bool {
     {
         return false;
     }
-    decode_inner(&initialization, &segment).unwrap_or(false)
+    decode_inner(&initialization, &segment, false).is_ok_and(|bytes| bytes.len() == 160 * 90 * 3)
 }
 
-fn decode_inner(initialization: &[u8], segment: &[u8]) -> std::io::Result<bool> {
+pub(crate) async fn preview_frame(initialization: Vec<u8>, segment: Vec<u8>) -> Option<Vec<u8>> {
+    if initialization.len() > 8 * 1024 * 1024
+        || segment.len() > 8 * 1024 * 1024
+        || segment.is_empty()
+    {
+        return None;
+    }
+    tokio::task::spawn_blocking(move || decode_inner(&initialization, &segment, true).ok())
+        .await
+        .ok()
+        .flatten()
+        .filter(|bytes| bytes.starts_with(&[0xff, 0xd8]) && bytes.len() <= 512 * 1024)
+}
+
+fn decode_inner(initialization: &[u8], segment: &[u8], preview: bool) -> std::io::Result<Vec<u8>> {
     let directory = TemporaryDirectory::new()?;
     let input = directory.0.join("segment.media");
     let output = directory.0.join("frame.rgb");
@@ -64,14 +78,23 @@ fn decode_inner(initialization: &[u8], segment: &[u8]) -> std::io::Result<bool> 
             "-filter_threads",
             "1",
             "-vf",
-            "scale=160:90",
+            if preview {
+                "scale=640:360:force_original_aspect_ratio=decrease,pad=640:360:(ow-iw)/2:(oh-ih)/2"
+            } else {
+                "scale=160:90"
+            },
             "-an",
             "-pix_fmt",
-            "rgb24",
+            if preview { "yuvj420p" } else { "rgb24" },
             "-f",
-            "rawvideo",
+            if preview { "image2" } else { "rawvideo" },
             "-y",
         ])
+        .args(if preview {
+            vec!["-c:v", "mjpeg", "-q:v", "5"]
+        } else {
+            vec![]
+        })
         .arg(&output)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -81,14 +104,18 @@ fn decode_inner(initialization: &[u8], segment: &[u8]) -> std::io::Result<bool> 
     loop {
         match child.try_wait() {
             Ok(Some(status)) => {
-                return Ok(status.success()
-                    && fs::metadata(&output).is_ok_and(|metadata| metadata.len() == 160 * 90 * 3));
+                if status.success()
+                    && fs::metadata(&output).is_ok_and(|metadata| metadata.len() <= 512 * 1024)
+                {
+                    return fs::read(&output);
+                }
+                return Ok(Vec::new());
             }
             Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(10)),
             _ => {
                 let _ = child.kill();
                 let _ = child.wait();
-                return Ok(false);
+                return Ok(Vec::new());
             }
         }
     }
@@ -120,6 +147,12 @@ mod tests {
     #[tokio::test]
     async fn arbitrary_bytes_are_not_a_reproducible_frame() {
         assert!(!decodes_frame(vec![], vec![42]).await);
+        assert!(preview_frame(vec![], vec![42]).await.is_none());
+        assert!(
+            preview_frame(vec![], vec![0; 8 * 1024 * 1024 + 1])
+                .await
+                .is_none()
+        );
     }
     #[tokio::test]
     async fn decodes_a_real_fragmented_h264_frame() -> Result<(), Box<dyn std::error::Error>> {
@@ -163,6 +196,16 @@ mod tests {
         assert!(offset.is_some());
         let (initialization, segment) = bytes.split_at(offset.unwrap_or_default());
         assert!(decodes_frame(initialization.to_vec(), segment.to_vec()).await);
+        let jpeg = preview_frame(initialization.to_vec(), segment.to_vec())
+            .await
+            .ok_or("preview missing")?;
+        assert!(jpeg.starts_with(&[0xff, 0xd8]));
+        // JPEG baseline SOF: precision, height, width. The preview is always 640 x 360.
+        assert!(
+            jpeg.windows(9)
+                .any(|bytes| bytes[..2] == [0xff, 0xc0] && bytes[4..9] == [8, 1, 104, 2, 128])
+        );
+        assert!(jpeg.len() <= 512 * 1024);
         Ok(())
     }
 }

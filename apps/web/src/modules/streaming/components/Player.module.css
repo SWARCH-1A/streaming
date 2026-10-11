@@ -6,7 +6,7 @@
 .viewport {
   position: relative;
   aspect-ratio: 16 / 9;
-  background: black;
+  background: var(--color-surface);
   overflow: hidden;
   border-radius: var(--radius-lg);
   isolation: isolate;
@@ -84,7 +84,7 @@
 }
 @media (max-width: 600px) {
   .viewport {
-    aspect-ratio: 4 / 3;
+    aspect-ratio: 16 / 9;
   }
   .top {
     top: 0.6rem;
@@ -110,4 +110,13 @@
   .overlay > svg {
     display: none;
   }
+}
+
+.endState {
+  position: absolute;
+  inset: 0;
+}
+.endState > div {
+  height: 100%;
+  aspect-ratio: auto;
 }

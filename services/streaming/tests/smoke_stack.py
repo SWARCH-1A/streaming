@@ -38,7 +38,7 @@ def main():
     # Fixtures, restricted to this disposable project and never personal secrets.
     env['MEDIA_DATABASE_PASSWORD'] = 'smoke_media_password_before_rotation'
     stream_id = 'str_' + str(uuid.uuid4())
-    key = 'smoke_ingest_key_only_for_disposable_database'
+    key = 'sk_' + 'a' * 64
     image = env.get('STREAMING_SMOKE_IMAGE', project + '-streaming')
     http_url = 'http://127.0.0.1:' + env['STREAMING_HTTP_PORT']
     hls_url = 'http://127.0.0.1:' + env['STREAMING_HLS_PORT']
@@ -106,17 +106,32 @@ def main():
                 "catalog_labels,ingest_key_hash) VALUES ('" + stream_id + "','channel_smoke',"
                 "'user_smoke','Smoke video','category_smoke','[{\"id\":\"category_smoke\","
                 "\"name\":\"Smoke\",\"active\":true}]',decode('" + digest + "','hex'));" )
+            def reject_publication(candidate):
+                result = run('exec', '-T', 'streaming', 'ffmpeg', '-hide_banner', '-loglevel', 'error',
+                             '-f', 'lavfi', '-i', 'testsrc2=size=160x90:rate=1', '-t', '1',
+                             '-c:v', 'libx264', '-f', 'flv', 'rtmp://mediamtx:1935/live/' + candidate,
+                             check=False, timeout=15)
+                assert result.returncode != 0, 'Unauthorized publication accepted'
+                assert sql("SELECT count(*) FROM stream_sessions WHERE status <> 'ENDED';") == '0'
+
+            reject_publication('sk_' + 'b' * 64)
+            reject_publication(stream_id + '?user=publisher&pass=' + key)
             encoder = subprocess.Popen([*compose, 'exec', '-T', 'streaming', 'ffmpeg',
                 '-hide_banner', '-loglevel', 'error', '-re', '-f', 'lavfi', '-i',
                 'testsrc2=size=320x180:rate=15', '-f', 'lavfi', '-i', 'sine=frequency=440',
                 '-t', '30', '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency',
                 '-pix_fmt', 'yuv420p', '-g', '15', '-c:a', 'aac', '-f', 'flv',
-                'rtmp://mediamtx:1935/live/' + stream_id + '?user=smoke&pass=' + key],
+                'rtmp://mediamtx:1935/live/' + key],
                 env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
             wait_for(lambda: sql("SELECT count(*) FROM stream_sessions WHERE status='LIVE';") == '1',
                      'real RTMP source becomes LIVE', seconds=25)
             session = sql("SELECT session_id FROM stream_sessions WHERE status='LIVE';")
-            assert http(hls_url + '/hls/' + session + '/index.m3u8').startswith(b'#EXTM3U')
+            manifest = http(hls_url + '/hls/' + session + '/index.m3u8')
+            assert manifest.startswith(b'#EXTM3U') and key.encode() not in manifest
+            public = http(http_url + '/api/streams/' + stream_id)
+            assert key.encode() not in public
+            assert sql("SELECT count(*) FROM media_sources WHERE position('" + key + "' in ingest_path)>0;", 'streaming_media') == '0'
+            assert sql("SELECT count(*) FROM media_callback_outbox WHERE position('" + key + "' in payload::text)>0;", 'streaming_media') == '0'
             run('exec', '-T', 'streaming', 'ffmpeg', '-hide_banner', '-loglevel', 'error',
                 '-i', 'http://127.0.0.1:8888/hls/' + session + '/index.m3u8',
                 '-frames:v', '1', '-f', 'null', '-', timeout=20)
@@ -124,6 +139,7 @@ def main():
                                     'WHERE delivered_at IS NOT NULL;', 'streaming_media')) >= 2,
                      'durable source/playback callbacks ACKed')
             callbacks = sql('SELECT count(*) FROM media_callback_outbox;', 'streaming_media')
+            assert key not in run('logs', '--no-color').stdout
             print('PASS: RTMP authorization, durable callbacks, public HLS and decoded frame', flush=True)
 
             # SIGTERM must stop API, HLS, and workers together, leaving the motor/SQL running.
@@ -144,6 +160,11 @@ def main():
             up()
             assert sql('SELECT stream_id FROM stream_configs;') == stream_id
             assert sql('SELECT status FROM stream_sessions;') == 'ENDED'
+            rotated = hashlib.sha256(('sk_' + 'c' * 64).encode()).hexdigest()
+            sql("UPDATE stream_configs SET ingest_key_hash=decode('" + rotated + "','hex'), ingest_key_version=ingest_key_version+1;")
+            reject_publication(key)
+            assert key not in run('logs', '--no-color').stdout
+            print('PASS: wrong/revoked keys rejected; public playback, database and logs contain no key', flush=True)
             assert int(sql('SELECT count(*) FROM media_callback_outbox;', 'streaming_media')) >= int(callbacks)
             print('PASS: coordinated SIGTERM, persisted IDs/callbacks, no renewed session grace', flush=True)
 

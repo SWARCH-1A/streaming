@@ -2,7 +2,7 @@ import type { FormEvent } from 'react';
 import { useState } from 'react';
 import type { Profile } from '@contracts/p1';
 
-import banner from '@/public/images/studio-1.jpg';
+import banner from '@/public/images/signal-grid.svg';
 
 import { ActionLink } from '@/src/components/atoms/ActionLink';
 import { Avatar } from '@/src/components/atoms/Avatar';

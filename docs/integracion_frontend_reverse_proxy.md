@@ -77,10 +77,14 @@ Las vistas usan cookies same-origin y schemas/tipos/queries generados. Sesión s
 Profile self e identidad pública; las rutas protegidas esperan restauración. Errores preservan
 formularios y no activan datos demo. Un cambio de recurso aborta lecturas y descarta respuestas tardías.
 
-HLS solo se carga para LIVE/PLAYABLE. HLS nativo o hls.js diferido usa controles HTML; el primer frame
+HLS solo se carga para LIVE/PLAYABLE. hls.js diferido con MediaSource o HLS nativo como fallback usa controles HTML; el primer frame
 decodificado abre lease, heartbeat cada 10 s y cierre en pausa, pagehide, salida, error o cambio de
 sesión. La expiración de 30 s limita cierres/creaciones sin respuesta. Un 401 de lease no revoca la
-sesión Accounts. El backend conserva autoridad de availability, conteo y permisos.
+sesión Accounts. El backend conserva autoridad de availability, conteo y permisos. Pausar conserva el
+búfer; hls.js pausa la descarga de segmentos y mantiene la playlist actualizada. Reanudar consume los
+segmentos locales disponibles o retoma la señal actual si se agotaron. ENDED detiene nuevas descargas
+y el lease, pero el player mantiene MediaSource/HLS nativo hasta consumir su búfer; después muestra
+la finalización. Una respuesta HLS 410 se trata como fin de entrega, sin error de reproducción.
 
 Chat abre WS antes de historial, fusiona por secuencia y repara huecos dentro de los 50 mensajes
 retenidos; avisa cuando ya no son recuperables. Un envío pendiente conserva clientMessageId y texto
@@ -92,3 +96,9 @@ logs con payloads/credenciales; playlists y segmentos conservan types/ranges/cac
 Media (playlist no-cache, segmentos inmutables según su respuesta). No cachear errores o inventar LIVE.
 Vite puede activar proxy HTTP local con VITE_P1_PROXY=1; sin él devuelve errores JSON explícitos de
 configuración para APIs. Solo Caddy es el proxy integrado y Vite preview no acredita despliegue.
+
+Exploración solicita `/hls/{sessionId}/preview.jpg` desde `previewUri` de GraphQL. La misma ruta
+HLS del proxy entrega `image/jpeg`, `Cache-Control: no-store`, 640×360, hasta 512 KiB; no abre
+leases ni lanza decodificación al recibir GET. Media conserva cinco capturas en RAM durante
+45 s, renovadas como máximo cada 15 s por fuente. Sin captura vigente responde 503; ENDED
+responde 410. Web usa el fondo gráfico en errores y reintenta a los 5 s.
