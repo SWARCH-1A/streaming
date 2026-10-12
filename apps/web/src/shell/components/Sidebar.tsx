@@ -10,7 +10,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     <aside className={styles.sidebar}>
       <div className={styles.top}>
         <Icon name="broadcast" size={16} />
-        <span>STREAMING P1</span>
+        <span>Vault tv</span>
       </div>
       <div className={styles.section}>
         <p className="eyebrow">Tu comunidad</p>
@@ -33,20 +33,22 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           </NavLink>
         </nav>
       </div>
-      <div className={styles.section}>
-        <p className="eyebrow">Sistema de diseño</p>
-        <nav aria-label="Sistema de diseño">
-          <NavLink to="/design-system" end onClick={onNavigate}>
-            Índice & fundamentos
-          </NavLink>
-          <NavLink to="/design-system/components" onClick={onNavigate}>
-            Componentes UI
-          </NavLink>
-          <NavLink to="/prototype" onClick={onNavigate}>
-            Prototipo interactivo
-          </NavLink>
-        </nav>
-      </div>
+      {import.meta.env.DEV ? (
+        <div className={styles.section}>
+          <p className="eyebrow">Sistema de diseño</p>
+          <nav aria-label="Sistema de diseño">
+            <NavLink to="/design-system" end onClick={onNavigate}>
+              Índice & fundamentos
+            </NavLink>
+            <NavLink to="/design-system/components" onClick={onNavigate}>
+              Componentes UI
+            </NavLink>
+            <NavLink to="/prototype" onClick={onNavigate}>
+              Prototipo interactivo
+            </NavLink>
+          </nav>
+        </div>
+      ) : null}
       <div className={styles.footer}>
         <Badge tone="primary" dot>
           PROTOTIPO 1

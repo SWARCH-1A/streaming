@@ -85,3 +85,9 @@
     gap: 0.25rem;
   }
 }
+@media (max-width: 360px) {
+  .actions > a {
+    min-width: 28px;
+    padding-inline: 0.25rem;
+  }
+}

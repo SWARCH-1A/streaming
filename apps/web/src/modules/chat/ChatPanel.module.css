@@ -11,6 +11,7 @@
 .header {
   padding: 1rem;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
@@ -18,6 +19,10 @@
 }
 .header h2 {
   font-size: 1.2rem;
+}
+.header > button {
+  max-width: 100%;
+  white-space: normal;
 }
 .info {
   display: grid;

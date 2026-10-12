@@ -88,6 +88,10 @@
   h1[tabindex='-1']:focus {
     outline: none;
   }
+  :where(a, button, input, select, textarea, [tabindex]) {
+    scroll-margin-top: calc(var(--header-height) + 1rem);
+    scroll-margin-bottom: 1rem;
+  }
   :target {
     scroll-margin-top: calc(var(--header-height) + 1rem);
   }

@@ -120,3 +120,7 @@
   height: 100%;
   aspect-ratio: auto;
 }
+.viewport:focus-within {
+  outline: 3px solid var(--color-primary-soft);
+  outline-offset: 4px;
+}

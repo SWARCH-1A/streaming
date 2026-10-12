@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router';
 
 import { RouteFocus } from '@/src/accessibility/RouteFocus';
@@ -12,17 +12,30 @@ import styles from './AppLayout.module.css';
 
 export function AppLayout() {
   const dialog = useRef<HTMLDialogElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const { pathname } = useLocation();
   return (
     <>
       <a href="#main-content" className={styles.skip}>
         Saltar al contenido
       </a>
-      <Header onMenu={() => dialog.current?.showModal()} />
+      <Header
+        menuOpen={menuOpen}
+        onMenu={() => {
+          dialog.current?.showModal();
+          setMenuOpen(true);
+        }}
+      />
       <div className={styles.sidebar}>
         <Sidebar />
       </div>
-      <dialog ref={dialog} className={styles.drawer} aria-labelledby="navigation-title">
+      <dialog
+        id="navigation-dialog"
+        ref={dialog}
+        className={styles.drawer}
+        aria-labelledby="navigation-title"
+        onClose={() => setMenuOpen(false)}
+      >
         <div className={styles.drawerHeader}>
           <h2 id="navigation-title">Navegación</h2>
           <Button
@@ -43,7 +56,7 @@ export function AppLayout() {
         </ViewErrorBoundary>
       </main>
       <footer className={styles.footer}>
-        STREAMING <span>·</span> En directo, contigo.
+        Vault tv <span>·</span> En directo, contigo.
       </footer>
     </>
   );

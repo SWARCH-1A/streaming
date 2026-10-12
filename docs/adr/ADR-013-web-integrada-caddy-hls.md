@@ -74,7 +74,8 @@ campos de Accounts al dueño Streaming. Las mutaciones conservan su autorizació
 ## Consecuencias
 
 Hay dependencias de navegador adicionales, cargadas separadamente de la vista inicial. Se conserva
-el diseño existente y las muestras solo en pruebas y rutas explícitas de componentes/prototipo.
+el diseño existente y las muestras solo en pruebas y rutas de componentes/prototipo exclusivas
+del servidor de desarrollo, excluidas del build de producción conforme a ADR-007.
 No se usan mocks como fallback. HTTP entre procesos en fixtures no demuestra TLS productivo, y
 herramientas automáticas de accesibilidad complementan la verificación manual de SPEC-08.
 

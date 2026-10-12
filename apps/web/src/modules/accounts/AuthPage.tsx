@@ -4,13 +4,15 @@ import { Link, useNavigate } from 'react-router';
 
 import background from '@/public/images/signal-grid.svg';
 
+import { fieldErrors } from '@/src/accessibility/fieldErrors';
+import { useErrorFocus } from '@/src/accessibility/useErrorFocus';
 import { Button } from '@/src/components/atoms/Button';
 import { Icon } from '@/src/components/atoms/Icon';
 import { Input } from '@/src/components/atoms/Input';
 import { FormField } from '@/src/components/molecules/FormField';
 import { Notice } from '@/src/components/molecules/Notice';
 import { Panel } from '@/src/components/molecules/Panel';
-import { errorMessage, HttpError, request } from '@/src/shared/api/http';
+import { errorMessage, request } from '@/src/shared/api/http';
 import { useLifetime } from '@/src/shared/api/useLifetime';
 import { useSession } from '@/src/shell/session/useSession';
 
@@ -23,6 +25,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const [values, setValues] = useState({ email: '', handle: '', password: '' });
   const [errors, setErrors] = useState<Partial<Record<keyof RegistrationValues, string>>>({});
   const [pending, setPending] = useState(false);
+  const focusError = useErrorFocus(pending);
   const [failure, setFailure] = useState('');
   const attempt = useRef(crypto.randomUUID());
   const lifetime = useLifetime();
@@ -40,7 +43,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         };
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) {
-      document.getElementById(Object.keys(nextErrors)[0] ?? '')?.focus();
+      focusError(Object.keys(nextErrors)[0] ?? 'handle');
       return;
     }
     const signal = lifetime();
@@ -66,8 +69,13 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     } catch (error) {
       if (signal.aborted) return;
       setFailure(errorMessage(error));
-      if (error instanceof HttpError && error.detail.fieldErrors)
-        setErrors(error.detail.fieldErrors);
+      const next = fieldErrors(
+        error,
+        register ? (['email', 'handle', 'password'] as const) : (['handle', 'password'] as const),
+      );
+      setErrors(next);
+      const first = Object.keys(next)[0];
+      if (first) focusError(first);
     } finally {
       if (!signal.aborted) setPending(false);
     }

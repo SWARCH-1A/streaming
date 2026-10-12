@@ -34,13 +34,13 @@ export function ObsIngestSettings({
         <Icon name="key" />
         Credenciales de emisión
       </h2>
-      <p>
+      <p id="ingest-help">
         Usa estos valores como servidor y clave de retransmisión en tu programa de emisión.
         Desactiva la autenticación por usuario y contraseña.
       </p>
       <label htmlFor="ingest-url">Servidor</label>
       <div className={styles.copyRow}>
-        <Input id="ingest-url" value={rtmpUrl} readOnly />
+        <Input id="ingest-url" value={rtmpUrl} readOnly aria-describedby="ingest-help" />
         <Button
           variant="secondary"
           onClick={() => {
@@ -53,8 +53,16 @@ export function ObsIngestSettings({
       {streamKey ? (
         <>
           <label htmlFor="ingest-key">Clave de retransmisión (solo se muestra ahora)</label>
-          <Input id="ingest-key" value={streamKey} type={visible ? 'text' : 'password'} readOnly />
-          <p>La clave es privada y solo se muestra ahora. Guárdala en un lugar seguro.</p>
+          <Input
+            id="ingest-key"
+            value={streamKey}
+            type={visible ? 'text' : 'password'}
+            readOnly
+            aria-describedby="ingest-key-help"
+          />
+          <p id="ingest-key-help">
+            La clave es privada y solo se muestra ahora. Guárdala en un lugar seguro.
+          </p>
           <div className="row">
             <Button
               variant="secondary"
@@ -77,6 +85,7 @@ export function ObsIngestSettings({
                 setVisible(false);
                 setMessage('');
                 onDiscard();
+                document.getElementById('ingest-url')?.focus();
               }}
             >
               Descartar clave de esta vista

@@ -60,6 +60,7 @@ allure-results/
 **/.gradle/
 **/.npm/
 **/node_modules/
+**/.pnpm-store/
 **/.next/
 **/.nuxt/
 **/.output/

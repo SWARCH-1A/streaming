@@ -186,6 +186,7 @@ export function LiveChatPanel({ sessionId, readOnly }: { sessionId: string; read
     const validated = validateMessage(text);
     if (validated.error) {
       setFailure(validated.error);
+      document.getElementById('chat-message')?.focus();
       return;
     }
     transmit(
@@ -248,7 +249,8 @@ export function LiveChatPanel({ sessionId, readOnly }: { sessionId: string; read
           <Textarea
             id="chat-message"
             value={text}
-            disabled={disabled || !!pending}
+            disabled={disabled}
+            readOnly={!!pending}
             rows={2}
             aria-describedby={failure ? 'chat-error' : 'chat-count'}
             aria-invalid={!!failure}

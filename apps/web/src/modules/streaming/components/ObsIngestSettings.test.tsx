@@ -16,6 +16,8 @@ describe('configuración de emisión', () => {
     expect(server).toHaveValue('rtmps://localhost:11936/live');
     expect(key).toHaveAttribute('type', 'password');
     expect(key).toHaveValue(streamKey);
+    expect(server).toHaveAccessibleDescription(/Desactiva la autenticación/);
+    expect(key).toHaveAccessibleDescription(/La clave es privada/);
     const publish = new URL(`rtmps://localhost:11936/live/${streamKey}`);
     expect(publish.pathname).toBe(`/live/${streamKey}`);
     expect(publish.search).toBe('');
@@ -46,6 +48,7 @@ describe('configuración de emisión', () => {
     expect(onDiscard).toHaveBeenCalledOnce();
     rerender(<ObsIngestSettings rtmpUrl={rtmpUrl} streamKey="" onDiscard={onDiscard} />);
     expect(screen.queryByLabelText(/Clave de retransmisión/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Servidor')).toHaveFocus();
     expect(screen.getByLabelText('Servidor')).toHaveValue('rtmps://localhost:11936/live');
     expect(screen.getByText(/La clave anterior no se puede consultar/)).toBeInTheDocument();
   });

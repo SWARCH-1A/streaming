@@ -1,4 +1,4 @@
-# Web · STREAMING
+# Web · Vault tv
 
 Una SPA React/TypeScript/SWC con pnpm, diseño Dark Cinema Broadcast y módulos internos.
 Para ejecutar el sistema completo, usar el [Compose raíz y la guía local](../../README.md).
@@ -53,7 +53,17 @@ el build y no sustituye el proxy. Axe/teclado complementan la revisión con lect
 | /profile                                              | Sesión requerida, perfil y avatar con upload multipart Core.                                  |
 | /studio/channel                                       | Sesión requerida, descripción y portada con upload multipart Core.                            |
 | /studio                                               | Configuración/metadata, clave de creación/rotación solo en memoria, stop y monitor real.      |
-| /design-system, /design-system/components, /prototype | Biblioteca visual y enlaces; ejemplos estáticos explícitos.                                   |
+| /design-system, /design-system/components, /prototype | Biblioteca visual disponible solo con `pnpm dev`; producción muestra página no encontrada.    |
+
+La identidad visible es Vault tv. El logo local se importa desde `public/brand/vault-tv.png` y
+conserva sus proporciones; los tokens Dark Cinema Broadcast definen contraste, foco y estados.
+Las páginas de diseño se cargan de forma diferida bajo `import.meta.env.DEV`: sus rutas y módulos
+no se incluyen en producción. `pnpm build` comprueba también los paquetes emitidos. Los componentes
+compartidos permanecen disponibles para las vistas funcionales.
+
+El [protocolo de accesibilidad](src/accessibility/README.md) cubre SPEC-08 y diferencia comprobación
+automática de observación humana. Opcionalmente, `P1_A11Y_ARTIFACTS` indica una carpeta externa para
+capturas del runner Web; se oculta el campo de clave. Revisar las capturas antes de compartirlas.
 
 No se guardan credenciales, claves, tokens de lease ni sesión en local/session storage. CSRF se
 solicita por operación Core; Streaming valida Origin según su contrato. El servidor decide permisos.
