@@ -12,7 +12,7 @@ import { Brand } from './Brand';
 import styles from './Header.module.css';
 import { SearchForm } from './SearchForm';
 
-export function Header({ onMenu }: { onMenu: () => void }) {
+export function Header({ onMenu, menuOpen = false }: { onMenu: () => void; menuOpen?: boolean }) {
   const [error, setError] = useState('');
   const { user, signOut } = useSession();
   return (
@@ -23,6 +23,9 @@ export function Header({ onMenu }: { onMenu: () => void }) {
           size="icon"
           className={styles.menu}
           aria-label="Abrir navegación"
+          aria-haspopup="dialog"
+          aria-controls="navigation-dialog"
+          aria-expanded={menuOpen}
           onClick={onMenu}
         >
           <Icon name="menu" />
@@ -34,7 +37,9 @@ export function Header({ onMenu }: { onMenu: () => void }) {
           { to: '/', label: 'Explorar' },
           { to: '/search', label: 'Canales' },
           { to: '/studio', label: 'Estudio' },
-          { to: '/design-system/components', label: 'Componentes' },
+          ...(import.meta.env.DEV
+            ? [{ to: '/design-system/components', label: 'Componentes' }]
+            : []),
         ].map((link) => (
           <NavLink
             key={link.to}

@@ -1,4 +1,6 @@
 import { execFileSync, spawn } from 'node:child_process';
+import { mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import AxeBuilder from '@axe-core/playwright';
@@ -9,7 +11,63 @@ import type {
   StreamConfig,
   Taxonomy,
 } from '@contracts/p1';
+import type { Page } from '@playwright/test';
 import { expect, test } from '@playwright/test';
+
+async function accessible(page: Page) {
+  const result = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+  expect(
+    result.violations.map((item) => ({
+      id: item.id,
+      nodes: item.nodes.map((node) => node.target),
+    })),
+  ).toEqual([]);
+  // Mobile browsers may expand innerWidth when content overflows the layout viewport.
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  const undersized = await page
+    .locator(
+      'button:visible:not(:disabled), input:visible:not(:disabled), select:visible:not(:disabled), textarea:visible:not(:disabled), header a:visible',
+    )
+    .evaluateAll((controls) =>
+      controls
+        .filter((control) => {
+          const box = control.getBoundingClientRect();
+          return box.width < 24 || box.height < 24;
+        })
+        .map((control) => control.getAttribute('aria-label') ?? control.id ?? control.tagName),
+    );
+  expect(undersized).toEqual([]);
+}
+
+async function capture(page: Page, name: string) {
+  const directory = process.env.P1_A11Y_ARTIFACTS;
+  if (!directory) return;
+  await mkdir(directory, { recursive: true });
+  await page.screenshot({
+    path: join(directory, `${name}.png`),
+    fullPage: true,
+    mask: [page.locator('#ingest-key')],
+  });
+}
+
+async function chatControlFits(page: Page) {
+  // overflow:hidden can clip a button without increasing the document's scrollWidth.
+  expect(
+    await page
+      .getByRole('button', { name: 'Pausar autodesplazamiento', exact: true })
+      .evaluate((button) => {
+        const panel = button.closest('aside')!.getBoundingClientRect();
+        const control = button.getBoundingClientRect();
+        return control.left >= panel.left && control.right <= panel.right;
+      }),
+  ).toBe(true);
+}
 
 const integrated = process.env.P1_WEB_INTEGRATION === '1';
 const composeFile = process.env.P1_COMPOSE_FILE ?? '';
@@ -30,14 +88,33 @@ test.skip(
 test('real P1 owner/viewer flow, HTTP/WS/HLS, uploads, failures and keyboard', async ({
   page,
 }, testInfo) => {
+  test.setTimeout(300000);
   const handle = `web_${crypto.randomUUID().replaceAll('-', '').slice(0, 12)}`;
+  const title = `${handle} ${'A'.repeat(83)}`; // 100 characters, including a long unbroken word.
   const password = 'fixture-only browser password';
   let publisher: ReturnType<typeof spawn> | null = null;
+  function stopPublisher() {
+    if (!publisher) return;
+    if (publisher.exitCode === null) {
+      // Owner stop may already have closed RTMP and made FFmpeg exit normally.
+      // Ignore only an absent process, not an unreadable PID file or a Compose failure.
+      compose(
+        'exec',
+        '-T',
+        'streaming',
+        'sh',
+        '-c',
+        'pid=$(cat /tmp/p1-web-source.pid) || exit 1; kill -INT "$pid" 2>/dev/null || ! kill -0 "$pid" 2>/dev/null',
+      );
+    }
+    publisher = null;
+  }
   try {
     await page.goto('/register');
     await expect(page.getByRole('navigation', { name: 'Canales destacados' })).toHaveCount(0);
     await page.getByRole('button', { name: 'Crear cuenta', exact: true }).click();
     await expect(page.getByLabel('Correo electrónico')).toBeFocused();
+    await accessible(page);
     await page.getByLabel('Correo electrónico').fill(`${handle}@example.test`);
     await page.getByLabel('Handle', { exact: true }).fill(handle);
     await page.getByLabel('Contraseña', { exact: true }).fill(password);
@@ -98,7 +175,9 @@ test('real P1 owner/viewer flow, HTTP/WS/HLS, uploads, failures and keyboard', a
     );
     const catalog = (await (await page.request.get('/api/taxonomy')).json()) as Taxonomy;
     await page.goto('/studio');
-    await page.getByLabel('Título de la transmisión').fill(`Directo ${handle}`);
+    await accessible(page);
+    await capture(page, `studio-${testInfo.project.name}`);
+    await page.getByLabel('Título de la transmisión').fill(title);
     await page.getByLabel('Categoría obligatoria').selectOption(categoryId);
     await page.getByRole('button', { name: tagName, exact: true }).click();
     await page.getByRole('button', { name: 'Configurar emisión', exact: true }).click();
@@ -204,6 +283,29 @@ test('real P1 owner/viewer flow, HTTP/WS/HLS, uploads, failures and keyboard', a
       )
       .toBe(true);
     await expect(page.getByLabel('Mensaje al canal')).toBeEnabled();
+    await accessible(page);
+    await chatControlFits(page);
+    await capture(page, `watch-${testInfo.project.name}`);
+    if (testInfo.project.name === 'desktop') {
+      const previousViewport = page.viewportSize();
+      for (const width of [320, 390, 768, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        await accessible(page);
+        await chatControlFits(page);
+        await capture(page, `watch-live-${width}`);
+      }
+      if (previousViewport) await page.setViewportSize(previousViewport);
+    }
+    await page.locator('video').focus();
+    await expect(page.locator('video')).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect
+      .poll(() => page.locator('video').evaluate((video: HTMLVideoElement) => video.paused))
+      .toBe(true);
+    await page.keyboard.press('Space');
+    await expect
+      .poll(() => page.locator('video').evaluate((video: HTMLVideoElement) => video.paused))
+      .toBe(false);
     await page.getByLabel('Mensaje al canal').fill(`Hola ${handle}`);
     await page.getByRole('button', { name: 'Enviar', exact: true }).click();
     await expect(page.getByRole('log')).toContainText(`Hola ${handle}`);
@@ -233,8 +335,20 @@ test('real P1 owner/viewer flow, HTTP/WS/HLS, uploads, failures and keyboard', a
     await page.getByRole('log').focus();
     await page.keyboard.press('ArrowUp');
     await expect(page.getByRole('log')).toBeFocused();
+    await page.getByLabel('Mensaje al canal').fill('Borrador conservado');
+    const observer = await page.context().newPage();
+    await observer.goto(`/watch/${config.streamId}`);
+    await expect(observer.getByLabel('Mensaje al canal')).toBeEnabled();
+    await observer.getByLabel('Mensaje al canal').fill('Mensaje desde otra pestaña');
+    await observer.getByRole('button', { name: 'Enviar', exact: true }).click();
+    await expect(page.getByRole('log')).toContainText('Mensaje desde otra pestaña');
+    await expect(page.getByLabel('Mensaje al canal')).toHaveValue('Borrador conservado');
+    await expect(page.getByLabel('Mensaje al canal')).toBeFocused();
+    await expect(page.getByRole('log')).toHaveAttribute('aria-live', 'off');
+    await observer.close();
     compose('stop', 'chat');
     await expect(page.getByText(/Chat desconectado/)).toBeVisible({ timeout: 15000 });
+    await accessible(page);
     const currentTime = await page
       .locator('video')
       .evaluate((video: HTMLVideoElement) => video.currentTime);
@@ -248,13 +362,14 @@ test('real P1 owner/viewer flow, HTTP/WS/HLS, uploads, failures and keyboard', a
     await expect(page.getByRole('log')).toContainText(`Hola ${handle}`);
     await page.goto(`/search?q=${handle}`);
     await page.getByLabel('Categoría', { exact: true }).selectOption(categoryId);
-    await expect(page.getByRole('link', { name: `Directo ${handle}`, exact: true })).toBeVisible({
+    await expect(page.getByRole('link', { name: title, exact: true })).toBeVisible({
       timeout: 15000,
     });
     await page
       .getByLabel('Etiqueta', { exact: true })
       .selectOption(catalog.tags.find((item) => item.id !== tagId)!.id);
     await expect(page.getByRole('heading', { name: 'No encontramos transmisiones' })).toBeVisible();
+    await accessible(page);
     compose(
       'exec',
       '-T',
@@ -299,8 +414,7 @@ test('real P1 owner/viewer flow, HTTP/WS/HLS, uploads, failures and keyboard', a
           ).status,
       )
       .toBe('ENDED');
-    compose('exec', '-T', 'streaming', 'sh', '-c', 'kill -INT "$(cat /tmp/p1-web-source.pid)"');
-    publisher = null;
+    stopPublisher();
     await page.getByRole('button', { name: 'Rotar clave', exact: true }).click();
     await expect(
       page.getByLabel('Clave de retransmisión (solo se muestra ahora)', { exact: true }),
@@ -318,6 +432,7 @@ test('real P1 owner/viewer flow, HTTP/WS/HLS, uploads, failures and keyboard', a
     for (const route of [
       '/profile',
       '/studio/channel',
+      '/studio',
       '/register',
       '/login',
       `/channels/${handle}`,
@@ -325,15 +440,20 @@ test('real P1 owner/viewer flow, HTTP/WS/HLS, uploads, failures and keyboard', a
     ]) {
       await page.goto(route);
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-      const accessibility = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
-        .analyze();
-      expect(
-        accessibility.violations.map((item) => ({ id: item.id, impact: item.impact })),
-      ).toEqual([]);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
-        true,
-      );
+      await accessible(page);
+    }
+    if (testInfo.project.name === 'desktop') {
+      const previousViewport = page.viewportSize();
+      for (const width of [320, 390, 768, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        for (const route of ['/profile', '/studio/channel', '/studio', '/search']) {
+          await page.goto(route);
+          await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+          await accessible(page);
+          await capture(page, `responsive-${width}-${route.replaceAll('/', '_')}`);
+        }
+      }
+      if (previousViewport) await page.setViewportSize(previousViewport);
     }
     await page.goto('/profile');
     await page.getByRole('button', { name: 'Salir', exact: true }).click();
@@ -345,18 +465,44 @@ test('real P1 owner/viewer flow, HTTP/WS/HLS, uploads, failures and keyboard', a
     await expect(
       page.getByRole('heading', { name: 'Explorar transmisiones', exact: true }),
     ).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Vault tv, inicio' })).toBeVisible();
+    await expect(page).toHaveTitle(/Vault tv$/);
+    for (let step = 0; step < 30; step++) {
+      if (
+        await page
+          .getByRole('link', { name: 'Saltar al contenido' })
+          .evaluate((link) => link === document.activeElement)
+      )
+        break;
+      await page.keyboard.press('Shift+Tab');
+    }
+    await expect(page.getByRole('link', { name: 'Saltar al contenido' })).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('main')).toBeFocused();
     await page.keyboard.press('Control+k');
     await expect(page.getByRole('searchbox')).toBeFocused();
     if (testInfo.project.name === 'mobile') {
       await page.getByRole('button', { name: 'Abrir navegación', exact: true }).click();
       await expect(page.getByRole('dialog')).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: 'Abrir navegación', includeHidden: true }),
+      ).toHaveAttribute('aria-expanded', 'true');
       await page.keyboard.press('Escape');
       await expect(page.getByRole('dialog')).not.toBeVisible();
+      await expect(page.getByRole('button', { name: 'Abrir navegación' })).toBeFocused();
+      await expect(page.getByRole('button', { name: 'Abrir navegación' })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      );
+      await page.getByRole('button', { name: 'Abrir navegación' }).click();
+      await page.getByRole('dialog').getByRole('link', { name: 'Canales', exact: true }).click();
+      await expect(page).toHaveURL('/search');
+      await expect(page.getByRole('heading', { level: 1 })).toBeFocused();
     }
   } finally {
     if (publisher) {
       try {
-        compose('exec', '-T', 'streaming', 'sh', '-c', 'kill -INT "$(cat /tmp/p1-web-source.pid)"');
+        stopPublisher();
       } catch {
         publisher.kill();
       }
@@ -368,18 +514,19 @@ test('real P1 owner/viewer flow, HTTP/WS/HLS, uploads, failures and keyboard', a
 test('proxy preserves deep links and never returns SPA HTML for API/private paths', async ({
   page,
 }) => {
-  for (const path of [
-    '/',
-    '/search?q=fixture',
-    '/channels/p1_fixture',
-    '/register',
-    '/login',
-    '/design-system/components',
-  ]) {
+  for (const path of ['/', '/search?q=fixture', '/channels/p1_fixture', '/register', '/login']) {
     const response = await page.goto(path);
     expect(response?.status()).toBe(200);
     await page.reload();
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  }
+  for (const path of ['/design-system', '/design-system/components', '/prototype']) {
+    await page.goto(path);
+    await expect(
+      page.getByRole('heading', { name: 'Página no encontrada', exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Sistema de diseño' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Componentes', exact: true })).toHaveCount(0);
   }
   for (const path of [
     '/api/missing',

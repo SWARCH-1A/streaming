@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Route, Routes, useLocation } from 'react-router';
 
 import { AuthPage, ProfilePage } from '@/src/modules/accounts/entry';
@@ -5,14 +6,15 @@ import { ChannelEditorPage } from '@/src/modules/channels/entry';
 import { DiscoveryPage } from '@/src/modules/discovery/entry';
 import { StudioPage } from '@/src/modules/streaming/entry';
 import { AppLayout } from '@/src/shell/AppLayout';
-import { ComponentsPage } from '@/src/shell/design-system/ComponentsPage';
-import { FoundationsPage } from '@/src/shell/design-system/FoundationsPage';
-import { PrototypePage } from '@/src/shell/design-system/PrototypePage';
 import { ChannelRoute } from '@/src/shell/routes/ChannelRoute';
 import { NotFoundPage } from '@/src/shell/routes/NotFoundPage';
 import { WatchRoute } from '@/src/shell/routes/WatchRoute';
 import { RequireSession } from '@/src/shell/session/RequireSession';
 import { SessionProvider } from '@/src/shell/session/SessionProvider';
+
+const DevelopmentPages = import.meta.env.DEV
+  ? lazy(() => import('@/src/shell/design-system/DevelopmentPages'))
+  : null;
 
 function AppRoutes() {
   const { pathname } = useLocation();
@@ -30,10 +32,18 @@ function AppRoutes() {
           <Route path="studio" element={<StudioPage />} />
           <Route path="studio/channel" element={<ChannelEditorPage />} />
         </Route>
-        <Route path="design-system" element={<FoundationsPage />} />
-        <Route path="design-system/components" element={<ComponentsPage />} />
-        <Route path="prototype" element={<PrototypePage />} />
-        <Route path="*" element={<NotFoundPage />} />
+        <Route
+          path="*"
+          element={
+            DevelopmentPages ? (
+              <Suspense fallback={<p role="status">Cargando biblioteca de desarrollo…</p>}>
+                <DevelopmentPages />
+              </Suspense>
+            ) : (
+              <NotFoundPage />
+            )
+          }
+        />
       </Route>
     </Routes>
   );

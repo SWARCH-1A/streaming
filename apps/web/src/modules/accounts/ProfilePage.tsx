@@ -4,6 +4,8 @@ import type { Profile } from '@contracts/p1';
 
 import banner from '@/public/images/signal-grid.svg';
 
+import { fieldErrors } from '@/src/accessibility/fieldErrors';
+import { useErrorFocus } from '@/src/accessibility/useErrorFocus';
 import { ActionLink } from '@/src/components/atoms/ActionLink';
 import { Avatar } from '@/src/components/atoms/Avatar';
 import { Button } from '@/src/components/atoms/Button';
@@ -26,6 +28,7 @@ export function ProfilePage() {
   const [file, setFile] = useState<File | null>(null);
   const [failure, setFailure] = useState('');
   const [pending, setPending] = useState(false);
+  const focusError = useErrorFocus(pending);
   const [displayName, setDisplayName] = useState(user?.displayName ?? '');
   const [bio, setBio] = useState(user?.bio ?? '');
   const [errors, setErrors] = useState<{ displayName?: string; bio?: string }>({});
@@ -36,7 +39,7 @@ export function ProfilePage() {
     setErrors(next);
     setSaved(false);
     if (Object.keys(next).length) {
-      document.getElementById(next.displayName ? 'displayName' : 'bio')?.focus();
+      focusError(next.displayName ? 'displayName' : 'bio');
       return;
     }
     const signal = lifetime();
@@ -55,7 +58,13 @@ export function ProfilePage() {
       setFile(null);
       setSaved(true);
     } catch (error) {
-      if (!signal.aborted) setFailure(errorMessage(error));
+      if (!signal.aborted) {
+        setFailure(errorMessage(error));
+        const next = fieldErrors(error, ['displayName', 'bio'] as const);
+        setErrors(next);
+        const first = Object.keys(next)[0];
+        if (first) focusError(first);
+      }
     } finally {
       if (!signal.aborted) setPending(false);
     }
@@ -106,6 +115,7 @@ export function ProfilePage() {
                 id="avatar-upload"
                 type="file"
                 accept="image/jpeg,image/png,image/gif"
+                aria-describedby="avatar-upload-hint"
                 onChange={(event) => setFile(event.target.files?.[0] ?? null)}
               />
             </FormField>
@@ -121,6 +131,11 @@ export function ProfilePage() {
                 onChange={(event) => {
                   setDisplayName(event.target.value);
                   setSaved(false);
+                  setErrors((previous) => {
+                    const next = { ...previous };
+                    delete next.displayName;
+                    return next;
+                  });
                 }}
                 aria-invalid={!!errors.displayName}
                 aria-describedby={errors.displayName ? 'displayName-error' : 'displayName-hint'}
@@ -138,6 +153,11 @@ export function ProfilePage() {
                 onChange={(event) => {
                   setBio(event.target.value);
                   setSaved(false);
+                  setErrors((previous) => {
+                    const next = { ...previous };
+                    delete next.bio;
+                    return next;
+                  });
                 }}
                 aria-invalid={!!errors.bio}
                 aria-describedby={errors.bio ? 'bio-error' : 'bio-hint'}

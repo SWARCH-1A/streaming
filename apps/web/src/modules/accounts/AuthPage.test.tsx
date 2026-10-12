@@ -57,6 +57,11 @@ describe('formulario de registro', () => {
     await userEvent.type(screen.getByLabelText('Handle'), 'demo_01');
     await userEvent.type(screen.getByLabelText('Contraseña'), 'demopassword12');
     await userEvent.click(screen.getByRole('button', { name: 'Crear cuenta' }));
+    // Successful HTTP responses load the contract validator lazily. Wait for that
+    // work explicitly instead of including its cold import in findBy's UI deadline.
+    await act(async () => {
+      await vi.dynamicImportSettled();
+    });
     expect(await screen.findByText('Cuenta creada. Ya puedes iniciar sesión.')).toBeInTheDocument();
     expect(screen.queryByLabelText('Contraseña')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Ir a iniciar sesión →' })).toHaveAttribute(

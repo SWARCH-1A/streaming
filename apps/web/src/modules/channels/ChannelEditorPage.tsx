@@ -4,6 +4,8 @@ import type { ChannelBootstrap } from '@contracts/p1';
 
 import artwork from '@/public/images/signal-grid.svg';
 
+import { fieldErrors } from '@/src/accessibility/fieldErrors';
+import { useErrorFocus } from '@/src/accessibility/useErrorFocus';
 import { ActionLink } from '@/src/components/atoms/ActionLink';
 import { Button } from '@/src/components/atoms/Button';
 import { Input } from '@/src/components/atoms/Input';
@@ -35,16 +37,19 @@ function Editor({ initial }: { initial: ChannelBootstrap }) {
   const [description, setDescription] = useState(channel.description);
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState('');
+  const [failure, setFailure] = useState('');
   const [saved, setSaved] = useState(false);
   const [pending, setPending] = useState(false);
+  const focusError = useErrorFocus(pending);
   const lifetime = useLifetime();
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSaved(false);
     setError('');
+    setFailure('');
     if (codePointLength(description) > 500) {
       setError('La descripción admite hasta 500 caracteres.');
-      document.getElementById('channel-description')?.focus();
+      focusError('channel-description');
       return;
     }
     const signal = lifetime();
@@ -66,7 +71,14 @@ function Editor({ initial }: { initial: ChannelBootstrap }) {
       setFile(null);
       setSaved(true);
     } catch (error) {
-      if (!signal.aborted) setError(errorMessage(error));
+      if (!signal.aborted) {
+        setFailure(errorMessage(error));
+        const next = fieldErrors(error, ['description'] as const);
+        if (next.description) {
+          setError(next.description);
+          focusError('channel-description');
+        }
+      }
     } finally {
       if (!signal.aborted) setPending(false);
     }
@@ -96,6 +108,7 @@ function Editor({ initial }: { initial: ChannelBootstrap }) {
         >
           <fieldset disabled={pending} className="stack">
             <legend>Acerca de tu canal</legend>
+            {failure ? <Notice tone="error">{failure}</Notice> : null}
             <FormField
               id="channel-description"
               label="Descripción del canal"
@@ -109,6 +122,7 @@ function Editor({ initial }: { initial: ChannelBootstrap }) {
                 onChange={(event) => {
                   setDescription(event.target.value);
                   setSaved(false);
+                  setError('');
                 }}
                 aria-describedby={error ? 'channel-description-error' : 'channel-description-hint'}
                 aria-invalid={!!error}
@@ -119,6 +133,7 @@ function Editor({ initial }: { initial: ChannelBootstrap }) {
                 id="banner-upload"
                 type="file"
                 accept="image/jpeg,image/png,image/gif"
+                aria-describedby="banner-upload-hint"
                 onChange={(event) => setFile(event.target.files?.[0] ?? null)}
               />
             </FormField>

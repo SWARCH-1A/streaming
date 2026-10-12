@@ -95,7 +95,7 @@ Web consume APIs Core/Streaming y Chat/HLS; módulos UI no requieren procesos pr
 ## 9. Decisiones y preguntas abiertas
 
 Web integrada y mismo origen HTTPS. [ADR-007](../adr/ADR-007-web-react-typescript.md) selecciona la base Web React/TypeScript/SWC con pnpm.
-La Web funcional consume HTTP/GraphQL/WS/HLS reales y valida respuestas con los contratos generados. [ADR-013](../adr/ADR-013-web-integrada-caddy-hls.md) selecciona Caddy, hls.js y validación Ajv. Las muestras se limitan a pruebas y biblioteca visual explícita; nunca reemplazan un fallo de API. El perfil HTTP local sirve para desarrollo y pruebas; TLS, S3 y carga pertenecen a SPEC-13, y la inspección con lector de pantalla de SPEC-08 conserva su puerta independiente. La ruta por handle compone datos locales Core y snapshot público Streaming; Discovery consulta proyección SQL local.
+La Web funcional consume HTTP/GraphQL/WS/HLS reales y valida respuestas con los contratos generados. [ADR-013](../adr/ADR-013-web-integrada-caddy-hls.md) selecciona Caddy, hls.js y validación Ajv. La marca visible es Vault tv. Las muestras se limitan a pruebas y biblioteca visual exclusiva de desarrollo: `/design-system`, `/design-system/components` y `/prototype` no se incluyen en el build de producción y muestran página no encontrada en el producto. Nunca reemplazan un fallo de API. El perfil HTTP local sirve para desarrollo y pruebas; TLS, S3 y carga pertenecen a SPEC-13, y la inspección con lector de pantalla de SPEC-08 conserva su puerta independiente. La ruta por handle compone datos locales Core y snapshot público Streaming; Discovery consulta proyección SQL local.
 
 ## 10. Verificación
 

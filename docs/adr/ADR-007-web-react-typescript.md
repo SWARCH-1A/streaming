@@ -29,7 +29,12 @@ hash; public es una carpeta de assets de fuente, no una carpeta copiada sin tran
 Imágenes de Stitch y fuentes se sirven localmente, sin CDN ni Tailwind en tiempo de ejecución.
 CSS usa tokens y capas, con estilos encapsulados por componente mediante CSS Modules.
 
-Los datos de demostración pertenecen a la biblioteca de componentes y a pruebas, no son fallback
+La identidad visible es Vault tv, con logo local y tokens Dark Cinema Broadcast. Las rutas
+`/design-system`, `/design-system/components` y `/prototype` se cargan diferidas solo en desarrollo
+(`import.meta.env.DEV`); el build de entrega excluye esas páginas y sus enlaces. Los componentes
+reutilizables permanecen en el producto. El build comprueba la exclusión de las rutas de muestra.
+
+Los datos de demostración pertenecen a la biblioteca de desarrollo y a pruebas, no son fallback
 para las vistas funcionales. ADR-013 define HTTP/WS/HLS, CSRF, cookies HttpOnly, contexto Chat y
 bootstrap desde los proveedores reales; la autorización permanece en el backend.
 

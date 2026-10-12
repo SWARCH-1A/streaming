@@ -21,7 +21,7 @@ export function RouteFocus() {
         }
         focused = true;
       }
-      document.title = `${heading?.textContent ?? 'Cargando'} · STREAMING`;
+      document.title = `${heading?.textContent ?? 'Cargando'} · Vault tv`;
     }
     update();
     const observer = new MutationObserver(update);

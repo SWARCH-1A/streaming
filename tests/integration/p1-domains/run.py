@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import shutil
 import subprocess
 import tempfile
 import time
@@ -282,7 +283,10 @@ def main():
                 if args.web:
                     browser_env = {**env, "P1_WEB_INTEGRATION":"1", "P1_WEB_ORIGIN":ORIGIN, "P1_COMPOSE_PROJECT":PROJECT,
                                    "P1_COMPOSE_FILE":str(FIXTURE / "compose.web.yaml")}
-                    subprocess.run(["pnpm", "test:e2e"], cwd=ROOT / "apps/web", env=browser_env, check=True)
+                    pnpm = shutil.which("pnpm")
+                    if not pnpm:
+                        raise RuntimeError("pnpm is required for Web integration")
+                    subprocess.run([pnpm, "test:e2e"], cwd=ROOT / "apps/web", env=browser_env, check=True)
                 print(f"PASS real Core/Streaming/MediaMTX/Chat/Redis: HLS frame, channel states, fresh context/author, WS dedupe, AOF restart, grace, independent delivery, logout, UNKNOWN, fail-closed outages, leases, taxonomy limits and Discovery AND/normalization/exact sets; {checked} neutral payload validations")
             except BaseException:
                 # Diagnostic data stays in the private temporary folder; never publish it unreviewed.

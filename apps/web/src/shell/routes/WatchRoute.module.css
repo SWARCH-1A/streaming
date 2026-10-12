@@ -1,8 +1,17 @@
 .heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+}
+.heading h1 {
+  min-width: 0;
+  flex: 1 1 20rem;
+  overflow-wrap: anywhere;
+}
+.heading > button {
+  flex-shrink: 0;
 }
 .layout {
   display: grid;
@@ -11,7 +20,11 @@
   align-items: start;
 }
 .wide {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
+}
+.layout > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .chat {
   display: grid;
@@ -32,13 +45,16 @@
 }
 @media (max-width: 1200px) {
   .layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .chat {
     position: static;
   }
 }
 @media (max-width: 600px) {
+  .heading h1 {
+    flex-basis: 100%;
+  }
   .info {
     grid-template-columns: 1fr;
   }
