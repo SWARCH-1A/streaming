@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" fill="none">
+  <rect width="1280" height="720" fill="#15161c"/>
+  <defs><pattern id="grid" width="80" height="80" patternUnits="userSpaceOnUse"><path d="M80 0H0V80" stroke="#e3e2e7" stroke-opacity=".055"/></pattern></defs>
+  <rect width="1280" height="720" fill="url(#grid)"/>
+  <path d="M0 520H1280M0 200H1280M240 0V720M1040 0V720" stroke="#e3e2e7" stroke-opacity=".08"/>
+  <g stroke="#a1a3c9" stroke-width="1.5">
+    <ellipse cx="920" cy="350" rx="210" ry="250" transform="rotate(-28 920 350)" stroke-opacity=".13"/>
+    <ellipse cx="920" cy="350" rx="170" ry="210" transform="rotate(-28 920 350)" stroke-opacity=".2"/>
+    <ellipse cx="920" cy="350" rx="130" ry="170" transform="rotate(-28 920 350)" stroke-opacity=".3"/>
+    <ellipse cx="920" cy="350" rx="90" ry="130" transform="rotate(-28 920 350)" stroke-opacity=".45"/>
+    <ellipse cx="920" cy="350" rx="50" ry="90" transform="rotate(-28 920 350)" stroke-opacity=".7"/>
+  </g>
+  <path d="M0 350H330l28-24 28 48 28-72 28 96 28-128 28 160 28-128 28 96 28-72 28 48 28-24h286" stroke="#c0c1ff" stroke-width="2"/>
+  <circle cx="920" cy="350" r="6" fill="#c0c1ff"/>
+  <path d="M40 40h28m-28 0v28m1172-28h28m0 0v28M40 680h28m-28 0v-28m1172 28h28m0 0v-28" stroke="#a1a3c9" stroke-opacity=".4"/>
+  <g fill="#a1a3c9" fill-opacity=".3"><circle cx="240" cy="200" r="3"/><circle cx="1040" cy="200" r="3"/><circle cx="240" cy="520" r="3"/><circle cx="1040" cy="520" r="3"/></g>
+</svg>

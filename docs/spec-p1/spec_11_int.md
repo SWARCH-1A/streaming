@@ -6,11 +6,15 @@
 
 ## 1. Contexto y problema
 
-Especifica el orden y significado de los flujos distribuidos que hacen posible registro con canal, sesión LIVE, chat, estado de canal, conteo y búsqueda. Es hijo de SPEC-09; no replica reglas internas de cada módulo.
+Los recorridos de registro, emisión y chat necesitan respuestas consistentes ante reintentos,
+retrasos y fallos. Esta SPEC describe la transacción local de registro y las comunicaciones
+Core–Streaming/Chat y Streaming–Media/Chat/Discovery. Las operaciones que comparten un mismo
+almacén se confirman localmente.
 
-## 2. Estado del sistema y brecha
+## 2. Definición del componente
 
-Los dueños de datos están identificados, pero no existe protocolo de eventos, estrategia de sincronización, reglas de reintento ni secuencias verificables. Registro y cambios de emisión cruzan límites de módulo.
+Los datos e interfaces de estos flujos están en contratos_modelo_datos.md. Cada módulo implementa
+las operaciones de su dominio; Integración conecta y comprueba sus interacciones.
 
 ## 3. Historia de usuario
 
@@ -20,112 +24,81 @@ Como espectador o streamer, quiero que vista de canal, reproductor, chat y búsq
 
 ### Dentro de P1
 
-- Definir flujos proveedor→consumidor, evento/consulta, idempotencia, orden, reintentos, deduplicación y reconciliación.
+Registro transaccional e idempotente; configuración, sesión, cupos, metadatos y leases en Rust;
+autorización y callbacks Media; contexto autorizado Chat; notificaciones durables y snapshots
+para el estado de sala; y proyección pública Streaming→Discovery con reconstrucción.
 
-- Registro Identity y provisión de un canal; perfil público al consultar canal y snapshot del autor al crear mensaje.
-
-- Validación de categoría/tags; inicio LIVE; asociación de sessionId; sala Chat; proyección en Channel/Discovery; viewer heartbeats.
-
-- Creación de una configuración `streamId` por canal, entrega/rotación de stream key y creación de una sesión nueva por cada emisión RTMP aceptada.
-
-- Desconexión de origen, grace de 30 s, recuperación a la misma sesión, finalización, canal OFFLINE, chat read-only y próxima sesión con ID nuevo.
-
-- Fallos parciales: Chat o Discovery no detienen video; proyección degradada no inventa estado; recuperar eventos no duplica efectos.
+En cada frontera comprobamos fallos, timeouts, deduplicación, generaciones y recuperación.
 
 ### Fuera de P1
 
-- VOD, Chat Replay UI/export, moderación avanzada, notificaciones, followers, pagos y garantía exactly-once.
+Una saga cuenta–canal, replicación entre módulos Core, VOD o replay funcional, notificaciones,
+pagos y garantía de entrega exactamente una vez.
 
-### Supuestos acordados
+### Supuestos
 
-- Estados internos PREPARING, LIVE, RECONNECT_GRACE, ENDED; availability pública PLAYABLE, RECONNECTING, OFFLINE. En grace se conserva sessionId por 30 s, chat lectura/escritura, canal LIVE · reconectando y Discovery excluye el stream de resultados PLAYABLE.
-
-- Entrega al menos una vez es aceptable si cada consumidor procesa idempotentemente; la tecnología se elige por ADR.
+Streaming controla el reloj y el estado de la emisión; Chat controla sus mensajes.
+Los eventos se entregan al menos una vez mediante outbox e inbox durables.
 
 ## 5. Requisitos de interacción
 
-- Identity publica userId/handle canónico y resultado de registro PENDING/ACTIVE/EXPIRED. ACTIVE solo después de exactamente un canal. Registro PENDING no expone cuenta ni inicia sesión; la misma Idempotency-Key permite consultar/reintentar por 24 h desde el `pendingSinceUtc` persistido al crearlo. Luego EXPIRED libera email/handle, GET y POST con la clave anterior responden 410 y un registro nuevo requiere otra clave. ACTIVE tampoco inicia sesión: el usuario hace login separado. Channels provisiona de forma idempotente por ownerUserId.
+Core confirma cuenta, perfil y canal juntos, sin agregar un estado público PENDING.
+Streaming solicita un contexto nuevo Core para validar identidad, propietario y catálogo en cada
+comando protegido; no hay una transacción entre bases.
 
-- Streaming publica sessionId, streamId, channelId, status interno, availability, metadata, hora servidor, eventId/version, graceDeadlineAtUtc (informativo) y timeline sample (sampledAtUtc/timelinePositionMs). Solo el dueño vigente arbitra el límite con reloj monotónico y fencing.
+Media aporta la evidencia HLS. sourceGeneration y eventId permiten identificar fuentes o callbacks
+antiguos. Chat solicita un contexto por mensaje nuevo; los eventos de sesión solo informan el estado
+de la sala. Un lease representa una reproducción, no un participante de chat.
 
-- Cada sesión nueva incrementa `streamGeneration` monotónica por `streamId`; reconexión durante grace conserva generación y sessionId. Las proyecciones comparan primero streamGeneration y después sessionVersion solo dentro del sessionId vigente.
-
-- Media adapter autentica la clave RTMP y publica señales de fuente conectada, medio reproducible y fuente perdida; Streaming deduplica por eventId y descarta sourceGeneration vieja.
-
-- Media adapter envía un `ingestAttemptId` estable durante retries de autorización; Streaming devuelve el mismo resultado para un retry y no reserva un segundo slot.
-
-- Chat acepta read/write anónimo/autenticado respectivamente en LIVE y RECONNECT_GRACE; ENDED permite solo lectura. Rate limit es máximo un mensaje por ventana móvil de 1000 ms por cuenta en todas las salas, sin ráfaga.
-
-- Channels y Discovery proyectan título/categoría/tags/estado/count desde Streaming y nombre/avatar desde Profile sin adueñarse del dato. Discovery publica el canal solo tras evento ACTIVE de Identity; `ChannelProvisioned` confirma la saga privada y no se propaga al índice público.
-
-- Viewer count cuenta un lease por instancia de player después del primer frame; heartbeat 10 s, vence a 30 s sin heartbeat válido y se invalida en ENDED. No equivale a usuarios de chat ni acepta conteo del cliente.
-
-- Profile update refresca consulta pública/proyección; mensaje Chat conserva authorDisplayName snapshot al enviarse.
+El contexto tiene un presupuesto de tiempo acotado. Una operación ya autorizada puede terminar
+dentro de ese presupuesto, aunque una revocación posterior rechace los nuevos intentos.
 
 ## 6. Criterios de aceptación
 
-- **CA-01:** diagrama de secuencia y tabla cubren registro, creación de StreamConfig/streamId, inicio RTMP, edición de metadata, señales del media adapter, sesión, reconexión, fin y lectura/envío de chat.
-
-- **CA-02:** un `ChannelProvisioned`/request idempotente duplicado no duplica canal; el evento interno confirma provisión solo a Identity y nunca publica el canal. Discovery crea un documento de canal offline únicamente tras `IdentityPublicChanged` ACTIVE, consultando entonces identidad, Channel y Profile; los eventos de canal recibidos antes se reconcilian sin hacer visible el recurso. Evento de sesión duplicado no altera count ni abre sala múltiple; evento viejo de una streamGeneration menor no reactiva la sesión anterior. Todo `StreamSessionEnded` lleva sessionId, streamGeneration y sessionVersion final; consumidores comparan streamGeneration antes de sessionVersion. Un canal activo se mantiene en Discovery aunque esté OFFLINE.
-
-- **CA-03:** pérdida menor a 30 s conserva sessionId, disponibilidad RECONNECTING y sala read/write; una reconexión solo se acepta si MediaPlaybackReady se valida con tiempo monotónico transcurrido `<30 s`. En elapsed `>=30 s` gana la transición atómica bajo el dueño/fencing vigente, publica ENDED/OFFLINE con streamGeneration y sessionVersion final, ignora callback tardío y cierra escritura; un traspaso no reinicia ni extiende el límite y, si no se conoce el restante, termina la sesión. El próximo intento genera sessionId/streamGeneration nuevos. Los criterios exigen un caso a 29.999 s y uno a 30.000 s con una sola transición.
-
-- **CA-04:** al finalizar, estado público cambia a OFFLINE en no más de 5 s; una sala ENDED rechaza envíos y conserva lectura/historial según RF-035.
-
-- **CA-05:** perfil/título/categoría/tags aparecen tras confirmación del cambio; un valor inválido no sustituye al último válido.
-
-- **CA-06:** reinicio de consumidor y reentrega reconstruyen la proyección sin duplicar; fallos Chat/Discovery no interrumpen HLS.
-
-- **CA-07:** lease por player se crea después del primer frame, heartbeat cada 10 s, expira a los 30 s sin heartbeat válido, cierre explícito lo retira y no se confunde con participantes del chat.
-
-- **CA-08:** tras `pendingUntilUtc`, Channels cerca las creaciones por registrationId y el lookup de esa clave termina PROVISIONED o ABSENT sin operación en vuelo capaz de crear después. Si la respuesta de provisión se perdió y el estado es PROVISIONED, Identity compensa por registrationId hasta 204; ABSENT cierra la reparación. EXPIRED nunca emite `IdentityPublicChanged`; duplicados/reordenamiento no dejan canal ni documento público huérfano.
-- **CA-09:** MediaSourceConnected, MediaPlaybackReady y MediaSourceLost usan las rutas HTTPS internas fijadas, eventId estable/reutilizado, envelope y ACK durable documentados. Timeout por intento 2 s; timeout/408/429/5xx reintenta tras 100/250/500/1000/2000 ms y luego cada 2 s por un máximo de 15 min. 2xx confirma; 410 SESSION_ENDED cierra como obsoleto; 4xx permanente pasa a dead-letter y alerta. Sin respuesta terminal en 30 s se alerta una vez por sesión/sourceGeneration; al alcanzar 15 min se detienen los reintentos automáticos y se conserva el evento durable para redrive manual con el mismo ID/payload tras recuperar el receptor. No hay TTL automático. La validación usa sessionId, streamGeneration y sourceGeneration; una pérdida de ACK tras guardar no duplica la transición.
-- **CA-10:** Streaming emite `ViewerCountChanged` al pasar a PLAYABLE, por cambios efectivos (coalescidos a 1/s) y heartbeat cada 5 s. Discovery recibe/aplica countVersion creciente, refleja una modificación ≤5 s normal y marca conteo obsoleto separado de estado de playback; conteos atrasados no resucitan ENDED.
-- **CA-11:** `sequence` se compara solo dentro del mismo `aggregateId`: IDs canónicos son `identity:{userId}`, `profile:{userId}`, `channel:{channelId}`, `stream:{streamId}`, `session:{sessionId}`, `viewer-count:{sessionId}` y `chat-session:{sessionId}`. Un consumidor nunca filtra ViewerCountChanged comparando su secuencia con la de eventos de sesión; aplica primero sesión/generación vigentes y luego countVersion.
+- CA-01: los diagramas describen el registro local, la configuración, RTMP/HLS, la gracia y el fin de sesión, Chat y los leases.
+- CA-02: repetir el registro después del commit conserva la cuenta, el perfil y el canal, sin activación pendiente ni duplicados. Repetir un evento de sesión no duplica la sala ni vuelve a abrir una generación anterior.
+- CA-03: una reconexión HLS antes de 30 s conserva la sesión. Con 29.999 s, la recuperación válida continúa; con 30.000 s, la transición serializada confirma ENDED. Un reinicio no extiende la ventana.
+- CA-04: el estado público se actualiza en hasta 5 s. Una autorización posterior a ENDED rechaza el envío, mientras el historial conserva lectura.
+- CA-05: una edición válida de perfil, metadatos o catálogo se refleja después del commit. Una edición inválida conserva el estado anterior.
+- CA-06: recuperación Chat por snapshot/outbox sin duplicados; fallo Chat o endpoint Discovery no corta HLS disponible. Caídas Core/Streaming documentan alcance real de APIs/contextos; atraso Discovery muestra UNKNOWN.
+- CA-07: los leases se crean tras el primer frame, se renuevan cada 10 s, expiran a los 30 s sin heartbeat y se cierran inmediatamente cuando corresponde. El cliente no decide el conteo.
+- CA-08: un fallo entre escrituras del registro revierte todas. Si se pierde la respuesta después del commit, el reintento recupera los IDs.
+- CA-09: los callbacks Media conservan su envelope y el ACK durable. Cada intento tiene timeout de 2 s; se aplica el calendario de reintentos por hasta 15 min, con alerta a los 30 s. La dead-letter y su redrive no tienen TTL. Una respuesta 410 resuelve el callback como obsoleto.
+- CA-10: conteo calculado en Rust desde leases; snapshot público por outbox/inbox Discovery. Observación/publicación<=2s, entrega/aplicación<=3s y frescura separada de estado. Duplicados/desorden no regresan versiones; ENDED excluido y atraso UNKNOWN. Reconstrucción consistente con watermark e inbox durante rebuild.
+- CA-11: las versiones se comparan dentro del agregado y la sesión vigente, revisando streamGeneration antes de sessionVersion. La secuencia de un mensaje no se compara con countVersion.
+- CA-12: una llamada Core por nuevo envío compone sesión/autor locales y estado/timeline actual Streaming (hop<=200ms incluido en contexto<=400ms); sin caché de permisos. Core/Streaming caído rechaza sin persistencia; operación ya autorizada tiene presupuesto acotado explícito.
+- CA-13: bootstrap por handle compone cuenta/perfil/canal locales y un batch autoritativo Streaming; ausencia confirmada devuelve OFFLINE/streamStatusFresh=true, fallo devuelve UNKNOWN/false y conserva datos Core. Configuración sin sesión, PLAYABLE, gracia y ENDED conservan los DTO/IDs canónicos; Discovery no usa HTTP por fila.
+- CA-14: edición de perfil/avatar y descripción/portada se observa desde sus APIs y canal compuesto; fallo de upload/SQL conserva referencia anterior. El siguiente mensaje autorizado usa el nuevo autor público, mientras mensajes previos conservan su snapshot. Propietario ajeno, sesión expirada y logout rechazan la siguiente escritura en Core, Streaming y Chat.
+- CA-15: validar catálogo y filtros en extremos reales: IDs activos/tipados, 0/5/6 tags, omitido frente a null, edición LIVE inválida sin cambio, tombstone con último label y valor nuevo sin rebuild Web. Discovery verifica conjuntos exactos, categoría+tag AND, normalización parcial, ranking/empates/cursor, ENDED/gracia excluidos y UNKNOWN por atraso.
+- CA-16: Chat conserva mensajes con ACK durante la vida de la sala y reinicios, fusiona WS/historial por sesión/sequence sin huecos ni duplicados y mantiene cuota global entre salas/réplicas. ENDED produce read-only y eliminación a los 5 min según ADR-010; reentrega de fin no renueva la retención. Recuperar inventario/estado de sesiones no reconstruye mensajes perdidos: estos requieren AOF/backup dentro de su retención.
 
 ## 7. Diseño técnico y datos
 
-- Evento candidato contiene eventId, eventType, schemaVersion, aggregateId, sequence/version, occurredAt UTC, producer y payload mínimo.
+Registro una transacción SQL Core; sesión y snapshots públicos commit + outbox Rust→Chat/Discovery con ACKs independientes. Inbox durable HTTPS sin broker. Canal usa datos Core y batch autoritativo Streaming; Discovery SQL local con proyección/versiones/frescura y corte reconstruible. P1 una réplica Streaming, transiciones con bloqueo/CAS; pérdida owner/clock termina sin nueva gracia. Multi-réplica requiere fencing/transferencia probados. Correlación sin secretos. Accounts publica ChatContexts con perfil/sesión locales y un puerto Streaming;
+Channels publica ChannelBootstrapService con lectura SQL local y un batch Streaming. Un adaptador
+HTTP común aplica TLS por defecto, 64 KiB, 200 ms para sesión/1 s para canal y ninguna redirección
+o caché de permisos. El token Chat solo permite sus dos rutas internas Core.
+El TTL de caché de sala no elimina mensajes, sequence ni dedupe activos; ENDED inicia la retención
+una sola vez.
 
-- Flujo recomendado: confirmación durable del dueño → publicar outbox o equivalente → deduplicar por eventId → ack y métricas; mecanismo se decide por ADR.
-
-- Transiciones internas PREPARING → LIVE → RECONNECT_GRACE → ENDED y disponibilidad pública PLAYABLE/RECONNECTING/OFFLINE. SessionStarted se emite solo tras HLS reproducible; Channel puede mostrar LIVE · reconectando en grace, Discovery lista solo PLAYABLE.
-
-- Una configuración streamId por canal sobrevive a sesiones ENDED; cada inicio posterior recibe sessionId distinto. Eventos repetidos no duplican transición y callbacks de sourceGeneration antigua no alteran sesión vigente.
-
-- Playback tracking usa leaseId/sessionId/token opaco emitidos por servidor, heartbeatAt y expiración; no exige cuenta ni acepta leaseId, token o viewerCount elegidos por cliente.
-
-- Definir reconciliación por agregado; no asumir transacción distribuida entre almacenes.
+En P1, ADR-011 integra el adaptador técnico en el proceso Streaming. Autorización/callbacks internos conservan HTTP loopback autenticado y persistencia separada. HLS público se enruta al listener 8888 del contenedor Streaming; RTMP sigue en MediaMTX. Reinicios/fallos del proceso afectan al control y al adaptador juntos.
 
 ## 8. Dependencias y contratos de integración
 
-- Contratos y ejemplos de request/response/evento están en el inventario autocontenido `contratos_modelo_datos.md`; las rutas/proxy están centralizadas en `integracion_frontend_reverse_proxy.md`.
-
-- Identity→Channels: identidad/canal inicial mediante endpoint HTTPS/TLS privado autenticado; Identity→servicios protegidos: introspección HTTPS/TLS privada por operación; Identity→Discovery: proyección userId/handle. Taxonomy→Streaming: validez de IDs; Streaming→Chat/Channels/Discovery: sesión/metadata; Profile→Channels/Discovery y snapshot Chat.
-
-- Servicios con cookie de sesión consultan Identity por el contrato privado de introspección antes de cada operación protegida; Channels provisiona solo por endpoint interno autenticado, no por proxy público. Identity publica userId→handle para poblar/reconstruir Discovery.
-
-- Streaming/media adapter determina cuándo HLS es reproducible; callbacks/polling se mantienen detrás del dueño Streaming.
-- Streaming confirma callbacks solo tras aceptación durable; bus/outbox es decisión técnica de ADR, pero el contrato de ruta, ACK, idempotencia, retry y freshness es normativo.
-
-- Observabilidad de cada salto usa correlation ID; errores se mapean según SPEC-10.
+contratos_modelo_datos.md especifica schemas/timeouts; integracion_sistema_p1.md secuencias; proxy en documento frontend. Streaming–Media autentica/observa fuente; Core–Chat compone contexto usando Streaming; Streaming notifica ciclo a Chat y snapshots a Discovery. Cuentas/Canales/Catálogo siguen interfaces locales Core.
 
 ## 9. Decisiones y preguntas abiertas
 
-**Acordado:** identidad/canal uno a uno, streamId distinto de sessionId, grace 30 s, chat replay-ready events sin UI Replay P1, viewer timeout 30 s, fallos aislados. **No bloqueante:** bus/outbox/webhook/polling, orden exacto y estrategia de replay de eventos se seleccionan con ADR; validar secuencias con proveedores/consumidores.
+Estado y cuotas preservados, topología de ADR-005; delivery HTTPS con outbox/inbox a Chat/Discovery, sin broker obligatorio. La proyección pública cruza la frontera Streaming→Core.
 
 ## 10. Verificación
 
-- Pruebas de contrato y secuencia: caminos nominales, retry, duplicado, atraso/reorden y caída de consumidor.
-
-- Simular pérdida RTMP y recuperación a 29 s y cierre tras superar 30 s.
-
-- Comprobar consistencia Channel/Discovery/Chat y deduplicación heartbeat.
-
-- Inyectar caída Chat/Discovery y verificar HLS activo continúa.
-
-- Probar correlación/reconciliación luego de reiniciar consumidor.
+Verificar: rollback/retry de registro, callback duplicado/ACK perdido/antiguo, bordes29.999/30.000s, autorización tras logout/fin, cuota/dedupe/commit/broadcast de Chat, reinicios y recuperación sin extender gracia, HLS aislado de Chat/Discovery; proyección reconstruida con cambios/ENDED concurrentes, watermark y reinicio sin regresión.
 
 ## 11. Esfuerzo, riesgos y consecuencias
 
-**Esfuerzo:** L. **Riesgos:** estado distribuido divergente, loops de eventos, duplicación, relojes/offset incompatibles y saga de cuenta/canal incompleta. **Consecuencia:** no se promete exactly-once, VOD ni replay; entrega al menos una vez exige deduplicación.
+Core concentra el fallo de sus módulos. La autorización síncrona de Chat, las operaciones ya
+autorizadas que siguen en curso y las dependencias multimedia también requieren pruebas cuidadosas.
+
+La coordinación de cada caso de uso queda en su módulo responsable. Integración conecta los
+extremos y comprueba los resultados.

@@ -6,11 +6,15 @@
 
 ## 1. Contexto y problema
 
-Define RF-017…RF-026 para ingesta, sesión, emisión, reproducción, metadatos y espectadores. Debe existir video real reproducible; no se simula el estado LIVE.
+Esta SPEC cubre RF-017…RF-026: recibir una señal, gestionar la sesión, reproducirla y mostrar
+sus metadatos y espectadores. La entrega debe incluir video real. Solo marcamos LIVE cuando
+se comprueba que el medio es reproducible.
 
-## 2. Estado del sistema y brecha
+## 2. Definición del componente
 
-Calidad/transcoding queda fuera de P1. El módulo conecta productor RTMP, servidor multimedia, backend de control y reproductor HLS mediante los contratos de SPEC-10 y SPEC-11.
+Streaming conecta el programa de emisión RTMP, el servidor multimedia y el reproductor HLS.
+El backend controla la sesión mediante los contratos de SPEC-10 y los flujos de SPEC-11.
+Las opciones de calidad y el transcoding quedan fuera de P1.
 
 ## 3. Historia de usuario
 
@@ -26,15 +30,17 @@ Como broadcaster, quiero emitir una señal audiovisual desde mi canal; como espe
 
 - Cada emisión nueva incrementa `streamGeneration` monotónica por `streamId`; reconexión dentro de gracia reutiliza `sessionId`/generación y crea sourceGeneration nueva.
 
-- Crear y editar metadata tanto OFFLINE como LIVE; crear la configuración entrega una clave privada RTMP una vez y se puede rotar solo estando OFFLINE.
+- Crear y editar metadata tanto OFFLINE como LIVE; crear la configuración entrega una clave privada RTMP una vez y se puede rotar solo estando OFFLINE. Para OBS, el estudio entrega servidor base sin credenciales y únicamente la clave opaca `sk_...` como clave de retransmisión, sin streamId ni parámetros de usuario/contraseña; se usa Servicio: Personalizado con «Usar autenticación» desactivado. Streaming identifica la emisión por el hash único de la clave. El secreto permanece en memoria, no se persiste en texto claro ni aparece en logs del motor, HLS público o eventos, y conserva la entrega única/rotación existente.
 
 - Máximo una sesión no terminada por canal y cinco en plataforma contando PREPARING, LIVE y RECONNECT_GRACE; ENDED libera el slot.
 
 - LIVE solo tras confirmación de medio reproducible; HLS para playback anónimo.
 
+- Media produce vistas previas JPEG de emisiones LIVE/PLAYABLE en `/hls/{sessionId}/preview.jpg`: fotograma 640×360, hasta 512 KiB, renovado como máximo una vez cada 15 s por fuente. El adaptador reutiliza la lectura HLS validada y FFmpeg con plazo de 2 s; guarda como máximo cinco imágenes en memoria durante 45 s, ligadas al publisher vigente. GET solo lee esa caché, no ejecuta FFmpeg, no persiste vídeo y no crea leases. ENDED responde 410; ausencia, caducidad o señal no reproducible responde 503. Fallar la captura no cambia estado LIVE ni interrumpe ingest/playback.
+
 - Desconexión: mantener la sesión/chat por 30 s; reconexión en ventana conserva sessionId; al expirar se finaliza y luego se crea nueva sesión.
 
-- Stop voluntario inmediato.
+- Stop voluntario inmediato del control; el player termina los segmentos de su búfer local.
 
 - Contar sesiones de reproducción anónimas/autenticadas; expirar heartbeat a 30 s.
 
@@ -48,11 +54,11 @@ Como broadcaster, quiero emitir una señal audiovisual desde mi canal; como espe
 
 ### Supuestos acordados
 
-- MediaMTX es candidato recomendado, no selección obligatoria. Responsable registra ADR con comparación de opciones.
+- ADR-005 selecciona MediaMTX autogestionado y adaptador técnico Rust. Se verifican configuración/códecs, ingesta, recuperación y latencia antes del despliegue.
 
 - La UI distingue interrupción temporal de estado OFFLINE; el contrato de medio debe informar un manifiesto HLS reproducible.
 
-- Media adapter informa fuente conectada, playback listo y fuente perdida por `POST /internal/streaming/sessions/{sessionId}/source-connected`, `/playback-ready` y `/source-lost`; son HTTPS/TLS privados y autenticados. Streaming deduplica por eventId, valida sourceGeneration y confirma durablemente antes del ACK.
+- Media adapter informa fuente conectada, playback listo y fuente perdida por `POST /internal/streaming/sessions/{sessionId}/source-connected`, `/playback-ready` y `/source-lost`; son privados y autenticados. HTTP loopback se admite solo en desarrollo sin TLS según ADR-011; con TLS habilitado las llamadas al propio proceso y entre contenedores usan HTTPS con CA y hostname verificados. Streaming deduplica por eventId, valida sourceGeneration y confirma durablemente antes del ACK.
 
 ## 5. Requisitos funcionales
 
@@ -72,75 +78,59 @@ Como broadcaster, quiero emitir una señal audiovisual desde mi canal; como espe
 
 - CA-02 — intento de segunda fuente en un canal con una sesión PREPARING, LIVE o RECONNECT_GRACE se rechaza; nunca hay más de cinco sesiones no terminadas a nivel de plataforma.
 
-- CA-03 — desde que el espectador solicita reproducir hasta el primer frame visible transcurren como máximo 5 s en el perfil de red/carga normal documentado por SPEC-13; el umbral es máximo, no percentil.
+- CA-03 — desde que el espectador solicita reproducir hasta el primer frame visible transcurren como máximo 5 s en el perfil de red/carga normal documentado por SPEC-13; el umbral es máximo, no percentil. Una pausa de cinco segundos no provoca error de reproducción; al reanudar se consume el búfer local disponible y, si se agotó o el punto pausado salió de la ventana HLS, se retoma desde una posición disponible de la señal.
 
-- CA-04 — pérdida de fuente pone la misma sesión en `RECONNECT_GRACE` durante 30 s; el estado de ciclo sigue activo, availability=RECONNECTING, Channel lo muestra como LIVE · reconectando, Discovery no lo ofrece en resultados reproducibles y Chat conserva lectura/escritura. Streaming publica timeline samples al menos cada segundo durante toda la gracia. Un mensaje válido cercano al segundo 29 usa sample de no más de 3 s. Una reconexión gana solo si MediaPlaybackReady se valida antes del deadline; al llegar a `now >= deadline` gana el timer, transición atómica a ENDED/OFFLINE y callback tardío se ignora. Retorno posterior requiere sessionId nuevo.
+- CA-04 — pérdida de fuente pone la misma sesión en `RECONNECT_GRACE` durante 30 s; el estado de ciclo sigue activo, availability=RECONNECTING, Channel lo muestra como LIVE · reconectando, Discovery no lo ofrece en resultados reproducibles y Chat conserva lectura/escritura. Core obtiene de Streaming el timeline vigente por mensaje y lo incluye en el contexto autorizado; un mensaje cercano al segundo 29 se valida contra ese estado. Una reconexión gana solo si MediaPlaybackReady se valida antes del deadline; al medir `elapsed >= 30 s` desde la pérdida con reloj monotónico gana la finalización, transición atómica a ENDED/OFFLINE y callback tardío se ignora. Retorno posterior requiere sessionId nuevo.
 
-- CA-05 — stop del propietario finaliza inmediatamente y los cambios de estado llegan a consultas en 5 s.
+- CA-05 — stop del propietario finaliza la sesión inmediatamente y los cambios de estado llegan a consultas en 5 s. El player conserva y consume los segmentos ya descargados antes de mostrar la finalización; también permite reanudar ese búfer si estaba pausado. No descarga nuevos segmentos ni mantiene leases después de ENDED.
 
 - CA-06 — cambio de metadatos durante LIVE aparece tras confirmación en canal y Discovery dentro de la frescura definida; categoría una, tags 0–5.
 
 - CA-07 — player muestra handle/nombre visible del canal, título actual y categoría actual del stream; ninguna respuesta revela email, handle de ingestión ni otros secretos.
 
-- CA-08 — un lease por instancia de player se crea solo tras primer frame; se heartbeat cada 10 s, se elimina al cerrar player y expira 30 s después del último heartbeat válido. Cliente no controla viewerCount; no se requiere login.
+- CA-08 — un lease por instancia de player se crea solo tras primer frame; se renueva mediante heartbeat cada 10 s, se elimina al cerrar player y expira 30 s después del último heartbeat válido. Cliente no controla viewerCount; no se requiere login.
 
 - CA-09 — prueba de 5 emisiones y 100 espectadores concurrentes totales durante 10 minutos según el perfil reproducible SPEC-13.
 - CA-10 — nuevas configuraciones y cambios explícitos de categoría/tags solo admiten IDs activos; si un valor actualmente asociado queda inactivo, un patch de título preserva esa asociación y la metadata pública conserva su último label.
 - CA-11 — `viewerCount` es una estimación best-effort de leases de player vigentes, no una medida resistente a bots ni a tráfico automatizado. Discovery puede usarla para ordenar y mostrar popularidad aproximada; P1 no la usa para autorización, cobros, beneficios ni decisiones de seguridad. Antes de asignarle consecuencias económicas o de abuso, se requiere un control antiabuso fuera del alcance de P1.
-- CA-12 — las tres rutas de callback validan el envelope común eventId/streamId/sessionId/streamGeneration/sourceGeneration, auth de servicio, sesión y path HLS. ACK 202 ocurre tras aceptación durable; repetir mismo eventId/payload es idempotente, reuso con payload diferente da 409 y generación vieja se ignora con 200. Timeout por intento 2 s; se reintenta timeout/408/429/5xx tras 100/250/500/1000/2000 ms y luego cada 2 s con el mismo eventId durante un máximo de 15 min desde el primer intento. Cualquier 2xx confirma ACK; 410 SESSION_ENDED cierra como callback obsoleto. 409/422 u otro 4xx permanente pasa a dead-letter y alerta. Si no llega respuesta terminal en 30 s, se alerta una vez por sesión/sourceGeneration y se sigue reintentando hasta 15 min; entonces pasa a dead-letter durable sin reintento automático. El operador la redrivea con el mismo eventId/payload y una nueva ventana de 15 min, o la cierra tras confirmar que es irrecuperable/obsoleta; no expira automáticamente y la capacidad se fija en ADR operativo. Intentos, edad y cola se miden. PlaybackReady solo pasa a PLAYABLE tras comprobar manifiesto y segmento.
-- CA-13 — Streaming envía snapshot `ViewerCountChanged` con `aggregateId=viewer-count:{sessionId}` al entrar en PLAYABLE, al cambiar conteo (máximo uno por segundo) y cada 5 s aunque no cambie; countVersion crece por snapshot. Discovery aplica solo sesión/generación vigente y versión mayor, refleja un cambio en 5 s en operación normal, marca viewerCountFresh=false si pasan más de 5 s sin snapshot y reconstruye con GET de sesión. Una sesión ENDED no reaparece por count tardío.
+- CA-12 — las tres rutas de callback validan el envelope común eventId/streamId/sessionId/streamGeneration/sourceGeneration, auth de servicio, sesión y path HLS. ACK 202 ocurre tras aceptación durable; repetir mismo eventId/payload es idempotente, reuso con payload diferente da 409 y generación vieja se ignora con 200. Timeout por intento 2 s; se reintenta timeout/408/429/5xx tras 100/250/500/1000/2000 ms y luego cada 2 s con el mismo eventId durante un máximo de 15 min desde el primer intento. Cualquier 2xx confirma ACK; 410 SESSION_ENDED cierra como callback obsoleto. 409/422 u otro 4xx permanente pasa a dead-letter y alerta. Si no llega respuesta terminal en 30 s, se alerta una vez por sesión/sourceGeneration y se sigue reintentando hasta 15 min; entonces pasa a dead-letter durable sin reintento automático. El operador vuelve a enviarla (redrive) con el mismo eventId/payload y una nueva ventana de 15 min, o la cierra tras confirmar que es irrecuperable/obsoleta; no expira automáticamente y la capacidad se fija en ADR operativo. Intentos, edad y cola se miden. PlaybackReady solo pasa a PLAYABLE tras comprobar manifiesto y segmento.
+- CA-13 — Streaming calcula/versiona conteo de leases en su SQL; cambios agrupados como máximo 1/s. Publica snapshots públicos por outbox e inbox Discovery. En carga normal observación/publicación <=2 s y entrega/aplicación <=3 s, para reflejar cambios <=5 s; viewerCountFresh=false si observación supera 5 s. Discovery excluye ENDED y estado PLAYABLE no confirmado/fuera de frescura. Duplicados/versiones viejas no revierten datos; reconstrucción completa usa snapshot consistente y watermark.
 
 ## 7. Diseño técnico y datos
 
-- Propiedad: StreamConfig/streamId estable por canal, ownerId, title/categoryId/tagIds y clave privada; StreamSession/sessionId nuevo por emisión, estado/disponibilidad, timestamps y viewer leases. Streaming posee estado, reloj y conteo. Estado interno PREPARING/LIVE/RECONNECT_GRACE/ENDED se separa de disponibilidad PLAYABLE/RECONNECTING/OFFLINE. Nueva configuración inicia metadataVersion=1; streamGeneration inicia en 0 y aumenta uno por cada sessionId nuevo.
+Streaming es servicio Rust independiente según ADR-005. Posee StreamConfig/streamId, claves de ingesta, StreamSession/sessionId, cupos, reloj, generaciones, leases y versiones en PostgreSQL privado con pooling. Core conserva Cuentas, Canales, Catálogo y Discovery. Para cada comando protegido Streaming solicita un contexto Core nuevo con identidad, propiedad y validación tipada/activa de categoría/tags presentes; usa IDs opacos y snapshots de labels/tombstones, sin FK entre bases ni permiso cacheado. Una autorización en vuelo tiene presupuesto acotado explícito en contratos.
 
-- Estados de dominio: PREPARING, LIVE, RECONNECT_GRACE, ENDED. La respuesta pública expone disponibilidad PLAYABLE, RECONNECTING u OFFLINE para separar ciclo activo de posibilidad real de reproducción.
+P1 usa tres contenedores: PostgreSQL, MediaMTX y Streaming con adaptador técnico en el mismo runtime Tokio (ADR-011). El adaptador conserva base/rol y repositorio separados; comparte fallo/reinicio con Streaming. Los contratos técnicos internos usan HTTP loopback autenticado en desarrollo; el perfil persistente SPEC-13/ADR-014 usa HTTPS autenticado con CA explícita, sin contenedor adicional. MediaMTX transporta RTMP/LL-HLS; el adaptador Rust autoriza ingest y envía callbacks idempotentes con ACK durable, eventId/sourceGeneration y path HLS validado. Streaming verifica manifiesto/segmento y frame antes de LIVE. Stop confirma ENDED inmediatamente y ordena cortar la fuente. Cupos cinco global/uno por canal se reservan atómicamente en SQL.
 
-- Separar control plane de transporte multimedia mediante adapter/callback/health API; exponer estado reproducible y playback URL solo a lectores públicos cuando hay medio PLAYABLE. Stream key/ingest secret solo se muestra al propietario autenticado por canal seguro; nunca se entrega a player/Discovery/evento/log.
+El mismo commit conserva eventos de sesión para Chat y snapshots públicos para la proyección Discovery, con entregas independientes por consumidor. Discovery aplica en Core y combina con datos públicos locales; sus filas no autorizan comandos ni mensajes. Timeline se calcula al leer/contextualizar cada envío; no se replica como muestra periódica. Claves, secretos y datos de identidad privada nunca viajan en eventos.
 
-- Publicar creación/lectura/edición de configuración, rotación de stream key, finalización de sesión, `GET /api/streams/{streamId}`, `GET /api/streams/sessions/{sessionId}` y viewer leases según `contratos_modelo_datos.md`; no aceptar viewerCount, leaseId ni tokens escogidos por el cliente.
-
-- Selección inicial y cambios explícitos de categoría/tag validan IDs activos en Taxonomy; IDs omitidos se conservan aunque se desactiven posteriormente. Discovery resuelve labels activos o tombstones por el lookup interno de Taxonomy.
-
-- Aceptar callbacks HTTP autenticados en tres paths internos fijados por SPEC-10; sobre común `eventId`, `streamId`, `sessionId`, `streamGeneration`, `sourceGeneration`; Streaming registra el evento durable antes de responder y deduplica el eventId. `playbackPath` debe ser relativo y bajo `/hls/{sessionId}/`; timestamps son asignados por Streaming. Retries, timeouts, ACK y códigos de error quedan fijados en `contratos_modelo_datos.md`.
-- `viewerCount` cuenta leases por instancia de player según heartbeat; es orientativo y puede inflarse con clientes automatizados aun cuando el servidor emita tokens. Streaming publica snapshots versionados y Discovery recibe su proyección; en P1 solo informa/rankea y nunca concede acceso, pagos ni ventajas.
-
-- Publicar timeline sample al inicio de LIVE, al cambiar disponibilidad y terminar, y al menos cada segundo durante LIVE y toda RECONNECT_GRACE; el reloj monotónico de la sesión sigue avanzando en gracia hasta ENDED. Un sample incluye `sessionVersion` y llega a Chat con antigüedad máxima de 3 s para aceptar escritura.
-
-- Conector multimedia: RTMP ingress y HLS delivery; definir reverse proxy para HLS y configurar RTMP por puerto específico; no exponer secreto de emisión.
-
-- ADR debe comparar MediaMTX/OvenMediaEngine/u otra opción según códecs, HLS latency, callbacks, límites, local reproducible y compatibilidad.
+P1 arranca una réplica Streaming; timers/callbacks concurren bajo bloqueo/CAS. Reinicio no extiende gracia: recuperar restante verificable o terminar. Multi-réplica necesita fencing/enrutamiento/clock probado antes de habilitar. Media no posee sesión de negocio ni permisos.
 
 ## 8. Dependencias y contratos de integración
 
-- Identity valida propietario y autorización del stream key.
-
-- Channels aporta owner/channel data y consume eventos de estado.
-
-- Taxonomy valida categoryId/tagIds.
-
-- Chat abre/cierra la sala usando stream session lifecycle y asocia sessionId.
-
-- Discovery consume stream state, metadata y count.
-
-- Frontend integra control de emisión y player; proxy enruta HLS.
+Core publica contexto de owner/catálogo y recibe snapshots públicos en inbox; Discovery usa su proyección SQL. Core consulta estado/timeline autoritativo a Streaming para cada contexto de mensaje Chat. Streaming entrega lifecycle a Chat y recibe señales Media. Web usa GraphQL Core, API Streaming y HLS Media; integration conecta extremos/proxy y verifica contratos después de desarrollo del módulo.
 
 ## 9. Decisiones y preguntas abiertas
 
-**Decisiones:** un streamId/configuración persistente por canal; nueva sessionId por emisión; RTMP/HLS, LIVE solo al confirmar playback, auto-start tras metadata, PREPARING máximo 30 s, máximo cinco sesiones no terminadas, estado/disponibilidad separados, gracia 30 s, lease por player/expiración 30 s; máximo 5 s al primer frame según RNF-012. La tecnología concreta la decide el owner.
+**Decisiones:** un streamId/configuración persistente por canal; nueva sessionId por emisión; RTMP/HLS, LIVE solo al confirmar playback, auto-start tras metadata, PREPARING máximo 30 s, máximo cinco sesiones no terminadas, estado/disponibilidad separados, gracia 30 s, lease por player/expiración 30 s; máximo 5 s al primer frame según RNF-012. Rust/SQLx/PostgreSQL y MediaMTX/LL-HLS aceptados en ADR-005.
 
-**Abierto:** no hay preguntas de producto bloqueantes. La persona responsable debe registrar el ADR y cerrar los detalles de implementación listados en Diseño.
+**Abierto:** no hay preguntas de producto bloqueantes. ADR-005 fija la frontera y tecnología. La entrega durable y capacidad DLQ del adaptador se definen en la [ADR de callbacks Media](../../services/streaming/docs/adr/0001-media-callback-delivery.md); la aceptación de recuperación y latencia se rige por los criterios de esta SPEC y SPEC-13.
 
 ## 10. Verificación
 
-- state machine y transición con fuente real, start/stop, pérdida/reconexión en bordes 29/30/31 s, server callback tardío y duplicado.
-
-- HLS anónimo; medir solicitud→primer frame y verificar máximo 5 s con perfil controlado; reproducción para 100 espectadores agregados.
-
-- integridad y autorización de stream key; actualización de metadatos; conteo/heartbeat; errores de media server sin estado LIVE falso.
-
-- simultaneidad 5 streams/100 reproductores durante 10 min; sexto stream rechazado; retención de datos de usuario/canal/stream tras reinicio según RNF-022 y RNF-050.
+- Probar la máquina de estados con video real: PREPARING de hasta 30 s y pérdida de fuente a los 29, 30 y 31 s.
+- Comprobar callbacks duplicados, sourceGeneration antigua y ACK perdido, junto con reservas concurrentes de cupos.
+- Validar metadatos y el contexto Core de catálogo y propietario.
+- Medir un máximo de 5 s al primer frame HLS y ejecutar cien reproductores con sus leases durante diez minutos.
+- Reiniciar Streaming y verificar que no concede una nueva gracia.
+- Probar la proyección Discovery con duplicados, desorden, atraso y reconstrucción.
+- Medir la línea temporal Streaming que recibe Chat mediante el contexto Core.
 
 ## 11. Esfuerzo, riesgos y consecuencias
 
-**Esfuerzo:** L. **Riesgos:** latencia de HLS, incompatibilidad de codecs/OBS, discrepancia entre health del medio y API, coste de recursos al llegar al quinto stream y exposición de stream keys. **Consecuencia:** no implementar capacidades explícitamente fuera de P1.
+**Esfuerzo:** L. Los riesgos principales son la latencia HLS, la compatibilidad de códecs y OBS,
+las diferencias entre el estado del medio y el de la API, el consumo de recursos al llegar al
+quinto stream y la exposición de claves de emisión.
+
+La entrega se limita a las capacidades de P1. Las opciones de calidad, VOD y subtítulos
+requieren trabajo en fases posteriores.

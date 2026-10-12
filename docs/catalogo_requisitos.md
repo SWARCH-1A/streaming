@@ -1,6 +1,8 @@
 # Catálogo de requisitos — STREAMING, versión 0
 
-> Línea base inicial del proyecto. RF-001…RF-079 son los identificadores funcionales; RNF-001…RNF-050 son los identificadores no funcionales. Las prioridades y decisiones P1 constan en el registro de decisiones.
+Este catálogo conserva la línea base del proyecto: RF-001…RF-079 identifican los requisitos
+funcionales y RNF-001…RNF-050, los no funcionales. El documento de decisiones registra las
+prioridades y los acuerdos de P1.
 
 > Documentos relacionados: [decisiones de alcance](decisiones_alcance_p1.md), [mapa de módulos y SPEC](mapa_sdd_p1.md) y [plantilla SPEC](sdd_template.md).
 
@@ -158,11 +160,19 @@ Conversación; Videojuegos; Música; Arte; Educación; Ciencia y tecnología; De
 
 Español; Inglés; Educativo; Competitivo; Casual; Principiantes; Programación; IRL.
 
-El catálogo inicial se entrega como datos controlados y está disponible por contrato de lectura. P1 no incluye interfaz de administración para que usuarios o administradores agreguen categorías o etiquetas. Para cumplir RNF-039, incorporar una categoría o etiqueta al catálogo en el backend (por configuración o almacenamiento elegido por el responsable) no puede requerir cambios al código fuente ni reconstrucción del cliente web; el cliente obtiene el catálogo actualizado mediante el contrato de lectura. La semilla inicial no impide esa capacidad y no convierte el alta de valores en una operación P1 de usuario.
+El catálogo inicial se entrega como datos controlados y se consulta mediante su API de lectura.
+En P1 no hay una interfaz para que usuarios o administradores agreguen categorías o etiquetas.
+
+RNF-039 exige que los valores incorporados en el backend, mediante la configuración o el
+almacenamiento elegido, lleguen al cliente sin modificar su código ni reconstruir Web.
+La API debe devolver el catálogo actualizado. Esa capacidad permite ampliar la semilla,
+pero no añade una operación de alta de valores para usuarios en P1.
 
 ## Parámetros de imágenes de perfil/canal
 
-Regla acordada para el prototipo: avatar e imagen de portada opcionales; JPEG, PNG o GIF; máximo 10 MB por imagen; avatar de al menos 200×200 px; imagen de portada recomendada de 1200×480 px. Si falta una imagen, se muestra un recurso predeterminado. Los límites y el comportamiento están descritos aquí para que no sea necesario consultar otra especificación.
+El avatar y la portada son opcionales. Admitimos JPEG, PNG o GIF de hasta 10 MB por imagen.
+El avatar debe medir al menos 200×200 px; para la portada recomendamos 1200×480 px.
+Si el usuario no sube una imagen, se muestra el recurso predeterminado.
 
 ## Decisiones transversales relacionadas
 
@@ -170,7 +180,7 @@ Regla acordada para el prototipo: avatar e imagen de portada opcionales; JPEG, P
 - Una sola sesión activa por canal y máximo cinco en la plataforma. LIVE se publica al confirmar medio reproducible.
 - La pérdida de fuente conserva la sesión y el chat durante 30 segundos; después el estado termina y una reconexión inicia una sesión nueva.
 - Espectadores pueden mirar sin login; enviar chat requiere cuenta autenticada.
-- Chat Replay se habilita en una fase VOD futura. P1 persiste eventos con autor, sesión, contenido, timestamp de servidor y posición relativa al medio; no implementa la reproducción VOD.
+- Chat Replay se habilita en una fase VOD futura. En P1 el chat es efímero: cada mensaje lleva autor, sesión, contenido, timestamp de servidor y posición relativa al medio mientras dura la sala, que se elimina 5 minutos después del fin; no implementa la reproducción VOD.
 - Descubrimiento P1 busca canales y títulos con coincidencias parciales, aplica filtros de categoría/etiquetas solo a contenido LIVE y ordena por espectadores descendentes.
 - El objetivo de carga se mide durante 10 minutos: 5 streams, 100 espectadores concurrentes totales y 20 mensajes por segundo agregados.
 - P1 incluye operación por teclado, semántica para tecnologías de asistencia, foco visible, contraste y control de autoscroll del chat. Subtítulos quedan fuera; no se declara conformidad global WCAG 2.2 AA.

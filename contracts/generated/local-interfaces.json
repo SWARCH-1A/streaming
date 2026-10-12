@@ -1,0 +1,23 @@
+[
+  {
+    "consumer": "Cuentas",
+    "contract": "IdentityStore + ChannelInitializer; one PostgreSQL transaction, rollback/idempotency/FK",
+    "id": "core.registration-transaction",
+    "owner": "Core",
+    "provider": "Cuentas/Canales"
+  },
+  {
+    "consumer": "Canales/Discovery",
+    "contract": "CatalogContexts/CatalogSelections/CatalogValues; typed active IDs and tombstones, local SQL snapshot",
+    "id": "core.catalog-selection",
+    "owner": "Catálogo",
+    "provider": "Catálogo"
+  },
+  {
+    "consumer": "Canales/Discovery/Chat context",
+    "contract": "Published DTO/read model, explicit SQL columns; no credential columns or external SQL access",
+    "id": "core.public-reads",
+    "owner": "Core modules",
+    "provider": "Cuentas/Canales"
+  }
+]

@@ -1,3 +1,4 @@
 # Aplicaciones
 
-Las aplicaciones ejecutables de usuario viven aquí. La aplicación web y su shell se encuentran en web/.
+Aquí está la aplicación [Web](web/README.md), incluida la interfaz de los módulos y el shell
+que reúne sus rutas, navegación y sesión.

@@ -1,0 +1,6 @@
+# Explicit isolated HTTP opt-in. Combine Core base, private-dev and Chat base before this overlay.
+services:
+  chat:
+    environment:
+      CHAT_CORE_BASE_URL: http://core:8082
+      CHAT_CORE_DEVELOPMENT_HTTP: "true"

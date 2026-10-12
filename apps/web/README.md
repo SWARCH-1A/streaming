@@ -1,5 +1,95 @@
-# Aplicación web
+# Web · Vault tv
 
-La composición de rutas y navegación global pertenece a shell/. Las vistas y estado específicos de
-dominio pertenecen a modules/<módulo>/. Los elementos transversales de accesibilidad reutilizables
-pertenecen a accessibility/. Sigue SPEC-08 para cada recorrido P1.
+Vault tv es la interfaz Web de STREAMING. Es una SPA con React, TypeScript y SWC, gestionada
+con pnpm. Usa el diseño Dark Cinema Broadcast y organiza sus funciones en módulos internos.
+
+Para levantar el sistema completo, sigue el [Compose raíz y la guía local](../../README.md).
+[ADR-007](../../docs/adr/ADR-007-web-react-typescript.md) define la base;
+[ADR-013](../../docs/adr/ADR-013-web-integrada-caddy-hls.md) conecta los proveedores reales.
+
+## Ejecutar
+
+Node >=22.12 y pnpm 11.17.0. Desde esta carpeta:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm check
+pnpm dev
+```
+
+Las vistas funcionales necesitan los servicios. Si no están disponibles, muestran el error.
+Los datos de muestra se usan en pruebas y en la biblioteca de desarrollo.
+
+Para desarrollar por HTTP con Core:8081, Streaming:8080, Chat:8085 y HLS:8888 ya iniciados:
+
+```sh
+VITE_P1_PROXY=1 pnpm dev
+```
+
+Abrir http://localhost:3000, el mismo WEB_ORIGIN de los proveedores. En PowerShell, primero
+`$env:VITE_P1_PROXY='1'`. Opcionalmente configurar CORE_DEV_UPSTREAM, STREAMING_DEV_UPSTREAM,
+CHAT_DEV_UPSTREAM y HLS_DEV_UPSTREAM; son variables del servidor Vite, no credenciales del browser.
+Vite solo sirve desarrollo. `pnpm build` genera dist; Caddy es la entrada integrada documentada
+[con sus rutas](../../infra/reverse-proxy/README.md).
+
+El navegador integrado requiere los proveedores reales y no los inicia por sí mismo:
+
+```sh
+pnpm exec playwright install chromium
+# Desde la raíz, con las dependencias Python del fixture:
+python tests/integration/p1-domains/run.py --web
+```
+
+El runner construye servicios actuales, crea secretos ficticios efímeros, inicia Caddy y ejecuta
+`pnpm test:e2e` para escritorio/móvil; elimina únicamente su proyecto al finalizar.
+Fuera del runner, la suite E2E omite explícitamente los recorridos reales: un skip no es aceptación.
+`pnpm test:watch` y `pnpm test:coverage` sirven para pruebas locales; `pnpm preview` solo inspecciona
+el build y no sustituye el proxy. Axe/teclado complementan la revisión con lector de pantalla SPEC-08.
+
+## Rutas y comportamiento
+
+| Ruta                                                  | Fuente                                                                                        |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| / y /search?q=…&category=…&tag=…                      | Consultas GraphQL generadas de Discovery y Taxonomy dinámico; ranking/cursor/AND en servidor. |
+| /channels/:handle                                     | Bootstrap Core, casing canónico y estado UNKNOWN si Streaming falla.                          |
+| /watch/:streamId                                      | Streaming autoritativo, canal Core por ID, HLS y Chat real por sessionId.                     |
+| /login y /register                                    | Cookie HttpOnly/CSRF; registro crea cuenta/perfil/canal y login es separado.                  |
+| /profile                                              | Sesión requerida, perfil y avatar con upload multipart Core.                                  |
+| /studio/channel                                       | Sesión requerida, descripción y portada con upload multipart Core.                            |
+| /studio                                               | Configuración/metadata, clave de creación/rotación solo en memoria, stop y monitor real.      |
+| /design-system, /design-system/components, /prototype | Biblioteca visual disponible solo con `pnpm dev`; producción muestra página no encontrada.    |
+
+La identidad visible es Vault tv. El logo local se importa desde `public/brand/vault-tv.png` y
+conserva sus proporciones; los tokens Dark Cinema Broadcast definen contraste, foco y estados.
+Las páginas de diseño se cargan de forma diferida bajo `import.meta.env.DEV`: sus rutas y módulos
+no se incluyen en producción. `pnpm build` comprueba también los paquetes emitidos. Los componentes
+compartidos permanecen disponibles para las vistas funcionales.
+
+El [protocolo de accesibilidad](src/accessibility/README.md) cubre SPEC-08 y diferencia comprobación
+automática de observación humana. Opcionalmente, `P1_A11Y_ARTIFACTS` indica una carpeta externa para
+capturas del runner Web; se oculta el campo de clave. Revisar las capturas antes de compartirlas.
+
+No se guardan credenciales, claves, tokens de lease ni sesión en local/session storage. CSRF se
+solicita por operación Core; Streaming valida Origin según su contrato. El servidor decide permisos.
+Uploads admiten JPEG/PNG/GIF hasta 10 MB; los errores conservan el formulario. Cambios de recurso
+cancelan lecturas y descartan resultados tardíos. Una caída Chat no desmonta el player.
+
+El reproductor usa controles nativos. Carga hls.js de forma diferida cuando hay MediaSource
+y usa HLS nativo si MediaSource/hls.js no está disponible. Solo carga el medio en PLAYABLE.
+Un frame decodificado inicia el lease, que se renueva cada 10 s y se cierra al pausar, salir,
+fallar o cambiar de sesión. La expiración de 30 s del servidor limita las creaciones o cierres
+cuyo resultado se desconoce.
+Chat abre WS antes del historial, fusiona secuencias, avisa de huecos no recuperables y permite
+reintentar el mismo clientMessageId. No se anuncia éxito sin ACK. Pausar autoscroll conserva foco.
+
+## Organización
+
+Componentes/tokens en src/components y src/styles; módulos publican entry.tsx y no comparten internals.
+Shell posee sesión, router, layout y boundaries; accessibility mantiene foco/título al navegar.
+Aliases @/src y @/public conservan imports internos, y @contracts usa ../../contracts/generated.
+Los schemas, tipos p1.d.ts y queries se derivan de contracts/p1.json y del SDL en docs/contratos_modelo_datos.md; ejecutar su generador
+antes de pnpm check cuando cambie el contrato. Los modelos demo solo son presentación para pruebas.
+
+TypeScript es estricto; ESLint comprueba tipos/hooks/accesibilidad/límites; Prettier define formato.
+Tests junto al módulo; integración compartida en tests/ y e2e/. Dist, logs y resultados no se versionan.
+VOD, pagos, suscripciones, drops, moderación y captions permanecen fuera de P1 según catálogo.

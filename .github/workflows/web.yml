@@ -1,0 +1,48 @@
+name: Web quality
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'apps/web/**'
+      - 'contracts/generated/**'
+      - '.github/workflows/web.yml'
+      - '!apps/web/**/*.md'
+      - '!contracts/generated/**/*.md'
+  pull_request:
+    paths:
+      - 'apps/web/**'
+      - 'contracts/generated/**'
+      - '.github/workflows/web.yml'
+      - '!apps/web/**/*.md'
+      - '!contracts/generated/**/*.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: apps/web/package.json
+          run_install: false
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check

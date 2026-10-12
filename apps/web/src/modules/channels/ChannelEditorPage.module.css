@@ -1,0 +1,25 @@
+.banner {
+  position: relative;
+  height: 240px;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+}
+.banner img {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+}
+.banner > div {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: end;
+  padding: 2rem;
+  background: linear-gradient(transparent, rgb(13 14 18 / 90%));
+}
+.editor {
+  display: grid;
+  gap: 1.5rem;
+  max-width: 800px;
+}

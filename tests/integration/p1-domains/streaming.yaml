@@ -1,0 +1,11 @@
+services:
+  streaming:
+    image: ${P1_STREAMING_IMAGE:-streaming-p1-domains-streaming}
+    environment:
+      STREAMING_CORE_BASE_URL: http://core:8082
+      STREAMING_CORE_SERVICE_TOKEN: ${CORE_STREAMING_SERVICE_TOKEN:?Fixture secret}
+      STREAMING_CORE_CONSUMER_TOKEN: ${CORE_STREAMING_CONSUMER_TOKEN:?Fixture secret}
+      STREAMING_CHAT_BASE_URL: http://chat:8086
+      STREAMING_CHAT_SERVICE_TOKEN: ${CHAT_SESSION_EVENTS_TOKEN:?Fixture secret}
+      STREAMING_SESSION_COOKIE_NAME: stream_session
+      STREAMING_PUBLIC_HLS_BASE_URL: http://localhost:18888

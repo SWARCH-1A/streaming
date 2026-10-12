@@ -1,34 +1,115 @@
 # STREAMING
 
-Repositorio principal del proyecto académico STREAMING. Contiene el código, los contratos generados,
-la configuración compartida y la documentación normativa necesaria para implementar la primera
-iteración.
+STREAMING es nuestro proyecto académico de una plataforma de transmisiones en vivo.
+Permite crear una cuenta y un canal, emitir video, conversar por chat y encontrar emisiones.
+La interfaz se presenta como Vault tv.
 
-## Fuente normativa
+Los requisitos, contratos y decisiones están en [docs](docs/README.md). Esta guía explica
+cómo levantar el sistema completo en local.
 
-La documentación canónica vive en `docs/`. Empieza por [docs/README.md](docs/README.md), que indica
-el orden de lectura, alcance, contratos y decisiones. El trabajo de implementación debe seguir
-[AGENTS.md](AGENTS.md): cada encargo se asigna a un módulo y ese módulo tiene rutas propias para
-backend, frontend y pruebas.
+## Ejecutar todo en local
 
-La versión 0 de esta documentación define el alcance P1 y las capacidades futuras conservadas. Las
-decisiones de implementación pendientes se registran en ADR dentro de `docs/adr/` antes de tratarse
-como aprobadas.
+Necesitas Docker con Compose ≥2.24.4, Python ≥3.12 y OpenSSL. Puedes usar macOS, Linux o Windows
+mediante WSL. Docker compila Java, Rust, Go y Web, así que este arranque no requiere instalar
+los lenguajes ni Node/pnpm en el host.
 
-## Módulos
+El primer build puede tardar varios minutos. Reserva al menos 15 GB libres en el disco de Docker.
 
-| Módulo | SPEC primaria | Backend | Frontend |
-| --- | --- | --- | --- |
-| Identidad | SPEC-01 | `services/identity/` | `apps/web/modules/identity/` |
-| Perfil | SPEC-02 | `services/profile/` | `apps/web/modules/profile/` |
-| Canales | SPEC-03 | `services/channels/` | `apps/web/modules/channels/` |
-| Streaming | SPEC-04 | `services/streaming/` | `apps/web/modules/streaming/` |
-| Chat | SPEC-05 | `services/chat/` | `apps/web/modules/chat/` |
-| Taxonomía | SPEC-06 | `services/taxonomy/` | `apps/web/modules/taxonomy/` |
-| Descubrimiento | SPEC-07 | `services/discovery/` | `apps/web/modules/discovery/` |
-| Accesibilidad | SPEC-08 | Sin servicio propio | `apps/web/accessibility/` y criterios aplicados en la UI |
-| Integración | SPEC-09 a SPEC-13 | Sin servicio de dominio | Shell, contratos, infraestructura y pruebas integradas |
+Desde la raíz de este repositorio:
 
-La estructura define propiedad lógica del código, no obliga a desplegar un proceso por carpeta. La
-topología, herramientas y tecnologías que siguen abiertas se deciden mediante ADR y deben respetar
-los contratos vigentes.
+```sh
+python3 infra/local/dev.py init
+python3 infra/local/dev.py build
+python3 infra/local/dev.py up
+python3 infra/local/dev.py status
+```
+
+`init` genera los secretos y certificados locales en `infra/p1/.state-local/`, que Git ignora.
+Puedes repetirlo: conserva la configuración y los datos existentes. `up` espera respuestas HTTPS
+de Web y la API. El [Compose raíz](compose.yaml) levanta **nueve contenedores**:
+
+| Servicio | Función |
+| --- | --- |
+| `core` | Java/Spring: cuentas, perfiles, canales, catálogo y Discovery |
+| `core-db` | PostgreSQL de Core |
+| `chat` | Go: mensajes, historial y WebSocket |
+| `chat-db` | Redis con AOF: mensajes, secuencia y cuota |
+| `live` | Rust: control de emisiones y adaptador Media |
+| `live-db` | PostgreSQL: bases separadas de Live y del adaptador |
+| `media-server` | MediaMTX: ingesta RTMPS y entrega HLS |
+| `web` | Build estático de la SPA React, servido por HTTPS |
+| `proxy` | Entrada pública HTTPS y rutas Web/API/WebSocket/HLS |
+
+Abrir **[https://localhost:3445](https://localhost:3445)**. Antes, confiar en
+`infra/p1/.state-local/ca.crt` en el sistema donde corren OBS y el navegador, siguiendo la
+[guía de certificados para Linux, macOS y Windows/WSL](infra/local/certificados.md).
+Importar solo ese certificado público como CA y reiniciar ambas aplicaciones. Firefox permite importarlo en Ajustes → Privacidad y
+seguridad → Certificados → Autoridades; Chromium/Brave utiliza el gestor de certificados del
+sistema o del navegador. Los certificados de servicio duran 90 días y la CA un año.
+Una advertencia TLS indica que falta confianza o que el certificado expiró; no desactivar su verificación.
+Si usas otro stack en localhost, abrir este en un perfil de navegador separado: las cookies comparten
+el host aunque los puertos sean distintos.
+
+Comprobar la API sin modificar el almacén de confianza del sistema:
+
+```sh
+curl --fail --cacert infra/p1/.state-local/ca.crt https://localhost:3445/api/taxonomy
+```
+
+Registrarse en `/register` e iniciar sesión en `/login`. En `/profile` se edita el perfil y avatar;
+`/studio/channel` permite editar el canal y su portada. `/studio` crea una emisión, muestra la URL y
+clave de ingest y permite detenerla. Para **OBS**, seleccionar Servicio: Personalizado, copiar
+«Servidor» en «Servidor» y «Clave de retransmisión» completa en «Clave de retransmisión»;
+desactivar «Usar autenticación». El servidor no contiene credenciales; copia únicamente la clave `sk_...`,
+sin usuario, contraseña ni identificador adicional. Streaming identifica la emisión por su hash. El encoder debe ser compatible con
+**RTMPS** y confiar en la CA local. Ingest usa `localhost:11938`.
+El perfil soporta H.264/AAC; con señal activa, abrir el canal o `/watch/{streamId}` desde otra pestaña
+para reproducir HLS y probar el chat. Discovery se actualiza desde las emisiones reales.
+
+Solo HTTPS y RTMPS están publicados, en loopback. Las bases y APIs privadas permanecen en la red
+Compose. Avatares y portadas usan volúmenes locales; no se necesitan credenciales S3. `live` es el
+nombre del servicio desplegado; sus fuentes siguen en `services/streaming` y los contratos conservan
+sus rutas y variables `STREAMING_*`.
+
+## Parar, actualizar y diagnosticar
+
+```sh
+python3 infra/local/dev.py down       # conserva datos y secretos
+python3 infra/local/dev.py build      # recompila el checkout después de actualizarlo
+python3 infra/local/dev.py up
+```
+
+También se puede usar Compose directamente; el único manifest es el de la raíz:
+
+```sh
+docker compose --env-file infra/p1/.state-local/environment.env up --build -d
+docker compose --env-file infra/p1/.state-local/environment.env ps
+docker compose --env-file infra/p1/.state-local/environment.env logs --tail=100 core live chat proxy
+docker compose --env-file infra/p1/.state-local/environment.env down
+```
+
+Los errores del gestor quedan en `infra/p1/.state-local/diagnostics.log`. Para empezar con bases
+vacías, `python3 infra/local/dev.py reset --confirm-disposable` **elimina los datos de este proyecto**.
+No borrar `.state-local` sobre bases existentes: cambiaría las contraseñas y rompería el acceso.
+No compartir su configuración, claves, logs con credenciales ni URLs de ingest completas.
+
+El proyecto se llama `streaming-local`, separado de los fixtures de integración. Antes de `init`
+se pueden elegir otros puertos con `P1_HTTPS_PORT` y `P1_RTMPS_PORT`; después se conservan los
+inicializados. El inicializador selecciona una subred Docker libre. Para fijarla, elegir una pareja `LOCAL_SUBNET` y
+`LOCAL_PROXY_IP` antes de `init` (por ejemplo `192.168.239.0/24` y `192.168.239.2`). El proxy tiene una
+IP fija porque Core solo acepta los headers de forwarding de esa IP.
+
+## Desarrollo y comprobaciones
+
+- [Core](services/core/README.md), [Live](services/streaming/README.md), [Chat](services/chat/README.md)
+  y [Web](apps/web/README.md) documentan sus comandos y configuración.
+- CI automático: calidad de Web cuando cambia `apps/web` o sus contratos; generación y validación
+  de contratos cuando cambian sus fuentes/consumidores de prueba o el SDL de Core. Los pushes a
+  `main`/`develop` y las PR ejecutan esos checks; los cambios solo documentales no levantan stacks.
+- El workflow **P1 integration (manual)** permite elegir TLS/recuperación/réplicas, dominios, Web,
+  Core, Chat o el consumidor Core–Live. Las suites también se ejecutan desde [tests](tests/README.md).
+- El [perfil TLS de aceptación](infra/p1/README.md) conserva los fixtures aislados para réplicas,
+  recuperación y carga. Arrancar local no acredita los criterios de carga ni accesibilidad manual.
+
+[Arquitectura](docs/arquitectura_c4_cnc_despliegue.md), [SPEC P1](docs/spec-p1/README.md),
+[contratos](docs/contratos_modelo_datos.md) y [ADR](docs/adr/README.md) describen las fronteras técnicas.

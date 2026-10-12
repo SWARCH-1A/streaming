@@ -6,11 +6,15 @@
 
 ## 1. Contexto y problema
 
-Define RF-066…RF-069: vocabulario controlado para clasificar emisiones y permitir consultas consistentes de streams LIVE. La selección de taxonomía es compartida con Streaming y Discovery.
+Las categorías y etiquetas permiten clasificar una emisión y encontrarla con filtros consistentes.
+RF-066…RF-069 definen ese vocabulario controlado. Streaming usa sus valores para describir las
+emisiones y Discovery para consultarlas.
 
-## 2. Estado del sistema y brecha
+## 2. Definición del componente
 
-La semilla y sus reglas aparecen completas en el catálogo local. Taxonomy ofrece los valores activos y las reglas de asociación que usan Streaming y Discovery.
+Taxonomy es el módulo Core que ofrece las categorías y etiquetas activas. Su semilla se define
+completa en el catálogo local. También publica las reglas de selección que necesitan Streaming
+y Discovery.
 
 ## 3. Historia de usuario
 
@@ -38,7 +42,7 @@ Como streamer, quiero escoger una categoría y etiquetas reconocibles para mi em
 
 - La semilla es estática/controlada en P1 y es compartida por todos los consumidores.
 
-- Streaming es autoridad de la asociación actual entre sesión y metadatos; Taxonomía administra definiciones/vocabulario y expone IDs/valores.
+- Emisiones es autoridad de las asociaciones de categoría/etiquetas de StreamConfig; Taxonomía administra definiciones/vocabulario y expone IDs/valores.
 
 ## 5. Requisitos funcionales
 
@@ -67,23 +71,23 @@ Como streamer, quiero escoger una categoría y etiquetas reconocibles para mi em
 
 ## 7. Diseño técnico y datos
 
-- Definir entidades Category(categoryId, name, active) y Tag(tagId, name, active), y la asignación vigente streamId→category/tags con integridad local. Los IDs no se reutilizan ni borran; al desactivar, conservar el último label como tombstone mientras sea referenciado.
+Implementación Core: Spring/JDBC/Flyway existentes; V3 incorpora semilla, versión automática,
+protección de IDs y tombstones sin modificar V1/V2. V4 agrega unicidad global por ID/tipo sin alterar
+V3 ni los datos/versiones existentes; una colisión previa impide migrar sin reparación automática.
+GET usa snapshot SQL único, orden NFKC/minúsculas
+e ID, `Cache-Control: no-cache`, sin ETag. [ADR-006](../adr/ADR-006-taxonomia-en-core.md)
+propone las decisiones de persistencia y seguridad para revisión del equipo.
 
-- Un solo propietario por entidad; no permitir que Discovery o Streaming escriban el catálogo directamente. Streaming es autoridad de metadatos de emisión y Taxonomy autoridad de catálogo.
-
-- Publicar un contrato de lectura para catálogo y criterios de filtrado; versión, normalización/case folding y formato de IDs quedan en contrato.
-
-- `GET /api/taxonomy` devuelve ID estable, label, active=true y catalogVersion; `GET /internal/taxonomy/values/{valueId}` permite a Streaming/Discovery resolver también un valor inactivo ya referenciado. El owner actualiza catalogVersion de manera monotónica. No elegir almacén por anticipado: el owner selecciona seed/configuración o persistencia por ADR, pero la extensión server-side no requiere modificar el cliente.
+Catálogo es módulo Core, SQL con IDs/labels/activo/catalogVersion, API pública GET /api/taxonomy e interfaz local CatalogValues.find para tombstones. Catálogo escribe vocabulario Core; Streaming escribe asociaciones en su SQL privado usando validación tipada y snapshots de labels. No hay FK entre bases. Desactivar no borra IDs/labels referenciados; IDs enviados explícitamente deben estar activos, omitidos se preservan. Añadir datos servidor no requiere rebuild de Web. Catálogo no tiene proceso/DB propio. Publica contexto privado y resolución de tombstones para Streaming mediante Core.
 
 ## 8. Dependencias y contratos de integración
 
-- Streaming valida y persiste asociaciones enviando IDs de catálogo; Taxonomy ofrece IDs y valores válidos.
+Streaming solicita a Core la validación de los IDs enviados: deben estar activos y corresponder
+al tipo correcto. Los campos omitidos conservan sus asociaciones y el último nombre guardado.
+Discovery combina el catálogo local con la proyección Streaming mediante consultas SQL revisadas.
 
-- Discovery consume IDs y etiquetas legibles y pide resultados LIVE; no debe consultar tablas privadas de Streaming/Taxonomy.
-
-- Frontend carga categorías/etiquetas del contrato de catálogo y muestra errores de valor inactivo o límite excedido.
-
-- Si catálogo no responde, las ediciones no aceptan valores que no puedan validarse; una emisión ya activa conserva metadatos válidos previos.
+Web obtiene las opciones por API, sin mantener otra lista fija de etiquetas. Si SQL o Core fallan,
+se comunica el error; Taxonomy comparte la disponibilidad del proceso Core.
 
 ## 9. Decisiones y preguntas abiertas
 
@@ -91,16 +95,20 @@ Como streamer, quiero escoger una categoría y etiquetas reconocibles para mi em
 
 ## 10. Verificación
 
-- Contrato de catálogo incluye exactamente semilla aprobada y IDs estables.
+Pruebas del proveedor: `infra/local/test-core.ps1`, Java 25/PostgreSQL 18 en Docker; incluyen HTTPS
+privado, permisos de credenciales por ruta/puerto público, sesión revocada/owner, IDs tipados y
+disjuntos bajo concurrencia, actualización V3→V4, campos omitidos, tombstones y
+fallo SQL correlacionado. El contrato con Rust se comprueba con el runner de
+[tests/contracts](../../tests/contracts/README.md); persistencia con el smoke allí documentado.
+Esto no cierra SPEC-06: Streaming debe demostrar asociaciones/edición LIVE (CA-02/03/05/07),
+Discovery filtros exactos/AND/PLAYABLE y frescura (CA-04/05/07), y Web opciones nuevas sin rebuild
+y accesibilidad (CA-06/SPEC-08). SPEC-08 requiere verificar los recorridos Web integrados.
 
-- Pruebas de cero, cinco y seis etiquetas, categoría única/ausente/inactiva y duplicados.
-
-- Pruebas de filtros solo LIVE, cambio midstream y fallo del servicio de catálogo.
-
-- Desactivación de valor referenciado: no selección nueva, metadata previa intacta y label disponible tras reconstruir Discovery.
-
-- Pruebas de consumidor aseguran que Discovery y Streaming no dependen de tablas ajenas.
+Semilla siete categorías/ocho tags; 0/5/6 tags, categorías ausentes/inactivas y dedupe; filtros PLAYABLE exactos y AND, edición LIVE y tombstones; nueva opción servidor sin rebuild Web. Revisar propiedad local de Catálogo y contrato Core–Streaming, sin FK entre bases ni servicio Taxonomy separado.
 
 ## 11. Esfuerzo, riesgos y consecuencias
 
-**Esfuerzo:** S/M. **Riesgos:** vocabulario divergente por hardcode duplicado, IDs inestables y discrepancias entre resultado filtrado y metadatos editados. **Consecuencia:** P1 no incluye administración dinámica, subtítulos ni indexación VOD.
+**Esfuerzo:** S/M. Debemos evitar listas duplicadas en el código, IDs que cambien entre lecturas
+y filtros cuyos resultados no coincidan con los metadatos editados.
+
+La administración dinámica del catálogo, los subtítulos y la indexación VOD quedan fuera de P1.

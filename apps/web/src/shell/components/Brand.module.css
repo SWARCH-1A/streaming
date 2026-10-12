@@ -1,0 +1,30 @@
+.brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+}
+.mark {
+  position: relative;
+  display: block;
+  width: 140px;
+  height: 42px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+}
+.mark img {
+  position: absolute;
+  max-width: none;
+  width: 200%;
+  height: auto;
+  left: -50%;
+  top: 50%;
+  transform: translateY(-50%);
+}
+@media (max-width: 600px) {
+  .mark {
+    width: 108px;
+    height: 34px;
+  }
+}

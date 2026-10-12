@@ -6,11 +6,13 @@
 
 ## 1. Contexto y problema
 
-Especifica cómo intercambian datos los módulos P1 sin compartir tablas, clases internas o decisiones tecnológicas. Es hijo de SPEC-09 y fija el acuerdo proveedor/consumidor para APIs y esquemas.
+Web, Core, Streaming, Chat y Media necesitan compartir datos sin depender de los modelos internos
+del otro. Esta SPEC define sus contratos de red y las interfaces locales de Core.
+Los módulos Core pueden conservar la integridad referencial dentro de su base.
 
-## 2. Estado del sistema y brecha
+## 2. Definición del componente
 
-Los límites lógicos, las rutas canónicas P1, el payload mínimo de las operaciones críticas y los errores/fallos observables están especificados en el inventario autocontenido `contratos_modelo_datos.md`. OpenAPI/JSON Schema/AsyncAPI y las herramientas de validación se seleccionan mediante ADR, sin cambiar el contrato semántico.
+Los límites lógicos, las rutas canónicas P1, el payload mínimo de las operaciones críticas y los errores/fallos observables están especificados en el inventario `contratos_modelo_datos.md`, con schemas y ejemplos en `contracts/p1.json`. ADR-012 selecciona JSON Schema 2020-12 y SDL, derivados mediante `contracts/generate.py`. `--check` verifica ejemplos, referencias locales, privacidad, inventario, SDL Core/queries y drift; CI usa el mismo comando. La prueba Core–Streaming importa el cliente Rust del checkout actual; una referencia histórica requiere selección explícita.
 
 ## 3. Historia de usuario
 
@@ -20,39 +22,31 @@ Como responsable o consumidor de un módulo, quiero interfaces versionadas, esqu
 
 ### Dentro de P1
 
-- Contrato de lectura/escritura entre Identity, Profile, Channels, Streaming, Chat, Taxonomy y Discovery; registrar proveedor, consumidor y dato autoritativo.
-
-- Definir formato HTTP/JSON, IDs opacos, fecha UTC, request/correlation ID, autenticación/autorización y matriz de errores por operación.
-
-- Definir versionado compatible, paginación/búsqueda, límites y comportamiento ante timeout, duplicado, 401, 403, 404, 409, 422, 429 y 5xx según aplique.
-
-- En eventos, fijar `aggregateId` namespaced por flujo: `identity:{userId}`, `profile:{userId}`, `channel:{channelId}`, `stream:{streamId}`, `session:{sessionId}`, `viewer-count:{sessionId}` y `chat-session:{sessionId}`. `sequence` crece solo dentro del agregado; las versiones de dominio correspondientes la definen según `contratos_modelo_datos.md`, y ningún consumidor compara valores entre aggregateIds distintos.
-
-- Incluir ejemplos de request/response y payload/event schemas sin compartir entidades de una base privada.
+Documentar métodos, rutas, mensajes, esquemas neutrales, errores, identificadores, versiones,
+seguridad, paginación y compatibilidad. El inventario distingue APIs públicas, contratos entre
+procesos e interfaces locales Core. Incluye Core–Streaming/Chat y Streaming–Chat/Media.
 
 ### Fuera de P1
 
-- Imponer una misma herramienta, framework, librería de cliente, broker o API gateway a todos los dominios; la interfaz de Discovery sí queda definida como GraphQL en su contrato P1.
+Contratos de capacidades futuras que aún no se han priorizado y una plataforma universal de
+gateway o broker.
 
-- Contratos de pagos, suscripciones, VOD, administración, moderación avanzada y subtítulos.
+### Supuestos
 
-### Supuestos acordados
-
-- La persona dueña de módulo elige herramienta y registra ADR compatible con este límite lógico.
-
-- Un ID de otro módulo es una referencia de contrato, no una foreign key cross-database ni autorización para consultar su tabla.
-
-- La interfaz pública de Discovery usa GraphQL sobre HTTP/JSON; esto no impone GraphQL a los otros dominios ni selecciona su framework o lenguaje.
+Discovery conserva GraphQL dentro de Core. Usar REST o WebSocket no obliga a elegir un framework
+distinto por módulo. Las claves foráneas son locales a una base; las referencias entre bases
+se validan mediante contrato.
 
 ## 5. Requisitos de integración
 
-- Cada operación publicada especifica método/ruta o mensaje, actor, auth, petición/respuesta, errores, idempotencia, límite, latencia objetivo y dueño del dato.
+Cada dato tiene un módulo responsable de escribirlo. Dentro de Core, los demás módulos consumen
+interfaces locales y DTO o modelos de lectura públicos. Cuentas autentica y Catálogo valida los IDs.
+Streaming controla configuración, claves, estado, cupos, línea temporal, leases y snapshots públicos;
+Chat controla mensajes, orden y cuota.
 
-- Identity emite principal/userId opaco; Profile no recibe credenciales; Channels separa perfil público, descripción/banner y estado de Streaming; Taxonomy devuelve IDs controlados.
-
-- Streaming es autoridad de sesión, metadata LIVE y viewerCount; Chat de eventos de mensaje; Discovery de su proyección reconstruible.
-
-- Respuestas públicas excluyen email, contraseña/hash, sesión/token privado y datos internos de autorización.
+Los payloads públicos excluyen secretos y email privado. Entre procesos usamos esquemas neutrales,
+sin compartir clases internas. La idempotencia se define por operación; la red puede entregar
+una solicitud más de una vez.
 
 ## 6. Criterios de aceptación
 
@@ -62,41 +56,39 @@ Como responsable o consumidor de un módulo, quiero interfaces versionadas, esqu
 
 - **CA-03:** errores estructurados no filtran secretos/stack/SQL e incluyen correlación suficiente.
 
+La autorización privada verifica consumidor y permiso de cada ruta. El token Core–Streaming
+principal permite owner-context y catalog-values; el token adicional limitado al catálogo debe
+recibir 401 en owner-context aun con sesión válida. Ambos reciben 404 en la entrada pública.
+
 - **CA-04:** una solicitud repetida no duplica provisión de canal, sesión, mensaje u operación que el contrato marque idempotente.
 
 - **CA-05:** una modificación incompatible identifica consumidores, transición, coexistencia/versiones y condición de retiro.
 
 - **CA-06:** respuestas de canal, discovery y chat no exponen atributos privados; verificación con payload y revisión de schema.
 
+- **CA-07:** el inventario cubre todas las operaciones de la matriz SPEC-09, incluidas obtención de CSRF, uploads/lectura de imágenes, bootstrap de canal, contexto/snapshot Chat, frames WS, leases y HLS. Cada fila identifica schema/ejemplo de éxito y error, auth por ruta, límites, timeout, idempotencia y consumidor; las interfaces locales Core se distinguen de los contratos de red.
+
+- **CA-08:** las pruebas de proveedor y consumidor usan los componentes del checkout integrado identificado por commit; un harness fijado a una versión histórica se conserva como regresión, pero no acredita compatibilidad del código actual. Cada contrato pendiente de implementación permanece abierto aunque existan schema o mock.
+
 ## 7. Diseño técnico y datos
 
-- Contrato neutral recomienda OpenAPI para HTTP y JSON Schema/AsyncAPI para eventos como candidatos; el dueño selecciona e incluye ADR.
+Fuente semántica única contratos_modelo_datos.md; artefactos generados según ADR de herramienta. Cambio incompatible identifica transición/migración/retiro. Core usa puertos/adaptadores locales, repositorios privados y FK; Streaming/Chat/Media consumen schemas HTTP neutros. Los criterios de aceptación requieren evidencia ejecutable.
 
-- Envelope de error propuesto: code estable, mensaje seguro, fieldErrors opcionales y requestId; status HTTP diferenciado por operación.
-
-- IDs opacos, UTC, UTF-8 y tamaños máximos; canonicalización de email/handle, búsqueda Unicode, autenticación y errores están definidos en el contrato transversal.
-
-- Usar puertos/adaptadores o cliente generado con contrato; no compartir repositorios/modelos ORM entre dominios.
-
-- Credenciales viajan por canal seguro; no se registran en logs; contratos no imprimen token ni stream key.
+En P1, ADR-011 integra el adaptador técnico en el proceso Streaming. Autorización/callbacks internos conservan HTTP loopback autenticado en desarrollo; el perfil persistente ADR-014 usa HTTPS con CA explícita y conserva persistencia separada. HLS público se enruta al listener 8888 del contenedor Streaming; RTMP sigue en MediaMTX. Reinicios/fallos del proceso afectan al control y al adaptador juntos.
 
 ## 8. Dependencias y contratos de integración
 
-- Depende de SPEC-01 a SPEC-08; cada SPEC sigue siendo dueño de su funcionalidad de dominio.
-
-- Identity, Profile, Channels, Streaming, Taxonomy y Chat usan las interfaces HTTP/JSON o WebSocket de cada contrato. Discovery usa GraphQL sobre HTTP/JSON según la decisión existente de su módulo; su endpoint y schema están definidos en el contrato transversal.
-
-- La fuente canónica de ruta, schemas de ejemplo, propiedad, auth, errores, idempotencia, orden y frescura es `contratos_modelo_datos.md`. SPEC-11 gobierna secuencia/eventos; SPEC-12 gobierna shell/proxy; SPEC-13 gobierna despliegue y verificación integrada.
-
-- Una dependencia lenta falla con timeout acotado y error traducido; consultas/proyecciones declaran frescura. No bloquear reproducción por chat o discovery.
+SPEC-01, SPEC-03…SPEC-08 aportan comportamiento; SPEC-11 secuencia; SPEC-12 proxy; SPEC-13 evidencia. Core–Chat usa contexto/snapshot compuesto con estado actual Streaming; Streaming–Chat entrega lifecycle. Core–Streaming valida owner/catálogo y recibe proyección Discovery. Streaming–Media autoriza ingesta/callbacks/control técnico. Snapshots/versiones/frescura/reconstrucción siguen el contrato canónico. Las interfaces de Cuentas/Canales/Catálogo/Consultas son locales a Core.
 
 ## 9. Decisiones y preguntas abiertas
 
-**Acordado:** contratos independientes de lenguaje/almacenamiento; rutas P1 canónicas; ownership por módulo; compatibilidad; WebSocket para Chat; schemas neutrales y errores estructurados. **ADR técnico:** la herramienta para materializar schemas, timeout numérico por operación y delivery de eventos, siempre respetando los límites semánticos de los contratos documentados y revisados por ambos extremos.
+Preservar contratos públicos donde no contradigan topología; registrar cambios de registro/lectura compuesta/contexto Chat. La aceptación requiere schemas neutrales y verificación de presupuestos entre proveedor y consumidor.
+
+Los artefactos incluyen p1.d.ts derivado de schemas JSON y tipos GraphQL derivados del SDL; Web consume esos tipos y las queries sin DTO paralelos.
 
 ## 10. Verificación
 
-- Validación schema y ejemplos por CI una vez elegida la herramienta.
+- Validar esquemas y ejemplos en CI con contracts/generate.py --check, según ADR-012.
 
 - Consumer-driven contract tests para operaciones críticas entre módulos.
 
@@ -106,4 +98,7 @@ Como responsable o consumidor de un módulo, quiero interfaces versionadas, esqu
 
 ## 11. Esfuerzo, riesgos y consecuencias
 
-**Esfuerzo:** M. **Riesgos:** esquemas divergentes, contrato que revela datos privados, cambio breaking sin coordinación e identificadores reinterpretados por lenguaje. **Consecuencia:** clientes externos públicos y gobierno de API productiva quedan fuera de P1.
+**Esfuerzo:** M. Los principales riesgos son esquemas divergentes, datos privados en un contrato,
+cambios incompatibles sin coordinación e identificadores que cada lenguaje interprete de forma distinta.
+
+Los clientes externos y la gestión de una API productiva quedan fuera de P1.

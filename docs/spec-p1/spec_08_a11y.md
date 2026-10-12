@@ -6,11 +6,16 @@
 
 ## 1. Contexto y problema
 
-Define los criterios RNF-033…RNF-036 aplicables a navegación, formularios, reproductor, estado de emisión y chat. El alcance acordado incluye accesibilidad de la interfaz aunque subtítulos quedan fuera de P1.
+El recorrido principal debe poder usarse con teclado y tecnología asistiva. Esta SPEC concreta
+RNF-033…RNF-036 para navegación, formularios, reproductor, estados de emisión y chat.
 
-## 2. Estado del sistema y brecha
+P1 incluye accesibilidad de la interfaz. Los subtítulos quedan para otra fase, por lo que la
+verificación de estos recorridos no permite declarar conformidad global con WCAG 2.2 AA.
 
-Esta SPEC convierte las expectativas de teclado y semántica en controles verificables por cada dominio y en una matriz de verificación P1.
+## 2. Definición del componente
+
+La accesibilidad se trabaja en las vistas de cada módulo. Esta SPEC define las comprobaciones
+de teclado y semántica que deben aplicar y reúne la matriz de verificación de P1.
 
 ## 3. Historia de usuario
 
@@ -92,7 +97,11 @@ Como usuario con distintas capacidades y formas de interacción, quiero navegar 
 
 ## 9. Decisiones y preguntas abiertas
 
-**Acordado:** subtítulos fuera de P1, accesibilidad funcional sí; no hacer declaración global de conformidad. **No bloqueante:** equipo/owner elige lectores de pantalla/navegadores del protocolo de verificación y registra versión usada.
+Acordamos incluir la accesibilidad funcional de la interfaz y dejar los subtítulos fuera de P1.
+Los resultados deben describir los criterios comprobados, sin afirmar conformidad global.
+
+Queda por elegir el conjunto de lectores de pantalla y navegadores del protocolo. Es una decisión
+no bloqueante a cargo del equipo responsable, que debe registrar las versiones usadas.
 
 ## 10. Verificación
 
@@ -107,4 +116,7 @@ Como usuario con distintas capacidades y formas de interacción, quiero navegar 
 
 ## 11. Esfuerzo, riesgos y consecuencias
 
-**Esfuerzo:** M. **Riesgos:** tratar accesibilidad como acabado, mensajes que interrumpan lectura, foco perdido en microfrontends e imágenes sin contexto. **Consecuencia:** no se incluye aún accesibilidad de pistas de subtítulos/transcripción.
+**Esfuerzo:** M. Los riesgos son dejar la accesibilidad para el final, interrumpir la lectura
+con mensajes frecuentes, perder el foco al navegar y mostrar imágenes sin contexto.
+
+La accesibilidad de pistas de subtítulos y transcripciones queda pendiente para otra fase.

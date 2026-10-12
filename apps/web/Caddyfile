@@ -1,0 +1,9 @@
+{
+  admin off
+  auto_https off
+}
+:3443 {
+  tls /run/secrets/web.crt /run/secrets/web.key
+  root * /srv
+  file_server
+}

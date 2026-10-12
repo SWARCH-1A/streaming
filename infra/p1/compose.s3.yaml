@@ -1,0 +1,14 @@
+# Persistent academic TLS profile. The Streaming include still has exactly three services.
+include:
+  - path:
+      - ../local/compose.core.yaml
+      - ../local/compose.core-private-tls.yaml
+      - ../local/compose.chat.yaml
+      - ./core-chat.yaml
+      - ./s3.yaml
+  - path:
+      - ../../services/streaming/compose.yaml
+      - ./streaming.yaml
+  - path:
+      - ../reverse-proxy/compose.web-dev.yaml
+      - ./web.yaml

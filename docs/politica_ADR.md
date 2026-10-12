@@ -2,10 +2,13 @@
 
 ## Quién decide
 
-La persona responsable del módulo puede seleccionar su lenguaje, framework, almacenamiento y librerías.
-La decisión se acepta cuando cumple los contratos del sistema y restricciones de la asignatura,
-documenta alternativas y consecuencias, y no rompe a consumidores. El SDD especifica la obligación y
-la interfaz; el ADR registra la selección concreta y su motivo.
+La persona responsable de cada unidad desplegable acuerda el lenguaje, el framework, el
+almacenamiento y las librerías con quienes trabajan en sus módulos. En Core compartimos el stack
+y las transacciones; agregar otro proceso, base o frontera HTTP requiere una decisión de arquitectura.
+
+Aceptamos una decisión cuando respeta los contratos y las restricciones de la asignatura,
+explica las alternativas y sus consecuencias, y conserva la compatibilidad con los consumidores.
+La SPEC describe qué debe hacer la solución; el ADR explica qué elegimos para implementarla y por qué.
 
 ## Cuándo registrar
 
@@ -17,8 +20,8 @@ Crear ADR antes de:
 - seleccionar SQL/NoSQL, mecanismos de sesión, broker, reverse proxy, player o carga de archivos;
 - hacer incompatible una decisión vigente.
 
-Cambios menores locales pueden explicarse en el PR. Un ADR aceptado no impide reemplazo; un ADR nuevo
-debe identificar cuál revierte y cómo migra datos/consumidores.
+Los cambios menores dentro de un módulo pueden explicarse en el PR. Si reemplazamos una decisión
+aceptada, el nuevo ADR debe indicar cuál sustituye y cómo migramos los datos y los consumidores.
 
 ## Plantilla
 
@@ -54,12 +57,26 @@ Señales que justificarían revisar la elección y quién la revisa.
 Compartir ADR con módulos consumidores cuando cambie su contrato; dejar sus observaciones registradas.
 Una selección tecnológica de módulo no debe:
 
-- exigir acceso a la base privada de otro módulo;
+- exigir acceso de otro servicio a una base privada; dentro de Core se permiten FK y lecturas SQL
+  compuestas revisadas, preservando dueño de escritura/repositorios;
 - imponer su lenguaje o tipos internos como contrato;
 - requerir que el shell del frontend incorpore una excepción global no justificada;
 - impedir una prueba integrada y despliegue reproducible;
 - dejar sin explicación la contribución a las restricciones de SQL, NoSQL, conectores HTTP, lenguajes,
   contenedores o reinicio independiente.
 
-Las decisiones del equipo van en ADR separado de decisiones de producto. Una opción de este catálogo
-o de un SDD marcada como candidata no se vuelve selección aprobada por aparecer en el texto.
+Las decisiones técnicas se registran en ADR; las de producto, en el documento de alcance.
+Una tecnología mencionada como candidata en el catálogo o en una SPEC sigue siendo una opción
+hasta que su ADR sea aceptado.
+
+## Definición y evidencia
+
+Mantener una definición vigente por decisión; evitar instrucciones contradictorias en ADR, SPEC y
+contratos. La aceptación de un ADR fija la solución; las pruebas demuestran su implementación.
+Documentar tecnologías candidatas como tales. Al implementar, actualizar rutas, configuración y
+evidencia en el mismo cambio. Antes de extraer una unidad, cumplir los criterios de fases_futuras.md.
+Los informes de revisión, notas de auditoría y archivos temporales quedan fuera de los commits.
+
+Las lecturas SQL entre módulos Core usan vistas/proyecciones de lectura publicadas por el dueño,
+columnas explícitas y permisos de solo lectura; no acceso irrestricto a tablas privadas. Son contrato
+local versionado/revisado según RNF-041/042 y excluyen credenciales/secretos.

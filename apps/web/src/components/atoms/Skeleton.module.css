@@ -1,0 +1,22 @@
+.skeleton {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: var(--color-raised);
+  animation: breathe 1.5s ease-in-out infinite alternate;
+}
+.line {
+  width: 75%;
+  height: 0.875rem;
+}
+.media {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+@keyframes breathe {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}

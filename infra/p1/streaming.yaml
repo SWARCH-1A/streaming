@@ -1,0 +1,65 @@
+services:
+  db:
+    ports: !reset []
+    entrypoint: ["/bin/sh", "/postgres-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tmp/p1-tls/server.crt", "-c", "ssl_key_file=/tmp/p1-tls/server.key"]
+    environment:
+      POSTGRES_PASSWORD: ${STREAMING_DB_PASSWORD:?Run init}
+    volumes:
+      - ../../infra/p1/postgres-tls.sh:/postgres-tls.sh:ro
+      - ${P1_STATE}/db.crt:/run/secrets/server.crt:ro
+      - ${P1_STATE}/db.key:/run/secrets/server.key:ro
+    restart: unless-stopped
+  streaming:
+    image: streaming-p1-streaming
+    ports: !reset []
+    environment:
+      # Academic persistent profile with migrations enabled; all network listeners still use TLS.
+      STREAMING_ENV: development
+      STREAMING_TLS_CERT_FILE: /run/secrets/streaming.crt
+      STREAMING_TLS_KEY_FILE: /run/secrets/streaming.key
+      STREAMING_HTTP_CA_FILE: /run/secrets/ca.crt
+      STREAMING_DATABASE_URL: postgres://streaming:${STREAMING_DB_PASSWORD:?Run init}@db:5432/streaming?sslmode=verify-full&sslrootcert=/run/secrets/ca.crt
+      MEDIA_DATABASE_URL: postgres://media_adapter:${MEDIA_DATABASE_PASSWORD:?Run init}@db:5432/streaming_media?sslmode=verify-full&sslrootcert=/run/secrets/ca.crt
+      MEDIA_STREAMING_URL: https://streaming:8091
+      MEDIA_STREAMING_PUBLIC_URL: https://streaming:8080
+      MEDIA_CONTROL_URL: https://mediamtx:9997
+      MEDIA_HLS_URL: https://mediamtx:8888
+      STREAMING_CORE_BASE_URL: https://core:8082
+      STREAMING_CORE_SERVICE_TOKEN: ${CORE_STREAMING_SERVICE_TOKEN:?Run init}
+      STREAMING_CORE_CONSUMER_TOKEN: ${CORE_STREAMING_CONSUMER_TOKEN:?Run init}
+      STREAMING_CHAT_BASE_URL: https://chat:8086
+      STREAMING_CHAT_SERVICE_TOKEN: ${CHAT_SESSION_EVENTS_TOKEN:?Run init}
+      STREAMING_SESSION_COOKIE_NAME: stream_session
+      STREAMING_WEB_ORIGIN: ${WEB_ORIGIN:?Run init}
+      STREAMING_RTMP_INGEST_BASE_URL: rtmps://localhost:${P1_RTMPS_PORT:-11936}/live
+      STREAMING_MEDIAMTX_CONTROL_API_URL: https://mediamtx:9997
+      STREAMING_MEDIAMTX_HLS_INTERNAL_BASE_URL: https://streaming:8888
+      STREAMING_PUBLIC_HLS_BASE_URL: ${WEB_ORIGIN:?Run init}
+      STREAMING_VIEWER_LEASE_HMAC_KEY: ${STREAMING_VIEWER_LEASE_HMAC_KEY:?Run init}
+    volumes:
+      - ${P1_STATE}/streaming.crt:/run/secrets/streaming.crt:ro
+      - ${P1_STATE}/streaming.key:/run/secrets/streaming.key:ro
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent --cacert /run/secrets/ca.crt https://localhost:8080/health/ready && curl --fail --silent --cacert /run/secrets/ca.crt https://localhost:8090/health/ready"]
+  mediamtx:
+    ports: !override
+      - "127.0.0.1:${P1_RTMPS_PORT:-11936}:1936"
+    environment:
+      MTX_AUTHHTTPADDRESS: https://mediamtx:${MEDIA_AUTH_TOKEN:?Run init}@streaming:8090/internal/media/auth
+      MTX_AUTHHTTPFINGERPRINT: ${STREAMING_CERT_FINGERPRINT:?Run init}
+      MTX_APIENCRYPTION: "true"
+      MTX_APISERVERCERT: /run/secrets/mediamtx.crt
+      MTX_APISERVERKEY: /run/secrets/mediamtx.key
+      MTX_HLSENCRYPTION: "true"
+      # One-second fMP4 segments avoid LL-HLS part requests in the 100-player profile.
+      MTX_HLSVARIANT: fmp4
+      MTX_HLSSERVERCERT: /run/secrets/mediamtx.crt
+      MTX_HLSSERVERKEY: /run/secrets/mediamtx.key
+      MTX_RTMPENCRYPTION: strict
+      MTX_RTMPSERVERCERT: /run/secrets/mediamtx.crt
+      MTX_RTMPSERVERKEY: /run/secrets/mediamtx.key
+    volumes:
+      - ${P1_STATE}/mediamtx.crt:/run/secrets/mediamtx.crt:ro
+      - ${P1_STATE}/mediamtx.key:/run/secrets/mediamtx.key:ro

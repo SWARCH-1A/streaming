@@ -1,0 +1,13 @@
+{
+  "semantics": "docs/contratos_modelo_datos.md",
+  "sha256": {
+    "discovery.graphqls": "9a54658bbf5dd2fc8bd84c2cd49087bd232acc2a12261a12e9e95584ecffdfcc",
+    "graphql-queries.json": "67e435c576ba0e5ec46fb709d4f25614f7a0ae1ddffa2c0a68f3e1b77571a811",
+    "local-interfaces.json": "1d46fcef39a1a8bda27c42f06e210dd8ac2908a7722b39c454419f53d6ef6ecd",
+    "operations.json": "5c8aafaa8f5c626f4262b7ae5c1bf97fc058a14cb249efa6c3e54ca8f51dbc22",
+    "p1.d.ts": "0b0780c5a7ed28c36886bd8cc9e8da0ec5c4721329ea80ab103c7b1178e7a096",
+    "p1.schema.json": "7612542347a2d9bc40f66d8088a424b0d90186bedc57edf688c984bb56a0bc29"
+  },
+  "source": "contracts/p1.json",
+  "version": 1
+}

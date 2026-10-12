@@ -1,0 +1,81 @@
+server:
+  port: ${PORT:8081}
+  forward-headers-strategy: none
+  ssl:
+    enabled: ${CORE_PUBLIC_TLS_ENABLED:false}
+    key-store: ${CORE_PUBLIC_TLS_KEYSTORE:}
+    key-store-password: ${CORE_PUBLIC_TLS_KEYSTORE_PASSWORD:}
+    key-store-type: PKCS12
+    enabled-protocols: TLSv1.2,TLSv1.3
+spring:
+  application:
+    name: core
+  datasource:
+    url: ${CORE_DB_URL:jdbc:postgresql://localhost:5432/core}
+    username: ${CORE_DB_USER:core}
+    password: ${CORE_DB_PASSWORD}
+  flyway:
+    schemas: core,identity,profile,channels,taxonomy,discovery
+    default-schema: core
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+core:
+  images:
+    storage-provider: ${CORE_IMAGE_STORAGE_PROVIDER:s3}
+    s3:
+      bucket: ${CORE_IMAGE_S3_BUCKET:}
+      region: ${CORE_IMAGE_S3_REGION:us-east-1}
+      endpoint: ${CORE_IMAGE_S3_ENDPOINT:}
+      path-style-access: ${CORE_IMAGE_S3_PATH_STYLE_ACCESS:false}
+      avatar-prefix: ${CORE_IMAGE_S3_AVATAR_PREFIX:avatars}
+      banner-prefix: ${CORE_IMAGE_S3_BANNER_PREFIX:banners}
+  internal:
+    enabled: ${CORE_INTERNAL_ENABLED:false}
+    port: ${CORE_INTERNAL_PORT:8082}
+    development-http: ${CORE_INTERNAL_DEVELOPMENT_HTTP:false}
+    streaming-service-token: ${CORE_STREAMING_SERVICE_TOKEN:}
+    streaming-catalog-service-token: ${CORE_STREAMING_CATALOG_SERVICE_TOKEN:}
+    chat-service-token: ${CHAT_CORE_SERVICE_TOKEN:}
+    tls-keystore: ${CORE_INTERNAL_TLS_KEYSTORE:}
+    tls-keystore-password: ${CORE_INTERNAL_TLS_KEYSTORE_PASSWORD:}
+  streaming:
+    base-url: ${CORE_STREAMING_BASE_URL:}
+    consumer-token: ${CORE_STREAMING_CONSUMER_TOKEN:}
+    development-http: ${CORE_STREAMING_DEVELOPMENT_HTTP:false}
+  cookie-name: stream_session
+  secure-cookie: ${CORE_SECURE_COOKIE:false}
+  public-origin: ${WEB_ORIGIN:http://localhost:3000}
+  rate-limit-hmac-secret: ${CORE_RATE_LIMIT_HMAC_SECRET}
+  # CIDR list of reverse proxies whose X-Forwarded-For is trusted; empty = always use the socket address.
+  trusted-proxies: ${CORE_TRUSTED_PROXIES:}
+profile:
+  storage-root: ${PROFILE_AVATAR_STORAGE}
+  avatar-public-base-url: ${PROFILE_AVATAR_PUBLIC_BASE:/api/profile/avatars}
+channels:
+  storage-root: ${CHANNELS_BANNER_STORAGE}
+  banner-public-base-url: ${CHANNELS_BANNER_PUBLIC_BASE:/api/channels/banners}
+discovery:
+  streaming:
+    # Private Streaming listener used for the consistent rebuild cut; empty disables reconciliation.
+    base-url: ${CORE_STREAMING_BASE_URL:}
+    consumer-token: ${CORE_STREAMING_CONSUMER_TOKEN:}
+    connect-timeout: PT1S
+    read-timeout: PT5S
+  reconcile-interval: ${DISCOVERY_RECONCILE_INTERVAL:PT4S}
+  ranking-snapshot-ttl: PT5M
+  inbox-retention: PT1H
+  rate-limit:
+    burst: 20
+    window-max: 600
+    window: PT60S

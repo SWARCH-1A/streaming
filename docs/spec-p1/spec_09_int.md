@@ -6,11 +6,16 @@
 
 ## 1. Contexto y problema
 
-SPEC transversal padre de SPEC-10 a SPEC-13. Define coordinación y evidencia de integración para P1, manteniendo contratos entre Identity, Profile, Channels, Streaming, Chat, Taxonomy, Discovery y la web. Evita que cada equipo improvise rutas, datos o secuencias incompatibles.
+Cada módulo puede funcionar por separado y aun así fallar al conectarse con los demás.
+SPEC-09 organiza la integración de P1 y agrupa SPEC-10…SPEC-13 para acordar rutas, datos,
+secuencias y pruebas entre Core, Streaming, Chat, Media y Web. También contempla las interfaces
+locales de los módulos Core.
 
-## 2. Estado del sistema y brecha
+## 2. Definición del componente
 
-Los dominios P1 y sus responsabilidades están definidos. Esta SPEC coordina los contratos, límites de integración, configuración compartida y evidencia del sistema integrado. La frontera del código por carpeta no determina por sí misma qué procesos se despliegan.
+La arquitectura de ADR-005 incluye Core modular, Streaming Rust, Chat y MediaMTX con adaptador Rust.
+El trabajo de integración prepara contratos, infraestructura y verificación para conectarlos.
+Las SPEC reparten esas tareas y la evidencia; la lógica de negocio sigue en cada módulo responsable.
 
 ## 3. Historia de usuario
 
@@ -20,37 +25,33 @@ Como equipo que integra componentes independientes, queremos una arquitectura co
 
 ### Dentro de P1
 
-- Coordinar cuatro especificaciones hijas: **SPEC-10** contratos API/ownership/errores; **SPEC-11** flujos y eventos; **SPEC-12** shell web y reverse proxy; **SPEC-13** despliegue integrado y E2E.
+SPEC-10 define contratos y fronteras. SPEC-11 comprueba la transacción de registro y los cruces
+Core–Streaming, Core–Chat y Streaming–Chat/Media. SPEC-12 integra Web y proxy;
+SPEC-13 verifica la entrega completa.
 
-- Publicar matriz proveedor/consumidor, límites C&C, conectores y ownership; hacer visibles versiones, fallos y criterios de integración.
-
-- Conservar las restricciones de la entrega: frontend web, dos procesos lógicos como mínimo, SQL+NoSQL justificadas, dos tipos HTTP, tres lenguajes generales y contenedores/reinicio independiente/despliegue reproducible.
-
-- Establecer aceptación de integración entre dominios, trazabilidad RNF con una SPEC primaria y SPEC contribuyentes, evidencia consolidada y documentación autocontenida en el repositorio.
+También mantenemos la trazabilidad, los mapas, el estado de implementación y las decisiones,
+con evidencia de SQL, NoSQL, lenguajes y conectores.
 
 ### Fuera de P1
 
-- Reemplazar decisiones de producto o escoger lenguaje/framework/DB de cada dominio.
+Un servicio Integration, un gateway con reglas de negocio, una saga central, microfrontends,
+un bus universal, alta disponibilidad productiva y capacidades de fases futuras.
 
-- Alta disponibilidad productiva, CDN global, microfrontend obligatorio o plataforma de CI/CD completa.
+### Supuestos
 
-### Supuestos acordados
-
-- El dueño de cada módulo decide y justifica tecnología mediante ADR; el módulo Integration coordina contratos sin implementar dominio ajeno.
-
-- El monorepo modular está establecido para este proyecto; una separación futura en varios repositorios requiere decisión explícita, contratos versionados y despliegue reproducible.
-
-- Esta especificación forma parte de la documentación normativa versionada junto con el software.
+Cada unidad desplegable tiene un stack acordado mediante ADR. Core conserva su modularidad local
+y Web es una sola aplicación. Mantenemos las restricciones técnicas de la asignatura.
 
 ## 5. Requisitos de integración
 
-- Todo límite identifica propietario, proveedor, consumidor, autoridad de dato, protocolo, auth, versión, error, timeout y resiliencia.
+Para cada comunicación entre procesos documentamos proveedor, responsable de los datos,
+consumidor, autenticación, plazo de respuesta y recuperación. Dentro de Core usamos interfaces
+de aplicación, un gestor de transacciones y repositorios por módulo. Las lecturas SQL compuestas
+se revisan y las claves foráneas locales se permiten. Los servicios separados no comparten tablas.
 
-- La interacción de cuenta/canal inicial, sesión y media, sala Chat, taxonomía, proyección de Discovery, perfil público, conteo de espectadores, shell, proxy y despliegue aparece en SDD hijos.
-
-- Ningún módulo lee/escribe tablas de otro. Fallo de Chat/Discovery no interrumpe reproducción disponible. Eventos y reproyecciones son idempotentes y observables.
-
-- SPEC-10…SPEC-13 mantienen responsabilidades distintas bajo el ámbito de integración transversal; cada una es verificable de forma independiente.
+Una caída Chat no debe afectar a Media. Los nuevos mensajes requieren Core y el estado actual
+Streaming. Discovery recibe una proyección pública con reglas de frescura y recuperación.
+La coordinación de cada operación de negocio permanece en el módulo que la implementa.
 
 ## 6. Criterios de aceptación
 
@@ -68,6 +69,8 @@ Como equipo que integra componentes independientes, queremos una arquitectura co
 
 - **CA-07:** ningún ADR candidato aparece como tecnología ya aprobada sin decisión del responsable correspondiente.
 
+- **CA-08:** cada RF P1 y cada CA de SPEC-01, SPEC-03…SPEC-08 tiene escenario de integración, proveedor/consumidor, SPEC hijo responsable y evidencia de cierre. La matriz de cobertura de esta SPEC y la matriz RNF son obligatorias para aceptar P1; una prueba local o un estado Done del módulo no sustituye su recorrido integrado.
+
 ## 7. Diseño técnico y datos
 
 - Artefactos: vista de contexto, C&C, despliegue, matriz de contratos y errores, ownership/ERD lógico, tabla de rutas, runbook, matriz de restricciones, [matriz de trazabilidad RNF](../matriz_trazabilidad_rnf.md) y ADR index.
@@ -78,21 +81,41 @@ Como equipo que integra componentes independientes, queremos una arquitectura co
 
 - La documentación `/docs` contiene el alcance y los contratos necesarios para implementar el proyecto.
 
+En P1, ADR-011 integra el adaptador técnico en el proceso Streaming. Autorización/callbacks internos conservan HTTP loopback autenticado en desarrollo y HTTPS con CA explícita en el perfil persistente ADR-014, con persistencia separada. HLS público se enruta al listener 8888 del contenedor Streaming; ingest RTMP/RTMPS sigue en MediaMTX. Reinicios/fallos del proceso afectan al control y al adaptador juntos. La instalación local de equipo usa el Compose raíz de nueve servicios, con Live como nombre desplegado de Streaming y Web/proxy separados. Los fixtures de aceptación conservan ocho contenedores, diez con dos réplicas Core/Chat; el stack propio Streaming mantiene tres.
+
 ## 8. Dependencias y contratos de integración
 
-- **SPEC-10:** APIs, auth, datos, errores y evolución de contratos.
+SPEC-10 define APIs públicas/internas públicas y privadas; SPEC-11 registro local, sesión Media/Chat y proyección Streaming→Discovery; SPEC-12 tabla única de upstreams; SPEC-13 topología/evidencia. Los RF permanecen en sus SPEC funcionales y la matriz RNF conserva responsables.
 
-- **SPEC-11:** secuencias de Identity/Channel, media/Session/Chat/Discovery, metadata y viewer count.
+### Cobertura obligatoria de los SPEC funcionales
 
-- **SPEC-12:** contrato de shell, rutas y reglas de reverse proxy para HTTP, WebSocket, HLS y listener RTMP.
+Esta tabla define el alcance de integración, no acredita implementación. SPEC-10 materializa y valida
+todos los contratos de las filas; SPEC-13 ejecuta los recorridos y consolida la evidencia. Cada
+escenario identifica los CA funcionales que demuestra, incluidas sus variantes negativas y de fallo.
+La [matriz de recorridos P1](../matriz_recorridos_p1.md) desarrolla cada uno de los 68 CA funcionales
+con escenario, RF, proveedor/consumidor, hijo responsable y resultado requerido. Es obligatoria junto
+a la matriz RNF; la evidencia por escenario/commit y los pendientes se registran en Plane.
 
-- **SPEC-13:** procesos/containers, health, configuración, observabilidad, reinicio y E2E/carga.
+| SPEC origen / requisitos | Flujo y consumidores que deben conectarse | Aceptación de integración |
+| --- | --- | --- |
+| SPEC-01 / RF-001…RF-003, RF-005…RF-007 | Web→Cuentas: registro/login/logout, sesión restaurada tras refresh, edición/perfil/avatar; principal vigente en Streaming y Chat; autor público nuevo y snapshots históricos | SPEC-11 CA-02/05/08/12/14; SPEC-12 CA-03/06/11; SPEC-13 CA-07/12/14 |
+| SPEC-03 / RF-008…RF-012 | Registro local 1:1, Web→Canales: propietario/portada/consulta; Core→Streaming batch autoritativo, PLAYABLE/gracia/OFFLINE/UNKNOWN | SPEC-11 CA-08/13/14; SPEC-12 CA-09/11; SPEC-13 CA-07/12/14 |
+| SPEC-04 / RF-017…RF-026 | Web→Streaming: configuración/clave/metadata/stop; RTMP→MediaMTX→adaptador→control→HLS/player; leases y proyección pública a Core; lifecycle a Chat | SPEC-11 CA-01/03/04/06/07/09/10/11; SPEC-12 CA-05/10/13; SPEC-13 CA-06/07/12/14/15 |
+| SPEC-05 / RF-031…RF-035 | Web WS→Chat→Core→Streaming: contexto nuevo, sala anónima, envío protegido, ACK/historial/dedupe/cuota/fan-out, read-only y retención | SPEC-11 CA-02/04/06/11/12/16; SPEC-12 CA-04/13; SPEC-13 CA-06/07/08/11/12 |
+| SPEC-06 / RF-066…RF-069 | Catálogo→Web/Streaming→Discovery: IDs activos/tipados, 0–5 tags, edición LIVE, filtros exactos AND, tombstones y valor nuevo sin rebuild | SPEC-11 CA-05/15; SPEC-12 CA-12; SPEC-13 CA-07/16 |
+| SPEC-07 / RF-070…RF-073 | Web GraphQL→Discovery SQL Core: canales LIVE/OFFLINE, título parcial, ranking/cursor, filtros y frescura/reconstrucción de snapshots Streaming | SPEC-11 CA-04/10/15; SPEC-12 CA-09/12; SPEC-13 CA-06/07/12/14 |
+| SPEC-08 / RNF-033…RNF-036 | Todos los recorridos Web reales: teclado/foco/semántica/contraste/targets, formularios/player/chat, errores y autoscroll; revisión manual asistiva | SPEC-12 CA-07/10…13; SPEC-13 CA-10/16; SPEC-08 CA-01…08 |
 
-- Estos SDD consumen SDDs funcionales por dominio; no los reemplazan ni cambian prioridades acordadas.
+SPEC-02 fue consolidada en SPEC-01; no hay un SPEC de perfil separado en P1. Los requisitos futuros
+del catálogo conservan su prioridad y no se convierten en trabajo P1 por esta matriz.
+
+SPEC-09 conserva coordinación y revisión de cierre. El orden de implementación es SPEC-10,
+SPEC-11, SPEC-12 y SPEC-13, con revisión final de SPEC-09. Los [criterios de entrega](../puertas_implementacion_p1.md) definen las verificaciones necesarias.
+Plane conserva los planes y resultados de ejecución.
 
 ## 9. Decisiones y preguntas abiertas
 
-**Acordado:** cuatro especificaciones subordinadas SPEC-10…SPEC-13, P1 integrado, autonomía tecnológica con ADR, monorepo modular, datos propiedad por dominio y requisitos de despliegue de la asignatura. **No bloqueante:** los responsables concretan herramienta/tecnología, paths/puertos, timeouts, herramienta de despliegue y evidencia de demo en sus ADR, con revisión de consumidores.
+Arquitectura en ADR-005; base Web React/TypeScript/SWC y pnpm en [ADR-007](../adr/ADR-007-web-react-typescript.md); Chat Go/Redis efímero en ADR-010 y stack Streaming de tres contenedores en ADR-011. [ADR-014](../adr/ADR-014-perfil-integrado-tls-p1.md) define el perfil persistente TLS y su [runbook](../../infra/p1/README.md), con filesystem seleccionado explícitamente o S3 privado externo. Los artefactos implementados no acreditan por sí solos aceptación completa: carga, recorridos faltantes y revisiones manuales requieren evidencia por criterio. Catálogo conserva ADR-006 en propuesta hasta decisión de su responsable. No fijar stacks diferentes para cada módulo Core ni contabilizar un candidato como evidencia.
 
 ## 10. Verificación
 
@@ -106,4 +129,9 @@ Como equipo que integra componentes independientes, queremos una arquitectura co
 
 ## 11. Esfuerzo, riesgos y consecuencias
 
-**Esfuerzo:** L transversal. **Riesgos:** convertir integración en responsabilidad sin autoridad, contratos tardíos, grupos sin owners, diagrams desactualizados y restricciones de curso descubiertas al final. **Consecuencia:** módulos futuros consumen contratos estabilizados, pero no se impone una plataforma productiva.
+**Esfuerzo:** L, repartido entre módulos. Los riesgos son dejar la integración sin un responsable
+con capacidad de coordinar, acordar contratos demasiado tarde, tener tareas sin responsables,
+conservar diagramas desactualizados o descubrir restricciones del curso al final.
+
+Las siguientes fases podrán consumir contratos estabilizados. La entrega actual corresponde
+al prototipo de la asignatura, sin exigir una plataforma productiva.

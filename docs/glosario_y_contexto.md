@@ -2,10 +2,14 @@
 
 ## Sistema
 
-`STREAMING` es un prototipo web de una plataforma de canales con transmisión audiovisual en vivo,
-chat, taxonomía y descubrimiento. P1 incluye identidad, perfil, canal, streaming en vivo, chat,
-categorías/etiquetas, búsqueda, accesibilidad del recorrido e integración. Seguimiento, calidad,
-pagos, VOD, moderación avanzada, subtítulos y otras capacidades se conservan fuera de P1 en el catálogo.
+STREAMING es nuestro prototipo de una plataforma web donde los usuarios pueden tener un canal,
+transmitir video en vivo y conversar con los espectadores. La interfaz se presenta como Vault tv.
+
+En la primera iteración (P1) incluimos cuentas, perfiles, canales, emisión y reproducción en vivo,
+chat, categorías, etiquetas y búsqueda. También trabajamos la accesibilidad de esos recorridos
+y la integración entre servicios. El seguimiento de canales, las opciones de calidad, los pagos,
+VOD, la moderación avanzada y los subtítulos quedan para otras fases, con sus requisitos
+conservados en el catálogo.
 
 ## Actores
 
@@ -16,10 +20,10 @@ pagos, VOD, moderación avanzada, subtítulos y otras capacidades se conservan f
   del stream propio, inicia/finaliza emisión.
 - **Responsable de módulo:** persona que el equipo asigna para decidir e implementar su módulo y registrar
   ADRs.
-- **Consumidor/proveedor:** los dominios se intercambian datos mediante el contrato publicado por el
-  proveedor; no comparten esquema de persistencia.
+- **Consumidor/proveedor:** entre unidades desplegables se intercambian datos mediante contrato neutral; dentro
+  de Core se usan interfaces locales y esquema SQL con FK/lecturas compuestas revisadas.
 
-## Términos normativos
+## Términos que usamos en el proyecto
 
 | Término | Significado en este proyecto |
 | --- | --- |
@@ -29,7 +33,7 @@ pagos, VOD, moderación avanzada, subtítulos y otras capacidades se conservan f
 | Channel | Página pública propiedad de una cuenta; tiene descripción y banner. Un canal por cuenta en P1. |
 | Stream | La emisión/contenido lógico asociado a un canal; en P1 describe metadata y reproducción LIVE. |
 | Stream session / sessionId | Una ejecución temporal concreta de un stream. Se conserva durante reconexión menor a 30 s; nuevo inicio posterior crea otro ID. |
-| LIVE | Estado visible solo cuando la fuente genera medio que el espectador puede reproducir. |
+| LIVE | Estado interno con HLS reproducible confirmado. El estado público LIVE del canal incluye RECONNECT_GRACE, con availability=RECONNECTING. |
 | RECONNECT_GRACE | Período de hasta 30 s sin fuente reproducible durante el cual se conserva sessionId y chat; el público sigue considerando esa emisión actual. |
 | OFFLINE/ENDED | No existe sesión que cumpla la regla LIVE/grace; chat ya no acepta mensajes y una próxima emisión obtiene nuevo sessionId. |
 | Metadata | Título, una categoría y entre cero y cinco etiquetas de catálogo; streamer puede editarlas durante LIVE. |
@@ -37,10 +41,13 @@ pagos, VOD, moderación avanzada, subtítulos y otras capacidades se conservan f
 | Tag/etiqueta | Valor opcional controlado para describir una emisión; máximo cinco. P1 inicia con ocho valores semilla. |
 | Viewer/playback session | Reproducción abierta, anónima o autenticada, contada una vez al hacerse reproducible y expirada tras 30 s sin heartbeat. No equivale a usuario de chat. |
 | Chat room | Sala asociada a un único sessionId. Lectura anónima, escritura autenticada; read-only tras fin de sesión. |
-| Chat Replay | Futuro comportamiento que sincroniza eventos de chat con una reproducción VOD. P1 guarda datos temporales mínimos, pero no almacena/reproduce VOD. |
+| Chat Replay | Futuro comportamiento que sincroniza eventos de chat con una reproducción VOD. P1 no conserva el chat tras la retención de 5 minutos posterior al fin ni almacena/reproduce VOD. |
 | VOD | Contenido de una transmisión pasada almacenado para reproducirse bajo demanda; todo VOD está fuera de P1. |
 | Reverse proxy | Componente de entrada que enruta HTTPS, API, WebSocket y media a upstreams definidos; no posee lógica de dominio. |
-| Módulo | Agrupación de código y responsabilidades por dominio; no equivale necesariamente a proceso, servicio o contenedor. |
+| Módulo | Responsabilidad interna con repositorio/interfaz; puede compartir proceso y transacción con otros módulos Core. |
+| Core | Núcleo de negocio modular: cuentas, canales, catálogo y Discovery; un proceso y PostgreSQL con proyección pública Streaming. |
+| Servicio desplegable | Runtime/release/health/escala propios; Core, Streaming Rust, Chat y Media como unidades backend. |
+| Integration | Trabajo de contratos/configuración/evidencia; no servicio de negocio ni coordinador global. |
 | SDD | Especificación de diseño de software con once secciones; agrupa requisitos de responsabilidad coherente. |
 | RF/RNF | Requisito funcional/no funcional; `RF-NNN` y `RNF-NNN` son IDs globales definidos en `catalogo_requisitos.md`. |
 | P1 | Prioridad de la primera iteración acordada por el equipo y registrada en el catálogo y decisiones. |
@@ -58,11 +65,12 @@ pagos, VOD, moderación avanzada, subtítulos y otras capacidades se conservan f
 
 ## Límites aceptados
 
-Una sola categoría, cero a cinco tags, una sesión activa por canal, máximo cinco sesiones de toda la
-plataforma, cinco streams concurrentes/100 viewers para perfil de prueba global, veinte mensajes por
-segundo agregados durante diez minutos, cincuenta mensajes de historial inicial, 500 puntos de código
-Unicode por mensaje, como máximo un envío por cuenta en toda ventana móvil de 1000 ms (sin ráfaga),
-P95 chat menor a un segundo, API P95 menor a dos segundos, reproducción inicia en cinco segundos,
-estado de canal se actualiza en cinco segundos y
-conteo expira a los treinta segundos sin heartbeat. El catálogo especifica dominio y método de
-verificación para cada límite.
+Para P1 acordamos estos límites:
+
+- Cada emisión tiene una categoría y entre cero y cinco etiquetas. Hay una sesión activa por canal y un máximo de cinco en toda la plataforma.
+- El perfil de prueba contempla cinco emisiones y 100 reproducciones concurrentes. La carga de chat es de veinte mensajes por segundo en total durante diez minutos.
+- Al entrar al chat se consultan los últimos cincuenta mensajes. Cada mensaje admite hasta 500 puntos de código Unicode. Una cuenta puede enviar como máximo un mensaje en cualquier ventana móvil de 1000 ms, sin acumular ráfagas.
+- La latencia de chat debe tener un P95 menor a un segundo y la API un P95 de hasta dos segundos. El inicio de reproducción tiene un máximo de cinco segundos; ese límite no se mide como percentil.
+- Los cambios de estado del canal deben aparecer en cinco segundos. Una reproducción deja de contar como espectador después de treinta segundos sin heartbeat.
+
+El catálogo indica a qué dominio corresponde cada límite y cómo se verifica.

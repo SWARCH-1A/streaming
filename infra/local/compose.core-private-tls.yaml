@@ -1,0 +1,15 @@
+# Mount an operator-provided certificate readable by UID 10001. No private host port.
+services:
+  core:
+    environment:
+      CORE_INTERNAL_ENABLED: "true"
+      CORE_INTERNAL_PORT: "8082"
+      CORE_INTERNAL_DEVELOPMENT_HTTP: "false"
+      CORE_STREAMING_SERVICE_TOKEN: ${CORE_STREAMING_SERVICE_TOKEN:?Define CORE_STREAMING_SERVICE_TOKEN}
+      CORE_INTERNAL_TLS_KEYSTORE: /run/secrets/core-internal.p12
+      CORE_INTERNAL_TLS_KEYSTORE_PASSWORD: ${CORE_INTERNAL_TLS_KEYSTORE_PASSWORD:?Define the private keystore password}
+    volumes:
+      - type: bind
+        source: ${CORE_INTERNAL_TLS_KEYSTORE:?Absolute host path to PKCS12}
+        target: /run/secrets/core-internal.p12
+        read_only: true

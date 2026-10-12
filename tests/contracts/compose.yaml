@@ -1,0 +1,6 @@
+# This contract fixture does not exercise image storage. Select the supported local provider
+# explicitly; production/default S3 requires its own bucket credentials and acceptance tests.
+services:
+  core:
+    environment:
+      CORE_IMAGE_STORAGE_PROVIDER: filesystem

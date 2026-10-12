@@ -6,11 +6,15 @@
 
 ## 1. Contexto y problema
 
-Define la integración del frontend web de los módulos P1 con el shell común y reverse proxy, de modo que cada módulo pueda contribuir sin romper navegación, auth, paths o playback. Hijo de SPEC-09.
+La interfaz reúne vistas aportadas por distintos módulos. Deben compartir navegación y sesión,
+y llegar a las APIs, WebSocket y HLS correctos. Esta SPEC, hija de SPEC-09, define cómo se integran
+con el shell Web y el reverse proxy.
 
-## 2. Estado del sistema y brecha
+## 2. Definición del componente
 
-El monorepo modular y las carpetas propietarias ya están definidos. Los puertos y la selección técnica del shell/proxy se completan en ADR sin alterar las rutas y reglas de integración especificadas aquí.
+El monorepo y las carpetas de cada módulo ya están definidos. ADR-007 elige la base React/TypeScript;
+ADR-013, Caddy y el reproductor HLS. Esas decisiones implementan las rutas y reglas de integración
+descritas aquí.
 
 ## 3. Historia de usuario
 
@@ -28,7 +32,7 @@ Como usuario final, quiero recorrer registro, canal, emisión, chat y búsqueda 
 
 - WebSocket Upgrade para Chat y rutas de entrega HLS por HTTP. Listener RTMP aparte, no presentado como HTTP.
 
-- Configuración dev reproducible sin fijar framework ni estrategia de microfrontend.
+- Configuración dev reproducible por unidad y una Web integrada; no microfrontend por módulo.
 
 ### Fuera de P1
 
@@ -38,19 +42,25 @@ Como usuario final, quiero recorrer registro, canal, emisión, chat y búsqueda 
 
 - Un shell registra rutas globales; los módulos no cambian router/config compartido unilateralmente.
 
-- Preferir mismo origen HTTPS para reducir complejidad de CORS/cookies; Identity decide sesión segura por ADR.
+- Mismo origen HTTPS para CORS/cookies; Cuentas define sesión y CSRF según ADR-001.
 
 ## 5. Contrato de interfaz web
 
-- Rutas web P1: `/`, `/register`, `/login`, `/channels/{handle}`, `/search?q=...` y `/watch/{streamId}`. Shell resuelve el handle con Identity y compone Channels/Profile/Streaming; watch obtiene sessionId para Chat.
+- Rutas web P1: `/`, `/register`, `/login`, `/profile`, `/studio`, `/studio/channel`, `/channels/{handle}`, `/search?q=...` y `/watch/{streamId}`. Perfil y estudio requieren sesión vigente; su ruta no concede permisos de backend. Canal consume `GET /api/channels/by-handle/{handle}`: Core compone canal/handle/perfil locales y batch público autoritativo Streaming; si este falla, conserva canal con estado UNKNOWN. Watch usa el snapshot público de stream/sesión y resuelve el canal mediante GET /api/channels/{channelId}; ambos montan Chat desde sessionId. `avatarUri` y `bannerUri` apuntan a las rutas Core estables `/api/profile/avatars/{key}` y `/api/channels/banners/{key}`; Web nunca recibe una URL directa, ACL o credencial S3.
 
 - Shell consume interfaces UI/versionadas; módulo publica ruta/entry, estados y dependencias, sin compartir store privado.
 
-- Proxy distingue APIs, chat realtime, HLS, assets SPA y entrada RTMP por listener separado.
+- Proxy distingue APIs, chat realtime, HLS, assets SPA y entrada RTMP por listener separado; las rutas de avatar y portada se enrutan a Core, no al endpoint S3.
 
 - Fallback SPA nunca convierte error API en index.html; conservar Upgrade, Host/path base, forwarded proto y correlación.
 
 - Links directos/refresh cargan rutas profundas; auth/401/403/expiración se comunican sin pantalla negra.
+
+- `/studio` sigue la composición de `07_08_estudio_prototipo_interactivo` de Stitch: estado de señal y métricas arriba; monitor permanente y credenciales en la columna izquierda; metadatos en la derecha. En pantallas estrechas se apilan sin desbordar. El monitor tiene formato 16:9 antes de configurar o iniciar la emisión. Estado, espectadores y tiempo de señal provienen del API; el mockup no introduce telemetría ficticia.
+
+- La portada de canal, el editor y los estados sin señal/finalizada usan `signal-grid.svg` cuando no existe bannerUri. Es un gráfico vectorial propio con la paleta y tipografía existentes; las imágenes de referencia de Stitch se reservan para demos explícitas. Una portada subida por el usuario tiene prioridad. Al finalizar, el fondo aparece después de agotar el búfer del player, sin desmontarlo anticipadamente.
+
+- Exploración presenta fotogramas reales de LIVE usando `previewUri` del contrato GraphQL; imágenes servidas por Media a través del mismo proxy. Un error de captura conserva los datos reales de la tarjeta con el fondo gráfico y reintenta la imagen.
 
 ## 6. Criterios de aceptación
 
@@ -60,44 +70,41 @@ Como usuario final, quiero recorrer registro, canal, emisión, chat y búsqueda 
 
 - **CA-03:** shell integra vistas de identidad, perfil, canal, player, chat y búsqueda manteniendo navegación y boundary de error por módulo.
 
-- **CA-04:** WS acepta Upgrade solo en `/realtime/chat/sessions/{sessionId}`, verifica credencial vigente y Origin web configurado, admite lectura anónima/escritura autenticada y heartbeat/timeout; chat desconectado no detiene HLS.
+- **CA-04:** WS acepta Upgrade solo en `/realtime/chat/sessions/{sessionId}` y verifica Origin web configurado para todos los clientes. Admite lectura anónima; cada envío requiere contexto Core con credencial vigente. Heartbeat/timeout y error de Chat no detienen HLS.
 
 - **CA-05:** playlist/segmentos bajo `/hls/{sessionId}/*` solo se ofrecen como playback cuando availability=PLAYABLE; content types/rango/cache se documentan; solicitud→primer frame cumple máximo 5 s bajo perfil P1 de SPEC-13.
 
-- **CA-06:** API path faltante responde status/error JSON sin HTML; headers secretos no se registran.
+- **CA-06:** API path faltante responde status/error JSON sin HTML; las rutas de avatar y portada conservan su path Core y no exponen endpoint, ACL o credenciales del bucket; headers secretos no se registran.
 
 - **CA-07:** rutas integradas pasan criterios de teclado, foco, mensajes y semántica de SPEC-08.
 
-- **CA-08:** módulo ejecutable en modo local; shell muestra fallback identificable si upstream cae.
-- **CA-09:** tras resolver un handle a identidad ACTIVE, 404 de Channels por proyección pendiente se reintenta a 100/250/500/1000 ms bajo deadline total de 2 s. Agotado, se muestra un estado de activación/reintento explícito, no 404 permanente. Para identidad no activa o desconocida se conserva el 404 indistinguible.
+- **CA-08:** Web integrada ejecutable en modo local; muestra fallback por vista y unidad upstream real si cae.
+- **CA-09:** canal por handle usa bootstrap Core; ACTIVE ya tiene canal/perfil desde commit. Inexistente/no activo 404 uniforme; Core no disponible error explícito; Streaming no disponible conserva canal/perfil con streamStatusFresh=false/UNKNOWN.
+
+- **CA-10:** todos los recorridos de la matriz SPEC-09 usan proveedores reales en el perfil integrado. Fixtures/mocks se habilitan solo en pruebas o modo demo explícito; no sustituyen una respuesta fallida. Cambiar ruta/sesión cancela suscripciones y leases anteriores y evita mostrar respuestas tardías de otro recurso.
+- **CA-11:** registro/login/logout y refresh respetan cookie opaca/CSRF/expiración. Login confirma perfil self e identidad pública antes de navegar; cada comprobación de sesión solo publica resultados del intento vigente y los 401 de consultas anónimas anteriores o peticiones canceladas no invalidan el login actual. Un login fallido comunica su error sin cerrar otra sesión vigente. Edición de perfil/avatar y canal/portada usa uploads reales y conserva datos tras error. Studio configura metadata, muestra la clave solo en la respuesta autorizada, rota solo cuando procede y permite stop owner; no guarda credenciales en storage del navegador ni obtiene identidad de datos demo. El estudio muestra botones «Copiar servidor» y «Copiar clave», independientes del programa de emisión, y permite copiar servidor base sin credenciales y únicamente la clave opaca `sk_...` como clave de retransmisión, sin streamId ni parámetros de usuario/contraseña, oculta por defecto y descartable, indicando autenticación por usuario y contraseña desactivada.
+- **CA-12:** opciones de categorías/tags provienen de GET Taxonomy y cambian sin rebuild; búsqueda/listado consume GraphQL real con filtros exactos AND, ranking/cursor y estados vacío/error/UNKNOWN. Metadata editada y labels tombstone conservan la semántica de SPEC-06/07.
+- **CA-13:** player reproduce medio real y crea lease solo tras primer frame, heartbeat 10 s y cierre/expiración 30 s; al cambiar sessionId reinicia el contexto de player/chat. Una pausa de cinco segundos conserva el búfer sin error; al reanudar continúa desde segmentos disponibles o la señal actual si el punto pausado ya no está disponible. ENDED cierra el lease y la carga de HLS, conserva los segmentos descargados y muestra la finalización al agotar ese búfer, incluso si el usuario debe reanudarlo. Chat abre WS antes del backlog, fusiona por sequence, reintenta un envío con el mismo clientMessageId y muestra errores/read-only/retención sin detener HLS. Teclado, foco y autoscroll siguen SPEC-08.
 
 ## 7. Diseño técnico y configuración
 
-- Rutas de API y proxy quedan especificadas en `integracion_frontend_reverse_proxy.md`: `/api/streams/{streamId}`, `/api/streams/sessions/{sessionId}`, `/api/streams/sessions/{sessionId}/viewer-leases`, `/api/chat/sessions/{sessionId}/messages`, `/realtime/chat/sessions/{sessionId}` y `/hls/{sessionId}/*`. La tabla central es la fuente única y no hay dos rutas de chat con distinta semántica.
+Una Web y un build; código en apps/web/src, módulos en src/modules/{accounts,channels,streaming,chat,taxonomy,discovery}, shell en src/shell y utilidades compartidas en src/accessibility. Shell registra rutas/globales, componentes/tokens y errores por vista. Canal por handle consume un bootstrap Core compuesto; player y chat se montan desde sessionId. Proxy enruta a Core/Streaming/Chat/Media; POST/GET /api/channels/{channelId}/streams es regla exacta Streaming previa al prefijo Canales, sin auth de negocio ni saga; bloquea /internal y sobrescribe forwarding. Las rutas de imágenes se enrutan a Core, nunca al endpoint S3; el proveedor y sus variables de despliegue se definen en SPEC-13. Paths API no caen al fallback SPA. TLS, CSRF, límite multipart, WS Upgrade/Origin y HLS range/cache definidos en documento frontend.
 
-- Tabla inicial separa shell, APIs HTTP, WebSocket, HLS y RTMP. Hostnames/puertos quedan como parámetros hasta ADR.
-
-- Config de route paths es fuente única reutilizada por proxy, shell y compose/env; actualizar juntas en cada cambio.
-
-- Navegador usa la cookie opaca `HttpOnly; Secure; SameSite=Lax` definida por Identity; mutaciones pasan la protección CSRF definida en ADR. Handshake WS compara Origin con el origen web configurado; proxy no transforma identidad ni valida ownership.
-
-- Frontend integrado, paquetes compartidos acotados y microfrontend son opciones; comparar independencia de build, fallos runtime y complejidad.
-
-- Monorepo modular P1; carpetas por dominio y ownership explícito. Una futura separación multirepo necesita decisión explícita y contratos versionados.
+En P1, ADR-011 integra el adaptador técnico en el proceso Streaming. Autorización/callbacks internos conservan HTTP loopback autenticado en desarrollo; el perfil persistente ADR-014 usa HTTPS con CA explícita y conserva persistencia separada. HLS público se enruta al listener 8888 del contenedor Streaming; RTMP sigue en MediaMTX. Reinicios/fallos del proceso afectan al control y al adaptador juntos.
 
 ## 8. Dependencias y contratos de integración
 
-- Consume contratos SPEC-10 y flujos de auth/session/events SPEC-11.
+Web consume las APIs Core y Streaming, además de Chat y HLS. Sus módulos de interfaz comparten
+una aplicación. El proxy mantiene una tabla de rutas coherente con los contratos; la ingesta RTMP
+usa un listener separado de HTTP.
 
-- Identity publica login/session/logout; Channels/Profile canal/perfil; Streaming playback/status y callbacks internos no expuestos al browser; Taxonomy values; Discovery list; Chat WebSocket/history.
-
-- Proxy/deploy consume tabla de procesos/health de SPEC-13.
-
-- Registrar path/puerto con el owner antes de añadirlo a configuración compartida.
+Los permisos de sesión y propiedad se comprueban en el backend. El estado LIVE también proviene
+del servidor.
 
 ## 9. Decisiones y preguntas abiertas
 
-**Acordado:** shell común, rutas directas, reverse proxy, mismo origen preferido, cookie de sesión, WS/media documentados y monorepo modular. **No bloqueante:** puertos, hostname, mecanismo CSRF y composición frontend se resuelven entre responsables por ADR.
+Web integrada y mismo origen HTTPS. [ADR-007](../adr/ADR-007-web-react-typescript.md) selecciona la base Web React/TypeScript/SWC con pnpm.
+La Web funcional consume HTTP/GraphQL/WS/HLS reales y valida respuestas con los contratos generados. [ADR-013](../adr/ADR-013-web-integrada-caddy-hls.md) selecciona Caddy, hls.js y validación Ajv. La marca visible es Vault tv. Las muestras se limitan a pruebas y biblioteca visual exclusiva de desarrollo: `/design-system`, `/design-system/components` y `/prototype` no se incluyen en el build de producción y muestran página no encontrada en el producto. Nunca reemplazan un fallo de API. El perfil HTTP local sirve para desarrollo y pruebas; TLS, S3 y carga pertenecen a SPEC-13, y la inspección con lector de pantalla de SPEC-08 conserva su puerta independiente. La ruta por handle compone datos locales Core y snapshot público Streaming; Discovery consulta proyección SQL local.
 
 ## 10. Verificación
 
@@ -113,4 +120,8 @@ Como usuario final, quiero recorrer registro, canal, emisión, chat y búsqueda 
 
 ## 11. Esfuerzo, riesgos y consecuencias
 
-**Esfuerzo:** M/L. **Riesgos:** route drift, API fallback como HTML, WS sin upgrade, cookie insegura, store global acoplado y proxy con lógica de negocio. **Consecuencia:** móvil, edge global y CDN productivo se aplazan.
+**Esfuerzo:** M/L. Debemos evitar rutas que difieran de los contratos, errores API convertidos
+en HTML, WebSocket sin Upgrade, cookies inseguras, estado global acoplado y reglas de negocio
+introducidas en el proxy.
+
+La aplicación móvil, el despliegue global en edge y una CDN productiva quedan para fases futuras.
