@@ -1,12 +1,23 @@
 # Flujos de integración — arquitectura P1
 
-**Arquitectura:** ADR-005. Core, Streaming Rust, Chat y Media cruzan contratos privados explícitos. Cuentas/Canales/Catálogo/Discovery permanecen locales en Core. Integración es trabajo de contratos, infraestructura y evidencia; no ejecuta workflows. La fuente semántica es [contratos](contratos_modelo_datos.md).
+Estos flujos muestran cómo colaboran Core, Streaming, Chat y Media en P1, según ADR-005.
+Cuentas, Canales, Catálogo y Discovery se comunican dentro de Core. Entre procesos usamos los
+[contratos del sistema](contratos_modelo_datos.md), donde se define el significado de los datos
+y las operaciones.
+
+El trabajo de integración conecta esos contratos, prepara la infraestructura y comprueba los
+recorridos. La lógica de cada operación permanece en el módulo responsable.
 
 En P1 el adaptador Media comparte proceso con Streaming según ADR-011. Los contratos técnicos de autorización/callbacks se conservan en HTTP loopback autenticado en desarrollo y HTTPS con CA explícita en el perfil persistente ADR-014; MediaMTX sigue en otro contenedor. Fallo/reinicio del proceso Streaming afecta también autorización Media y HLS.
 
 ## A — Registro y canal inicial
 
-Core confirma cuenta ACTIVE, perfil, canal y resultado idempotente en una transacción PostgreSQL. Rollback no publica parcialmente; respuesta perdida y misma clave recuperan IDs. Login es separado. El canal aparece desde commit, independientemente de eventos o disponibilidad Streaming.
+Al registrar un usuario, Core crea la cuenta ACTIVE, el perfil, el canal y el resultado idempotente
+en una misma transacción PostgreSQL. Si una escritura falla, se revierten todas. Si la transacción
+termina pero se pierde la respuesta, repetir la solicitud con la misma clave recupera los mismos IDs.
+
+El usuario inicia sesión en una operación aparte. El canal se puede consultar desde el commit,
+sin esperar eventos ni depender de que Streaming esté disponible.
 
 ## B — Configurar e iniciar emisión
 
@@ -39,13 +50,30 @@ LIVE no espera a Discovery ni Chat. Core no genera/recibe claves; Streaming cons
 
 ## C — Pérdida, gracia, retorno y stop
 
-Streaming serializa callback/timer con SQL y clock monotónico owner. Una pérdida inicia una sola gracia de 30 s; sessionId/streamGeneration se conservan y reconexión crea sourceGeneration nueva. Playback probado antes del deadline gana; elapsed>=30 s, pérdida de owner/anchor o stop termina. ENDED invalida leases, congela timeline, libera cupo y guarda lifecycle/snapshot en outbox. El adaptador corta la fuente; callback tardío no reabre. P1 una réplica Streaming; failover requiere fencing/clock probado.
+Streaming coordina los callbacks y los temporizadores mediante SQL y el reloj monotónico del
+responsable de la sesión. Una pérdida de fuente abre una sola ventana de reconexión de 30 s.
+Durante ella se conservan `sessionId` y `streamGeneration`; una reconexión crea otra `sourceGeneration`.
+
+Si la reproducción se comprueba antes del plazo, continúa la misma sesión. Si han pasado 30 s o más,
+se pierde el responsable o su referencia de tiempo, o el propietario solicita stop, la sesión termina.
+ENDED invalida los leases, congela la línea temporal, libera el cupo y guarda el evento de ciclo de vida
+y el snapshot en el outbox. El adaptador corta la fuente y un callback tardío no vuelve a abrirla.
+
+P1 usa una réplica Streaming. Para habilitar failover primero hay que probar el fencing y la
+continuidad del reloj.
 
 Canal muestra LIVE/reconectando y Discovery excluye lo no reproducible según snapshot/frescura. Chat permite escribir en gracia solo mediante contexto vigente, sin depender del atraso de eventos.
 
 ## D — Metadata y proyección Discovery
 
-Streaming solicita contexto Core de identidad/owner y valores explícitos activos/tipados; PATCH confirma metadataVersion y snapshot público. Campos omitidos preservan asociaciones y último label tombstone. GraphQL Core combina la proyección con Cuentas/Canales/Catálogo locales; no accede a SQL Streaming ni hace HTTP por fila. Ranking/cursor/filtros se conservan.
+Para editar metadatos, Streaming solicita a Core un contexto nuevo con la identidad, la propiedad
+del canal y la validación de los valores enviados: deben estar activos y ser del tipo correcto.
+PATCH confirma `metadataVersion` y el snapshot público. Los campos omitidos conservan sus asociaciones,
+incluido el último nombre de un valor desactivado (tombstone).
+
+GraphQL combina esa proyección con Cuentas, Canales y Catálogo mediante consultas locales de Core.
+Conserva las reglas de orden, cursor y filtros, sin consultar el SQL de Streaming ni hacer una
+llamada HTTP por resultado.
 
 Outbox/inbox idempotentes, projectionVersion y posición de commit evitan regresiones; estado/metadata/conteo deben ser visibles <=5 s en perfil normal. Edad del productor >5 s marca UNKNOWN/excluye PLAYABLE; conteo tiene freshness independiente. Snapshot paginado consistente con watermark y recepción durable concurrente permiten reconciliar/reconstruir. No rejuvenecer fecha al recibir un evento viejo. El player consulta Streaming autoritativo; proyección no es permiso.
 

@@ -6,11 +6,21 @@
 
 ## 1. Contexto y problema
 
-Define RF-031…RF-035 y cubre lectura/envío/distribución vinculados a una sesión. Debe fallar de forma aislada respecto al video. El chat es efímero: existe mientras dura la sesión y se elimina poco después de terminar ([ADR-010](../adr/ADR-010-chat-go-redis-efimero.md)).
+El chat permite conversar durante una emisión y cubre RF-031…RF-035. Sus mensajes se vinculan a
+una sesión concreta. Si el servicio falla, el video debe seguir funcionando.
+
+Acordamos conservar el chat mientras dura la sesión y eliminarlo poco después del fin,
+según [ADR-010](../adr/ADR-010-chat-go-redis-efimero.md). Durante su retención, los mensajes
+confirmados deben sobrevivir a los reinicios.
 
 ## 2. Definición del componente
 
-La moderación avanzada (RF-036 y RF-037) queda fuera de P1; esta iteración no implementa bloqueo ni eliminación de mensajes.
+Chat tiene su propio servicio Go y su almacenamiento Redis. Expone historial por REST y mensajes
+en tiempo real por WebSocket. Se encarga de las salas, el orden, la deduplicación, la cuota por
+cuenta y la distribución de mensajes.
+
+La moderación avanzada, RF-036 y RF-037, queda fuera de P1. Esta iteración no permite bloquear
+usuarios ni eliminar mensajes.
 
 ## 3. Historia de usuario
 
@@ -79,9 +89,24 @@ Como espectador, quiero leer mensajes de la sesión en vivo; como usuario autent
 
 Chat permanece servicio independiente por conexiones largas, fan-out e aislamiento de HLS. Posee mensajes, dedupe, secuencia por sesión, cuota global por cuenta y broadcast; no credenciales/usuarios maestros. Implementación: Go y Redis según [ADR-010](../adr/ADR-010-chat-go-redis-efimero.md).
 
-Por mensaje nuevo: validar texto, solicitar una sola vez contexto Core autenticado (principal vigente + autor público + estado/timeline), aplicar dedupe/cuota y guardar antes del ACK. El contexto no se cachea para otros envíos. Core obtiene estado/timeline Streaming dentro del presupuesto total 400 ms (hop <=200 ms). Core no procesa mensajes ni decide secuencias; Chat consume un único contexto autorizado Core. Revocación/fin posteriores a autorización no revierten operación en vuelo, dentro del presupuesto máximo de 500 ms; nuevas autorizaciones se rechazan.
+Para aceptar un mensaje nuevo, Chat valida el texto y solicita una vez el contexto autenticado Core:
+principal vigente, autor público y estado y línea temporal de la emisión. Después aplica la
+deduplicación y la cuota, y guarda el mensaje antes de enviar el ACK. Ese contexto no se reutiliza
+para otros mensajes.
 
-Conservar WS antes de historial y fusionar por sequence. Un script Redis atómico resuelve dedupe, cuota, sequence y mensaje; asignación/commit/cuota son consistentes entre réplicas porque todas usan el mismo Redis. El Redis Stream de la sala sirve de outbox: cualquier réplica entrega lo confirmado aunque el proceso que lo aceptó caiga antes de difundir. El Stream no se recorta mientras exista la sala: todo mensaje con ACK sigue disponible hasta su expiración. AOF con fsync por escritura evita perder mensajes con ACK.
+Core consulta Streaming dentro de un presupuesto total de 400 ms, con hasta 200 ms para ese salto.
+Chat sigue siendo responsable de los mensajes y sus secuencias. Si la sesión se revoca o la emisión
+termina después de autorizar una operación, esta puede continuar dentro del presupuesto máximo
+de 500 ms. Las nuevas autorizaciones se rechazan.
+
+El cliente abre WebSocket antes de consultar el historial y combina ambas fuentes por sequence.
+En Redis, un script atómico resuelve la deduplicación, la cuota, la secuencia y el mensaje.
+Todas las réplicas usan el mismo Redis para mantener consistentes esas escrituras.
+
+El Redis Stream de la sala también funciona como outbox: otra réplica puede entregar un mensaje
+confirmado si el proceso que lo aceptó cae antes de difundirlo. El Stream se conserva completo
+mientras existe la sala, por lo que los mensajes con ACK siguen disponibles hasta su expiración.
+AOF con fsync por escritura conserva esos mensajes ante un reinicio.
 
 El contexto autenticado expone writeAllowed/denialCode: dedupe puede recuperar ACK de un mensaje
 previo aun con sala ENDED, sin consumir cuota ni escribir. Nuevo envío exige writeAllowed. Reusar
@@ -104,8 +129,18 @@ Core compone message-context autorizado con usuario/autor locales y timeline Str
 
 ## 10. Verificación
 
-Lectura anónima/envío protegido, Unicode 500/501, cuota global 1000 ms entre salas/réplicas, dedupe y ACK durable, recuperación broadcast tras crash, WS→historial sin huecos; p95 <1 s a 20 msg/s. Logout/fin en autorización posterior, snapshot antes de fin con operación en vuelo acotada, CORE_UNAVAILABLE/STREAMING_UNAVAILABLE sin persistencia; perfiles por defecto desde contexto sin dependencia remota. Sala eliminada tras 5 minutos de ENDED. HLS continúa al caer Chat.
+- Probar lectura anónima y envío autenticado, texto de 500 y 501 puntos de código, y cuota global de 1000 ms entre salas y réplicas.
+- Comprobar deduplicación, persistencia antes del ACK, recuperación de la distribución tras una caída y combinación de WebSocket e historial sin huecos.
+- Medir p95 <1 s con 20 mensajes/s agregados.
+- Verificar rechazo de nuevas autorizaciones después de logout o fin de emisión, y el límite de una operación autorizada que sigue en curso.
+- Comprobar CORE_UNAVAILABLE y STREAMING_UNAVAILABLE sin persistir mensajes nuevos, y perfiles por defecto desde el contexto, sin consulta remota a Profile.
+- Verificar la eliminación de la sala 5 minutos después de ENDED y que HLS continúa cuando Chat cae.
 
 ## 11. Esfuerzo, riesgos y consecuencias
 
-**Esfuerzo:** M/L. **Riesgos:** pérdida/reordenamiento de mensajes, latencia de fsync en Redis, incompatibilidad de reloj del player y chat, y caída del chat acoplada al stream. **Consecuencia:** no implementar capacidades explícitamente fuera de P1; sin historial tras la retención.
+**Esfuerzo:** M/L. Los riesgos principales son la pérdida o el desorden de mensajes, la latencia
+de fsync en Redis, las diferencias entre el reloj del reproductor y el del chat, y un fallo Chat
+que termine afectando al video.
+
+P1 conserva solo el historial dentro de la retención acordada. La moderación y Chat Replay
+necesitan sus decisiones e implementación en fases futuras.

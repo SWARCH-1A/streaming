@@ -1,7 +1,10 @@
 # Entorno local con Docker
 
-`compose.core.yaml` inicia Core y PostgreSQL 18. Core incluye Catálogo en el mismo ejecutable;
-Chat, Web y proxy se integran conforme a sus SPEC/ADR. El stack propio [Streaming/Media](../../services/streaming/README.md) tiene tres contenedores (PostgreSQL, Streaming con adaptador y MediaMTX), según ADR-011; se arranca desde services/streaming y su conexión con Core se configura como se indica más abajo. Se necesita Git, PowerShell
+Esta guía describe los Compose de desarrollo por servicio. Para levantar la aplicación completa,
+usa la [guía local del repositorio](../../README.md).
+
+`compose.core.yaml` inicia Core y PostgreSQL 18. Catálogo comparte el ejecutable Core;
+Chat, Web y proxy se conectan según sus SPEC y ADR. El stack propio [Streaming/Media](../../services/streaming/README.md) tiene tres contenedores (PostgreSQL, Streaming con adaptador y MediaMTX), según ADR-011; se arranca desde services/streaming y su conexión con Core se configura como se indica más abajo. Se necesita Git, PowerShell
 y Docker Desktop iniciado con contenedores Linux. JDK 25 y Maven 3.9.11 se ejecutan dentro de Docker.
 Definición y variables de proceso: [Core](../../services/core/README.md).
 `compose.chat.yaml` añade Chat y su Redis con AOF. Definición y variables de Chat:
@@ -62,7 +65,7 @@ Compose inyecta además `CORE_DB_URL=jdbc:postgresql://postgres:5432/core`, `COR
 se usan si se selecciona explícitamente `filesystem`.
 El puerto interno Core sigue siendo 8081; `PORT` configura el proceso Java y no es `CORE_PORT`.
 La aplicación Java no carga un `.env` automáticamente: este flujo lo entrega explícitamente a Compose.
-Catálogo no añade variables ni credenciales. Web aún no tiene framework ni `.env` definidos.
+Catálogo comparte las variables y credenciales Core. Web usa React/TypeScript con Vite, según ADR-007; su configuración y comandos están en el [README Web](../../apps/web/README.md).
 
 ### S3 para avatares y portadas
 

@@ -7,11 +7,13 @@
 
 ## Contexto
 
-ADR-005 conserva Java/Spring/PostgreSQL para Catálogo dentro de Core y separa Streaming. SPEC-06 requiere un vocabulario
-controlado, IDs estables, incorporación de valores sin reconstruir Web y conservación de etiquetas
-de metadatos antiguos. Emisiones será dueño de las asociaciones y Consultas de sus filtros.
-Esta propuesta documenta la implementación de Catálogo; no registra una aceptación del equipo ni
-declara terminadas las integraciones con consumidores pendientes.
+ADR-005 mantiene Catálogo en Core con Java, Spring y PostgreSQL, y separa Streaming.
+SPEC-06 pide un vocabulario controlado con IDs estables, nuevos valores disponibles sin reconstruir
+Web y conservación de los nombres usados en metadatos antiguos. Streaming administra las
+asociaciones y Discovery las usa en sus filtros.
+
+Este ADR propone cómo implementar Catálogo. Sigue pendiente la aceptación del equipo y la
+comprobación de las integraciones que faltan con sus consumidores.
 
 ## Decisión propuesta
 

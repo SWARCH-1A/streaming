@@ -7,12 +7,15 @@
 
 ## Contexto
 
-[ADR-005](ADR-005-streaming-rust-y-proyeccion-discovery.md) fija que Discovery vive en Core, lee Cuentas/Canales/Catálogo
-por SQL local y recibe de Streaming una proyección pública versionada. El servicio Streaming ya publica cada
-`StreamDiscoverySnapshot` a `POST /internal/core/discovery/stream-events` y expone un corte paginado de reconstrucción;
-Core todavía no recibe esos eventos. SPEC-07 exige además un GraphQL público con límites estrictos de forma, costo y
-tasa, paginación estable bajo ranking dinámico y frescura de 5 s sin inventar estado. El contrato pide un ADR para la
-librería GraphQL y para los detalles que dejó abiertos.
+[ADR-005](ADR-005-streaming-rust-y-proyeccion-discovery.md) ubica Discovery en Core. Sus consultas
+leen Cuentas, Canales y Catálogo por SQL local, y reciben una proyección pública versionada
+Streaming. Al plantear esta decisión, Streaming ya publicaba `StreamDiscoverySnapshot` en
+`POST /internal/core/discovery/stream-events` y ofrecía un corte paginado para reconstrucción;
+faltaba implementar la recepción en Core.
+
+SPEC-07 exige una API GraphQL con límites de forma, costo y tasa, paginación estable aunque
+cambie la popularidad y datos con una frescura de 5 s. Este ADR elige la librería y resuelve
+los detalles técnicos pendientes del contrato.
 
 ## Decisión
 

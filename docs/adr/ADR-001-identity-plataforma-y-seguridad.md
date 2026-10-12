@@ -7,12 +7,14 @@
 
 ## Contexto
 
-Cuentas controla userId, email/handle canónicos, contraseña, sesiones y perfil público. Canales,
-Catálogo y Consultas comparten Core; Streaming es servicio Rust según ADR-005. Registro debe confirmar cuenta, perfil y canal juntos;
-logout debe impedir toda autorización posterior. Los DTO públicos excluyen datos privados.
+Cuentas administra userId, email y handle canónicos, contraseña, sesiones y perfil público.
+Canales, Catálogo y Consultas comparten Core; Streaming tiene su servicio Rust según ADR-005.
+Necesitamos crear cuenta, perfil y canal juntos, y rechazar las nuevas autorizaciones después
+de logout. Las respuestas públicas deben dejar fuera los datos privados.
 
-La entrega requiere SQL, uso justificado de NoSQL, dos procesos propios de lógica y tres lenguajes.
-Estas restricciones son de sistema y no obligan a introducir otro stack por módulo Core.
+La asignatura exige SQL, un uso justificado de NoSQL, dos procesos propios de lógica y tres
+lenguajes. Cumplimos esas restricciones en el conjunto del sistema; los módulos Core comparten
+la plataforma que elegimos aquí.
 
 ## Decisión
 
@@ -38,10 +40,12 @@ Estas restricciones son de sistema y no obligan a introducir otro stack por mód
 
 ## Consecuencias
 
-Registro y publicación tienen integridad local; seguridad común evita cookies y validaciones
-incompatibles. Core tiene disponibilidad y release comunes. Chat depende de Core para nuevos envíos:
-indisponibilidad produce CORE_UNAVAILABLE y falla cerrado. Una operación ya autorizada puede confirmar
-dentro del presupuesto acotado del contrato; logout no revierte commits en vuelo.
+El registro confirma sus datos juntos y la seguridad común evita cookies o validaciones
+incompatibles entre módulos. Esos módulos también comparten la disponibilidad y la entrega de Core.
+
+Chat depende de Core para autorizar nuevos mensajes. Si Core no está disponible, devuelve
+CORE_UNAVAILABLE y rechaza el envío. Una operación ya autorizada puede terminar dentro del
+presupuesto del contrato; logout impide las autorizaciones posteriores.
 
 PostgreSQL requiere backups y limpieza de sesiones, resultados y cuotas. Los secretos internos
 requieren rotación por consumidor. La réplica Core usa la misma autoridad SQL de sesión/cuota;

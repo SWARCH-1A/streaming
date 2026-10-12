@@ -7,13 +7,14 @@
 
 ## Contexto
 
-Perfil pertenece a Cuentas en Core y posee displayName, bio, avatarUri y profileVersion. La cuenta
-posee email/handle/credenciales; Canales posee descripción y portada. Compartir proceso y PostgreSQL
-permite crear el perfil inicial con la cuenta y validar sesión localmente, manteniendo DTO públicos
-distintos de datos privados.
+El perfil pertenece a Cuentas y contiene displayName, bio, avatarUri y profileVersion.
+La cuenta conserva email, handle y credenciales; Canales conserva descripción y portada.
+Al compartir Core y PostgreSQL podemos crear el perfil junto con la cuenta y validar la sesión
+localmente, manteniendo separados los DTO públicos y los datos privados.
 
-P1 admite avatar opcional JPEG/PNG/GIF hasta 10 MB y al menos 200×200 px. Nombre visible y bio son
-editables; el handle permanece inmutable. Debe conservarse el objeto anterior ante fallo de reemplazo.
+En P1 el avatar es opcional. Admitimos JPEG, PNG y GIF de hasta 10 MB y al menos 200×200 px.
+El usuario puede editar el nombre visible y la biografía, mientras el handle permanece igual.
+Si falla el reemplazo de un avatar, debe conservarse el anterior.
 
 ## Decisión
 
@@ -38,11 +39,13 @@ editables; el handle permanece inmutable. Debe conservarse el objeto anterior an
 
 ## Consecuencias
 
-Perfil no replica identidad. Objetos y SQL no forman una transacción única: el orden, compensación
-local y reconciliación conservan el anterior y reparan huérfanos tras crash. La caída de S3 bloquea
-cargas/cambios y puede impedir servir avatares mientras el bucket no esté disponible. Respaldo y
-restauración deben verificar checksums y referencias. Las rutas públicas permanecen en Core al
-cambiar el proveedor.
+El perfil consulta la identidad local de Cuentas. Los objetos y SQL no comparten una transacción:
+el orden de publicación, la compensación local y la reconciliación conservan el avatar anterior
+y reparan los huérfanos después de una caída.
+
+Si S3 falla, se bloquean las cargas y los cambios, y puede fallar la lectura de avatares hasta
+que vuelva el bucket. El respaldo y la restauración deben comprobar checksums y referencias.
+Aunque cambie el proveedor, las rutas públicas permanecen en Core.
 
 Los lectores Core consultan el perfil localmente. El snapshot Chat es histórico;
 editar perfil no cambia los autores de mensajes ya persistidos. Fallo SQL es 503, no usuario inexistente.

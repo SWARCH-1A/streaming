@@ -1,7 +1,7 @@
 # Perfil integrado persistente P1
 
-Para probar la aplicación en equipo, usar el [Compose raíz de nueve servicios](../../README.md).
-Este perfil conserva los fixtures de aceptación, réplicas y carga.
+Para usar la aplicación en equipo, sigue la [guía del Compose raíz de nueve servicios](../../README.md).
+Este perfil se usa para las pruebas de aceptación, réplicas y carga, con sus propios datos y configuración.
 
 Implementación de [SPEC-13](../../docs/spec-p1/spec_13_int.md) y
 [ADR-014](../../docs/adr/ADR-014-perfil-integrado-tls-p1.md). Ocho contenedores con una réplica de
@@ -33,10 +33,10 @@ curl --fail --cacert infra/p1/.state/ca.crt https://localhost:3443/api/taxonomy
 /tmp/streaming-p1-venv/bin/python tests/integration/p1-delivery/verify.py --confirm-disposable
 ```
 
-`up` inicia procesos; no afirma readiness de aplicaciones. Esperar las bases y Streaming saludables,
-Taxonomy 200 por HTTPS y la prueba nominal antes de usar el perfil. Un readiness SQL no acredita Core
-ni Chat. Core puede reconciliar después del arranque de Streaming. La prueba espera convergencia con
-deadline y valida chat real, no solo que un socket esté abierto. `build` construye los fuentes actuales;
+Después de `up`, espera a que las bases y Streaming estén saludables, Taxonomy responda 200
+por HTTPS y termine la prueba nominal. Que SQL esté listo no significa que Core y Chat también
+lo estén. Core puede reconciliar sus datos después de arrancar Streaming.
+La prueba espera esa convergencia con un plazo acotado y comprueba mensajes de chat reales. `build` construye los fuentes actuales;
 reutilizar imágenes históricas no acredita el checkout. No ejecutar pruebas concurrentes contra el
 mismo proyecto. El puerto HTTPS predeterminado es 3443 y RTMPS 11936, ambos en loopback; se pueden
 seleccionar `P1_HTTPS_PORT`/`P1_RTMPS_PORT` **antes de init**, conservándolos después. No se publican

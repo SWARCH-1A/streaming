@@ -8,7 +8,13 @@
 
 ## Contexto
 
-La aceptación de un callback puede perderse por un fallo de transporte. La ingesta y la recuperación necesitan conservar su identidad, generaciones y payload durante reintentos, reinicios y resolución manual. La retención no tiene TTL; requiere un límite operativo de admisión.
+Un callback puede llegar al receptor y perder su respuesta por un fallo de transporte.
+Para reintentarlo sin duplicar sus efectos, la ingesta y la recuperación necesitan conservar
+la identidad del evento, sus generaciones y el payload. Esa información debe sobrevivir
+a reinicios y permitir una resolución manual.
+
+Como la retención no vence por TTL, también necesitamos un límite operativo para admitir
+nuevas ingestas.
 
 ## Decisión
 

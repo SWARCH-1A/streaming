@@ -1,6 +1,10 @@
 # Backend
 
-[Core](core/README.md) contiene Cuentas, Canales, Catálogo y Consultas en un build Java/Spring
-con PostgreSQL y seguridad comunes. Cada módulo conserva repositorios e interfaces publicados.
-[Chat](chat/README.md) es la unidad independiente de mensajes y tiempo real, pendiente de implementación.
-[Streaming](streaming/README.md) ejecuta el control de emisiones y el adaptador Media en un proceso Rust P1; su stack usa PostgreSQL, Streaming y MediaMTX según ADR-011. [Media](../infra/media/README.md) documenta el motor y su configuración. El mapa vigente está en [docs](../docs/mapa_sdd_p1.md).
+El backend se organiza en tres servicios de lógica y un motor multimedia:
+
+- [Core](core/README.md) reúne Cuentas, Canales, Catálogo y Discovery en un ejecutable Java/Spring. Comparten PostgreSQL y seguridad; cada módulo conserva sus repositorios e interfaces.
+- [Streaming](streaming/README.md) controla las emisiones y ejecuta el adaptador Media en un proceso Rust. Su stack P1 tiene PostgreSQL, Streaming y MediaMTX, según ADR-011.
+- [Chat](chat/README.md) maneja salas, mensajes, historial y tiempo real en Go con Redis, según ADR-010.
+- [Media](../infra/media/README.md) documenta el motor MediaMTX y su configuración para recibir y entregar video.
+
+El [mapa de responsabilidades](../docs/mapa_sdd_p1.md) relaciona estos servicios con sus SPEC.

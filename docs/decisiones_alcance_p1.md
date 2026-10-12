@@ -6,9 +6,9 @@ se deben justificar en un ADR del módulo responsable.
 **Fecha:** 2026-10-01
 **Organización de trabajo:** SWARCH-1A; el repositorio principal es este monorepo.
 
-Este archivo registra las decisiones vigentes de producto para el catálogo, las especificaciones P1 y
-las capacidades futuras. Los detalles de comportamiento observables en Twitch se usan como referencia
-pública; no se infiere su arquitectura interna.
+Aquí reunimos los acuerdos de producto que usamos al redactar el catálogo y las SPEC de P1,
+así como los límites de las fases futuras. Tomamos funciones visibles de Twitch como referencia
+para el comportamiento de la plataforma; esa referencia no nos permite conocer su arquitectura interna.
 
 ## 1. Alcance y organización de requisitos
 

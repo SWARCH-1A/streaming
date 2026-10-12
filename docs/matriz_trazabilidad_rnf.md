@@ -1,12 +1,12 @@
 # Matriz de trazabilidad y cierre de RNF
 
-Esta matriz asigna un único SPEC primario a cada requisito no funcional, identifica contribuyentes y
-explica la evidencia que cierra el requisito. El SPEC primario responde por el resultado integrado; los
-contribuyentes demuestran su parte en su dominio. La matriz no transfiere la propiedad de datos.
+Para cada requisito no funcional, esta matriz identifica una SPEC principal, las SPEC que colaboran
+y los resultados necesarios para aceptarlo. La principal responde por el resultado integrado;
+las demás comprueban la parte que les corresponde. Cada módulo sigue siendo responsable de sus datos.
 
 Los IDs y textos normativos completos están en [Catálogo de requisitos](catalogo_requisitos.md).
-Las evidencias se ejecutarán al implementar P1; no son afirmaciones de que ya exista software o una
-prueba ejecutada.
+La columna de evidencia describe qué debemos comprobar al implementar P1. Los resultados de las
+pruebas se registran por separado; esta tabla no indica que ya se hayan ejecutado.
 La [matriz de recorridos P1](matriz_recorridos_p1.md) identifica los escenarios por CA funcional y RF;
 la evidencia en Plane enlaza esos escenarios con los RNF aplicables y su SPEC primaria de esta tabla.
 
@@ -63,7 +63,7 @@ la evidencia en Plane enlaza esos escenarios con los RNF aplicables y su SPEC pr
 | RNF-049 | P1 | SPEC-13 | SPEC-04, SPEC-05 | ADR vincula cada uso NoSQL a estado/acceso temporal o eventos; si no hay justificación, no se cuenta como cumplimiento. |
 | RNF-050 | P1 | SPEC-13 | SPEC-01, SPEC-03, SPEC-04, SPEC-05 | Reiniciar procesos y consultar Core y Streaming desde sus SQL privados, reconstruir proyección Discovery con snapshot/watermark y recuperar Chat preservando IDs/estado sin recreación manual. AOF/backup recupera mensajes con ACK dentro de su retención; snapshot/eventos/enumeración Streaming recuperan solo inventario/lifecycle de salas, nunca mensajes perdidos ni historial tras los 5 min de ENDED. |
 
-## Reglas de ownership de la evidencia
+## Responsables de la evidencia
 
 1. El SDD primario conserva el criterio verificable y entrega la evidencia (resultado, log/reporte o
    contrato probado) al SPEC-13.

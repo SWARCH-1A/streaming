@@ -1,8 +1,9 @@
 # Imágenes de la Web
 
 `signal-grid.svg` es un gráfico vectorial propio: retícula, ondas y anillos en los colores del sistema.
-Se usa en autenticación/perfil y como portada o fondo de emisión cuando el canal no tiene imagen.
-El contenido y estado se escriben en HTML; el SVG es decorativo, sin texto ni solicitudes externas.
+Se usa en autenticación y perfil, y como portada o fondo de emisión cuando el canal no tiene imagen.
+El contenido y el estado se presentan en HTML. El SVG es decorativo, no contiene texto ni hace
+solicitudes externas.
 Los canales LIVE de exploración muestran un JPEG real de su señal entregado por Media.
 
 Los JPEG `explore-N.jpg` y `studio-N.jpg` son referencias de los exports Stitch originales.

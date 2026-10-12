@@ -2,10 +2,14 @@
 
 ## Sistema
 
-`STREAMING` es un prototipo web de una plataforma de canales con transmisión audiovisual en vivo,
-chat, taxonomía y descubrimiento. P1 incluye identidad, perfil, canal, streaming en vivo, chat,
-categorías/etiquetas, búsqueda, accesibilidad del recorrido e integración. Seguimiento, calidad,
-pagos, VOD, moderación avanzada, subtítulos y otras capacidades se conservan fuera de P1 en el catálogo.
+STREAMING es nuestro prototipo de una plataforma web donde los usuarios pueden tener un canal,
+transmitir video en vivo y conversar con los espectadores. La interfaz se presenta como Vault tv.
+
+En la primera iteración (P1) incluimos cuentas, perfiles, canales, emisión y reproducción en vivo,
+chat, categorías, etiquetas y búsqueda. También trabajamos la accesibilidad de esos recorridos
+y la integración entre servicios. El seguimiento de canales, las opciones de calidad, los pagos,
+VOD, la moderación avanzada y los subtítulos quedan para otras fases, con sus requisitos
+conservados en el catálogo.
 
 ## Actores
 
@@ -19,7 +23,7 @@ pagos, VOD, moderación avanzada, subtítulos y otras capacidades se conservan f
 - **Consumidor/proveedor:** entre unidades desplegables se intercambian datos mediante contrato neutral; dentro
   de Core se usan interfaces locales y esquema SQL con FK/lecturas compuestas revisadas.
 
-## Términos normativos
+## Términos que usamos en el proyecto
 
 | Término | Significado en este proyecto |
 | --- | --- |
@@ -61,11 +65,12 @@ pagos, VOD, moderación avanzada, subtítulos y otras capacidades se conservan f
 
 ## Límites aceptados
 
-Una sola categoría, cero a cinco tags, una sesión activa por canal, máximo cinco sesiones de toda la
-plataforma, cinco streams concurrentes/100 viewers para perfil de prueba global, veinte mensajes por
-segundo agregados durante diez minutos, cincuenta mensajes de historial inicial, 500 puntos de código
-Unicode por mensaje, como máximo un envío por cuenta en toda ventana móvil de 1000 ms (sin ráfaga),
-P95 chat menor a un segundo, API P95 ≤2 segundos, reproducción inicia en ≤5 segundos,
-estado de canal se actualiza en cinco segundos y
-conteo expira a los treinta segundos sin heartbeat. El catálogo especifica dominio y método de
-verificación para cada límite.
+Para P1 acordamos estos límites:
+
+- Cada emisión tiene una categoría y entre cero y cinco etiquetas. Hay una sesión activa por canal y un máximo de cinco en toda la plataforma.
+- El perfil de prueba contempla cinco emisiones y 100 reproducciones concurrentes. La carga de chat es de veinte mensajes por segundo en total durante diez minutos.
+- Al entrar al chat se consultan los últimos cincuenta mensajes. Cada mensaje admite hasta 500 puntos de código Unicode. Una cuenta puede enviar como máximo un mensaje en cualquier ventana móvil de 1000 ms, sin acumular ráfagas.
+- La latencia de chat debe tener un P95 menor a un segundo y la API un P95 de hasta dos segundos. El inicio de reproducción tiene un máximo de cinco segundos; ese límite no se mide como percentil.
+- Los cambios de estado del canal deben aparecer en cinco segundos. Una reproducción deja de contar como espectador después de treinta segundos sin heartbeat.
+
+El catálogo indica a qué dominio corresponde cada límite y cómo se verifica.

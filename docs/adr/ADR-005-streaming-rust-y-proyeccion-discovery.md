@@ -8,9 +8,17 @@
 
 ## Contexto
 
-El control de emisiones requiere una capacidad autónoma durante las cuatro iteraciones del proyecto. La frontera tiene un dueño: configuración, secreto de ingesta, sesiones, generaciones, cupos, reloj, leases y coordinación multimedia. Discovery permanece en Core junto a los datos públicos de cuentas, canales y catálogo.
+Elegimos separar el control de emisiones para poder desarrollarlo, entregarlo y operarlo con
+autonomía durante las cuatro iteraciones. Streaming se encarga de configuración, secreto de
+ingesta, sesiones, generaciones, cupos, reloj, leases y coordinación multimedia.
+Discovery permanece en Core, junto a los datos públicos de cuentas, canales y catálogo.
 
-La separación se elige por autonomía de desarrollo, release y operación. No existe evidencia de que Java sea insuficiente para P1, ni un benchmark que acredite ventaja de rendimiento de Rust. El tráfico audiovisual se sirve por MediaMTX y no pasa por el API de control. Se acepta el costo adicional de contratos, persistencia, autenticación, observabilidad y recuperación entre procesos.
+La razón de esta separación es organizativa y operativa. No tenemos un benchmark que muestre
+que Java sea insuficiente para P1 o que Rust mejore su rendimiento. MediaMTX sirve el tráfico
+audiovisual; ese tráfico no pasa por la API de control.
+
+La separación añade contratos, persistencia, autenticación, observabilidad y recuperación entre
+procesos. Aceptamos ese trabajo adicional a cambio de la autonomía de Streaming.
 
 ## Decisión
 
@@ -37,7 +45,13 @@ La separación se elige por autonomía de desarrollo, release y operación. No e
 
 ## Consecuencias
 
-Una autorización Core no mantiene un lock sobre Streaming. Core valida en el instante del contexto y Streaming confirma dentro del presupuesto; un logout/inactivación posterior puede coincidir con un comando ya autorizado. La siguiente autorización debe rechazar. Valores inactivados después de asociarlos conservan ID/último label; no hay FK ni escritura entre bases. Registro y edición de canal permanecen locales.
+Core valida los permisos al emitir el contexto; Streaming confirma dentro del presupuesto acordado,
+sin mantener un bloqueo Core durante la escritura. Por eso un logout o una inactivación pueden
+coincidir con un comando ya autorizado. La siguiente autorización debe rechazarlo.
+
+Si un valor de catálogo se desactiva después de asociarlo, conserva su ID y último nombre.
+Las bases no comparten claves foráneas ni escrituras. El registro y la edición del canal
+siguen siendo operaciones locales Core.
 
 Discovery puede atrasarse o requerir reconstrucción. Sus errores de frescura son observables; la lectura autoritativa del player y la autorización Chat siguen usando Streaming. Los snapshots nunca llevan credenciales, claves de emisión, tokens de lease, email ni paths de ingesta. No se replican permisos ni muestras periódicas de timeline.
 

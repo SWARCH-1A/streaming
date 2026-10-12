@@ -7,9 +7,11 @@
 
 ## Contexto
 
-El inventario semántico existe, pero no había schemas neutrales ni una comprobación de drift.
-Los consumidores deben verificar el checkout actual contra sus proveedores reales, además
-de validar formas de datos y compatibilidad.
+Ya teníamos un inventario que explicaba el significado de las operaciones, pero faltaban
+esquemas neutrales y una comprobación automática de diferencias entre la fuente y los artefactos.
+
+Los consumidores necesitan validar la forma y compatibilidad de los datos, además de probar
+el código del checkout actual contra los proveedores reales.
 
 ## Decisión
 
@@ -52,10 +54,13 @@ contra sus proveedores reales.
 
 ## Consecuencias
 
-Cambiar un contrato requiere actualizar su fuente, regenerar y probar sus consumidores. Cambios
-incompatibles documentan transición, coexistencia y retiro antes de eliminar el contrato anterior;
-el checker no pretende demostrar por sí solo compatibilidad semántica. CI y comando local ejecutan
-los mismos checks. Pruebas con proveedores reales se identifican separadamente de los ejemplos.
+Cuando cambia un contrato, actualizamos la fuente, regeneramos los artefactos y probamos sus
+consumidores. Si el cambio es incompatible, documentamos la transición, la coexistencia y el retiro
+antes de eliminar la versión anterior.
+
+CI y el comando local ejecutan las mismas comprobaciones. Estas detectan diferencias estructurales;
+la compatibilidad del comportamiento también requiere pruebas con proveedores reales, cuyos
+resultados distinguimos de la validación de ejemplos.
 
 ## Verificación
 

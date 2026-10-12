@@ -1,9 +1,11 @@
 # Verificación integrada P1 sobre TLS
 
-Estos ejecutables operan **solo** sobre `infra/p1` y su proyecto Docker `streaming-p1`.
-Usar datos desechables. Requieren el entorno Python de `p1-domains/requirements.txt`, FFmpeg
-con RTMPS/HTTPS y los pasos de [arranque](../../../infra/p1/README.md). No ejecutar dos suites
-contra ese proyecto simultáneamente. Las fuentes permanecen fuera de los contenedores.
+Esta suite comprueba el perfil TLS de `infra/p1` en el proyecto Docker `streaming-p1`.
+Usa datos desechables y ejecuta una suite a la vez contra ese proyecto.
+
+Necesitas las dependencias Python de `p1-domains/requirements.txt`, FFmpeg con RTMPS/HTTPS
+y completar los pasos de [arranque](../../../infra/p1/README.md).
+Las fuentes de video se ejecutan fuera de los contenedores.
 
 ```sh
 python tests/integration/p1-delivery/verify.py --confirm-disposable

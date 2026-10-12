@@ -1,14 +1,16 @@
-# Interfaz chat
+# Interfaz de chat
 
-Vistas, estado y acciones propias de chat. Publica su entrada para composición en shell, sin importar internals de otros módulos.
-Rutas globales/layout pertenecen a [shell](../../shell/README.md).
+`LiveChatPanel` consume el historial REST y el WebSocket de Chat mediante el proxy.
+Abre WebSocket antes del historial, combina mensajes por secuencia y conserva el identificador
+al reintentar un envío. Los errores de Chat quedan separados del reproductor.
 
-Definición: [SPEC](../../../../../docs/spec-p1/spec_05_chat.md).
-Accesibilidad en cada recorrido: [SPEC-08](../../../../../docs/spec-p1/spec_08_a11y.md).
+## Organización
 
-## Base frontend
+La entrada pública es `entry.tsx`. Los consumidores usan esa entrada y los contratos del módulo;
+sus componentes y estado interno permanecen encapsulados. El [shell](../../shell/README.md)
+organiza las rutas globales y el layout.
 
-La entrada pública es `entry.tsx`; los consumidores no importan componentes/estado internos.
-`LiveChatPanel` consume el historial REST y el WebSocket reales de Chat a través del proxy.
-Contratos e integración real siguen la SPEC del módulo. Ejecución y reglas en
-[README Web](../../../README.md). Tests locales junto al código.
+La [SPEC](../../../../../docs/spec-p1/spec_05_chat.md) define el comportamiento.
+[SPEC-08](../../../../../docs/spec-p1/spec_08_a11y.md) fija los criterios de accesibilidad
+de sus recorridos. Los comandos están en el [README Web](../../../README.md),
+y las pruebas locales se mantienen junto al código.

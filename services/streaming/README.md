@@ -1,10 +1,20 @@
 # Streaming y Media — SPEC-04
 
-Servicio Rust de gestión de emisiones, PostgreSQL/SQLx con pooling y MediaMTX autogestionado para RTMP/LL-HLS. El stack P1 usa tres contenedores: PostgreSQL, MediaMTX y `streaming-service`. El proceso Rust incluye el adaptador técnico Media en el mismo runtime Tokio, según [ADR-011](../../docs/adr/ADR-011-streaming-tres-contenedores-p1.md). `media-adapter` se conserva como CLI de migración y operación; no inicia un servidor.
+Streaming controla las emisiones en Rust y guarda su estado en PostgreSQL mediante SQLx
+con pools de conexiones. MediaMTX recibe RTMP y entrega LL-HLS.
+
+El stack P1 tiene tres contenedores: PostgreSQL, MediaMTX y `streaming-service`.
+El proceso Rust ejecuta el control y el adaptador Media en el mismo runtime Tokio,
+según [ADR-011](../../docs/adr/ADR-011-streaming-tres-contenedores-p1.md).
+`media-adapter` se conserva como CLI para migraciones y operación de callbacks, sin iniciar servidor.
 
 ## Responsabilidades
 
-Streaming posee configuración, claves, sesiones/generaciones, cupos, clock, leases de player y snapshots públicos. MediaMTX transporta audio/video; el adaptador autoriza publishers, cerca aliases HLS y entrega callbacks durables. Streaming y el adaptador tienen una base privada y una migración inicial cada uno.
+Streaming administra la configuración, las claves, las sesiones y generaciones, los cupos,
+el reloj, los leases de reproducción y los snapshots públicos. MediaMTX transporta audio y video.
+El adaptador autoriza las fuentes, bloquea aliases HLS antiguos y entrega callbacks durables.
+
+Streaming y el adaptador mantienen una base privada y una migración inicial cada uno.
 
 Core posee identidad/canal/catálogo y Discovery. Cada mutación protegida pide un contexto Core nuevo; valida IDs/tipos/activos y confirma con presupuesto monotónico de un segundo. La lectura protegida valida sesión usando el perfil autenticado Core y verifica propiedad del canal. Los labels validados se conservan en Streaming, incluidos valores inactivos/tombstones, para lectura pública ante caída de Core. Una lectura de catálogo no sobrescribe una asociación cambiada por un PATCH concurrente. Los relays de Chat y Discovery tienen claims y ACK independientes.
 
@@ -105,9 +115,22 @@ Core recibe snapshots completos mediante `POST /internal/core/discovery/stream-e
 
 ## Entrega y recuperación
 
-Media: timeout 2 s; retries 100/250/500/1000/2000 ms y luego 2 s; ventana 15 min desde primer intento. Mismo eventId/payload en cada intento. 2xx ACK, 410 obsoleto; 4xx permanente o agotamiento pasa a DLQ durable. Alerta única por publisher/source a los 30 s. Cola, edad e intentos se registran. Al alcanzar capacidad DLQ, nueva ingesta falla cerrado. [Decisión operativa de entrega y capacidad](docs/adr/0001-media-callback-delivery.md).
+Los callbacks Media tienen timeout de 2 s. Se reintentan tras 100, 250, 500, 1000 y 2000 ms,
+y después cada 2 s, durante 15 min desde el primer intento. Conservan eventId y payload.
+Un 2xx confirma el ACK y un 410 indica que el callback quedó obsoleto. Un 4xx permanente o el
+agotamiento del plazo envía el evento a la DLQ durable.
 
-Chat/Discovery: timeout 1 s; retries 1/2/5/10 s y luego 10 s; `Retry-After` admite segundos/fecha HTTP. ACK independiente por consumidor, alerta por atraso >5 s y DLQ a los 15 min/permanente. Cierre manual no fabrica ACK. Redrive conserva ID/payload y abre una nueva ventana. Las DLQ no expiran automáticamente.
+A los 30 s se emite una alerta única por publisher/source. Se registran cola, edad e intentos.
+Al alcanzar la capacidad DLQ se rechazan nuevas ingestas. La
+[decisión operativa](docs/adr/0001-media-callback-delivery.md) fija la entrega y su capacidad.
+
+Las entregas a Chat y Discovery tienen timeout de 1 s y reintentos tras 1, 2, 5 y 10 s,
+y luego cada 10 s. `Retry-After` admite segundos o fecha HTTP. Cada consumidor confirma su
+propio ACK. Un atraso mayor de 5 s genera alerta; un fallo permanente o 15 min sin entrega
+lleva el evento a DLQ.
+
+El redrive conserva ID y payload y abre una ventana nueva. Un cierre manual registra la
+resolución sin generar ACK. Las DLQ no expiran automáticamente.
 
 ```sh
 # Con las variables del proceso configuradas:

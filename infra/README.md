@@ -1,5 +1,7 @@
 # Infraestructura compartida
 
-Propiedad de integration. Configuración común de desarrollo, reverse proxy y servidor multimedia.
-No pongas aquí lógica de dominio ni configuración privada. Cualquier archivo de ejemplo debe usar
-valores ficticios y variables de entorno.
+Aquí mantenemos la configuración de desarrollo, el reverse proxy y el servidor multimedia.
+El equipo de integración coordina estos archivos; la lógica de negocio permanece en los servicios.
+
+Los ejemplos usan variables de entorno y datos ficticios. La configuración privada y los secretos
+se generan localmente y no se incluyen en el repositorio.

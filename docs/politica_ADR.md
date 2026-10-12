@@ -2,12 +2,13 @@
 
 ## Quién decide
 
-La persona responsable de la unidad desplegable coordina lenguaje, framework, almacenamiento y librerías
-con los responsables de sus módulos internos. Core usa un stack/transacción compartidos; un módulo
-no introduce otro runtime/DB ni frontera HTTP por iniciativa local.
-La decisión se acepta cuando cumple los contratos del sistema y restricciones de la asignatura,
-documenta alternativas y consecuencias, y no rompe a consumidores. El SDD especifica la obligación y
-la interfaz; el ADR registra la selección concreta y su motivo.
+La persona responsable de cada unidad desplegable acuerda el lenguaje, el framework, el
+almacenamiento y las librerías con quienes trabajan en sus módulos. En Core compartimos el stack
+y las transacciones; agregar otro proceso, base o frontera HTTP requiere una decisión de arquitectura.
+
+Aceptamos una decisión cuando respeta los contratos y las restricciones de la asignatura,
+explica las alternativas y sus consecuencias, y conserva la compatibilidad con los consumidores.
+La SPEC describe qué debe hacer la solución; el ADR explica qué elegimos para implementarla y por qué.
 
 ## Cuándo registrar
 
@@ -19,8 +20,8 @@ Crear ADR antes de:
 - seleccionar SQL/NoSQL, mecanismos de sesión, broker, reverse proxy, player o carga de archivos;
 - hacer incompatible una decisión vigente.
 
-Cambios menores locales pueden explicarse en el PR. Un ADR aceptado no impide reemplazo; un ADR nuevo
-debe identificar cuál revierte y cómo migra datos/consumidores.
+Los cambios menores dentro de un módulo pueden explicarse en el PR. Si reemplazamos una decisión
+aceptada, el nuevo ADR debe indicar cuál sustituye y cómo migramos los datos y los consumidores.
 
 ## Plantilla
 
@@ -64,8 +65,9 @@ Una selección tecnológica de módulo no debe:
 - dejar sin explicación la contribución a las restricciones de SQL, NoSQL, conectores HTTP, lenguajes,
   contenedores o reinicio independiente.
 
-Las decisiones del equipo van en ADR separado de decisiones de producto. Una opción de este catálogo
-o de un SDD marcada como candidata no se vuelve selección aprobada por aparecer en el texto.
+Las decisiones técnicas se registran en ADR; las de producto, en el documento de alcance.
+Una tecnología mencionada como candidata en el catálogo o en una SPEC sigue siendo una opción
+hasta que su ADR sea aceptado.
 
 ## Definición y evidencia
 

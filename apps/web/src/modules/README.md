@@ -1,9 +1,11 @@
-# Módulos de UI
+# Módulos de interfaz
 
-Una aplicación y un build. Accounts, channels, streaming, chat, taxonomy y discovery agrupan
-responsabilidades de la Web. Cada módulo publica `entry.tsx`; sus componentes, validación,
-estado y fixtures permanecen internos. ESLint bloquea imports de internals ajenos.
+Accounts, channels, streaming, chat, taxonomy y discovery organizan las funciones de una misma
+aplicación Web. Cada módulo publica `entry.tsx` y mantiene internos sus componentes, validación,
+estado y datos de prueba. ESLint comprueba que otro módulo no importe esas partes internas.
 
-[Shell](../shell/README.md) compone rutas y sesión de demostración; `src/components` contiene
-primitivas atómicas y `src/styles` sus tokens comunes. Los fixtures actuales no son contratos de
-servicio. La futura integración usará clientes por módulo conforme a contratos existentes.
+El [shell](../shell/README.md) reúne las rutas y la sesión común. `src/components` contiene los
+componentes compartidos y `src/styles`, los tokens visuales.
+
+Las vistas funcionales usan los contratos de los servicios reales. Los fixtures se reservan
+para pruebas y demos explícitas; no reemplazan una respuesta fallida de la API.

@@ -4,10 +4,13 @@
 
 ## Web como una aplicación
 
-Un shell, un build y módulos internos de UI; no microfrontends por SPEC. Shell posee rutas, layout,
-componentes/tokens, sesión común, foco y límites de error. Vistas aportan loading/empty/error/denegado
-sin ocultar el player por caída de Chat. Campos internos de backend no se comparten como stores/ORM.
-Accesibilidad se aplica según SPEC-08 en cada vista, sin servicio “Accessibility”.
+Web es una sola aplicación con un build y módulos internos. El shell organiza las rutas,
+el layout, los componentes y tokens compartidos, la sesión, el foco y los límites de error.
+Cada vista muestra sus estados de carga, ausencia de datos, error y acceso denegado.
+Por ejemplo, si Chat falla, el reproductor debe seguir visible y funcionando.
+
+Los módulos consumen contratos públicos del backend, sin compartir sus modelos internos de
+persistencia. La accesibilidad se aplica en cada vista según SPEC-08.
 
 / y /search consultan GraphQL Discovery de Core. /register y /login conservan formularios y CSRF;
 registro confirma cuenta/canal o error, sin polling PENDING nuevo. /channels/{handle}
@@ -54,8 +57,9 @@ Las URLs públicas de avatar/portada permanecen bajo Core; el proxy no expone el
 comando y health; Web ejecuta `pnpm dev` en apps/web, en 127.0.0.1:3000; `pnpm build` genera dist y
 `pnpm preview` sirve esa salida en el mismo puerto. Caddy sirve dist en 3000 en el perfil HTTP local explícito; el perfil HTTPS pertenece a SPEC-13.
 
-Una configuración/env de ejemplo central por unidad desplegable; no secreto por módulo Core ni
-cliente HTTP a localhost para comunicar módulos locales. Core comparte security/CSRF y sesión opaca.
+Cada unidad desplegable tiene una configuración de ejemplo central. Los módulos Core comparten
+la configuración de seguridad, CSRF y la sesión opaca; sus llamadas locales no necesitan clientes
+HTTP a localhost ni secretos independientes.
 Streaming recibe la misma cookie host-only de Cuentas y valida comandos mediante contexto Core; exige Origin permitido y defensa CSRF según ADR-001. Chat valida sesión por contexto Core, que consulta estado/timeline actual Streaming. El proxy elimina headers privados X-Service-Name/X-Service-Token/X-Session-Credential provenientes del público; backends autentican siempre las rutas privadas.
 
 Core ejecutable usa CORE_DB_URL/USER/PASSWORD, CORE_RATE_LIMIT_HMAC_SECRET, CORE_SECURE_COOKIE,
@@ -66,10 +70,13 @@ y [Compose local](../infra/local/README.md) contienen comandos, health y volúme
 
 ## Reglas de evolución
 
-Cambiar path/schema/auth exige actualizar inventario, SPEC consumidores y tabla de proxy. Cambios
-incompatibles tienen transición explícita; no esconder excepciones en gateway. La futura extracción
-de una API de Core debe cumplir la puerta de fases_futuras, incluyendo costo/consistencia/migración.
-Un motor de despliegue inicia procesos, no coordina casos de uso de negocio.
+Si cambia una ruta, un esquema o la autenticación, actualizamos el inventario, las SPEC de los
+consumidores y la tabla del proxy. Un cambio incompatible necesita una transición documentada.
+La extracción futura de una API Core debe cumplir los criterios de fases_futuras, incluidos
+costo, consistencia y migración.
+
+El despliegue se encarga de iniciar los procesos. La coordinación de las operaciones de negocio
+permanece en los módulos que las implementan.
 
 ## Reproducción, historial y desarrollo
 
