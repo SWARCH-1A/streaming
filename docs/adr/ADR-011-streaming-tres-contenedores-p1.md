@@ -8,10 +8,12 @@
 
 ## Contexto
 
-P1 necesita una instalación pequeña y reproducible. El adaptador técnico y el control de
-Streaming ya pertenecen al mismo paquete Rust. Operarlos como procesos separados añade
-arranque, configuración y supervisión sin una necesidad de escalado independiente demostrada.
-MediaMTX sigue siendo el motor RTMP/LL-HLS y Core/Chat conservan sus procesos independientes.
+Queremos una instalación de P1 pequeña y fácil de repetir. El adaptador Media y el control
+Streaming ya pertenecen al mismo paquete Rust. Ejecutarlos por separado añade configuración,
+arranque y supervisión, y todavía no hemos demostrado que necesiten escalar de forma independiente.
+
+MediaMTX conserva el transporte RTMP/LL-HLS en su proceso. Core y Chat también mantienen
+sus procesos separados.
 
 ## Decisión
 

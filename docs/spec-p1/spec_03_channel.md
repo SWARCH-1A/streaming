@@ -6,11 +6,14 @@
 
 ## 1. Contexto y problema
 
-RF-008…RF-012 definen canal, propiedad, presentación y consulta LIVE. Cuenta, perfil y canal son entidades diferentes, pero su registro y presentación pertenecen al núcleo Core y no necesitan servicios separados.
+La página del canal reúne la presentación del usuario y el estado de su emisión. RF-008…RF-012
+definen su creación, propiedad, edición y consulta en vivo. Aunque cuenta, perfil y canal son
+entidades distintas, Core puede registrarlas juntas y componer sus datos públicos localmente.
 
 ## 2. Definición del componente
 
-Canales pertenece a Core, crea el canal en la transacción de registro y ofrece una composición pública por handle. Seguimiento y VOD son capacidades futuras.
+Canales es un módulo Core. Crea el canal dentro de la transacción de registro y ofrece una
+consulta pública por handle. El seguimiento de canales y el catálogo VOD quedan para fases futuras.
 
 ## 3. Historia de usuario
 
@@ -54,15 +57,23 @@ Como visitante o propietario, quiero consultar y mantener la página del canal, 
 
 ## 6. Criterios de aceptación
 
-- CA-01: registro confirmado crea exactamente un canal por cuenta en la misma transacción; retry conserva channelId. FK y UNIQUE ownerUserId, no provisión HTTP.
-- CA-02: owner edita descripción/banner; otro usuario 403, inválido conserva anterior. La publicación usa el proveedor seleccionado, S3 privado por defecto, y un fallo conserva la portada anterior.
-- CA-03: /channels/{handle} usa GET /api/channels/by-handle/{handle}, composición local de canal, handle y perfil; GET /api/channels/{channelId} publica el mismo bootstrap para resolver Watch directo; bootstrap agrega metadata/estado desde batch Streaming; fallo conserva canal con UNKNOWN. El player consulta directamente la sesión autoritativa. No join Identity→Profile→Channels en navegador.
-- CA-04: cambio de disponibilidad confirmado por Emisiones aparece en <=5 s; proyección de emisiones aplicada en SQL Core; estado no confirmado se marca UNKNOWN, sin demorar publicación de cuenta/canal.
-- CA-05: LIVE muestra sesión PLAYABLE; gracia indica reconectando, OFFLINE no inventa VOD.
-- CA-06: cuentas activas publicables desde commit, inexistente/no activo 404 uniforme; channelVersion inicia 0 y sube solo por cambio real.
-- CA-07: PATCH parcial sobre estado más reciente, serializado; campos distintos concurrentes se conservan, mismo campo último commit. Error no cambia versión/datos.
-- CA-08: rollback de registro no deja cuenta/canal parcial; respuesta perdida tras commit recupera IDs. No compensation worker ni cerca remota de 24 h.
-- CA-09: después de ACTIVE el canal existe y se consulta; sin atraso de publicación entre módulos. Fallo de Core/SQL es indisponibilidad explícita.
+- CA-01: el registro confirmado crea exactamente un canal por cuenta en la misma transacción. Un reintento conserva channelId. La base aplica FK y UNIQUE sobre ownerUserId; la creación es local, sin provisión HTTP.
+
+- CA-02: el propietario puede editar la descripción y la portada. Otro usuario recibe 403. Una entrada inválida o un fallo de publicación conserva la portada anterior. Se usa el proveedor seleccionado, S3 privado por defecto.
+
+- CA-03: /channels/{handle} consume GET /api/channels/by-handle/{handle}, que compone localmente canal, handle y perfil. GET /api/channels/{channelId} ofrece el mismo bootstrap para abrir Watch directamente. El bootstrap agrega metadatos y estado mediante un batch Streaming; si falla, conserva el canal con UNKNOWN. El reproductor consulta directamente la sesión autoritativa. El navegador recibe la composición sin encadenar consultas Identity→Profile→Channels.
+
+- CA-04: un cambio de disponibilidad confirmado por Emisiones aparece en hasta 5 s. La proyección de emisiones se aplica en SQL Core. Un estado no confirmado se marca UNKNOWN; la publicación de cuenta y canal sigue siendo inmediata.
+
+- CA-05: LIVE muestra la sesión PLAYABLE. Durante la gracia se indica que está reconectando. OFFLINE no muestra contenido VOD ficticio.
+
+- CA-06: una cuenta activa se puede publicar desde el commit. Una cuenta inexistente o no activa devuelve un 404 uniforme. channelVersion comienza en 0 y aumenta solo ante un cambio real.
+
+- CA-07: PATCH se aplica parcialmente sobre el estado más reciente y sus escrituras se serializan. Cambios concurrentes de campos distintos se conservan; si afectan al mismo campo, prevalece el último commit. Un error no cambia los datos ni la versión.
+
+- CA-08: un rollback del registro no deja una cuenta o canal parcial. Si se pierde la respuesta después del commit, el reintento recupera los IDs. No se necesita un worker de compensación ni una barrera remota de 24 h.
+
+- CA-09: al alcanzar ACTIVE, el canal ya existe y se puede consultar, sin esperar una publicación entre módulos. Un fallo Core o SQL se comunica como indisponibilidad.
 
 ## 7. Diseño técnico y datos
 
@@ -82,8 +93,16 @@ Un canal por cuenta, handle inmutable y publicación inmediata tras commit. Core
 
 ## 10. Verificación
 
-Registro/rollback/retry 1:1, own/other/anonymous, consulta handle normalizado, edición parcial concurrente/no-op, imágenes con S3 privado y rutas Core (o filesystem explícito), estados PLAYABLE/gracia/OFFLINE y ausencia de email/hash/secreto.
+Comprobar la relación 1:1 del registro, rollback y reintentos; los permisos de propietario,
+otro usuario y visitante; la consulta por handle normalizado; y la edición parcial concurrente,
+incluidas las solicitudes sin cambios.
+
+Las pruebas de imágenes deben usar S3 privado con rutas Core, o filesystem seleccionado
+explícitamente. Verificar PLAYABLE, reconexión y OFFLINE, y revisar que ninguna respuesta incluya
+email privado, hashes o secretos.
 
 ## 11. Esfuerzo, riesgos y consecuencias
 
-**Riesgos:** conservar IDs al consolidar, URI de banner y composición pública sin secretos. La frontera de proceso de Channels no aporta aislamiento independiente en el diseño Core.
+Los principales riesgos son perder IDs al consolidar datos, romper las URI de portada o exponer
+secretos al componer la página pública. Canales comparte el proceso Core y, por tanto, su
+disponibilidad; no tiene aislamiento de fallo independiente.

@@ -7,21 +7,22 @@
 
 ## 1. Contexto y problema
 
-Describir la necesidad del usuario, su origen y el problema que resuelve. Distinguir hechos de
-decisiones acordadas y de propuestas. No inventar citas de reuniones. Referenciar el catálogo y las
-especificaciones arquitectónicas normativas de `docs/`.
+Explica qué necesita el usuario y qué problema resuelve esta SPEC. Indica de dónde viene esa
+necesidad y separa los hechos, los acuerdos y las propuestas. Usa referencias comprobables;
+las citas de reuniones deben corresponder a registros reales. Enlaza los requisitos del catálogo
+y los documentos de arquitectura de `docs/`.
 
 ## 2. Definición del componente
 
-Indicar qué existe en el repositorio y qué debe construirse o integrarse. Si todavía no existe
-implementación, decirlo explícitamente. Incluir los componentes, pantallas y contratos afectados sin
-suponer una estructura de código que no se haya acordado.
+Describe qué partes ya existen y cuáles falta construir o integrar. Si no hay implementación,
+indícalo. Incluye los componentes, pantallas y contratos afectados, y usa la estructura de código
+acordada por el equipo.
 
 ## 3. Historia de usuario
 
 > Como **<actor>**, quiero **<capacidad>**, para **<resultado>**.
 
-Incluir actores secundarios y permisos relevantes cuando apliquen.
+Añade actores secundarios y permisos cuando sean necesarios para entender el recorrido.
 
 ## 4. Alcance
 
@@ -39,27 +40,29 @@ Incluir actores secundarios y permisos relevantes cuando apliquen.
 
 ## 5. Requisitos funcionales
 
-Usar IDs estables del catálogo y redacción comprobable, preferiblemente en formato EARS.
+Usa los IDs estables del catálogo y describe un comportamiento que pueda comprobarse. Puedes usar EARS para expresar las condiciones y la respuesta del sistema.
 
 - **RF-001** — El sistema debe …
 - **RF-002** — Cuando …, el sistema debe …
 - **RF-003** — Mientras …, el sistema debe …
 
-Incluir reglas de negocio, precondiciones, permisos, estados y errores de validación. No duplicar un
-requisito que pertenece a otro dominio: referenciarlo y describir el contrato entre ambos.
+Incluye reglas de negocio, precondiciones, permisos, estados y errores de validación.
+Si un requisito pertenece a otro dominio, enlázalo y explica cómo se relacionan los módulos.
 
 ## 6. Criterios de aceptación
 
-Escribir escenarios Given/When/Then que puedan verificarse manual o automáticamente. Cubrir el
-recorrido nominal, límites, errores y permisos. Cada RF debe tener al menos un criterio asociado.
+Escribe escenarios Dado/Cuando/Entonces (Given/When/Then) que podamos probar de forma manual
+o automática. Cubre el caso esperado, los límites, los errores y los permisos.
+Relaciona cada RF con al menos un criterio.
 
 - [ ] **CA-01 — <nombre>** Dado … Cuando … Entonces …
 - [ ] **CA-02 — <nombre>** Dado … Cuando … Entonces …
 
 ## 7. Diseño técnico y datos
 
-Este diseño fija contratos y responsabilidades; las tecnologías concretas siguen siendo propuesta
-hasta que la persona responsable del módulo registre y justifique su ADR.
+Explica cómo se implementará el comportamiento y quién administra cada dato.
+Las tecnologías propuestas deben identificarse como tales hasta que su responsable registre
+y justifique la elección en un ADR aceptado.
 
 - **Ubicación arquitectónica:** unidad desplegable y módulo interno; identificar fronteras y autoridad de datos.
   Justificar cualquier nueva frontera por carga, fallo, invariantes y costo operativo, no por nombre de SPEC.
@@ -81,8 +84,10 @@ hasta que la persona responsable del módulo registre y justifique su ADR.
 | --- | --- | --- | --- |
 | … | … | … | … |
 
-Indicar dirección de llamadas, autoridad de cada dato, autenticación entre componentes, timeouts,
-reintentos y cómo se evita el acoplamiento al lenguaje o almacenamiento privado de otra unidad desplegable; indicar interfaz local cuando no exista salto de red.
+Para cada dependencia, explica quién llama a quién, quién decide el valor de cada dato,
+cómo se autentican y qué ocurre ante timeout o reintento. El contrato debe poder consumirse
+sin depender del lenguaje ni del almacenamiento privado del proveedor. Si la llamada es local,
+indica la interfaz de aplicación correspondiente.
 
 ## 9. Decisiones y preguntas abiertas
 
@@ -94,7 +99,7 @@ reintentos y cómo se evita el acoplamiento al lenguaje o almacenamiento privado
 
 - **P-01 — <bloqueante/no bloqueante>** … Responsable y fecha objetivo: …
 
-No iniciar desarrollo de una interfaz incompatible mientras tenga una pregunta bloqueante.
+Resuelve las preguntas bloqueantes antes de desarrollar una interfaz que pueda resultar incompatible.
 
 ## 10. Verificación
 
@@ -102,8 +107,9 @@ No iniciar desarrollo de una interfaz incompatible mientras tenga una pregunta b
 | --- | --- | --- |
 | … | … | … |
 
-Incluir pruebas unitarias, de integración, contrato, interfaz y carga cuando correspondan. La matriz
-debe cubrir cada RF y RNF aplicable; distinguir pruebas ejecutadas de pruebas propuestas.
+Incluye las pruebas unitarias, de integración, contrato, interfaz y carga que correspondan.
+La matriz debe cubrir cada RF y RNF aplicable, e indicar qué pruebas están propuestas y
+cuáles ya tienen resultados de ejecución.
 
 ## 11. Esfuerzo, riesgos y consecuencias
 

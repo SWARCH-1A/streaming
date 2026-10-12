@@ -1,5 +1,9 @@
 # Registro de decisiones arquitectónicas
 
+Los ADR explican las elecciones técnicas del proyecto: el problema, las alternativas que evaluamos,
+la solución y sus consecuencias. La tabla indica cuáles están aceptados, cuáles siguen en propuesta
+y cuáles fueron sustituidos. Las fechas conservan el momento de cada decisión.
+
 | ADR | Estado | Decisión |
 | --- | --- | --- |
 | [ADR-001](ADR-001-identity-plataforma-y-seguridad.md) | Aceptada | Plataforma Core, registro transaccional, Argon2id, sesión opaca, seguridad local y auth entre procesos. |

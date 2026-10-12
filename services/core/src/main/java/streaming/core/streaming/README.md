@@ -1,5 +1,13 @@
 # Frontera con Streaming
 
-El control de emisiones pertenece al servicio Rust en [services/streaming](../../../../../../../streaming/README.md), según [ADR-005](../../../../../../../../docs/adr/ADR-005-streaming-rust-y-proyeccion-discovery.md). Core conserva Cuentas, Canales, Catálogo y Discovery.
+El control de emisiones está en el [servicio Rust](../../../../../../../streaming/README.md),
+según [ADR-005](../../../../../../../../docs/adr/ADR-005-streaming-rust-y-proyeccion-discovery.md).
+Core conserva Cuentas, Canales, Catálogo y Discovery.
 
-Core implementa los endpoints privados de contexto owner/catálogo. La proyección pública/inbox Discovery y la consulta de sesión/timeline Streaming para el contexto Chat siguen pendientes. Los contratos canónicos están en [contratos](../../../../../../../../docs/contratos_modelo_datos.md); no existe otro escritor de emisiones en Core.
+Core publica los contextos privados de propietario y catálogo. Para Chat, compone la identidad
+y el perfil locales con el estado y la línea temporal actual que consulta a Streaming.
+Canales usa un batch de snapshots Streaming para su página pública. Discovery recibe snapshots
+versionados en su inbox y mantiene la proyección SQL de consulta.
+
+Los [contratos](../../../../../../../../docs/contratos_modelo_datos.md) definen esas comunicaciones.
+Streaming es el único escritor del estado de emisiones; Core consume sus datos públicos.

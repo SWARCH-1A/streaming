@@ -7,11 +7,14 @@
 
 ## Contexto
 
-P1 requiere cinco emisiones simultáneas, cien espectadores y veinte mensajes/s agregados. Cuenta,
-perfil y canal se publican juntos; configuración de emisión requiere propietario, catálogo y cupos.
-Chat tiene conexiones largas, distribución y persistencia de mensajes; Media tiene carga audiovisual,
-ancho de banda y recuperación de fuentes. La entrega requiere dos procesos propios de lógica,
-SQL/NoSQL con uso real, conectores HTTP distintos y tres lenguajes de propósito general.
+Para P1 necesitamos cinco emisiones simultáneas, cien espectadores y veinte mensajes/s en total.
+Cuenta, perfil y canal se publican juntos. Configurar una emisión requiere comprobar propietario,
+catálogo y cupos. Chat maneja conexiones largas, distribución y persistencia de mensajes;
+Media maneja video, ancho de banda y recuperación de fuentes.
+
+La entrega también exige dos procesos propios de lógica, SQL y NoSQL con uso real, conectores HTTP
+distintos y tres lenguajes de propósito general. Esta decisión registra la organización acordada
+el 2026-10-01; ADR-005 la sustituye al separar Streaming de Core.
 
 ## Decisión
 

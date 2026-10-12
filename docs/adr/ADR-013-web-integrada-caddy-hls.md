@@ -7,9 +7,12 @@
 
 ## Contexto
 
-La base ADR-007 usa fixtures en memoria. P1 requiere una SPA que consuma servicios reales bajo un
-origen, refresque rutas profundas y mantenga independientes Chat y reproducción. Watch recibe un
-channelId de Streaming; necesita una consulta pública de Channels por ID sin escanear Discovery.
+La base de ADR-007 partía de datos de prueba en memoria. Para P1 necesitamos conectar la SPA
+con los servicios reales bajo un mismo origen, permitir recargar rutas profundas y mantener
+independientes el chat y la reproducción.
+
+Watch recibe un channelId de Streaming. Para abrir el canal directamente necesita una consulta
+pública por ID, sin recorrer páginas de Discovery hasta encontrarlo.
 
 ## Decisión
 

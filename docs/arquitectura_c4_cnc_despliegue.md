@@ -1,23 +1,32 @@
 # Arquitectura de STREAMING
 
-**Decisiones:** [ADR-005](adr/ADR-005-streaming-rust-y-proyeccion-discovery.md) y [ADR-011](adr/ADR-011-streaming-tres-contenedores-p1.md). **Alcance:** P1 y evolución.
+La arquitectura de P1 reparte el trabajo entre Core, Streaming, Chat, Media y Web. Core mantiene
+juntas las operaciones de cuentas, perfiles y canales que necesitan una misma transacción.
+Streaming controla las emisiones, Chat maneja los mensajes y MediaMTX transporta el video.
+
+[ADR-005](adr/ADR-005-streaming-rust-y-proyeccion-discovery.md) explica la separación de Streaming;
+[ADR-011](adr/ADR-011-streaming-tres-contenedores-p1.md), cómo desplegamos su adaptador Media en P1.
+Las siguientes vistas describen esa organización y las condiciones para ampliarla.
 
 ## Unidades de ejecución
 
 | Unidad | Responsabilidad y datos | Motivo de la frontera |
 | --- | --- | --- |
-| Web | Una aplicación y un build; rutas, formularios, player, chat y accesibilidad. TypeScript candidato, sujeto a ADR frontend. | Interfaz de usuario con módulos internos. |
+| Web | Una aplicación React/TypeScript con un solo build, según ADR-007. Incluye rutas, formularios, reproductor, chat y accesibilidad. | Interfaz de usuario con módulos internos. |
 | Core | Java/Spring: Cuentas, Canales, Catálogo y Discovery. PostgreSQL propio y objetos de imagen en S3; registro en una transacción. | Integridad cuenta–perfil–canal y consultas SQL locales con proyección pública Streaming. |
 | Streaming | Rust/Axum/Tokio/SQLx con pools y PostgreSQL privado: configuración, claves, sesiones, cupos, clock, generaciones, leases e inbox/outbox. | Autonomía de desarrollo, release y operación del control de emisiones; costo de coordinación aceptado en ADR-005. |
 | Chat | Salas, mensajes, deduplicación, cuota, secuencias, historial y realtime; Go + Redis efímero según ADR Chat. | Conexiones largas, fan-out y fallo independientes de video; persistencia temporal propia. |
 | Media | MediaMTX RTMP/LL-HLS separado; adaptador técnico Rust dentro del proceso Streaming P1, con base/rol propios. | Motor separado por códecs/ancho de banda; control y adaptador comparten release/fallos según ADR-011. |
 | Reverse proxy | HTTPS, encaminamiento, límites, Upgrade WS y forwarding confiable. | Infraestructura con tabla explícita de upstreams. |
 
-Core, Streaming y Chat son procesos propios de lógica comunicados por HTTP. TypeScript sigue
-siendo candidato; Java, Rust y Go tienen código propio. Solo artefactos y ejecución cierran RNF-001/003/007.
-Discovery conserva GraphQL dentro de Core. REST, GraphQL sobre HTTP y WebSocket Upgrade tienen evidencia
-pendiente según SPEC-13; la interpretación académica de RNF-006 requiere confirmación del evaluador.
-SQL/YAML/HTML/CSS no cuentan como lenguajes generales.
+Core, Streaming y Chat ejecutan nuestra lógica en procesos separados y se comunican por HTTP.
+Sus implementaciones usan Java, Rust y Go; Web usa TypeScript, elegido en ADR-007.
+Para aceptar RNF-001/003/007 necesitamos comprobar los artefactos y su ejecución.
+SQL, YAML, HTML y CSS no cuentan como lenguajes de propósito general para ese requisito.
+
+Discovery ofrece GraphQL dentro de Core. SPEC-13 exige evidencia de REST, GraphQL sobre HTTP
+y WebSocket Upgrade. Antes de cerrar RNF-006, también debemos confirmar con el evaluador qué
+patrones reconoce como tipos de conector distintos.
 
 ## Vista de contexto (C4 nivel 1)
 
@@ -80,14 +89,18 @@ flowchart LR
   CH --> N[(Redis Chat)]
 ```
 
-Core comparte transacción y FK locales para cuenta/perfil/canal/catálogo. S3 es el proveedor de objetos
-predeterminado: avatares y portadas se almacenan en el bucket privado; Core conserva las URLs públicas
-`/api/profile/avatars/{key}` y `/api/channels/banners/{key}`, lee el objeto desde S3 y responde los
-bytes. Las URLs no exponen endpoint, credenciales ni ACL del bucket. Filesystem sigue disponible como
-alternativa explícita para desarrollo local y pruebas. Los repositorios están encapsulados; consultas usan vistas/DTO públicos con columnas
-explícitas. Discovery combina datos
-locales y su proyección SQL de Streaming. Cada servicio conserva sus credenciales y almacén privado;
-ningún proceso consulta tablas ajenas ni mantiene transacciones entre bases.
+Los módulos de Core usan transacciones y claves foráneas locales para relacionar cuentas, perfiles,
+canales y catálogo. Cada repositorio se encarga de las escrituras de su módulo; las consultas
+compuestas usan vistas o DTO públicos con columnas explícitas.
+
+El proveedor predeterminado de imágenes es S3. Core guarda avatares y portadas en un bucket privado
+y sirve sus bytes en `/api/profile/avatars/{key}` y `/api/channels/banners/{key}`. Esas URLs no
+exponen el endpoint, las credenciales ni las ACL del bucket. Para desarrollo local y pruebas se
+puede seleccionar almacenamiento en filesystem. El Compose raíz usa esa alternativa.
+
+Discovery combina los datos locales con la proyección SQL de los datos públicos de Streaming.
+Cada servicio conserva su almacén y sus credenciales: las interacciones entre procesos se hacen
+por contratos, sin consultar tablas ajenas ni abrir transacciones entre bases.
 
 ## Puertos y conectores
 
@@ -140,17 +153,26 @@ Chat8085/8086, autorización Media8090 y HLS8888 son TLS privados; SQL y Redis t
 El [runbook](../infra/p1/README.md) configura readiness, CA, secretos y proveedor de imágenes.
 /internal/* queda bloqueado públicamente. TLS privado y secretos específicos por consumidor/operación.
 
-P1 inicia una réplica de control Streaming con anchors monotónicos. Pérdida de owner/clock termina
-sesión sin renovar gracia; varias réplicas requieren fencing, enrutamiento de owner y transferencia probados.
-Core replica sus módulos juntos; con S3 comparte objetos entre réplicas, mientras filesystem requiere
-volumen de imágenes compartido. Chat requiere orden, cuota,
-dedupe y fan-out compartidos antes de replicar; Media se dimensiona por bitrate/CPU. Contenedores en
-un mismo host siguen compartiendo su capacidad física. SPEC-13 verifica escalado y límites.
+P1 comienza con una réplica de control Streaming, que mide los plazos con referencias de reloj
+monotónico. Si pierde la referencia de tiempo o al responsable de la sesión, la termina sin
+conceder otra ventana de reconexión. Para usar varias réplicas primero hay que probar el bloqueo
+del responsable anterior (fencing), el enrutamiento al responsable vigente y el traspaso de control.
 
-Caída Core bloquea nuevos comandos protegidos y autorizaciones Chat. Caída Streaming bloquea su control
-y nuevas autorizaciones Chat; Media puede conservar una fuente/reproducción existente sin garantía
-indefinida. Caída Chat no corta HLS. Caída Discovery/receptor no revierte LIVE ni bloquea el consumidor
-Chat; proyección atrasada degrada según frescura. Caída del proceso Core afecta a todos sus módulos. Caída/reinicio Streaming afecta también al adaptador, su autorización y la entrega pública HLS; MediaMTX conserva proceso propio.
+Los módulos Core se replican juntos. Con S3, las réplicas comparten los objetos; con filesystem,
+necesitan un volumen de imágenes compartido. Las réplicas Chat deben compartir orden, cuota,
+deduplicación y distribución de mensajes. Media se dimensiona según bitrate y CPU.
+SPEC-13 comprueba el escalado y sus límites, considerando que los contenedores del mismo host
+comparten recursos físicos.
+
+Si Core cae, fallan los nuevos comandos protegidos y las nuevas autorizaciones de Chat;
+todos los módulos Core comparten esa caída. Si Streaming cae, deja de estar disponible su control
+y tampoco se pueden autorizar nuevos mensajes Chat. Media puede conservar una fuente y una
+reproducción existentes, aunque no garantizamos que continúen indefinidamente.
+
+Una caída de Chat no corta HLS. Un fallo del receptor Discovery tampoco revierte LIVE ni bloquea
+las entregas a Chat; la búsqueda pasa a indicar datos desactualizados según las reglas de frescura.
+Como el adaptador comparte proceso con Streaming, un reinicio de este último también afecta
+la autorización Media y la entrega pública HLS. MediaMTX mantiene su proceso separado.
 
 ## Validación de la arquitectura
 

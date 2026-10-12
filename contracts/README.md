@@ -1,8 +1,8 @@
 # Contratos compartidos
 
-La semántica canónica está en docs/contratos_modelo_datos.md y en las SPEC de integración. Esta carpeta
-contiene la fuente estructural `p1.json` y artefactos neutrales generados para consumidores; no mantengas una
-segunda versión manual del contrato. [ADR-012](../docs/adr/ADR-012-contratos-generados-p1.md) selecciona
+El significado de las operaciones está en docs/contratos_modelo_datos.md y las SPEC de integración.
+Aquí mantenemos la estructura en `p1.json` y generamos los artefactos que usan los consumidores.
+Para cambiar un contrato se actualizan sus fuentes y se regeneran los archivos derivados. [ADR-012](../docs/adr/ADR-012-contratos-generados-p1.md) selecciona
 JSON Schema 2020-12 y SDL. Con Python 3.12, desde la raíz:
 
 ```sh

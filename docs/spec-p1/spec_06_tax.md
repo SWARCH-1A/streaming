@@ -6,11 +6,15 @@
 
 ## 1. Contexto y problema
 
-Define RF-066…RF-069: vocabulario controlado para clasificar emisiones y permitir consultas consistentes de streams LIVE. La selección de taxonomía es compartida con Streaming y Discovery.
+Las categorías y etiquetas permiten clasificar una emisión y encontrarla con filtros consistentes.
+RF-066…RF-069 definen ese vocabulario controlado. Streaming usa sus valores para describir las
+emisiones y Discovery para consultarlas.
 
 ## 2. Definición del componente
 
-La semilla y sus reglas aparecen completas en el catálogo local. Taxonomy ofrece los valores activos y las reglas de asociación que usan Streaming y Discovery.
+Taxonomy es el módulo Core que ofrece las categorías y etiquetas activas. Su semilla se define
+completa en el catálogo local. También publica las reglas de selección que necesitan Streaming
+y Discovery.
 
 ## 3. Historia de usuario
 
@@ -78,7 +82,12 @@ Catálogo es módulo Core, SQL con IDs/labels/activo/catalogVersion, API públic
 
 ## 8. Dependencias y contratos de integración
 
-Streaming solicita contexto Core para validar IDs explícitos activos y del tipo correcto; campos omitidos preservan asociaciones/último label. Discovery combina catálogo local y proyección Streaming por SQL revisado. Frontend obtiene opciones por API, sin hardcode de etiquetas. Fallo SQL/Core falla explícitamente; no disponibilidad ficticia de Taxonomy independiente.
+Streaming solicita a Core la validación de los IDs enviados: deben estar activos y corresponder
+al tipo correcto. Los campos omitidos conservan sus asociaciones y el último nombre guardado.
+Discovery combina el catálogo local con la proyección Streaming mediante consultas SQL revisadas.
+
+Web obtiene las opciones por API, sin mantener otra lista fija de etiquetas. Si SQL o Core fallan,
+se comunica el error; Taxonomy comparte la disponibilidad del proceso Core.
 
 ## 9. Decisiones y preguntas abiertas
 
@@ -99,4 +108,7 @@ Semilla siete categorías/ocho tags; 0/5/6 tags, categorías ausentes/inactivas 
 
 ## 11. Esfuerzo, riesgos y consecuencias
 
-**Esfuerzo:** S/M. **Riesgos:** vocabulario divergente por hardcode duplicado, IDs inestables y discrepancias entre resultado filtrado y metadatos editados. **Consecuencia:** P1 no incluye administración dinámica, subtítulos ni indexación VOD.
+**Esfuerzo:** S/M. Debemos evitar listas duplicadas en el código, IDs que cambien entre lecturas
+y filtros cuyos resultados no coincidan con los metadatos editados.
+
+La administración dinámica del catálogo, los subtítulos y la indexación VOD quedan fuera de P1.

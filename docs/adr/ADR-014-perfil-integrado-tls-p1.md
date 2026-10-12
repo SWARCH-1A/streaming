@@ -7,9 +7,12 @@
 
 ## Contexto
 
-Los fixtures HTTP prueban contratos y recorridos reales, pero no acreditan transporte seguro ni
-entrega persistente. El stack propio Streaming debe conservar tres contenedores y no se añade un
-servicio de integración. El perfil académico necesita ejecutarse sin credenciales cloud personales.
+Los fixtures HTTP permiten probar contratos y recorridos, pero faltan pruebas de transporte
+seguro y entrega persistente. El perfil académico debe poder ejecutarse sin credenciales cloud
+personales.
+
+También debemos conservar el stack Streaming de tres contenedores y mantener la integración
+como trabajo de configuración y pruebas, sin añadir un servicio de negocio.
 
 ## Decisión
 

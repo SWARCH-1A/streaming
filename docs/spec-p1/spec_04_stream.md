@@ -6,11 +6,15 @@
 
 ## 1. Contexto y problema
 
-Define RF-017…RF-026 para ingesta, sesión, emisión, reproducción, metadatos y espectadores. Debe existir video real reproducible; no se simula el estado LIVE.
+Esta SPEC cubre RF-017…RF-026: recibir una señal, gestionar la sesión, reproducirla y mostrar
+sus metadatos y espectadores. La entrega debe incluir video real. Solo marcamos LIVE cuando
+se comprueba que el medio es reproducible.
 
 ## 2. Definición del componente
 
-Calidad/transcoding queda fuera de P1. El módulo conecta productor RTMP, servidor multimedia, backend de control y reproductor HLS mediante los contratos de SPEC-10 y SPEC-11.
+Streaming conecta el programa de emisión RTMP, el servidor multimedia y el reproductor HLS.
+El backend controla la sesión mediante los contratos de SPEC-10 y los flujos de SPEC-11.
+Las opciones de calidad y el transcoding quedan fuera de P1.
 
 ## 3. Historia de usuario
 
@@ -84,12 +88,12 @@ Como broadcaster, quiero emitir una señal audiovisual desde mi canal; como espe
 
 - CA-07 — player muestra handle/nombre visible del canal, título actual y categoría actual del stream; ninguna respuesta revela email, handle de ingestión ni otros secretos.
 
-- CA-08 — un lease por instancia de player se crea solo tras primer frame; se heartbeat cada 10 s, se elimina al cerrar player y expira 30 s después del último heartbeat válido. Cliente no controla viewerCount; no se requiere login.
+- CA-08 — un lease por instancia de player se crea solo tras primer frame; se renueva mediante heartbeat cada 10 s, se elimina al cerrar player y expira 30 s después del último heartbeat válido. Cliente no controla viewerCount; no se requiere login.
 
 - CA-09 — prueba de 5 emisiones y 100 espectadores concurrentes totales durante 10 minutos según el perfil reproducible SPEC-13.
 - CA-10 — nuevas configuraciones y cambios explícitos de categoría/tags solo admiten IDs activos; si un valor actualmente asociado queda inactivo, un patch de título preserva esa asociación y la metadata pública conserva su último label.
 - CA-11 — `viewerCount` es una estimación best-effort de leases de player vigentes, no una medida resistente a bots ni a tráfico automatizado. Discovery puede usarla para ordenar y mostrar popularidad aproximada; P1 no la usa para autorización, cobros, beneficios ni decisiones de seguridad. Antes de asignarle consecuencias económicas o de abuso, se requiere un control antiabuso fuera del alcance de P1.
-- CA-12 — las tres rutas de callback validan el envelope común eventId/streamId/sessionId/streamGeneration/sourceGeneration, auth de servicio, sesión y path HLS. ACK 202 ocurre tras aceptación durable; repetir mismo eventId/payload es idempotente, reuso con payload diferente da 409 y generación vieja se ignora con 200. Timeout por intento 2 s; se reintenta timeout/408/429/5xx tras 100/250/500/1000/2000 ms y luego cada 2 s con el mismo eventId durante un máximo de 15 min desde el primer intento. Cualquier 2xx confirma ACK; 410 SESSION_ENDED cierra como callback obsoleto. 409/422 u otro 4xx permanente pasa a dead-letter y alerta. Si no llega respuesta terminal en 30 s, se alerta una vez por sesión/sourceGeneration y se sigue reintentando hasta 15 min; entonces pasa a dead-letter durable sin reintento automático. El operador la redrivea con el mismo eventId/payload y una nueva ventana de 15 min, o la cierra tras confirmar que es irrecuperable/obsoleta; no expira automáticamente y la capacidad se fija en ADR operativo. Intentos, edad y cola se miden. PlaybackReady solo pasa a PLAYABLE tras comprobar manifiesto y segmento.
+- CA-12 — las tres rutas de callback validan el envelope común eventId/streamId/sessionId/streamGeneration/sourceGeneration, auth de servicio, sesión y path HLS. ACK 202 ocurre tras aceptación durable; repetir mismo eventId/payload es idempotente, reuso con payload diferente da 409 y generación vieja se ignora con 200. Timeout por intento 2 s; se reintenta timeout/408/429/5xx tras 100/250/500/1000/2000 ms y luego cada 2 s con el mismo eventId durante un máximo de 15 min desde el primer intento. Cualquier 2xx confirma ACK; 410 SESSION_ENDED cierra como callback obsoleto. 409/422 u otro 4xx permanente pasa a dead-letter y alerta. Si no llega respuesta terminal en 30 s, se alerta una vez por sesión/sourceGeneration y se sigue reintentando hasta 15 min; entonces pasa a dead-letter durable sin reintento automático. El operador vuelve a enviarla (redrive) con el mismo eventId/payload y una nueva ventana de 15 min, o la cierra tras confirmar que es irrecuperable/obsoleta; no expira automáticamente y la capacidad se fija en ADR operativo. Intentos, edad y cola se miden. PlaybackReady solo pasa a PLAYABLE tras comprobar manifiesto y segmento.
 - CA-13 — Streaming calcula/versiona conteo de leases en su SQL; cambios agrupados como máximo 1/s. Publica snapshots públicos por outbox e inbox Discovery. En carga normal observación/publicación <=2 s y entrega/aplicación <=3 s, para reflejar cambios <=5 s; viewerCountFresh=false si observación supera 5 s. Discovery excluye ENDED y estado PLAYABLE no confirmado/fuera de frescura. Duplicados/versiones viejas no revierten datos; reconstrucción completa usa snapshot consistente y watermark.
 
 ## 7. Diseño técnico y datos
@@ -114,8 +118,19 @@ Core publica contexto de owner/catálogo y recibe snapshots públicos en inbox; 
 
 ## 10. Verificación
 
-State machine real, 29/30/31 s, PREPARING 30 s, callback duplicado/sourceGeneration vieja/ACK perdido, cupos concurrentes, metadata y contexto Core de catálogo/owner, HLS primer frame máximo 5 s, cien players/leases por diez min; Streaming reinicio sin nueva gracia; proyección Discovery con duplicados/desorden/atraso/rebuild. Medir el timeline Streaming proporcionado por el contexto Core.
+- Probar la máquina de estados con video real: PREPARING de hasta 30 s y pérdida de fuente a los 29, 30 y 31 s.
+- Comprobar callbacks duplicados, sourceGeneration antigua y ACK perdido, junto con reservas concurrentes de cupos.
+- Validar metadatos y el contexto Core de catálogo y propietario.
+- Medir un máximo de 5 s al primer frame HLS y ejecutar cien reproductores con sus leases durante diez minutos.
+- Reiniciar Streaming y verificar que no concede una nueva gracia.
+- Probar la proyección Discovery con duplicados, desorden, atraso y reconstrucción.
+- Medir la línea temporal Streaming que recibe Chat mediante el contexto Core.
 
 ## 11. Esfuerzo, riesgos y consecuencias
 
-**Esfuerzo:** L. **Riesgos:** latencia de HLS, incompatibilidad de codecs/OBS, discrepancia entre health del medio y API, coste de recursos al llegar al quinto stream y exposición de stream keys. **Consecuencia:** no implementar capacidades explícitamente fuera de P1.
+**Esfuerzo:** L. Los riesgos principales son la latencia HLS, la compatibilidad de códecs y OBS,
+las diferencias entre el estado del medio y el de la API, el consumo de recursos al llegar al
+quinto stream y la exposición de claves de emisión.
+
+La entrega se limita a las capacidades de P1. Las opciones de calidad, VOD y subtítulos
+requieren trabajo en fases posteriores.

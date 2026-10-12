@@ -1,10 +1,12 @@
 # Criterios de entrega P1
 
-Cada criterio se cierra con evidencia de implementación y ejecución.
+Esta lista reúne las comprobaciones necesarias para aceptar la entrega de P1. Para cerrar cada
+criterio necesitamos la implementación y los resultados de su ejecución.
 
-Las decisiones se documentan en SPEC/contratos/ADR; Plane conserva planes de trabajo y evidencia.
+Las SPEC, los contratos y los ADR describen la solución acordada. En Plane conservamos los planes
+de trabajo y la evidencia de las pruebas.
 
-| Puerta | Acción antes de aceptar | Dueño / impacto |
+| Criterio | Comprobación antes de aceptar | Responsable y alcance |
 | --- | --- | --- |
 | Registro local | Implementar transacción cuenta/perfil/canal/idempotencia y FK; rollback/retry tras perder respuesta | Cuentas/Canales Core; publicación solo tras commit |
 | Stack por proceso | Confirmar lenguajes generales en artefactos reales y uso NoSQL justificado; Java y Rust seleccionados mediante ADR; Chat Go/Redis (ADR-010) y Web React/TypeScript/SWC (ADR-007) aceptados | Responsables Web/Chat/Core/Streaming; no seleccionar stack distinto por módulo local |

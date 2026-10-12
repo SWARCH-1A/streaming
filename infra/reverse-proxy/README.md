@@ -1,9 +1,12 @@
 # Reverse proxy P1
 
-Caddy según [ADR-013](../../docs/adr/ADR-013-web-integrada-caddy-hls.md). La
-[tabla canónica](../../docs/integracion_frontend_reverse_proxy.md) define ownership y paths.
-Caddyfile sirve dist y APIs bajo http://localhost:3000 en el perfil **HTTP de desarrollo explícito**;
-HTTPS y TLS entre contenedores se aceptan en SPEC-13.
+Caddy sirve Web y enruta las APIs, WebSocket y HLS, según
+[ADR-013](../../docs/adr/ADR-013-web-integrada-caddy-hls.md).
+La [tabla de rutas](../../docs/integracion_frontend_reverse_proxy.md) indica el servicio
+responsable de cada path.
+
+El Caddyfile de esta carpeta sirve dist y APIs en http://localhost:3000 para desarrollo HTTP.
+La instalación HTTPS está en el Compose raíz; SPEC-13 define su aceptación y el TLS entre contenedores.
 
 | Unidad | Comando / upstream interno | Puerto / health privado |
 | --- | --- | --- |

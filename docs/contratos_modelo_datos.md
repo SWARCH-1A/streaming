@@ -1,7 +1,11 @@
 # Contratos y modelo de datos
 
-**Arquitectura:** Core, Streaming, Chat y Media según ADR-005.
-**Regla:** interfaces locales y FK dentro de Core. APIs de red entre unidades de ejecución; ADR-011 conserva excepcionalmente los contratos HTTP autenticados del adaptador Media sobre loopback dentro del proceso Streaming P1.
+Este documento define los datos y las operaciones que comparten los módulos de STREAMING.
+La arquitectura sigue ADR-005: dentro de Core usamos interfaces locales y claves foráneas;
+entre procesos, APIs de red.
+
+En P1, el adaptador Media comparte proceso con Streaming. ADR-011 conserva sus contratos HTTP
+autenticados sobre loopback, con las condiciones de TLS descritas más adelante.
 
 ## Propiedad y modelo lógico
 
@@ -17,7 +21,14 @@ erDiagram
   STREAM_SESSION ||--o{ CHAT_MESSAGE : references_by_contract
 ```
 
-ACCOUNT, PROFILE, CHANNEL, CATEGORY y TAG están en PostgreSQL Core, con FK locales. STREAM_CONFIG, STREAM_SESSION y VIEWER_LEASE pertenecen al PostgreSQL privado de Streaming Rust. Las líneas entre CHANNEL/CATEGORY/TAG y STREAM_CONFIG representan referencias opacas de contrato, no FK entre bases. CHAT_MESSAGE pertenece a Chat/NoSQL. Discovery posee inbox y tablas de proyección pública de emisión en Core; no es autoridad de estado, metadata, permisos ni conteo.
+ACCOUNT, PROFILE, CHANNEL, CATEGORY y TAG se guardan en PostgreSQL Core y se relacionan con
+claves foráneas locales. STREAM_CONFIG, STREAM_SESSION y VIEWER_LEASE pertenecen al PostgreSQL
+privado de Streaming. En el diagrama, sus relaciones con CHANNEL, CATEGORY y TAG son referencias
+opacas validadas por contrato, sin claves foráneas entre bases.
+
+CHAT_MESSAGE pertenece al almacén NoSQL de Chat. Discovery mantiene en Core un inbox y las tablas
+de proyección pública de emisiones. Esas tablas sirven para consultar. Discovery no decide
+el estado, los metadatos, los permisos ni el conteo; consume los datos públicos de Streaming.
 
 | Dueño de escritura | Entidades | Lectores |
 | --- | --- | --- |
@@ -36,22 +47,29 @@ servicio externo importa clases internas o lee tablas de otro. No hay HTTP Core�
 
 ## Identificadores, versiones y tiempo
 
-IDs públicos opacos y estables. userId/canal no cambian; handle es inmutable en P1. streamId identifica
-configuración persistente y sessionId ejecución. streamGeneration inicia en 0 y aumenta por nueva
-sesión; reconexión conserva generación/sesión. sourceGeneration cerca fuentes antiguas.
-metadataVersion inicia en 1 y aumenta uno por cambio real; PATCH vacío da 422 EMPTY_PATCH y no-op no
-incrementa. profileVersion/channelVersion inician en 0; suben por cambios reales, no por lecturas.
-sessionVersion versiona estado/disponibilidad; countVersion es independiente. Mensajes usan sequence
-estrictamente creciente por sessionId. No comparar versiones de agregados distintos.
+Los IDs públicos son opacos y estables. El userId y el identificador del canal no cambian;
+el handle también es inmutable en P1. Distinguimos la configuración persistente (`streamId`)
+de cada ejecución (`sessionId`).
 
-Marcas de tiempo de servidor en UTC con zona explícita; reloj de cliente no es autoridad. El timeline
-comienza en cero al primer LIVE reproducible, avanza durante LIVE/gracia, no se reinicia al reconectar
-y queda congelado al terminar. `streamOffsetMs` es una coordenada aproximada de sesión; VOD futuro debe
-mapearla al medio grabado. P1 no crea grabación ni promete sincronía de replay con archivo inexistente.
+Las versiones tienen estas reglas:
+
+- `streamGeneration` comienza en 0 y aumenta en cada nueva sesión. Una reconexión conserva la sesión y su generación. `sourceGeneration` permite descartar fuentes anteriores.
+- `metadataVersion` comienza en 1 y aumenta uno por cambio real. Un PATCH vacío devuelve 422 EMPTY_PATCH; una solicitud sin cambios no aumenta la versión.
+- `profileVersion` y `channelVersion` comienzan en 0 y aumentan con cambios reales, no con lecturas.
+- `sessionVersion` identifica cambios de estado y disponibilidad. `countVersion` lleva una versión independiente del conteo.
+- Los mensajes usan una `sequence` estrictamente creciente por sessionId. Las versiones de agregados distintos no se comparan entre sí.
+
+El servidor publica las marcas de tiempo en UTC con zona explícita. El reloj del cliente no decide
+los estados ni los plazos. La línea temporal empieza en cero al confirmar el primer LIVE reproducible,
+avanza durante LIVE y la gracia, conserva su posición al reconectar y queda congelada al terminar.
+
+`streamOffsetMs` indica una posición aproximada en esa sesión. Cuando se implemente VOD,
+habrá que relacionarla con el medio grabado. P1 no graba contenido ni ofrece sincronización
+de replay con un archivo.
 
 ## Inventario de interfaces
 
-Las interfaces requieren schema neutro, correlación y presupuesto acotado.
+Cada interfaz declara un esquema neutral al lenguaje, datos de correlación y un presupuesto de tiempo acotado.
 
 | Interfaz | Proveedor / consumidor | Semántica y fallo |
 | --- | --- | --- |
@@ -91,22 +109,29 @@ provisión HTTP de canal. Los outboxes se reservan para efectos entre procesos y
 
 ## Registro y cuentas: transacción local
 
-POST recibe email, handle, contraseña y Idempotency-Key UUID. Email recorta extremos y compara en
-minúsculas, sin plegar puntos/+; handle 4–25 ASCII alfanumérico/underscore, canónico minúsculo, único e
-inmutable. Contraseña 12–128 puntos de código Unicode exactos, sin trim/normalización/truncado ni reglas
-de composición. Nunca se guarda reversible ni se imprime. Se conserva hash de clave y fingerprint
-HMAC del payload; valores normalizados distintos con misma clave dan 409 IDEMPOTENCY_KEY_REUSED.
+POST recibe email, handle, contraseña e Idempotency-Key UUID. Para el email recortamos los
+espacios de los extremos y comparamos en minúsculas, conservando puntos y alias con +.
+El handle admite 4–25 caracteres ASCII alfanuméricos o underscore, es único, se guarda en
+minúsculas y no cambia en P1.
 
-Una transacción SQL confirma cuenta, perfil inicial (displayName=handle, bio vacía, avatar nulo,
-profileVersion=0), canal inicial (channelVersion=0) y operación idempotente. POST devuelve 201
-{registrationId,status:"ACTIVE",userId,channelId}; no cookie de sesión. Misma clave/payload conserva IDs
-sin otro efecto. Email/handle ocupados devuelven 409 REGISTRATION_UNAVAILABLE uniforme, sin fieldErrors
-que revelen cuál existe. Un fallo hace rollback total; timeout/respuesta perdida se recupera repitiendo
-la misma clave. El registro se confirma en una operación transaccional, sin estado público parcial.
+La contraseña admite 12–128 puntos de código Unicode y se conserva exactamente, sin trim,
+normalización, truncado ni reglas de composición. No se guarda de forma reversible ni se imprime.
+La operación conserva el hash de la clave y un fingerprint HMAC del payload. Si la misma clave
+llega con valores normalizados distintos, responde 409 IDEMPOTENCY_KEY_REUSED.
 
-GET por registrationId requiere la misma clave y devuelve 200 ACTIVE; desconocido/clave incorrecta
-404 uniforme. Retener resultado treinta días desde commit; después GET da 404 y operación nueva usa
-UUID nuevo. El shell recibe el resultado confirmado sin polling de estados parciales.
+Una transacción SQL crea la cuenta, el perfil inicial (displayName=handle, bio vacía, avatar nulo,
+profileVersion=0), el canal inicial (channelVersion=0) y la operación idempotente.
+POST devuelve 201 {registrationId,status:"ACTIVE",userId,channelId}, sin cookie de sesión.
+Repetir la misma clave y payload conserva los IDs y no genera otros efectos.
+
+Un email o handle ocupado devuelve 409 REGISTRATION_UNAVAILABLE, sin fieldErrors que revelen
+cuál existe. Un fallo revierte todas las escrituras. Si hay timeout o se pierde la respuesta,
+se recupera el resultado repitiendo la misma clave. El registro no publica estados parciales.
+
+GET por registrationId requiere la misma clave y devuelve 200 ACTIVE. Un ID desconocido o una
+clave incorrecta reciben un 404 uniforme. El resultado se retiene treinta días desde el commit;
+después GET devuelve 404 y una operación nueva usa otro UUID. El shell recibe el resultado
+confirmado, sin consultar repetidamente estados de activación.
 
 ## Login, sesión y datos públicos
 
@@ -181,14 +206,21 @@ y una falla SQL devuelve GraphQL DISCOVERY_UNAVAILABLE/503 sin fallback local (A
 
 ## Semántica de emisión y reloj
 
-Streaming controla PREPARING, LIVE, RECONNECT_GRACE, ENDED; disponibilidad PLAYABLE, RECONNECTING, OFFLINE.
-LIVE requiere HLS confirmado; PREPARING máximo 30 s. Cupo global cinco y uno por canal cuenta
-PREPARING/LIVE/gracia, se reserva atómicamente en SQL; sexto rechazo controlado. P1 una réplica de
-Streaming no requiere consenso distribuido, pero timers/callbacks concurren: serializar transiciones con
-estado/generaciones y bloqueo/CAS SQL. Una pérdida abre una única gracia de 30 s; reconexión gana solo
-con HLS validado antes de 30 s. UTC deadline es informativo; propietario vigente usa monotónico.
-Reinicio no da nueva gracia: recuperar restante mediante estrategia durable probada o terminar sesión.
-Failover multi-réplica exige fencing/transferencia explicitados en ADR antes de habilitarlo.
+Streaming controla los estados PREPARING, LIVE, RECONNECT_GRACE y ENDED, y la disponibilidad
+PLAYABLE, RECONNECTING u OFFLINE. LIVE requiere HLS comprobado. PREPARING dura como máximo 30 s.
+
+El cupo se reserva atómicamente en SQL: una sesión por canal y cinco en toda la plataforma,
+contando PREPARING, LIVE y la gracia. La sexta solicitud recibe un rechazo controlado.
+Aunque P1 use una réplica Streaming, los temporizadores y callbacks pueden competir.
+Las transiciones se serializan con estado, generaciones y bloqueo o CAS SQL.
+
+Una pérdida de fuente abre una única ventana de reconexión de 30 s. La reconexión continúa
+la sesión solo si HLS se valida antes de ese límite. El deadline UTC publicado es informativo;
+el responsable vigente mide el plazo con reloj monotónico.
+
+Un reinicio no concede otra gracia: se recupera el tiempo restante con una estrategia durable
+probada o se termina la sesión. Antes de habilitar failover entre varias réplicas, un ADR debe
+definir y verificar el fencing y la transferencia de control.
 
 ## Callbacks Media y contratos de producto
 
@@ -365,17 +397,24 @@ Streaming calcula el conteo desde leases vigentes y conserva countVersion/observ
 
 ## Chat REST, WebSocket y contexto autorizado
 
-GET messages acepta limit entero 1–50 (default 50), últimos N por sesión en sequence ascendente y
-snapshotSequence. Anónimo puede leer. Abrir WS y esperar chat.ready antes del historial; fusionar por
-(sessionId,sequence), sin huecos/duplicado visible. PREPARING devuelve 409 CHAT_NOT_OPEN; LIVE/gracia
-sala OPEN; ENDED READ_ONLY. Desconexión de Chat no interrumpe HLS. Origin WS debe ser el origen web
-configurado, también para anónimos; cookie no es suficiente para aceptar un Origin no permitido.
+GET messages permite lectura anónima y acepta un limit entero de 1–50, con 50 por defecto.
+Devuelve los últimos N mensajes de la sesión en sequence ascendente y el snapshotSequence.
+El cliente abre WebSocket y espera chat.ready antes de pedir el historial; combina ambas fuentes
+por (sessionId,sequence) para evitar huecos y duplicados visibles.
 
-Cliente envía {type:"message.send",clientMessageId:UUID,text}. Normalizar NFC, recortar whitespace
-Unicode, 1–500 puntos de código; nunca HTML ejecutable. No aceptar userId/autor/hora/offset/sequence
-de cliente. Cuota global por cuenta: un mensaje aceptado en toda ventana móvil 1000 ms, sin burst.
-Dedupe (sessionId,userId,clientMessageId) mientras se retenga el mensaje; repetido devuelve mismo ACK.
-Verificar sesión vigente antes de recuperar un ACK para no revelar datos a credencial revocada.
+PREPARING devuelve 409 CHAT_NOT_OPEN. En LIVE y durante la gracia, la sala está OPEN;
+en ENDED, READ_ONLY. Una desconexión Chat no interrumpe HLS. El Origin WebSocket debe coincidir
+con el origen Web configurado, incluso para visitantes anónimos. Tener una cookie no permite
+usar un Origin distinto.
+
+El cliente envía {type:"message.send",clientMessageId:UUID,text}. Chat normaliza el texto a NFC,
+recorta whitespace Unicode en los extremos y admite 1–500 puntos de código. Se renderiza como
+texto, sin ejecutar HTML. El servidor determina userId, autor, hora, offset y sequence.
+
+La cuota es global por cuenta: un mensaje aceptado en cualquier ventana móvil de 1000 ms,
+sin ráfagas. La deduplicación usa (sessionId,userId,clientMessageId) mientras se retiene el mensaje;
+un reintento devuelve el mismo ACK. Antes de recuperar ese ACK se verifica que la sesión siga
+vigente, para evitar revelar datos a una credencial revocada.
 
 Para cada mensaje nuevo validado, Chat llama una sola vez a POST /internal/core/chat/message-context
 con {sessionId,clientMessageId} y X-Session-Credential (cookie opaca), X-Service-Name:chat y token privado.
@@ -418,12 +457,14 @@ sequence, dedupe y mensajes) expiran a los 5 minutos; después el historial qued
 El TTL de caché de estado no vence mensajes, sequence ni dedupe activos, y una reentrega de ENDED
 no renueva su retención. Recuperar estado por snapshot no reconstruye mensajes perdidos.
 
-message.accepted al emisor incluye clientMessageId,messageId,sessionId,sequence,serverCreatedAtUtc;
-message.created publica snapshot del autor/texto/offset a conectados. Dedupe también en cliente.
-Una falla después de commit antes de broadcast se recupera con outbox/dispatcher de Chat o mecanismo
-durable equivalente: nunca ACK de mensaje que se puede perder silenciosamente. Entrega de red puede
-repetirse y no es exactly-once. Replica/fan-out necesita propietario/orden de sala y cuota compartida;
-no basta otra instancia con contadores en memoria.
+message.accepted devuelve al emisor clientMessageId, messageId, sessionId, sequence y
+serverCreatedAtUtc. message.created entrega a los clientes conectados el snapshot del autor,
+el texto y el offset. El cliente también deduplica los eventos.
+
+Si Chat falla entre el commit y la distribución, recupera la entrega mediante su outbox y dispatcher,
+o un mecanismo durable equivalente. Un mensaje con ACK no debe perderse silenciosamente.
+La red puede repetir la entrega. Varias réplicas necesitan un responsable y orden de sala,
+distribución y cuota compartidas; los contadores independientes en memoria no cumplen esa condición.
 
 Errores tras Upgrade son frame {type:"error",clientMessageId,code,retryAfterMs?}; antes del Upgrade
 son HTTP. RATE_LIMITED expone retryAfterMs. No convertir error de Core en anonimato aceptado ni en 404.
@@ -522,12 +563,15 @@ Core mantiene la recepción de eventos activa y acumula las páginas del corte (
 
 ## Errores, compatibilidad y fronteras
 
-Envelope REST {code,message,fieldErrors?,requestId}; no stack, SQL, secretos, cookie ni email privado.
-401 autenticación, 403 propiedad/permiso, 404 inexistente, 409 conflicto, 400/422 validación, 429 cuota,
-503/504 indisponible/timeout. GraphQL mantiene extensions code/httpStatus/requestId; WS frames de error.
-Mutaciones con idempotencia guardan payload fingerprint y resultado; no reintentar efectos externos
-sin ID estable. Schemas versionados/aditivos, eliminación incompatible exige transición y evidencia
-de retiro. Clases de aplicación locales no se publican como contrato entre lenguajes.
+Los errores REST usan {code,message,fieldErrors?,requestId}, sin stack, SQL, secretos, cookie
+ni email privado. Los códigos distinguen autenticación (401), propiedad o permiso (403), recurso
+inexistente (404), conflicto (409), validación (400/422), cuota (429) e indisponibilidad o timeout
+(503/504). GraphQL conserva code, httpStatus y requestId en extensions; WebSocket usa frames de error.
+
+Las mutaciones idempotentes guardan el fingerprint del payload y su resultado. Los efectos externos
+se reintentan solo con un ID estable. Los esquemas se versionan y admiten cambios aditivos;
+retirar un campo de forma incompatible exige una transición y evidencia del retiro.
+Las clases locales de aplicación permanecen dentro de su proceso.
 
 ## Chat Replay futuro
 
@@ -544,7 +588,7 @@ Discovery expone una única entrada `POST /api/discovery/graphql` con Content-Ty
 `application/json`; el body contiene `query`, `operationName` y `variables`. El shell usa consultas
 GraphQL versionadas por el módulo; P1 requiere las operaciones `streams` y `channels` con la semántica
 de abajo. GraphQL es la interfaz pública conservada; resolvers combinan proyección pública Streaming y datos locales de Core mediante SQL acotado.
-No se mantiene un runtime Kotlin separado ni llamadas HTTP por fila. La librería concreta requiere ADR.
+Los resolvers hacen consultas SQL locales, sin otro runtime ni llamadas HTTP por fila. ADR-008 selecciona graphql-java.
 
 ```graphql
 type Query {

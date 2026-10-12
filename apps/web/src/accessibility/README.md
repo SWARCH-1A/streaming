@@ -1,7 +1,7 @@
 # Accesibilidad Web
 
-Utilidades, patrones y componentes accesibles compartidos. Cada módulo cumple los criterios en
-sus vistas, formularios y recorridos; esta carpeta no sustituye sus pruebas.
+Esta carpeta reúne utilidades y patrones de accesibilidad compartidos por Web.
+Cada módulo aplica los criterios en sus vistas, formularios y recorridos, y comprueba sus resultados.
 Definición: [SPEC-08](../../../../docs/spec-p1/spec_08_a11y.md).
 
 ## Patrones

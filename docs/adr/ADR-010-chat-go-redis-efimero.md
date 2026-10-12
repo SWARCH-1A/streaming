@@ -7,14 +7,15 @@
 
 ## Contexto
 
-Chat mantiene conexiones largas, distribuye 20 mensajes/s agregados con p95 <1 s, aplica una cuota
-global por cuenta de un mensaje por ventana móvil de 1000 ms, deduplica por
-`(sessionId,userId,clientMessageId)`, asigna sequence creciente por sesión y confirma antes del ACK
-con entrega recuperable tras crash, también entre réplicas. ADR-003 dejó Go/MongoDB como candidatos.
+Chat debe mantener conexiones largas, distribuir 20 mensajes/s agregados con p95 <1 s y aplicar
+una cuota global de un mensaje por cuenta en cualquier ventana móvil de 1000 ms. También debe
+deduplicar por `(sessionId,userId,clientMessageId)`, asignar sequence creciente por sesión y guardar
+antes del ACK. Lo confirmado debe poder distribuirse después de una caída, incluso entre réplicas.
+ADR-003 había dejado Go y MongoDB como candidatos.
 
-El equipo decidió que el chat no es un historial permanente: los mensajes existen mientras la sesión
-está activa y se eliminan poco después de terminar. Chat Replay (VOD) queda en fases futuras y deberá
-definir su propio almacenamiento. Durante la sesión no se acepta pérdida de mensajes confirmados.
+Acordamos que el chat sea temporal: los mensajes existen durante la sesión y se eliminan poco
+después del fin. Dentro de esa retención, los mensajes confirmados deben conservarse.
+Chat Replay para VOD queda para otra fase, que deberá definir su almacenamiento.
 
 ## Decisión
 

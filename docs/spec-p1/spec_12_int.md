@@ -6,11 +6,15 @@
 
 ## 1. Contexto y problema
 
-Define la integración del frontend web de los módulos P1 con el shell común y reverse proxy, de modo que cada módulo pueda contribuir sin romper navegación, auth, paths o playback. Hijo de SPEC-09.
+La interfaz reúne vistas aportadas por distintos módulos. Deben compartir navegación y sesión,
+y llegar a las APIs, WebSocket y HLS correctos. Esta SPEC, hija de SPEC-09, define cómo se integran
+con el shell Web y el reverse proxy.
 
 ## 2. Definición del componente
 
-El monorepo modular y las carpetas propietarias ya están definidos. Los puertos y la selección técnica del shell/proxy se completan en ADR sin alterar las rutas y reglas de integración especificadas aquí.
+El monorepo y las carpetas de cada módulo ya están definidos. ADR-007 elige la base React/TypeScript;
+ADR-013, Caddy y el reproductor HLS. Esas decisiones implementan las rutas y reglas de integración
+descritas aquí.
 
 ## 3. Historia de usuario
 
@@ -90,7 +94,12 @@ En P1, ADR-011 integra el adaptador técnico en el proceso Streaming. Autorizaci
 
 ## 8. Dependencias y contratos de integración
 
-Web consume APIs Core/Streaming y Chat/HLS; módulos UI no requieren procesos propios. Proxy tabla única coherente con contratos; Media listener RTMP separado de HTTP. Backend protege sesiones y propiedad; frontend nunca decide owner ni estado LIVE.
+Web consume las APIs Core y Streaming, además de Chat y HLS. Sus módulos de interfaz comparten
+una aplicación. El proxy mantiene una tabla de rutas coherente con los contratos; la ingesta RTMP
+usa un listener separado de HTTP.
+
+Los permisos de sesión y propiedad se comprueban en el backend. El estado LIVE también proviene
+del servidor.
 
 ## 9. Decisiones y preguntas abiertas
 
@@ -111,4 +120,8 @@ La Web funcional consume HTTP/GraphQL/WS/HLS reales y valida respuestas con los 
 
 ## 11. Esfuerzo, riesgos y consecuencias
 
-**Esfuerzo:** M/L. **Riesgos:** route drift, API fallback como HTML, WS sin upgrade, cookie insegura, store global acoplado y proxy con lógica de negocio. **Consecuencia:** móvil, edge global y CDN productivo se aplazan.
+**Esfuerzo:** M/L. Debemos evitar rutas que difieran de los contratos, errores API convertidos
+en HTML, WebSocket sin Upgrade, cookies inseguras, estado global acoplado y reglas de negocio
+introducidas en el proxy.
+
+La aplicación móvil, el despliegue global en edge y una CDN productiva quedan para fases futuras.

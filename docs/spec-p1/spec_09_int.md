@@ -6,11 +6,16 @@
 
 ## 1. Contexto y problema
 
-SPEC transversal padre de SPEC-10 a SPEC-13. Define coordinación y evidencia de integración para P1, manteniendo contratos entre Core, Streaming, Chat, Media y Web y las interfaces locales de los módulos Core. Evita que cada equipo improvise rutas, datos o secuencias incompatibles.
+Cada módulo puede funcionar por separado y aun así fallar al conectarse con los demás.
+SPEC-09 organiza la integración de P1 y agrupa SPEC-10…SPEC-13 para acordar rutas, datos,
+secuencias y pruebas entre Core, Streaming, Chat, Media y Web. También contempla las interfaces
+locales de los módulos Core.
 
 ## 2. Definición del componente
 
-ADR-005 define Core modular, Streaming Rust, Chat y MediaMTX/adaptador Rust. Las SPEC organizan responsabilidades y evidencia. Integración define contratos, infraestructura y verificación; no es un proceso de negocio.
+La arquitectura de ADR-005 incluye Core modular, Streaming Rust, Chat y MediaMTX con adaptador Rust.
+El trabajo de integración prepara contratos, infraestructura y verificación para conectarlos.
+Las SPEC reparten esas tareas y la evidencia; la lógica de negocio sigue en cada módulo responsable.
 
 ## 3. Historia de usuario
 
@@ -19,17 +24,34 @@ Como equipo que integra componentes independientes, queremos una arquitectura co
 ## 4. Alcance
 
 ### Dentro de P1
-SPEC-10 contratos/fronteras, SPEC-11 transacción local y cruces reales Core–Streaming, Core–Chat y Streaming–Chat/Media, SPEC-12 Web/proxy, SPEC-13 entrega integrada. Trazabilidad, mapas, estado de implementación, SQL/NoSQL/lenguajes/conectores y decisiones revisables.
+
+SPEC-10 define contratos y fronteras. SPEC-11 comprueba la transacción de registro y los cruces
+Core–Streaming, Core–Chat y Streaming–Chat/Media. SPEC-12 integra Web y proxy;
+SPEC-13 verifica la entrega completa.
+
+También mantenemos la trazabilidad, los mapas, el estado de implementación y las decisiones,
+con evidencia de SQL, NoSQL, lenguajes y conectores.
 
 ### Fuera de P1
-Un servicio Integration, gateway de reglas, saga central, microfrontends, bus universal, HA productiva o capacidades futuras anticipadas.
+
+Un servicio Integration, un gateway con reglas de negocio, una saga central, microfrontends,
+un bus universal, alta disponibilidad productiva y capacidades de fases futuras.
 
 ### Supuestos
-Stack por unidad desplegable, modularidad local y una Web; ADR de selección antes de declarar tecnologías aceptadas. Las restricciones del curso se conservan.
+
+Cada unidad desplegable tiene un stack acordado mediante ADR. Core conserva su modularidad local
+y Web es una sola aplicación. Mantenemos las restricciones técnicas de la asignatura.
 
 ## 5. Requisitos de integración
 
-Todo salto real especifica proveedor/dueño/consumidor/auth/deadline/recovery. Dentro de Core interfaces de aplicación, un gestor de transacciones, escritura por dueño y read models SQL revisados; no HTTP ni prohibición indiscriminada de FK. No tablas compartidas entre servicios. Fallo Chat no afecta Media; nueva escritura Chat depende de Core y del estado autoritativo Streaming; Discovery recibe proyección pública con recuperación/frescura. Ningún componente Integration se hace dueño de workflows de negocio.
+Para cada comunicación entre procesos documentamos proveedor, responsable de los datos,
+consumidor, autenticación, plazo de respuesta y recuperación. Dentro de Core usamos interfaces
+de aplicación, un gestor de transacciones y repositorios por módulo. Las lecturas SQL compuestas
+se revisan y las claves foráneas locales se permiten. Los servicios separados no comparten tablas.
+
+Una caída Chat no debe afectar a Media. Los nuevos mensajes requieren Core y el estado actual
+Streaming. Discovery recibe una proyección pública con reglas de frescura y recuperación.
+La coordinación de cada operación de negocio permanece en el módulo que la implementa.
 
 ## 6. Criterios de aceptación
 
@@ -107,4 +129,9 @@ Arquitectura en ADR-005; base Web React/TypeScript/SWC y pnpm en [ADR-007](../ad
 
 ## 11. Esfuerzo, riesgos y consecuencias
 
-**Esfuerzo:** L transversal. **Riesgos:** convertir integración en responsabilidad sin autoridad, contratos tardíos, grupos sin owners, diagrams desactualizados y restricciones de curso descubiertas al final. **Consecuencia:** módulos futuros consumen contratos estabilizados, pero no se impone una plataforma productiva.
+**Esfuerzo:** L, repartido entre módulos. Los riesgos son dejar la integración sin un responsable
+con capacidad de coordinar, acordar contratos demasiado tarde, tener tareas sin responsables,
+conservar diagramas desactualizados o descubrir restricciones del curso al final.
+
+Las siguientes fases podrán consumir contratos estabilizados. La entrega actual corresponde
+al prototipo de la asignatura, sin exigir una plataforma productiva.

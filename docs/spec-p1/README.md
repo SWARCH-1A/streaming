@@ -1,8 +1,12 @@
 # Especificaciones de primera iteración
 
-Las doce SPEC definen el alcance P1, sus criterios de aceptación, datos e interacciones. Una SPEC
-organiza responsabilidad y evidencia; no determina un servicio. El [mapa](../mapa_sdd_p1.md) relaciona
-cada SPEC con su módulo y unidad desplegable. SPEC-10…SPEC-13 pertenecen a SPEC-09.
+Estas doce especificaciones describen lo que esperamos entregar en P1: funciones, datos,
+interacciones y criterios de aceptación. El [mapa de responsabilidades](../mapa_sdd_p1.md)
+indica qué módulo implementa cada una y en qué proceso se ejecuta.
+
+SPEC-10…SPEC-13 desarrollan el trabajo de integración de SPEC-09. La numeración conserva los IDs
+existentes; autenticación y perfil se reúnen en SPEC-01. Una SPEC organiza el trabajo,
+pero no implica crear un servicio separado.
 
 | SPEC | Archivo |
 | --- | --- |

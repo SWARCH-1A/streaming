@@ -1,4 +1,4 @@
 # Pruebas end-to-end
 
-Verifican recorridos de usuario integrados definidos por SPEC-13. Cada escenario debe apuntar a un
-criterio de aceptación canónico.
+Estas pruebas comprueban los recorridos completos de usuario definidos en SPEC-13.
+Cada escenario debe indicar el criterio de aceptación al que corresponde.

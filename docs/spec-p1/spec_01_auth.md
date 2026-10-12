@@ -6,15 +6,19 @@
 
 ## 1. Contexto y problema
 
-Cuentas reúne identidad privada y presentación pública del mismo usuario. Define RF-001…RF-003,
-RF-005…RF-007 y RNF-025…RNF-032. El registro crea cuenta, perfil y canal en una transacción Core.
-La separación entre DTO públicos y credenciales se aplica dentro del módulo.
+Cuentas se encarga de que un usuario pueda registrarse, iniciar sesión y editar su perfil público.
+Reúne la identidad privada y la presentación pública, pero mantiene separados los datos que puede
+consultar un visitante de las credenciales. Cubre RF-001…RF-003, RF-005…RF-007 y RNF-025…RNF-032.
+
+Al registrar al usuario creamos su cuenta, perfil y canal en una misma transacción Core.
+Así, un fallo no deja una cuenta sin los recursos que necesita para usar la plataforma.
 
 ## 2. Definición del componente
 
-Cuentas pertenece a Core, con Java/Spring, PostgreSQL, una cadena de seguridad y un gestor de
-transacciones. Autenticación y perfil usan interfaces locales; no hay introspección HTTP entre ambos.
-Canales aporta la creación inicial dentro de la transacción de registro.
+El módulo pertenece a Core y usa Java/Spring, PostgreSQL, la misma cadena de seguridad y el
+mismo gestor de transacciones que los demás módulos locales. Autenticación y perfil se comunican
+mediante interfaces de aplicación. Canales participa en la creación inicial dentro de la
+transacción de registro.
 
 ## 3. Historia de usuario
 
@@ -45,19 +49,31 @@ roles administrativos y portada del canal. Recuperación de contraseña se defin
 
 ## 6. Criterios de aceptación
 
-- CA-01: handle 4–25 ASCII alfanumérico/underscore, único sin distinguir mayúsculas, canónico minúsculo e inmutable. Contraseña 12–128 puntos de código exactos, sin trim, normalización, truncado ni reglas de composición/caducidad. Email recorta extremos y compara en minúsculas, conservando puntos y alias +.
-- CA-02: una transacción confirma cuenta ACTIVE, perfil default, exactamente un canal y resultado idempotente. No crea sesión. Fallo antes del commit revierte todo; respuesta perdida y misma clave conservan los IDs.
-- CA-03: email/handle ocupado da 409 REGISTRATION_UNAVAILABLE uniforme, sin indicar cuál existe; misma clave con payload distinto da 409 IDEMPOTENCY_KEY_REUSED. Resultados exitosos se retienen treinta días.
-- CA-04: login válido crea cookie opaca host-only, Path=/, HttpOnly, SameSite=Lax y Secure en HTTPS, sin token JSON; duración fija 24 h, sin extensión por actividad. Web confirma perfil self e identidad pública antes de navegar al estudio; cada consulta de sesión solo aplica su resultado al intento vigente. Un 401 de una consulta anónima anterior o una petición cancelada no invalida un login posterior. Logout revoca: toda autorización posterior rechaza. Una operación ya autorizada puede confirmar dentro del presupuesto de su contrato.
-- CA-05: propietario edita su recurso; otro usuario no puede. Perfil self obtiene el userId del principal, sin aceptar propietario enviado por el cliente.
-- CA-06: password no reversible ni en logs/respuestas; solo hash de sesión en servidor. Perfil/lookup/canal públicos excluyen email, hash y credenciales; inexistente/no activo da 404 uniforme. Fallo SQL devuelve 503.
-- CA-07: cinco fallos de login/identificador/15 min y cincuenta/IP/15 min; diez claves nuevas de registro/IP/hora. 429 RATE_LIMITED con Retry-After; reintento de la misma clave no consume otra operación; sin bloqueo permanente.
-- CA-08: módulos Core validan sesión localmente; Chat obtiene un contexto por mensaje sin caché de permisos. Core caído devuelve CORE_UNAVAILABLE sin persistir mensajes nuevos; Streaming valida comandos de owner mediante contexto privado Core y falla cerrado si no responde.
-- CA-09: perfil inicial visible en el commit: displayName=handle, bio vacía, avatar nulo y profileVersion=0. No requiere proyecciones ni eventos de activación.
-- CA-10: PATCH solo permite displayName de 1–50 caracteres, bio hasta 300 y avatarUploadId; campos omitidos se conservan, bio:null limpia y avatarUploadId:null retira avatar. PATCH vacío se rechaza; no-op conserva versión; cambio real incrementa profileVersion. El handle no cambia.
-- CA-11: avatar JPEG/PNG/GIF decodificado real, <=10 MB y ancho/alto >=200 px. Inválido conserva el avatar anterior. Upload ligado al propietario, un uso y vencimiento de 15 min.
-- CA-12: archivo nuevo se publica antes de confirmar la referencia SQL; rollback conserva el anterior y elimina el nuevo. Tras commit se retiran temporal/anterior; limpieza periódica reconcilia objetos huérfanos. Reinicio conserva referencias y objetos: S3 comparte el bucket entre réplicas y filesystem requiere un volumen persistente/compartido cuando se selecciona explícitamente.
-- CA-13: lectura pública posterior a edición refleja el commit; snapshots de autor en mensajes Chat anteriores permanecen inmutables.
+- CA-01: el handle admite 4–25 caracteres ASCII alfanuméricos o underscore. Es único sin distinguir mayúsculas, se guarda en minúsculas y no cambia en P1. La contraseña admite 12–128 puntos de código y se conserva exactamente: sin trim, normalización, truncado ni reglas de composición o caducidad. Al comparar emails se recortan los espacios de los extremos y se usan minúsculas; se conservan los puntos y los alias con +.
+
+- CA-02: una transacción crea la cuenta ACTIVE, el perfil por defecto, exactamente un canal y el resultado idempotente, sin iniciar sesión. Un fallo anterior al commit revierte todo. Si se pierde la respuesta, repetir la solicitud con la misma clave conserva los IDs.
+
+- CA-03: un email o handle ocupado devuelve 409 REGISTRATION_UNAVAILABLE, sin revelar cuál de los dos existe. Reutilizar una clave con otro payload devuelve 409 IDEMPOTENCY_KEY_REUSED. Los resultados exitosos se retienen treinta días.
+
+- CA-04: un login válido crea una cookie opaca host-only con Path=/, HttpOnly, SameSite=Lax y Secure en HTTPS. No devuelve un token en JSON. La sesión dura 24 h desde el login, sin extenderse por actividad. Antes de navegar al estudio, Web confirma el perfil self y la identidad pública; cada consulta solo aplica su resultado al intento vigente. Un 401 de una consulta anónima anterior o una petición cancelada no invalida un login posterior. Logout revoca la sesión y toda autorización posterior se rechaza. Una operación ya autorizada puede terminar dentro del presupuesto de su contrato.
+
+- CA-05: solo el propietario puede editar su recurso. El perfil self obtiene el userId del principal autenticado, sin aceptar un propietario enviado por el cliente.
+
+- CA-06: la contraseña no se guarda de forma reversible ni aparece en logs o respuestas. El servidor conserva solo el hash de la sesión. Perfil, lookup y canal públicos excluyen email, hash y credenciales. Un recurso inexistente o no activo devuelve un 404 uniforme; un fallo SQL, 503.
+
+- CA-07: se permiten cinco fallos de login por identificador en 15 min y cincuenta por IP en 15 min. El registro admite diez claves nuevas por IP y hora. Al superar el límite se devuelve 429 RATE_LIMITED con Retry-After. Reintentar la misma clave no consume otra operación y no hay bloqueo permanente.
+
+- CA-08: los módulos Core validan la sesión localmente. Chat solicita un contexto por mensaje, sin reutilizar permisos. Si Core cae, devuelve CORE_UNAVAILABLE y no persiste mensajes nuevos. Streaming valida los comandos del propietario mediante el contexto privado Core y los rechaza si este no responde.
+
+- CA-09: el perfil inicial es visible desde el commit, con displayName=handle, bio vacía, avatar nulo y profileVersion=0. No requiere proyecciones ni eventos de activación.
+
+- CA-10: PATCH permite únicamente displayName de 1–50 caracteres, bio de hasta 300 y avatarUploadId. Los campos omitidos se conservan; bio:null limpia la biografía y avatarUploadId:null retira el avatar. Un PATCH vacío se rechaza. Si no hay cambios, la versión se conserva; un cambio real incrementa profileVersion. El handle permanece igual.
+
+- CA-11: el avatar debe ser un JPEG/PNG/GIF realmente decodificable, de hasta 10 MB y con ancho y alto de al menos 200 px. Una imagen inválida conserva el avatar anterior. El upload pertenece al propietario, se usa una sola vez y vence a los 15 min.
+
+- CA-12: el archivo nuevo se publica antes de confirmar su referencia SQL. Si hay rollback, se conserva el anterior y se elimina el nuevo. Tras el commit se retiran el temporal y el anterior; una limpieza periódica reconcilia los objetos huérfanos. Un reinicio conserva referencias y objetos. S3 comparte el bucket entre réplicas; filesystem necesita un volumen persistente y compartido al replicar Core.
+
+- CA-13: una lectura pública posterior a la edición refleja el commit. Los snapshots del autor en mensajes Chat anteriores se conservan como estaban cuando se enviaron.
 
 ## 7. Diseño técnico y datos
 
@@ -87,14 +103,22 @@ contraseña quedan fuera de P1. No se introduce JWT ni una dependencia de red pa
 
 ## 10. Verificación
 
-Conflictos y normalización; registro concurrente/rollback/retry tras respuesta perdida; cuenta/perfil/canal
-1:1; login/logout/expiry/cuotas y CSRF; acceso propio/ajeno/anónimo; edición parcial/no-op/versiones;
-imágenes/tamaño/dimensiones; permiso de un uso/15 min; fallo archivo/DB y recuperación; privacidad;
-contexto Chat después de revocación y snapshots históricos.
+Las pruebas deben cubrir:
+
+- Conflictos y normalización de entradas, registro concurrente y relación 1:1 entre cuenta, perfil y canal.
+- Rollback y reintento cuando se pierde la respuesta de registro.
+- Login, logout, expiración, cuotas y CSRF; acceso propio, ajeno y anónimo.
+- Edición parcial, cambios de versión y solicitudes que no modifican datos.
+- Formatos, tamaño y dimensiones de imágenes; uploads de un uso con vencimiento de 15 min.
+- Fallos de archivo o base de datos, recuperación y ausencia de datos privados en respuestas.
+- Contexto Chat después de revocar la sesión y conservación de los snapshots históricos.
 
 ## 11. Esfuerzo, riesgos y consecuencias
 
-La transacción local simplifica registro y publicación. Cuentas comparte disponibilidad con Core.
-Imágenes requieren persistencia y reconciliación fuera de la transacción SQL; la sesión opaca y las
-cuotas requieren consulta autoritativa y limpieza según retención. No duplicar identidad pública en
-Canales ni aceptar estado de autorización enviado por el navegador.
+La transacción local simplifica el registro y permite publicar juntos la cuenta, el perfil y el canal.
+Cuentas comparte la disponibilidad de Core. Las imágenes necesitan persistencia y reconciliación
+fuera de la transacción SQL; las sesiones y cuotas requieren consultas a la autoridad y limpieza
+según su retención.
+
+Canales obtiene la identidad pública de Cuentas. Los permisos se comprueban en el servidor,
+sin aceptar el estado de autorización indicado por el navegador.

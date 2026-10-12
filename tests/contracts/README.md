@@ -1,8 +1,10 @@
 # Pruebas de contratos
 
-Verifican que productores y consumidores respeten contratos compartidos. Organiza cada caso por límite
-de contrato y nombra los módulos implicados; la fuente semántica está en docs/contratos_modelo_datos.md.
-# Contrato Core–Streaming
+Estas pruebas comprueban que proveedores y consumidores respeten los contratos compartidos.
+Cada caso identifica el contrato y los módulos implicados. Su significado está definido en
+docs/contratos_modelo_datos.md.
+
+## Contrato Core–Streaming
 
 Desde la raíz, con Python 3.12 (dependencias de `contracts/requirements.txt` instaladas), PowerShell 7, Git y Docker Desktop:
 

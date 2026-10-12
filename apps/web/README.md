@@ -1,7 +1,9 @@
 # Web · Vault tv
 
-Una SPA React/TypeScript/SWC con pnpm, diseño Dark Cinema Broadcast y módulos internos.
-Para ejecutar el sistema completo, usar el [Compose raíz y la guía local](../../README.md).
+Vault tv es la interfaz Web de STREAMING. Es una SPA con React, TypeScript y SWC, gestionada
+con pnpm. Usa el diseño Dark Cinema Broadcast y organiza sus funciones en módulos internos.
+
+Para levantar el sistema completo, sigue el [Compose raíz y la guía local](../../README.md).
 [ADR-007](../../docs/adr/ADR-007-web-react-typescript.md) define la base;
 [ADR-013](../../docs/adr/ADR-013-web-integrada-caddy-hls.md) conecta los proveedores reales.
 
@@ -15,8 +17,10 @@ pnpm check
 pnpm dev
 ```
 
-Sin servicios, las vistas muestran sus errores; no cargan cuentas/emisiones ficticias como fallback.
-Para desarrollo HTTP explícito con Core:8081, Streaming:8080, Chat:8085 y HLS:8888 ya iniciados:
+Las vistas funcionales necesitan los servicios. Si no están disponibles, muestran el error.
+Los datos de muestra se usan en pruebas y en la biblioteca de desarrollo.
+
+Para desarrollar por HTTP con Core:8081, Streaming:8080, Chat:8085 y HLS:8888 ya iniciados:
 
 ```sh
 VITE_P1_PROXY=1 pnpm dev
@@ -70,9 +74,11 @@ solicita por operación Core; Streaming valida Origin según su contrato. El ser
 Uploads admiten JPEG/PNG/GIF hasta 10 MB; los errores conservan el formulario. Cambios de recurso
 cancelan lecturas y descartan resultados tardíos. Una caída Chat no desmonta el player.
 
-HLS usa controles nativos y hls.js diferido cuando no existe HLS nativo. Solo PLAYABLE carga medio;
-solo un frame decodificado inicia lease, con heartbeat 10 s y cierre en pausa/salida/error/cambio de
-sesión. Cierres/creaciones con resultado desconocido quedan limitados por expiración servidor 30 s.
+El reproductor usa controles nativos. Carga hls.js de forma diferida cuando hay MediaSource
+y usa HLS nativo si MediaSource/hls.js no está disponible. Solo carga el medio en PLAYABLE.
+Un frame decodificado inicia el lease, que se renueva cada 10 s y se cierra al pausar, salir,
+fallar o cambiar de sesión. La expiración de 30 s del servidor limita las creaciones o cierres
+cuyo resultado se desconoce.
 Chat abre WS antes del historial, fusiona secuencias, avisa de huecos no recuperables y permite
 reintentar el mismo clientMessageId. No se anuncia éxito sin ACK. Pausar autoscroll conserva foco.
 

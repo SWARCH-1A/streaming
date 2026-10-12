@@ -1,9 +1,11 @@
 # Integración de dominios P1
 
-SPEC-10/11: Core actual (Java/PostgreSQL), Streaming y adaptador actual (Rust/PostgreSQL),
-MediaMTX real, Chat actual (Go) y Redis/AOF. El stack propio de Streaming sigue teniendo tres
-contenedores; la composición completa de esta prueba tiene siete. El fixture selecciona filesystem
-explícitamente: sin --web no incluye Web/proxy. Ninguna variante de este fixture acredita S3/TLS ni el perfil de carga SPEC-13.
+Esta suite prueba los flujos de SPEC-10/11 con el código actual de Core (Java/PostgreSQL),
+Streaming y su adaptador (Rust/PostgreSQL), Chat (Go), Redis con AOF y MediaMTX real.
+
+La composición básica tiene siete contenedores; tres pertenecen al stack Streaming.
+El fixture selecciona filesystem y agrega Web/proxy solo con --web.
+Las pruebas de S3, TLS y carga completa se verifican por separado en SPEC-13.
 
 Desde la raíz, con Docker Compose >=2.24, Python 3.12+ y un entorno Python separado:
 
@@ -13,9 +15,9 @@ python tests/integration/p1-domains/run.py
 ```
 
 El runner construye los proveedores desde el checkout actual. Para reutilizar exclusivamente una
-imagen de Streaming cuyos fuentes actuales no cambiaron desde su build, usar `--streaming-image
+imagen de Streaming cuyo código fuente actual no cambió desde su build, usar `--streaming-image
 <imagen>`. `--build-only` prepara imágenes sin arrancar servicios; `--skip-build` solo puede usarse
-después de construir **estos mismos fuentes**. No usar una imagen histórica para acreditar un cambio
+después de construir **este mismo código fuente**. No usar una imagen histórica para acreditar un cambio
 de código. Las pruebas Core unitarias/SQL/TLS y las de Chat/Redis complementan este recorrido:
 
 ```sh

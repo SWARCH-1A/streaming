@@ -1,13 +1,19 @@
 # STREAMING
 
-Plataforma académica de transmisión en vivo: cuentas, canales, emisiones, chat y descubrimiento.
-La definición de requisitos y contratos está en [docs](docs/README.md).
+STREAMING es nuestro proyecto académico de una plataforma de transmisiones en vivo.
+Permite crear una cuenta y un canal, emitir video, conversar por chat y encontrar emisiones.
+La interfaz se presenta como Vault tv.
+
+Los requisitos, contratos y decisiones están en [docs](docs/README.md). Esta guía explica
+cómo levantar el sistema completo en local.
 
 ## Ejecutar todo en local
 
-Requisitos: Docker con Compose ≥2.24.4, Python ≥3.12 y OpenSSL; macOS, Linux o Windows mediante WSL.
-Docker compila Java, Rust, Go y Web. No hace falta instalar esos lenguajes ni Node/pnpm en el host.
-El primer build puede tardar varios minutos; reservar al menos 15 GB libres en el disco de Docker.
+Necesitas Docker con Compose ≥2.24.4, Python ≥3.12 y OpenSSL. Puedes usar macOS, Linux o Windows
+mediante WSL. Docker compila Java, Rust, Go y Web, así que este arranque no requiere instalar
+los lenguajes ni Node/pnpm en el host.
+
+El primer build puede tardar varios minutos. Reserva al menos 15 GB libres en el disco de Docker.
 
 Desde la raíz de este repositorio:
 
@@ -18,9 +24,9 @@ python3 infra/local/dev.py up
 python3 infra/local/dev.py status
 ```
 
-`init` genera secretos y certificados privados en `infra/p1/.state-local/`, ignorado por Git.
-Es idempotente: repetirlo conserva la configuración y los datos. `up` espera que Web y la API
-respondan por HTTPS. El [Compose raíz](compose.yaml) levanta estos **nueve contenedores**:
+`init` genera los secretos y certificados locales en `infra/p1/.state-local/`, que Git ignora.
+Puedes repetirlo: conserva la configuración y los datos existentes. `up` espera respuestas HTTPS
+de Web y la API. El [Compose raíz](compose.yaml) levanta **nueve contenedores**:
 
 | Servicio | Función |
 | --- | --- |

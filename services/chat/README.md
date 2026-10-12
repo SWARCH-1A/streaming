@@ -1,11 +1,13 @@
 # Chat
 
-Servicio propio de salas, mensajes, cuota global por cuenta, deduplicación, secuencia, historial y
-WebSocket. Se define en [SPEC-05](../../docs/spec-p1/spec_05_chat.md) y
-[contratos](../../docs/contratos_modelo_datos.md). Go y Redis según
-[ADR-010](../../docs/adr/ADR-010-chat-go-redis-efimero.md). El chat es efímero: la sala se elimina
-5 minutos después de que termina la sesión. Obtiene un contexto Core por mensaje nuevo y no consulta
-servicios de identidad, perfil o emisión por separado.
+Chat es el servicio Go que maneja salas, mensajes, historial y WebSocket. Redis guarda las
+secuencias, la deduplicación y la cuota global por cuenta, según
+[ADR-010](../../docs/adr/ADR-010-chat-go-redis-efimero.md).
+
+Cada mensaje nuevo necesita un contexto Core con identidad, autor y estado de la emisión.
+La sala se conserva durante la sesión y se elimina 5 minutos después del fin.
+[SPEC-05](../../docs/spec-p1/spec_05_chat.md) y los
+[contratos](../../docs/contratos_modelo_datos.md) describen esas reglas.
 
 ## Estructura
 

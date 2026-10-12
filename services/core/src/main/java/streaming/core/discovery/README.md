@@ -6,8 +6,10 @@ según [ADR-005](../../../../../../../../docs/adr/ADR-005-streaming-rust-y-proye
 inbox/proyección de snapshots públicos de Streaming, con los [contratos](../../../../../../../../docs/contratos_modelo_datos.md).
 La operación, variables y rutas están en el [README de Core](../../../../../../README.md).
 
-Discovery combina Cuentas/Canales/Catálogo locales (vistas publicadas) con la proyección de emisión. No lee SQL privado
-Streaming ni hace HTTP por fila. Aplica versiones y dedupe, frescura <=5 s y reconstrucción consistente con watermark.
+Discovery combina las vistas publicadas de Cuentas, Canales y Catálogo con la proyección de emisiones.
+Las consultas se resuelven en SQL Core. Las versiones y la deduplicación evitan aplicar datos antiguos;
+la frescura debe ser de hasta 5 s. La reconstrucción usa un corte consistente con watermark,
+sin consultar el SQL privado Streaming ni hacer HTTP por resultado.
 
 | Capa | Contenido |
 | --- | --- |

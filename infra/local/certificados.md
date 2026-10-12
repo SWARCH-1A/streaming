@@ -1,8 +1,9 @@
 # Certificado local para navegador y OBS
 
-El despliegue usa HTTPS y RTMPS con certificados firmados por la CA del perfil. Para abrir la Web
-y transmitir con OBS, instala **`ca.crt` del perfil que estás ejecutando** en la máquina donde
-corren el navegador y OBS. Aceptar una excepción en el navegador no configura la confianza de OBS.
+Cada perfil local usa HTTPS y RTMPS con certificados firmados por su propia CA.
+Para abrir Web y transmitir con OBS, instala **`ca.crt` del perfil que estás ejecutando**
+en la máquina del navegador y OBS. Ambas aplicaciones necesitan confiar en esa CA;
+aceptar una excepción solo en el navegador no configura OBS.
 El [cliente RTMPS de OBS](https://github.com/obsproject/obs-studio/blob/master/plugins/obs-outputs/librtmp/rtmp.c)
 lee las CA del sistema: `/etc/ssl/certs` en Linux, anclas de confianza de macOS y almacén `ROOT` en Windows.
 

@@ -7,9 +7,12 @@
 
 ## Contexto
 
-Canales pertenece a Core según ADR-005. Cuenta, perfil y canal se crean en una transacción
-PostgreSQL. La edición, las portadas y el bootstrap público por handle/owner necesitan conservar
-esa propiedad local y compartir la seguridad de Cuentas. El estado de emisión pertenece a Streaming.
+Canales forma parte de Core según ADR-005. La cuenta, el perfil y el canal se crean en una misma
+transacción PostgreSQL. Queremos que la edición, las portadas y la consulta pública por handle
+o propietario mantengan esa organización y usen la seguridad de Cuentas.
+
+Streaming sigue siendo responsable del estado de la emisión; Canales lo consulta para componer
+la página pública.
 
 ## Decisión
 

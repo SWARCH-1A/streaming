@@ -1,9 +1,12 @@
 # Matriz de recorridos de integración P1
 
-Esta definición desarrolla [SPEC-09 CA-08](spec-p1/spec_09_int.md) y complementa la
-[matriz RNF](matriz_trazabilidad_rnf.md). No es un informe de pruebas ejecutadas. Los valores,
-errores, ventanas y límites exactos son los del CA funcional enlazado y los
-[contratos canónicos](contratos_modelo_datos.md); esta matriz no los redefine.
+Esta matriz desarrolla [SPEC-09 CA-08](spec-p1/spec_09_int.md) y complementa la
+[matriz RNF](matriz_trazabilidad_rnf.md). Describe los recorridos que debemos probar y relaciona
+cada uno con sus requisitos y criterios de aceptación.
+
+Los resultados de ejecución se registran por separado. Para los valores, errores, ventanas de tiempo
+y límites de cada recorrido, se usa el criterio funcional enlazado junto con los
+[contratos](contratos_modelo_datos.md).
 
 Cada fila es un escenario estable `I-<SPEC>-<CA>`. La flecha identifica consumidor y proveedor;
 el último componente de cada salto responde por sus datos. Una lectura pública no concede permiso

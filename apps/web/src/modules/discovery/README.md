@@ -1,16 +1,18 @@
-# Interfaz discovery
+# Interfaz de descubrimiento
 
-Vistas, estado y acciones propias de discovery. Publica su entrada para composición en shell, sin importar internals de otros módulos.
-Rutas globales/layout pertenecen a [shell](../../shell/README.md).
+Las vistas consultan GraphQL Core con filtros, paginación y datos públicos reales.
+`previewUri` permite pedir un JPEG de Media por HTTP, sin abrir reproductores ni leases en el listado.
 
-Definición: [SPEC](../../../../../docs/spec-p1/spec_07_disc.md).
-Accesibilidad en cada recorrido: [SPEC-08](../../../../../docs/spec-p1/spec_08_a11y.md).
+El listado se actualiza cada 10 s y el fotograma cada 15 s. Si falta la imagen, muestra el SVG
+del sistema y vuelve a intentarlo a los 5 s. Las muestras locales se reservan para demos y pruebas.
 
-## Base frontend
+## Organización
 
-La entrada pública es `entry.tsx`; los consumidores no importan componentes/estado internos.
-Las vistas funcionales consultan GraphQL Core con filtros, paginación y datos públicos reales.
-`previewUri` permite solicitar un JPEG de Media por HTTP, sin reproductores ni leases en el listado.
-El listado se refresca cada 10 s y el fotograma cada 15 s; una imagen ausente usa el SVG del sistema
-y reintenta a los 5 s. Las muestras locales pertenecen solo a demos explícitas y pruebas. Ejecución y reglas en
-[README Web](../../../README.md). Tests locales junto al código.
+La entrada pública es `entry.tsx`. Los consumidores usan esa entrada y los contratos del módulo;
+sus componentes y estado interno permanecen encapsulados. El [shell](../../shell/README.md)
+organiza las rutas globales y el layout.
+
+La [SPEC](../../../../../docs/spec-p1/spec_07_disc.md) define el comportamiento.
+[SPEC-08](../../../../../docs/spec-p1/spec_08_a11y.md) fija los criterios de accesibilidad
+de sus recorridos. Los comandos están en el [README Web](../../../README.md),
+y las pruebas locales se mantienen junto al código.

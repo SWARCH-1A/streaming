@@ -1,9 +1,11 @@
 # Evolución y responsabilidades futuras
 
-**Fuente de alcance:** catálogo RF/RNF; **topología base:** ADR-005.
-P2/P3/Futuro conservan la prioridad del catálogo. Esta matriz asigna dueños iniciales y dependencias;
-no adelanta funcionalidades ni convierte cada tema en un servicio desplegable. Las SPEC de capacidades
-futuras deben resolver sus políticas antes de implementar, conservando la prioridad y alcance del catálogo.
+Partimos de la arquitectura de ADR-005 y de las prioridades P2, P3 y Futuro del catálogo RF/RNF.
+La tabla indica qué módulo se encargaría inicialmente de cada capacidad y de qué partes depende.
+Es una guía para las siguientes iteraciones; estas funciones todavía no forman parte de P1.
+
+Antes de implementar una capacidad, su SPEC debe resolver las políticas pendientes y respetar
+el alcance del catálogo. La necesidad de un servicio separado se evalúa en ese momento.
 
 ## Matriz de capacidades
 
@@ -28,13 +30,19 @@ su costo en Media, sin atribuirlo al catálogo actual. Pagos requieren proveedor
 moneda, cancelación, devolución y reconciliación antes de implementar. Retención de VOD/chat, privacidad,
 suspensión/borrado de cuenta y sincronía de pistas se decidirán en la fase correspondiente; no se inventan TTL en P1.
 
-## Habilitadores mínimos que sí corresponden a P1
+## Lo que dejamos preparado en P1
 
-IDs opacos de cuenta/canal/stream/sesión/mensaje; handle inmutable; metadata versionada; timeline de
-sesión y snapshot de autor en Chat; formatos públicos sin credenciales; repositorios encapsulados,
-FK locales; mensajes ordenados/deduplicados; callbacks Media idempotentes; outbox para
-ciclo de sesión hacia Chat y snapshots públicos hacia Discovery. No se construyen bus universal, entitlement engine, grabación,
-export API de replay ni tablas vacías de todas las futuras capacidades.
+En P1 conservamos IDs opacos para cuentas, canales, streams, sesiones y mensajes, un handle
+inmutable y metadatos con versión. Chat guarda la línea temporal de sesión y el snapshot del autor,
+y mantiene el orden y la deduplicación de mensajes.
+
+Los formatos públicos excluyen credenciales. Cada módulo encapsula su repositorio y Core usa claves
+foráneas locales. Los callbacks Media son idempotentes; el outbox entrega el ciclo de sesión a Chat
+y los snapshots públicos a Discovery.
+
+Con esa base podremos ampliar el proyecto. El bus universal, el motor de permisos premium,
+la grabación, la API de exportación para replay y las tablas de capacidades futuras se evaluarán
+cuando esas funciones se prioricen.
 
 ## Flujos futuros sin coordinador global
 
@@ -51,7 +59,7 @@ export API de replay ni tablas vacías de todas las futuras capacidades.
 
 La frontera Streaming Rust ya está aceptada en ADR-005 por autonomía a lo largo de las iteraciones, con costo de coordinación explícito y rendimiento integrado pendiente de medir. Las capacidades futuras mantienen su priorización propia.
 
-## Puerta obligatoria para extraer un servicio
+## Qué justificar antes de extraer un servicio
 
 Un ADR nuevo debe demostrar: capacidad cohesiva y dueño único; invariante transaccional que no queda
 partido sin explicación; demanda de escala/fallo/release distinta medida; consulta sin joins de red

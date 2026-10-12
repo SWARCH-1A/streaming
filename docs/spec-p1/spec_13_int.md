@@ -6,7 +6,10 @@
 
 ## 1. Contexto y problema
 
-Define el ensamblaje reproducible de los procesos P1, su configuración, salud, reinicio y pruebas integradas que demuestran restricciones distribuidas y recorrido vertical utilizable. Hijo de SPEC-09.
+Para demostrar el prototipo, otro integrante debe poder arrancarlo desde un checkout limpio
+y comprobar un recorrido completo. Esta SPEC, hija de SPEC-09, define la configuración,
+la salud, el reinicio y las pruebas de los procesos P1, incluidas las restricciones de
+arquitectura distribuida de la asignatura.
 
 ## 2. Definición del componente
 
@@ -14,7 +17,9 @@ SPEC-13 define el perfil local de contenedores que deben integrar los módulos, 
 
 ## 3. Historia de usuario
 
-Como integrante del equipo, quiero arrancar y verificar desde checkout limpio todo el prototipo y reiniciar un servicio por separado, para demostrar arquitectura y depurar integración.
+Como integrante del equipo, quiero arrancar el prototipo desde un checkout limpio, verificar sus
+recorridos y reiniciar un servicio por separado, para demostrar la arquitectura y depurar
+los problemas de integración.
 
 ## 4. Alcance
 
@@ -139,4 +144,8 @@ fixtures de aceptación conservan sus proyectos y topología de réplicas separa
 
 ## 11. Esfuerzo, riesgos y consecuencias
 
-**Esfuerzo:** L. **Riesgos:** irreproducibilidad, carga no controlada, falsos health positivos, secretos, NoSQL sin uso y confusión entre HLS/RTMP y conectores HTTP. **Consecuencia:** alta disponibilidad y seguridad operacional productiva se aplazan.
+**Esfuerzo:** L. Los riesgos son un arranque que no pueda repetir otro integrante, carga de prueba
+mal controlada, comprobaciones de salud que den falsos positivos, exposición de secretos,
+NoSQL sin un uso real y confusión entre transportes multimedia y conectores HTTP.
+
+La alta disponibilidad y la seguridad operacional de producción se trabajan en fases posteriores.

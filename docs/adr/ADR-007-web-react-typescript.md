@@ -7,9 +7,12 @@
 
 ## Contexto
 
-La aplicación requiere una base modular con componentes compartidos, tipos estrictos,
-formato, lint y pruebas. Stitch aporta los tokens y vistas.
-Se necesita una base ejecutable sin depender de contenedores o servicios disponibles.
+Necesitamos una aplicación Web que el equipo pueda desarrollar por módulos, con componentes
+compartidos, tipos estrictos, formato, lint y pruebas. Stitch aporta los tokens y las vistas
+de referencia.
+
+La base debe poder ejecutarse para desarrollar la interfaz aunque no estén disponibles
+los contenedores ni los servicios.
 
 ## Decisión
 

@@ -1,12 +1,14 @@
 # Mapa de responsabilidades P1
 
-El proyecto Plane es STREAMING. Las SPEC y módulos usan las responsabilidades de esta tabla;
-los módulos Core son agrupaciones funcionales dentro de un único proceso, no servicios separados.
-Una asignación personal no cambia la frontera arquitectónica.
+Usamos el proyecto STREAMING en Plane para repartir el trabajo. La tabla relaciona cada SPEC
+con el módulo que la implementa, su ubicación y las vistas correspondientes.
+
+Cuentas, Canales, Catálogo y Discovery comparten el proceso Core. Asignar cada módulo a una persona
+distinta permite organizar el trabajo, pero no cambia esa arquitectura.
 
 La [matriz de cobertura de SPEC-09](spec-p1/spec_09_int.md#cobertura-obligatoria-de-los-spec-funcionales)
-define qué flujos de cada SPEC funcional deben demostrar SPEC-10…SPEC-13. Los estados de trabajo
-del módulo no sustituyen esa aceptación integrada.
+indica qué flujos deben comprobar SPEC-10…SPEC-13 para cada SPEC funcional.
+La aceptación requiere esas pruebas integradas, además del trabajo terminado en cada módulo.
 
 | SPEC | Módulo Plane / responsabilidad | Unidad y ubicación | UI |
 | --- | --- | --- | --- |
@@ -36,10 +38,15 @@ su capacidad. Seguimiento, moderación, VOD, notificaciones y watch party tienen
 
 ## Propiedad
 
-Cuentas, Canales, Catálogo y Consultas comparten build, seguridad y PostgreSQL Core. Streaming Rust posee su PostgreSQL, inbox/outbox, claves y estado de emisiones. En P1 integra el adaptador técnico Media en su proceso; el adaptador conserva base/rol/repositorio propios. ADR-011 fija PostgreSQL, Streaming y MediaMTX como tres contenedores.
-Registro cuenta/perfil/canal usa una transacción. Cada módulo escribe por su repositorio; las lecturas
-compuestas usan vistas publicadas, columnas explícitas y FK locales. Discovery posee proyección pública/inbox en Core y recibe snapshots Streaming; no consulta su SQL privado. Chat posee su almacén y Media el
-flujo audiovisual. Core es responsable del almacenamiento privado de avatares/portadas y de sus rutas
+Cuentas, Canales, Catálogo y Consultas comparten build, seguridad y PostgreSQL Core.
+Streaming mantiene su PostgreSQL, inbox, outbox, claves y estado de emisiones. En P1 ejecuta
+el adaptador Media en su proceso, con base, rol y repositorio propios. ADR-011 define sus tres
+contenedores: PostgreSQL, Streaming y MediaMTX.
+
+El registro crea cuenta, perfil y canal en una transacción. Cada módulo escribe mediante su
+repositorio. Las consultas compuestas usan vistas publicadas, columnas explícitas y claves
+foráneas locales. Discovery recibe snapshots Streaming y mantiene su inbox y proyección pública
+en Core, sin consultar el SQL privado Streaming. Chat administra su almacén; Media, el flujo audiovisual. Core es responsable del almacenamiento privado de avatares/portadas y de sus rutas
 públicas estables; S3 es el proveedor predeterminado y filesystem una alternativa explícita. Ningún
 proceso externo consulta bases privadas ni accede directamente al bucket. Integración no posee casos de
 uso de negocio: coordina las rutas, la configuración y la evidencia de despliegue. RNF y evidencia se

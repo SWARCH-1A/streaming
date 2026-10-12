@@ -1,7 +1,7 @@
 # Core / Catálogo
 
-Catálogo dentro del único runtime Core: Spring/JDBC, PostgreSQL y Flyway compartidos. No contiene
-build, base, configuración, token ni puerto independientes. `GET /api/taxonomy` es público y devuelve
+Catálogo usa Spring/JDBC, PostgreSQL y Flyway dentro de Core. Comparte su build, base,
+configuración, credenciales y puerto. `GET /api/taxonomy` es público y devuelve
 `catalogVersion`, `categories` y `tags`; cada valor contiene `id`, `name`, `active` y solo se listan activos.
 
 Definición: [SPEC-06](../../../../../../../../docs/spec-p1/spec_06_tax.md),

@@ -6,7 +6,9 @@
 
 ## 1. Contexto y problema
 
-Define contratos de red entre Web/Core/Streaming/Chat/Media y límites locales Core. No convierte cada responsabilidad funcional en un servicio ni impide integridad referencial local.
+Web, Core, Streaming, Chat y Media necesitan compartir datos sin depender de los modelos internos
+del otro. Esta SPEC define sus contratos de red y las interfaces locales de Core.
+Los módulos Core pueden conservar la integridad referencial dentro de su base.
 
 ## 2. Definición del componente
 
@@ -19,17 +21,32 @@ Como responsable o consumidor de un módulo, quiero interfaces versionadas, esqu
 ## 4. Alcance
 
 ### Dentro de P1
-Inventario de métodos/path/mensajes, schemas neutros, errores, IDs/versiones, seguridad, paginación y compatibilidad. Distinguir API externa, contrato entre procesos e interfaz de aplicación local. Publicar las interfaces locales Core y los contratos Core–Streaming/Chat y Streaming–Chat/Media.
+
+Documentar métodos, rutas, mensajes, esquemas neutrales, errores, identificadores, versiones,
+seguridad, paginación y compatibilidad. El inventario distingue APIs públicas, contratos entre
+procesos e interfaces locales Core. Incluye Core–Streaming/Chat y Streaming–Chat/Media.
 
 ### Fuera de P1
-Contratos de capacidades futuras aún no priorizadas o una plataforma universal de gateway/broker.
+
+Contratos de capacidades futuras que aún no se han priorizado y una plataforma universal de
+gateway o broker.
 
 ### Supuestos
-GraphQL Discovery público se conserva dentro de Core; REST/WS no requieren frameworks distintos por módulo. FK locales son válidas, cross-database no.
+
+Discovery conserva GraphQL dentro de Core. Usar REST o WebSocket no obliga a elegir un framework
+distinto por módulo. Las claves foráneas son locales a una base; las referencias entre bases
+se validan mediante contrato.
 
 ## 5. Requisitos de integración
 
-Un dueño por escritura; interfaces locales/Core y DTO/read models públicos. Cuentas autentica, Catálogo valida IDs, Streaming Rust controla configuración/claves/estado/cupos/timeline/leases y snapshots públicos, Chat controla mensajes/orden/cuota. Todos los payload públicos excluyen secretos/email; no compartir clases internas entre procesos. Idempotencia se define por operación, no se promete exactamente una vez en red.
+Cada dato tiene un módulo responsable de escribirlo. Dentro de Core, los demás módulos consumen
+interfaces locales y DTO o modelos de lectura públicos. Cuentas autentica y Catálogo valida los IDs.
+Streaming controla configuración, claves, estado, cupos, línea temporal, leases y snapshots públicos;
+Chat controla mensajes, orden y cuota.
+
+Los payloads públicos excluyen secretos y email privado. Entre procesos usamos esquemas neutrales,
+sin compartir clases internas. La idempotencia se define por operación; la red puede entregar
+una solicitud más de una vez.
 
 ## 6. Criterios de aceptación
 
@@ -71,7 +88,7 @@ Los artefactos incluyen p1.d.ts derivado de schemas JSON y tipos GraphQL derivad
 
 ## 10. Verificación
 
-- Validación schema y ejemplos por CI una vez elegida la herramienta.
+- Validar esquemas y ejemplos en CI con contracts/generate.py --check, según ADR-012.
 
 - Consumer-driven contract tests para operaciones críticas entre módulos.
 
@@ -81,4 +98,7 @@ Los artefactos incluyen p1.d.ts derivado de schemas JSON y tipos GraphQL derivad
 
 ## 11. Esfuerzo, riesgos y consecuencias
 
-**Esfuerzo:** M. **Riesgos:** esquemas divergentes, contrato que revela datos privados, cambio breaking sin coordinación e identificadores reinterpretados por lenguaje. **Consecuencia:** clientes externos públicos y gobierno de API productiva quedan fuera de P1.
+**Esfuerzo:** M. Los principales riesgos son esquemas divergentes, datos privados en un contrato,
+cambios incompatibles sin coordinación e identificadores que cada lenguaje interprete de forma distinta.
+
+Los clientes externos y la gestión de una API productiva quedan fuera de P1.

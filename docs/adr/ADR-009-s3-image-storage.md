@@ -8,10 +8,11 @@
 
 ## Contexto
 
-Avatares y portadas ya se validan y guardan fuera de PostgreSQL. El proveedor filesystem necesita
-volumen persistente y compartido al ejecutar varias réplicas Core. Los contratos ya publican
-`avatarUri` y `bannerUri` como rutas estables de lectura; cambiar el almacén no debe cambiar esas rutas,
-los IDs de objeto ni requerir permisos del navegador sobre el bucket.
+Los avatares y portadas ya se validan y se guardan fuera de PostgreSQL. Con filesystem,
+varias réplicas Core necesitan un volumen persistente compartido.
+
+Los contratos exponen `avatarUri` y `bannerUri` como rutas estables. Queremos cambiar el almacén
+conservando esas rutas y los IDs de objeto, sin dar al navegador permisos sobre el bucket.
 
 ## Decisión
 

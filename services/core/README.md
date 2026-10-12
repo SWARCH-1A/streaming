@@ -1,7 +1,10 @@
 # Core
 
-Un ejecutable Java 25 / Spring Boot 4.1.1, Maven Wrapper, PostgreSQL 18, JDBC y Flyway.
-Seguridad, CSRF, configuración y gestor de transacciones compartidos. Decisiones:
+Core reúne cuentas, perfiles, canales, catálogo y descubrimiento en un ejecutable Java 25
+con Spring Boot 4.1.1. Usa Maven Wrapper, PostgreSQL 18, JDBC y Flyway. Los módulos comparten
+seguridad, CSRF, configuración y gestor de transacciones.
+
+Las decisiones técnicas están en:
 [ADR-001](../../docs/adr/ADR-001-identity-plataforma-y-seguridad.md),
 [ADR-002](../../docs/adr/ADR-002-profile-persistencia-y-avatar.md),
 [ADR-004](../../docs/adr/ADR-004-canales-en-core.md),
@@ -82,10 +85,14 @@ PostgreSQL y objetos como conjunto recuperable;
 el HMAC se conserva entre reinicios para reintentos/cuotas. Rotarlo requiere una estrategia compatible
 con la retención de treinta días, no cambiarlo accidentalmente en cada arranque.
 
-El listener directo ignora `Forwarded`/`X-Forwarded-*`; cuotas usan la IP del socket. La integración
-de reverse proxy debe configurar exclusivamente sus IP/redes confiables (`CORE_TRUSTED_PROXIES`, solo lo usa
-el límite de Descubrimiento) y verificar las cuotas antes de habilitar tráfico tras proxy. Health: `GET /actuator/health`, readiness y liveness bajo
-`/actuator/health/{readiness,liveness}`. Las rutas privadas de contexto solo se habilitan en el conector privado autenticado.
+Si el par directo no es un proxy confiable, Core usa la IP del socket para las cuotas.
+Configura en `CORE_TRUSTED_PROXIES` únicamente las IP o redes de los proxies permitidos;
+Cuentas y Discovery comparten esa resolución de IP. Comprueba las cuotas antes de habilitar
+tráfico mediante el proxy.
+
+La salud se consulta en `GET /actuator/health`, y readiness y liveness en
+`/actuator/health/{readiness,liveness}`. Las rutas privadas de contexto solo están disponibles
+en el conector privado autenticado.
 
 ## Ejecución local
 
@@ -139,11 +146,11 @@ No se usa `X-Forwarded-Port`/`Host` para decidir si una petición es privada.
 observación de menos de 5 s) y `channels` (cuenta, perfil y canal siempre completos; estado `LIVE`/`OFFLINE`/`UNKNOWN`).
 Reglas, errores y cursores en [SPEC-07](../../docs/spec-p1/spec_07_disc.md), el
 [contrato](../../docs/contratos_modelo_datos.md) y [ADR-008](../../docs/adr/ADR-008-descubrimiento-en-core.md).
-En resumen: cuerpo de hasta 16 KiB y `Content-Type: application/json` (415 si no); una sola `query` con las raíces
+La API admite un cuerpo de hasta 16 KiB y `Content-Type: application/json` (415 si no); una sola `query` con las raíces
 `streams`/`channels` una vez, sin alias, fragments ni introspección, hasta 50 filas por conexión y 100 por solicitud
 (422 `QUERY_LIMIT_EXCEEDED`); JSON, sintaxis o variables inválidos son 400; los errores de campo `INVALID_FILTER`,
 `INVALID_LIMIT` e `INVALID_CURSOR` responden HTTP 200 con `extensions.httpStatus=422` y datos parciales;
-429 con `Retry-After` por IP (ráfaga de 20 que recarga 10/s y tope de 600 por 60 s, en memoria: una réplica).
+429 con `Retry-After` por IP (ráfaga de 20 que recarga 10/s y tope de 600 por 60 s, compartidos en SQL Core entre réplicas).
 Toda respuesta lleva `Cache-Control: no-store` y `extensions.requestId`.
 
 `POST /internal/core/discovery/stream-events` solo existe en el conector privado y exige la misma credencial
