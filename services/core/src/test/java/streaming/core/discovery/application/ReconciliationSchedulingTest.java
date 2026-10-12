@@ -28,7 +28,7 @@ class ReconciliationSchedulingTest {
         });
         try(var context=new AnnotationConfigApplicationContext()) {
             context.getEnvironment().getPropertySources().addFirst(new MapPropertySource("test",Map.of(
-                    "discovery.reconcile-interval","PT1S","discovery.reconcile-poll","PT0.05S","discovery.reconcile-initial-delay","PT0S")));
+                    "discovery.reconcile-interval","PT1S","discovery.reconcile-initial-delay","PT0S")));
             context.getBeanFactory().setConversionService(ApplicationConversionService.getSharedInstance());   // what Spring Boot installs: "PT1S" to Duration
             context.registerBean(ProjectionReconciler.class,()->reconciler);
             context.register(SchedulingConfig.class,ReconciliationScheduler.class);

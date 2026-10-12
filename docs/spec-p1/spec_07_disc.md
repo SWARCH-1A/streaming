@@ -64,6 +64,7 @@ Como espectador, quiero descubrir streams activos por popularidad, título, cate
 - CA-08: rechazar forma/costo GraphQL (aliases/fragments/introspection, >50 filas/conexión, >100 agregado, >16 KiB), 600 req/IP/60 s burst20, 429/Retry-After. IP confiable de proxy.
 - CA-09: commit de registro es puerta de visibilidad; cuenta/perfil/canal aparecen juntos, nunca PENDING/parcial. Lectura local de cuentas/canales desde SQL Core; publicación del canal no depende de eventos Streaming.
 - CA-10: estado/conteo/metadata provienen de la proyección pública Streaming aplicada en SQL Core. Cambio <=5 s con presupuesto observación/publicación <=2 s y entrega/aplicación <=3 s. viewerCountFresh=false si observación >5 s; estado no confirmado/fuera de frescura se excluye de streams y se muestra UNKNOWN en canales. ENDED no es PLAYABLE; inbox/versiones y snapshot con watermark permiten recuperación comprobable.
+- CA-11: un valor de búsqueda `q` que contenga NUL en `streams` o `channels` produce `INVALID_FILTER` con `fieldErrors.q=INVALID_TEXT` (HTTP 200 y `extensions.httpStatus=422`), sin ejecutar la consulta del campo ni impedir resultados de otros root fields independientes.
 
 ## 7. Diseño técnico y datos
 
@@ -88,6 +89,7 @@ GraphQL, búsqueda, filtros, ranking, frescura y límites según el contrato. Ca
 - Pruebas de comportamiento anónimo, normalización, combinaciones de filtros, estado actualizado y exclusión de VOD; duplicados/desorden/conflictos, caída del productor/consumidor, atraso y reconstrucción concurrente de proyección con watermark.
 
 - Validar el schema GraphQL, límites/errores, paginación, empates y payload sin campos privados.
+- En `streams` y `channels`, enviar `q` con NUL al inicio, en medio y al final; verificar `INVALID_FILTER`, `httpStatus=422`, `fieldErrors.q=INVALID_TEXT`, que el root field afectado no tenga datos y que otros root fields independientes conserven sus datos.
 
 - Medición bajo perfil P1 de SPEC-13: 5 streams y 100 viewers; comprobar p95 ≤2 s y matching exacto del conjunto esperado.
 
