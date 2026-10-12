@@ -6,7 +6,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import streaming.core.discovery.application.StreamingSnapshotClient.SnapshotExpiredException;
@@ -38,9 +37,6 @@ public class ProjectionReconciler {
     }
 
     public enum Result { SKIPPED, SUCCESS, FAILED }
-
-    @Scheduled(fixedDelayString="${discovery.reconcile-interval:PT4S}",initialDelayString="${discovery.reconcile-initial-delay:PT1S}")
-    void scheduled() { runOnce(); }
 
     /** One reconciliation attempt. Never throws: failures are recorded and logged without secrets. */
     public synchronized Result runOnce() {

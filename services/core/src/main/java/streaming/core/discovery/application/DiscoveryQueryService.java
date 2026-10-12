@@ -52,7 +52,7 @@ public class DiscoveryQueryService {
     public StreamConnection streams(String q,String categoryId,String tagId,Integer limitArgument,String cursor) {
         Instant now=clock.now();
         int limit=limit(limitArgument);
-        String normalized=SearchText.queryOrNull(q), category=blankToNull(categoryId), tag=blankToNull(tagId);
+        String normalized=searchText(q), category=blankToNull(categoryId), tag=blankToNull(tagId);
         validateFilters(category,tag);
         String filter=FilterHash.of("streams",normalized,category,tag);
         Instant oldest=FreshnessRules.oldestFresh(now), newest=FreshnessRules.newestFresh(now);
@@ -87,7 +87,7 @@ public class DiscoveryQueryService {
     public ChannelConnection channels(String q,Integer limitArgument,String cursor) {
         Instant now=clock.now();
         int limit=limit(limitArgument);
-        String normalized=SearchText.queryOrNull(q);
+        String normalized=searchText(q);
         String filter=FilterHash.of("channels",normalized,null,null);
         ChannelCursor after=null;
         if(cursor!=null) {
@@ -152,6 +152,11 @@ public class DiscoveryQueryService {
         if(argument>MAX_LIMIT) throw DiscoveryException.limitExceeded("limit admite como máximo "+MAX_LIMIT+" filas por conexión.");
         if(argument<1) throw DiscoveryException.invalidLimit();
         return argument;
+    }
+    /** NUL cannot be stored in PostgreSQL text: it is a client error here, not an availability failure later. */
+    private static String searchText(String q) {
+        if(q!=null && q.indexOf('\0')>=0) throw DiscoveryException.invalidFilter("q","INVALID_TEXT");
+        return SearchText.queryOrNull(q);
     }
     private static String blankToNull(String value) { return value==null || value.isBlank()?null:value.strip(); }
 }

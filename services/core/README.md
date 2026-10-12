@@ -63,7 +63,7 @@ replica permisos en Discovery. Las pruebas entre proveedores están en
 | CORE_STREAMING_CONSUMER_TOKEN | Secreto de 32+ caracteres enviado como `Authorization: Bearer` a las lecturas privadas; mismo valor que `STREAMING_CORE_CONSUMER_TOKEN` en Streaming. Sin él no hay reconstrucción. Nunca se registra |
 | CORE_STREAMING_DEVELOPMENT_HTTP | `false`; `true` permite HTTP solo en desarrollo aislado |
 | CHAT_CORE_SERVICE_TOKEN | Credencial distinta de las dos Streaming; habilita solo message-context y snapshot Chat en el listener privado |
-| DISCOVERY_RECONCILE_INTERVAL | Duración ISO-8601 entre cortes completos; default `PT4S`. Streaming conserva cada corte un día: súbela si el volumen preocupa, sabiendo que la ausencia de una configuración solo se confirma con un corte de menos de 5 s |
+| DISCOVERY_RECONCILE_INTERVAL | Duración ISO-8601 de inicio a inicio entre cortes completos; default `PT4S`. Streaming conserva cada corte un día: súbela si el volumen preocupa, sabiendo que la ausencia de una configuración solo se confirma con un corte de menos de 5 s (continua mientras un corte tarde menos de un segundo; si no, esos canales quedan `UNKNOWN` en parte del ciclo) |
 | CORE_TRUSTED_PROXIES | CIDR separados por coma de los reverse proxies cuyo `X-Forwarded-For` se acepta (de derecha a izquierda). Vacío (default) usa siempre la IP del socket; una lista mal formada impide arrancar |
 
 El proveedor S3 usa el credential provider chain del AWS SDK: en despliegue se recomienda un rol IAM

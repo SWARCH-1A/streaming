@@ -45,7 +45,7 @@ librería GraphQL y para los detalles que dejó abiertos.
    SNAPSHOT_EXPIRED`), valida todo en memoria y lo publica en una transacción: reemplaza filas con versión mayor y retira
    solo las ausentes del corte cuya `discoveryPosition` sea ≤ al `watermark`. Si falla, conserva la proyección previa y su
    frescura real. Como una configuración inexistente solo se acredita con un corte vigente (≤5 s), la cadencia por defecto
-   es de 4 s y es configurable. El corte cabe en memoria al tamaño del prototipo; no se crea tabla de staging.
+   es de 4 s, contada de inicio a inicio de cada corte (un retardo fijo sumaría la duración del corte y un ritmo fijo dispararía cortes seguidos para ponerse al día), y es configurable. La prueba de ausencia se mantiene continua mientras un corte tarde menos de un segundo. El corte cabe en memoria al tamaño del prototipo; no se crea tabla de staging.
 6. **Frescura.** `statusFresh` y `viewerCountFresh` usan la edad respecto a `stateObservedAtUtc` y
    `viewerCountObservedAtUtc` con un reloj inyectable (≤5 s). Una fila sin observación vigente se excluye de `streams` y
    en `channels` aparece como `UNKNOWN`; sin fila, un corte vigente acredita OFFLINE y de lo contrario `UNKNOWN`.
@@ -82,7 +82,8 @@ Descubrimiento comparte disponibilidad y release con Core; una caída de Core af
 Streaming solo degrada la frescura (las filas vencen a `UNKNOWN`, nunca a OFFLINE). La frescura compara el reloj de
 Streaming con el de Core, de modo que un desfase mayor a unos segundos reduce el tiempo en que los datos se ven frescos.
 Un corte cada 4 s genera unos 21 600 cortes diarios en Streaming, que los conserva un día: debe revisarse con Streaming si
-crece el número de configuraciones. La cuota SQL compartida añade escrituras y bloqueo por IP, conservando el límite
+crece el número de configuraciones. Si un corte completo tarda un segundo o más, los canales sin proyección pasan a `UNKNOWN`
+durante parte de cada ciclo (nunca a OFFLINE): habría que acortar la cadencia o reducir el costo del corte. La cuota SQL compartida añade escrituras y bloqueo por IP, conservando el límite
 al replicar Core; su indisponibilidad rechaza la consulta. El cursor de
 `streams` caduca a los 5 min y entonces responde `INVALID_CURSOR`. No se acredita el perfil de carga de SPEC-13.
 
