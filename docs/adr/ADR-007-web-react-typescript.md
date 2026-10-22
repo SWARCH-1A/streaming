@@ -1,5 +1,9 @@
 # ADR-007: Web modular con React, TypeScript y SWC
 
+> Ámbito: perfil P1. [ADR-015](ADR-015-arquitectura-p2.md) define la arquitectura P2:
+> SSR, Gateway, broker, VOD y chat durable. Este ADR conserva la decisión de la primera entrega.
+
+
 - Estado: aceptada
 - Fecha: 2026-10-02
 - Responsable: Web / integración

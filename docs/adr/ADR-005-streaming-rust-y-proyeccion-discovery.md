@@ -1,5 +1,9 @@
 # ADR-005: Streaming Rust independiente y proyección Discovery en Core
 
+> Ámbito: perfil P1. [ADR-015](ADR-015-arquitectura-p2.md) define la arquitectura P2:
+> SSR, Gateway, broker, VOD y chat durable. Este ADR conserva la decisión de la primera entrega.
+
+
 - Estado: aceptada; despliegue del adaptador actualizado por [ADR-011](ADR-011-streaming-tres-contenedores-p1.md)
 - Fecha: 2026-10-03
 - Responsable: Streaming; contratos coordinados con Core, Chat, Discovery e Integración

@@ -1,8 +1,15 @@
 # Contratos y modelo de datos
 
 Este documento define los datos y las operaciones que comparten los módulos de STREAMING.
-La arquitectura sigue ADR-005: dentro de Core usamos interfaces locales y claves foráneas;
-entre procesos, APIs de red.
+La arquitectura sigue [ADR-015](adr/ADR-015-arquitectura-p2.md): interfaces y transacciones locales
+dentro de Core; HTTP síncrono para consultas/autorización y broker para eventos/trabajos entre
+servicios. El Gateway compone datos y cada dominio conserva reglas y escrituras.
+
+Los contratos existentes de cuentas, canales, emisión y consultas se conservan como base.
+Las firmas y schemas nuevos están en [contracts/p2.json](../contracts/p2.json),
+[HTTP/WS](contratos_p2_http.md), [eventos](contratos_p2_eventos.md) y [S3/timeline](contratos_p2_media.md).
+Las interfaces marcadas en revisión y las políticas delegadas se cierran por responsable en
+[decisiones pendientes](decisiones_pendientes_p2.md).
 
 En P1, el adaptador Media comparte proceso con Streaming. ADR-011 conserva sus contratos HTTP
 autenticados sobre loopback, con las condiciones de TLS descritas más adelante.
@@ -26,7 +33,8 @@ claves foráneas locales. STREAM_CONFIG, STREAM_SESSION y VIEWER_LEASE pertenece
 privado de Streaming. En el diagrama, sus relaciones con CHANNEL, CATEGORY y TAG son referencias
 opacas validadas por contrato, sin claves foráneas entre bases.
 
-CHAT_MESSAGE pertenece al almacén NoSQL de Chat. Discovery mantiene en Core un inbox y las tablas
+CHAT_MESSAGE pertenece al almacén privado de Chat; su archivo durable y tecnología se seleccionan
+por responsable. La retención debe cubrir el VOD asociado. Discovery mantiene en Core un inbox y las tablas
 de proyección pública de emisiones. Esas tablas sirven para consultar. Discovery no decide
 el estado, los metadatos, los permisos ni el conteo; consume los datos públicos de Streaming.
 
@@ -38,7 +46,9 @@ el estado, los metadatos, los permisos ni el conteo; consume los datos públicos
 | Catálogo dentro de Core | categorías/tags con IDs, estado y catalogVersion | Consultas locales; contexto tipado y resolución de tombstones para Streaming |
 | Streaming Rust | StreamConfig, secretos ingest, sesiones, cupos, clocks y leases/conteo | Consultas/player, contexto Chat y contratos Media |
 | Discovery en Core | inbox y proyección pública de emisiones | GraphQL; reconstruible desde Streaming |
-| Chat | mensajes, secuencia por sala, dedupe y cuota por cuenta | Web, replay/moderación futuros a través del dueño |
+| Chat | mensajes durables, secuencia, dedupe, cuota, bloqueos y supresiones | Web y móvil, live y replay a través del dueño |
+| VOD | biblioteca, vínculo a sesión, publicación, metadatos y referencias S3 | Catálogo y reproducción autorizados por API |
+| Notificaciones | bandeja, leído, preferencias, dispositivos e intentos | Web/móvil y adaptadores SMTP/push |
 | Media | fuente, segmentos/manifiestos y señales técnicas | Streaming valida disponibilidad; HLS hacia player |
 
 Cada repositorio escribe solo tablas de su módulo. Los casos de uso locales coordinan interfaces de
@@ -63,13 +73,16 @@ El servidor publica las marcas de tiempo en UTC con zona explícita. El reloj de
 los estados ni los plazos. La línea temporal empieza en cero al confirmar el primer LIVE reproducible,
 avanza durante LIVE y la gracia, conserva su posición al reconectar y queda congelada al terminar.
 
-`streamOffsetMs` indica una posición aproximada en esa sesión. Cuando se implemente VOD,
-habrá que relacionarla con el medio grabado. P1 no graba contenido ni ofrece sincronización
-de replay con un archivo.
+`streamOffsetMs` indica una posición aproximada en esa sesión. Chat y VOD deben relacionarla
+con el tiempo real del medio grabado, generaciones y discontinuidades. La gracia avanza el reloj
+de sesión aunque falte video; copiar ese offset sin mapping no acredita sincronización de replay.
 
 ## Inventario de interfaces
 
-Cada interfaz declara un esquema neutral al lenguaje, datos de correlación y un presupuesto de tiempo acotado.
+Cada interfaz declara esquema neutral, permisos, correlación, errores y presupuesto de tiempo.
+La tabla conserva las rutas HTTP base. Las operaciones nuevas de móvil, agregación, VOD, moderación y notificaciones están en
+[contratos HTTP P2](contratos_p2_http.md). Watch parties/subtítulos requieren cerrar las políticas
+y schemas señalados en sus SPEC; no tienen rutas definitivas mientras esas decisiones sigan abiertas.
 
 | Interfaz | Proveedor / consumidor | Semántica y fallo |
 | --- | --- | --- |
@@ -91,21 +104,35 @@ Cada interfaz declara un esquema neutral al lenguaje, datos de correlación y un
 | POST /api/discovery/graphql | Core / Web | streams/channels, filtros/ranking/paginación locales; schema conservado abajo |
 | GET /api/chat/sessions/{sessionId}/messages; WS /realtime/chat/sessions/{sessionId} | Chat / Web | Historial 1–50, eventos/ACK, anónimo lee, autenticado escribe |
 | POST /internal/core/chat/message-context | Core / Chat | Una autorización nueva por mensaje lógico: sesión usuario + estado emisión + autor + timeline; sin caché de permisos |
-| GET /internal/core/chat/sessions/{sessionId} | Core / Chat | Snapshot de existencia/estado/generación y timeline para abrir/reconciliar sala y barrido periódico de salas sin fin observado; 404 SESSION_NOT_FOUND inicia retención; sin identidad privada |
-| POST /internal/chat/session-events | Chat / Streaming | Notificación durable idempotente de estado de emisión; no autoriza escrituras |
+| GET /internal/core/chat/sessions/{sessionId} | Core / Chat | Snapshot de existencia/estado/generación y timeline para abrir/reconciliar sala; un 404 no ordena borrar su archivo; sin identidad privada |
 | POST /internal/streaming/ingest/authorize | Streaming / adaptador Media | streamKey e ingestAttemptId; reserva idempotente de cupo en Streaming tras configuración autorizada |
 | POST /internal/streaming/sessions/{sessionId}/source-connected; /playback-ready; /source-lost | Streaming / adaptador Media | ACK durable, generaciones/eventId/path validados; detalle abajo |
 | POST /internal/core/streaming/owner-context | Core / Streaming | Identidad/owner y catálogo tipado por comando; sin permiso cacheado |
 | POST /internal/core/streaming/catalog-values | Core / Streaming | Resolución batch de IDs/labels/tombstones; no autoriza cambios |
 | GET /internal/streaming/sessions/{sessionId}/context | Streaming / Core | Estado/timeline actual para Chat, sin identidad/credenciales |
 | POST /internal/streaming/channels/snapshots | Streaming / Core | Bootstrap público batch por channelId; ausencia explícita y sesión actual |
-| POST /internal/core/discovery/stream-events | Core / Streaming | Inbox durable de snapshots públicos versionados; no autoridad de negocio |
 | POST /internal/streaming/discovery/snapshots | Streaming / Core | Corte consistente paginado de configuraciones con watermark; reconstrucción |
 
 `/internal/*` usa TLS privado y credenciales específicas por consumidor con permisos explícitos
 por ruta; una credencial puede tener varias rutas autorizadas. El listener público lo bloquea. En P1 los contratos adaptador→Streaming se conservan sobre HTTP loopback autenticado en desarrollo dentro del mismo contenedor (ADR-011); el perfil persistente ADR-014 usa HTTPS con CA explícita también entre control y adaptador. TLS es obligatorio al cruzar contenedores. Bases y repositorios técnicos/de negocio permanecen separados.
 Los módulos Core usan interfaces locales; no publican eventos de replicación interna ni requieren
 provisión HTTP de canal. Los outboxes se reservan para efectos entre procesos y para los callbacks técnicos durables Media conservados por ADR-011.
+
+## Eventos y trabajos P2
+
+| Productor | Consumidor con suscripción propia | Resultado durable |
+| --- | --- | --- |
+| Streaming: ciclo de sesión | Core y Chat, independientemente | Proyección pública y ciclo de sala |
+| Streaming: snapshot público versionado | Core / Discovery | Proyección consultable y reconstruible |
+| Streaming/Media: segmento con carga S3 confirmada | VOD | Referencia de rendición/orden y estado de recepción |
+| Streaming: fin de emisión | VOD | Validación de completitud y publicación o borrador |
+| Core: seguimiento/cuenta; Streaming: nueva sesión LIVE | Notificaciones y consumidores afectados | Destinatarios, disponibilidad y aviso lógico |
+| Notificaciones: trabajo por medio | Worker de bandeja/correo/push correspondiente | Intento deduplicado, resultado y reintento independiente |
+| VOD/administración: retirada o borrado | Dueños de objetos, pistas y replay | Retirada de acceso y limpieza reintentable |
+
+El único broker tiene colas/suscripciones independientes. Core y Chat deben recibir cada uno
+el evento de ciclo de sesión; no compiten por una sola entrega. El producto, nombres de canales,
+retención, clientes, confirmaciones y DLQ se definen en P2-07. Los bytes de video permanecen en S3.
 
 ## Registro y cuentas: transacción local
 
@@ -147,6 +174,11 @@ los resultados de peticiones canceladas y los 401 de consultas anónimas anterio
 sesión posterior. Un login incorrecto no revoca una cookie válida existente. Al terminar logout,
 Web descarta el principal y toda comprobación de sesión anterior.
 
+En móvil se reutiliza la sesión opaca de Core mediante Bearer, con almacenamiento seguro.
+Cuentas define el login y respuesta nativos, revocación común y manejo de dispositivos; Chat
+concreta su handshake WS. No se reutilizan las credenciales de servicios como tokens de usuario.
+La verificación de Origin/CSRF de navegador se conserva. Suspender revoca todas las sesiones.
+
 Login: máximo cinco fallos por identificador normalizado y cincuenta por IP en ventana móvil de 15 min;
 éxito reinicia contador del identificador. Registro: diez claves nuevas/IP/hora, retry de clave no
 consume otra operación. Exceso 429 RATE_LIMITED + Retry-After; no bloqueo permanente. Concurrencia de
@@ -183,11 +215,14 @@ profile tiene el mismo contrato que GET perfil público. streamStatusFresh/avail
 si existe, contiene el snapshot público autoritativo obtenido por Core mediante batch de canales Streaming y un campo session con el snapshot de sesión/timeline (null antes de la primera emisión).
 Session ENDED conserva su identidad y availability=OFFLINE; playbackUrl es null fuera de PLAYABLE.
 Ese estado detiene nuevas descargas y leases; el player puede terminar los segmentos ya descargados
-antes de mostrar la finalización, sin modificar el estado autoritativo ni habilitar VOD.
+antes de mostrar la finalización, sin modificar el estado autoritativo. La disponibilidad VOD
+se consulta a su dueño tras validar y publicar la grabación; ENDED por sí solo no la acredita.
 Core obtiene cuenta/perfil/canal localmente y hace una consulta batch de snapshots públicos a Streaming para este bootstrap. Una respuesta confirma ausencia/configuración/sesión; falla Streaming devuelve stream:null, streamStatusFresh:false y availability:UNKNOWN, conservando el canal/perfil. No se interpreta el fallo como OFFLINE. Discovery no usa este batch por fila.
 Handle se busca sin distinguir mayúsculas; inexistente/no activo da 404 uniforme, fallo Core/SQL 503.
 Web usa el handle devuelto para reemplazar el casing de su URL por la forma canónica sin añadir historial y monta player/Chat desde
-stream/sessionId. No entregar entidades de cuenta/ORM ni ejecutar un join entre servicios en el shell.
+stream/sessionId. No entregar entidades de cuenta/ORM. La pantalla P2 se compone en el Gateway sobre contratos
+públicos; el bootstrap Core existente conserva compatibilidad sin añadir VOD o Notificaciones
+a su modelo de dominio.
 
 PATCH canal permite solo description (hasta 500 puntos de código; null limpia a cadena vacía) y
 bannerUploadId (null retira). Campos omitidos se conservan; cuerpo vacío o campo ajeno da 400
@@ -310,13 +345,15 @@ HTTP por fila ni bytes de imagen en GraphQL. Media ofrece GET anónimo con `imag
 `Cache-Control: no-store`, resolución 640×360 y máximo 512 KiB. Un worker del adaptador captura
 un fotograma de HLS solo en LIVE/PLAYABLE, como máximo una vez cada 15 s por fuente. La caché
 es local en RAM, contiene hasta cinco imágenes, caduca a los 45 s y valida el publisher vigente.
-No hay persistencia de imágenes, VOD, jobs adicionales ni leases de espectador.
+La vista previa solo mantiene su caché de imágenes en RAM y no crea leases. La grabación VOD
+y sus trabajos usan su propio flujo de persistencia, independiente de esta captura.
 HTTP no dispara decodificación: 503 `PREVIEW_UNAVAILABLE` si falta una captura vigente o la señal
 no está reproducible, 410 `SESSION_ENDED` tras finalizar. FFmpeg recibe solo archivos privados
 con bytes HLS validados, nunca la URL privada, clave o credenciales; conserva plazo de 2 s y limpieza
 de temporales. Una captura fallida no modifica disponibilidad ni corta la señal. Web valida que la
 URL coincide con sessionId, muestra el fondo gráfico ante error y reintenta a los 5 s; con éxito
-actualiza cada 15 s. El listado se vuelve a consultar cada 10 s.
+actualiza la imagen cada 15 s. Los datos de estado y conteo del listado se refrescan dentro
+del presupuesto nominal total de cinco segundos de P2.
 Los logs del motor MediaMTX están desactivados porque sus mensajes incluyen paths privados;
 readiness y callbacks se observan mediante el adaptador. Web mantiene la clave solo en memoria,
 oculta y descartable. En despliegue la publicación y las llamadas privadas usan TLS.
@@ -393,7 +430,9 @@ ordenar Discovery y mostrar audiencia aproximada; no controla autorización, pag
 mitigación antiabuso más fuerte (por ejemplo, telemetría de entrega HLS firmada y rate limits en edge)
 queda fuera de P1 y debe acordarse antes de usar la métrica para decisiones económicas o de seguridad.
 
-Streaming calcula el conteo desde leases vigentes y conserva countVersion/observedAtUtc en su SQL. Cambios se agrupan como máximo 1/s; observación/publicación <=2 s en perfil normal y entrega/aplicación <=3 s para frescura total <=5 s. StreamDiscoverySnapshot transporta el snapshot público hacia la proyección Core. ENDED invalida leases en Streaming; su snapshot elimina la elegibilidad reproducible. Conteo observado >5 s se marca viewerCountFresh=false. La proyección requiere dedupe, versiones y reconstrucción conforme a la sección de eventos; countVersion nunca se compara con sessionVersion.
+Streaming calcula el conteo desde leases vigentes y conserva countVersion/observedAtUtc en su SQL. Cambios se agrupan como máximo 1/s. El presupuesto nominal total de cinco segundos incluye
+observación/publicación, entrega, aplicación, Gateway y actualización del cliente; los límites
+internos deben dejar margen para la presentación. StreamDiscoverySnapshot transporta el snapshot público hacia la proyección Core. ENDED invalida leases en Streaming; su snapshot elimina la elegibilidad reproducible. Conteo observado >5 s se marca viewerCountFresh=false. La proyección requiere dedupe, versiones y reconstrucción conforme a la sección de eventos; countVersion nunca se compara con sessionVersion.
 
 ## Chat REST, WebSocket y contexto autorizado
 
@@ -404,8 +443,9 @@ por (sessionId,sequence) para evitar huecos y duplicados visibles.
 
 PREPARING devuelve 409 CHAT_NOT_OPEN. En LIVE y durante la gracia, la sala está OPEN;
 en ENDED, READ_ONLY. Una desconexión Chat no interrumpe HLS. El Origin WebSocket debe coincidir
-con el origen Web configurado, incluso para visitantes anónimos. Tener una cookie no permite
-usar un Origin distinto.
+con el origen Web configurado en clientes de navegador, incluso para visitantes anónimos.
+Tener una cookie no permite usar un Origin distinto. El handshake móvil nativo debe admitir
+la sesión opaca de usuario y definir su validación sin debilitar esta comprobación web (P2-14).
 
 El cliente envía {type:"message.send",clientMessageId:UUID,text}. Chat normaliza el texto a NFC,
 recorta whitespace Unicode en los extremos y admite 1–500 puntos de código. Se renderiza como
@@ -440,22 +480,23 @@ El timeout elegido debe revisarse con evidencia, manteniendo p95 de entrega Chat
 Chat asigna hora de persistencia y conserva el offset del snapshot autorizado (no inventa un reloj del
 cliente). Rechaza contexto si el round-trip más tiempo hasta intentar persistir supera 500 ms, usando
 monotónico local; devuelve TIMELINE_UNAVAILABLE y permite reintento con mismo clientMessageId. No
-extrapola permisos. El contexto de llamada también limita el I/O Redis restante, sin retries
-automáticos. El presupuesto limita cuándo se intenta el script; no es una transacción distribuida
-ni puede retirar un script ya recibido por Redis. Timeout de Redis puede dejar commit de resultado
-desconocido: no hay ACK, y se recupera con el mismo clientMessageId mediante dedupe. Una escritura
+extrapola permisos. El contexto de llamada también limita el I/O del almacén restante, sin retries
+automáticos. El presupuesto limita cuándo se intenta la escritura; no es una transacción
+distribuida ni permite retirar una operación ya recibida por el almacén. Un timeout puede dejar
+un commit de resultado desconocido: no hay ACK, y se recupera con el mismo clientMessageId mediante dedupe. Una escritura
 ya autorizada antes de logout/ENDED puede confirmar; toda autorización posterior observa revocación/fin. Esta carrera de operación en vuelo
 es explícita: no se promete transacción distribuida Core–Chat ni revocación retroactiva de commits.
 
-Chat persiste mensaje, dedupe, secuencia y efecto de cuota atómicamente antes del ACK en Redis
-([ADR-010](adr/ADR-010-chat-go-redis-efimero.md)): un script Lua por envío, con AOF `appendfsync always`
-y `noeviction`. Unicidad: (sessionId,sequence) por contador `INCR` y ID de Stream `0-<sequence>`;
-(sessionId,userId,clientMessageId) por hash de dedupe. El historial se lee del Stream de la sala en
-orden de sequence. No se persiste la credencial de usuario. Los mensajes confirmados no se recortan
-mientras la sala existe. Retención efímera: al conocer ENDED, todas las claves de la sala (estado,
-sequence, dedupe y mensajes) expiran a los 5 minutos; después el historial queda vacío.
-El TTL de caché de estado no vence mensajes, sequence ni dedupe activos, y una reentrega de ENDED
-no renueva su retención. Recuperar estado por snapshot no reconstruye mensajes perdidos.
+Chat persiste mensaje, dedupe, secuencia y efecto de cuota antes del ACK, con atomicidad o
+recuperación equivalente que preserve orden y evite duplicación. Conserva autor snapshot,
+texto, serverCreatedAtUtc, sessionId, sequence, streamGeneration y offset; nunca la credencial.
+Un reinicio no pierde mensajes confirmados necesarios para replay. La tecnología y el mecanismo
+de archivo se cierran en P2-10, incluyendo el traspaso durable si hay un almacén de acceso rápido.
+
+ENDED cierra escritura y conserva historial de solo lectura. No aplica la caducidad de cinco
+minutos de ADR-010 a mensajes asociados a VOD. Los mensajes, pistas y VOD comparten su vida útil
+hasta eliminación manual; las supresiones de moderación se respetan también en consultas antiguas.
+La expiración de una caché o la recuperación de un snapshot no reconstruyen mensajes perdidos.
 
 message.accepted devuelve al emisor clientMessageId, messageId, sessionId, sequence y
 serverCreatedAtUtc. message.created entrega a los clientes conectados el snapshot del autor,
@@ -469,46 +510,36 @@ distribución y cuota compartidas; los contadores independientes en memoria no c
 Errores tras Upgrade son frame {type:"error",clientMessageId,code,retryAfterMs?}; antes del Upgrade
 son HTTP. RATE_LIMITED expone retryAfterMs. No convertir error de Core en anonimato aceptado ni en 404.
 GET snapshot privado de sesión al abrir/reconciliar incluye estado, generaciones, versión y timeline,
-sin identidad privada. Historia de sala ya conocida ENDED puede leerse sin Core mientras Chat conserva
-su estado; apertura de sesión desconocida con Core o Streaming caído falla 503, no “sala vacía”.
+sin identidad privada. El historial de una sala ENDED y el replay siguen la disponibilidad del contenido. Conservar
+localmente el estado de sala no basta para autorizar una lectura de contenido suspendido o
+retirado. P2-17 define esa comprobación y su comportamiento ante fallos. Abrir una sesión
+desconocida con Core o Streaming caído falla 503, no “sala vacía”.
 
-Barrido de retención: cada réplica Chat, cada `CHAT_ROOM_SWEEP_INTERVAL` (1 min por defecto), pide
-este snapshot una vez por cada sala con mensajes cuya retención no inició (fin no observado), en serie
-y con el mismo timeout por llamada. La carga sobre Core es como máximo réplicas × salas sin fin
-observado por intervalo; las salas que ya conocen ENDED no se consultan. Respuestas: ENDED inicia la
-retención de 5 minutos; LIVE/RECONNECTING deja la sala igual; 404 SESSION_NOT_FOUND (sesión inexistente
-para Core/Streaming) también inicia la retención, porque no hay sesión que pueda reabrir la sala;
-503 CORE_UNAVAILABLE/STREAMING_UNAVAILABLE o timeout no cambia nada y se reintenta en el siguiente
-intervalo. Una sala con retención iniciada sale del barrido; si dos réplicas la expiran en el mismo
-intervalo, la retención efectiva queda en 5 minutos desde la última, sin acumularse. El barrido nunca
-abre la sala ni autoriza escrituras.
+La reconciliación de ciclo de sala repara estado tras eventos perdidos o atrasados y nunca
+concede autorización ni elimina mensajes porque un snapshot falte. Pérdida de mensajes y
+recuperación desde backup se verifican por separado de la reconstrucción de ciclo/proyecciones.
 
-## Eventos durables entre procesos P1
+## Entrega durable por broker
 
-Streaming guarda cambios de sesión destinados a Chat en outbox SQL dentro del commit. Dispatcher llama
-POST /internal/chat/session-events con {eventId,eventType,schemaVersion,aggregateId,sequence,
-occurredAtUtc,producer:"streaming",payload:{streamId,sessionId,streamGeneration,sessionVersion,status,
-availability}}. aggregateId=session:{sessionId}, sequence=sessionVersion. Chat ACK después de inbox
-persistida; aplica generación mayor y versión mayor dentro de esa sesión. Se deduplica eventId;
-reutilizar ID/payload distinto da 409. Duplicado no reabre ni duplica sala. Estado de escritura siempre
-se consulta a Core por contexto, así que un evento tardío no concede permiso.
+El productor confirma cambio e intención de evento en su transacción local. Outbox publica con
+identidad estable; la confirmación del broker permite recuperar la publicación, sin afirmar que
+el consumidor terminó. Cada consumidor confirma después de persistir inbox y efecto local o
+responsabilidad durable de procesarlo. Los trabajos externos guardan resultado/intento para que
+un reintento no duplique entregas ni reinicie efectos ya completados.
 
-Timeout por intento 1 s; retry de red/408/429/5xx con backoff 1/2/5/10 s, luego 10 s, hasta 15 min;
-respetar Retry-After, alerta deduplicada al atraso >5 s. Al agotar/permanente, retener en dead-letter
-durable para redrive con mismo ID; no TTL automático ni pérdida silenciosa. GET snapshot repara
-estado de sala conocida al reconectar y, mediante el barrido de retención, descubre un ENDED cuyo
-evento se agotó en dead-letter; Streaming conserva outbox sin ACK y un snapshot de sesiones por IDs. Core delega snapshots de sala a Streaming; no usa Discovery como permiso.
-Para recuperar tras pérdida total de Chat, implementar enumeración paginada privada de sesiones con
-watermark/snapshot antes de declarar reconstrucción automática; no simularla con lookups puntuales.
-Esta enumeración recupera inventario/lifecycle, no texto ni ACK de mensajes. Mensajes con ACK se
-restauran desde AOF/backup del dueño Chat dentro de la retención de ADR-010; tras ENDED no se
-extiende la ventana de 5 minutos por replay o restauración. La evidencia distingue reinicio con
-volumen conservado, recuperación desde backup y pérdida irrecuperable de datos sin backup.
-Un broker futuro requiere ADR y un problema medido; no bus universal inicial.
+Los envelopes conservan eventId, tipo/schemaVersion, productor, aggregateId, versión/secuencia,
+hora UTC y correlación. Duplicados no repiten efectos; versiones viejas no hacen retroceder estado.
+Un mismo ID con payload distinto es conflicto observable. El schema concreto de segmentos debe
+incluir sesión, rendición, orden, referencia opaca de objeto y datos de validación/timing suficientes;
+no expone claves de ingesta, credenciales S3 ni paths que las contengan.
+
+Los reintentos, límites y dead-letter/redrive se cierran con P2-07. Agotar intentos no autoriza
+pérdida silenciosa. Un consumidor detenido no bloquea a los demás. Los eventos de ciclo informan
+la sala y Discovery; las nuevas escrituras siguen usando autorización actual, no permiso cacheado.
 
 ## Contextos privados Core–Streaming
 
-Las rutas Core usan TLS privado y X-Service-Name:streaming/X-Service-Token con permiso por ruta. `CORE_STREAMING_SERVICE_TOKEN` autoriza únicamente los POST `owner-context`, `catalog-values` y `stream-events` (este último es el que Streaming usa para entregar snapshots a Discovery), y coincide con `STREAMING_CORE_SERVICE_TOKEN` del cliente Rust. La credencial opcional y distinta `CORE_STREAMING_CATALOG_SERVICE_TOKEN` autoriza solo el POST `catalog-values`; usarla en `owner-context` o `stream-events` devuelve `401 SERVICE_UNAUTHORIZED` incluso con sesión válida. No hay permisos implícitos sobre otras rutas. Streaming transmite la cookie opaca en X-Session-Credential solo durante la llamada; no se persiste, registra ni incluye en fingerprint/eventos. Rutas privadas Streaming usan TLS y Authorization: Bearer específico por consumidor/operación; Core llama al corte de Discovery con `CORE_STREAMING_CONSUMER_TOKEN` (igual a `STREAMING_CORE_CONSUMER_TOKEN`) contra `CORE_STREAMING_BASE_URL`, el listener privado de Streaming. El proxy público bloquea /internal/*.
+Las rutas Core usan TLS privado y X-Service-Name:streaming/X-Service-Token con permiso por ruta. `CORE_STREAMING_SERVICE_TOKEN` autoriza los contextos HTTP `owner-context` y `catalog-values`, y coincide con `STREAMING_CORE_SERVICE_TOKEN` del cliente Rust. La credencial opcional y distinta `CORE_STREAMING_CATALOG_SERVICE_TOKEN` autoriza solo el POST `catalog-values`; usarla en `owner-context` devuelve `401 SERVICE_UNAUTHORIZED` incluso con sesión válida. No hay permisos implícitos sobre otras rutas. Streaming transmite la cookie opaca en X-Session-Credential solo durante la llamada; no se persiste, registra ni incluye en fingerprint/eventos. Rutas privadas Streaming usan TLS y Authorization: Bearer específico por consumidor/operación; Core llama al corte de Discovery con `CORE_STREAMING_CONSUMER_TOKEN` (igual a `STREAMING_CORE_CONSUMER_TOKEN`) contra `CORE_STREAMING_BASE_URL`, el listener privado de Streaming. El proxy público bloquea /internal/*.
 
 **Owner context.** POST /internal/core/streaming/owner-context acepta {commandId:UUID,operation,channelId,categoryId?,tagIds?}, con operation en CREATE_CONFIG/PATCH_METADATA/ROTATE_KEY/STOP_SESSION. Core valida sesión vigente/cuenta activa y propiedad usando sus módulos locales. IDs presentes deben existir, estar activos y ser del tipo CATEGORY/TAG correspondiente; 0–5 tags distintos. CREATE exige categoría; PATCH solo valida campos explícitos. Core devuelve {commandId,operation,userId,channelId,authorizedAtUtc,catalogVersion,category?,tags?}; valores tienen {id,kind,name,active}. Otro owner 403, sesión inválida 401, desconocido 404, IDs inválidos 422, Core caído 503/timeout 504. Core nunca genera ni recibe streamKey.
 
@@ -541,7 +572,7 @@ Discovery hace búsqueda/ranking sobre proyección SQL, sin llamadas por fila.
 
 ## Proyección pública Streaming → Discovery
 
-POST /internal/core/discovery/stream-events recibe el envelope {eventId,eventType:"StreamDiscoverySnapshot",schemaVersion:1,aggregateId:"stream:<streamId>",sequence:projectionVersion,occurredAtUtc,producer:"streaming",payload}. El payload completo es:
+El consumidor Core/Discovery recibe por su suscripción el envelope {eventId,eventType:"StreamDiscoverySnapshot",schemaVersion:1,aggregateId:"stream:<streamId>",sequence:projectionVersion,occurredAtUtc,producer:"streaming",payload}. El payload completo es:
 
 ```json
 {"streamId":"str_example","channelId":"chn_example","projectionVersion":7,"discoveryPosition":41,"metadataVersion":3,"title":"Conversación","category":{"id":"cat_example","name":"Conversación"},"tags":[],"sessionId":"ses_example","streamGeneration":2,"sessionVersion":4,"status":"LIVE","availability":"PLAYABLE","startedAtUtc":"2026-10-03T20:00:00Z","stateObservedAtUtc":"2026-10-03T20:00:02Z","viewerCount":8,"countVersion":5,"viewerCountObservedAtUtc":"2026-10-03T20:00:02Z"}
@@ -551,11 +582,19 @@ Antes de primera sesión: sessionId/sessionVersion/startedAtUtc son null, genera
 
 Streaming guarda configuración/estado/conteo y la intención de snapshot en la misma transacción. Cambios de metadata/estado producen snapshot; para todas las configuraciones se observa/publica también sin cambios con cadencia <=2 s, incluidos OFFLINE/ENDED. Conteo cambia como máximo 1/s y se observa con margen <=2 s; sin sesión activa se observa cero. projectionVersion crece por stream en cada snapshot, independientemente de metadataVersion/sessionVersion/countVersion. discoveryPosition crece globalmente en orden de commits, serializado con fila SQL de secuencia transaccional; no usar una secuencia SQL asignada antes de commit como watermark. La outbox tiene delivery/ACK independiente por consumidor.
 
-Core valida envelope/IDs/tipos/versiones y aplica la fila con su registro de inbox en una sola transacción antes de responder 202; mismo eventId/payload devuelve 200; ID reutilizado con contenido distinto 409; inválido 422; JSON malformado 400. `sequence` debe ser igual a `projectionVersion` y `aggregateId` a `stream:<streamId>`. El inbox conserva solo identidad y hash del evento durante una hora (cubre la ventana de reintentos de 15 min); los conflictos se conservan con su payload. Los instantes pueden llegar con `Z` o con desfase `+00:00`. Aplicación SQL e indicador procesado son atómicos. Solo projectionVersion mayor reemplaza toda la fila; duplicados/versiones viejas se ignoran sin regresión. Igual versión con contenido distinto es conflicto observable y DLQ. Canal aún no resuelto conserva inbox pendiente, no inventa cuenta/canal ni bloquea su registro. Core combina proyección con los datos públicos locales y reconoce catálogo/tombstones; no modifica autoridad Streaming.
+Core valida envelope, IDs, tipos y versiones y persiste inbox y efecto SQL antes de confirmar
+la entrega. La deduplicación debe cubrir la ventana de reentrega y redrive del broker elegida en
+P2-07. `sequence` equivale a `projectionVersion` y `aggregateId` a `stream:<streamId>`.
+Los instantes pueden llegar con `Z` o con desfase `+00:00`. Aplicación SQL e indicador procesado son atómicos. Solo projectionVersion mayor reemplaza toda la fila; duplicados/versiones viejas se ignoran sin regresión. Igual versión con contenido distinto es conflicto observable y DLQ. Canal aún no resuelto conserva inbox pendiente, no inventa cuenta/canal ni bloquea su registro. Core combina proyección con los datos públicos locales y reconoce catálogo/tombstones; no modifica autoridad Streaming.
 
-En el perfil normal, desde commit de cambio hasta consulta visible <=5 s: observación/publicación <=2 s y transporte/aplicación <=3 s. statusFresh usa stateObservedAtUtc y solo es true si edad <=5 s; viewerCountFresh usa viewerCountObservedAtUtc con el mismo límite. Guardar received/appliedAtUtc no rejuvenece observaciones del productor. La ausencia de fila de una configuración no acredita OFFLINE: channels devuelve UNKNOWN/statusFresh=false; ningún registro necesita esperar una proyección. Un corte completo confirma ausencia solo a capturedAtUtc y pierde frescura a los 5 s; la reconciliación de ausencia también debe sostener el presupuesto normal sin HTTP por fila. Atraso/desconexión excluye filas no confirmadas de streams y muestra availability=UNKNOWN en channels, nunca OFFLINE inventado. Las filas ENDED no son reproducibles aunque un snapshot viejo llegue después. Medir edad de snapshot/cola, procesamiento y lag; alerta deduplicada cuando supera 5 s.
+En el perfil normal, desde commit de cambio hasta interfaz visible <=5 s. El presupuesto incluye
+observación/publicación, broker, aplicación de proyección, Gateway y polling/hidratación del cliente;
+los presupuestos internos deben repartirse dentro de ese total. statusFresh usa stateObservedAtUtc y solo es true si edad <=5 s; viewerCountFresh usa viewerCountObservedAtUtc con el mismo límite. Guardar received/appliedAtUtc no rejuvenece observaciones del productor. La ausencia de fila de una configuración no acredita OFFLINE: channels devuelve UNKNOWN/statusFresh=false; ningún registro necesita esperar una proyección. Un corte completo confirma ausencia solo a capturedAtUtc y pierde frescura a los 5 s; la reconciliación de ausencia también debe sostener el presupuesto normal sin HTTP por fila. Atraso/desconexión excluye filas no confirmadas de streams y muestra availability=UNKNOWN en channels, nunca OFFLINE inventado. Las filas ENDED no son reproducibles aunque un snapshot viejo llegue después. Medir edad de snapshot/cola, procesamiento y lag; alerta deduplicada cuando supera 5 s.
 
-Entrega HTTPS: timeout 1 s; red/408/429/5xx reintenta 1/2/5/10 s y luego cada 10 s, respeta Retry-After y conserva eventId/payload durante 15 min. Cualquier 2xx confirma aceptación durable, no garantiza aplicación. 409/422 u otro 4xx permanente o ventana agotada pasan a DLQ durable sin TTL/retry automático; operador redrive con mismo ID/payload y nueva ventana o cierre justificado. Reconciliación puede restaurar una fila desde un snapshot más nuevo sin fabricar un ACK del delivery fallido. Caída de Discovery no bloquea LIVE/HLS ni entrega de lifecycle a Chat.
+La entrega usa la política durable del broker, con versión y eventId estables. Caída de Discovery
+no bloquea LIVE/HLS ni la suscripción de Chat. La reconciliación puede restaurar una fila desde
+un snapshot más nuevo sin fabricar confirmación del delivery fallido. La frescura representa
+la observación del productor, no la hora de recepción o consulta del Gateway.
 
 **Reconstrucción/reconciliación.** POST /internal/streaming/discovery/snapshots acepta {limit:1..50,cursor?}. Primera página materializa un corte consistente de todas las configuraciones públicas y última sesión, incluidos OFFLINE/ENDED; responde {snapshotId,watermark,capturedAtUtc,expiresAtUtc,items,nextCursor}. Cursor opaco ligado a snapshotId/limit; siguientes páginas comparten el mismo corte y watermark. El snapshot dura 5 min; vencido 410 SNAPSHOT_EXPIRED obliga a comenzar otro corte. watermark es discoveryPosition del mismo corte SQL, nunca posición de un evento sin commit.
 
@@ -573,14 +612,37 @@ se reintentan solo con un ID estable. Los esquemas se versionan y admiten cambio
 retirar un campo de forma incompatible exige una transición y evidencia del retiro.
 Las clases locales de aplicación permanecen dentro de su proceso.
 
-## Chat Replay futuro
+## VOD, replay y moderación
 
-P1 no conserva mensajes después de la retención de 5 minutos posterior a ENDED, así que no hay
-historial para Replay. Cuando la fase lo implemente, Chat deberá definir en un ADR nuevo un almacén
-duradero propio para mensaje/sesión/autor snapshot/texto/timestamp/sequence/offset y supresiones, con
-su retención y borrado. Core conserva vínculo VOD–sesión y política de acceso. Media/Core publican
-mapping temporal al VOD; Chat sirve ventanas/cursor por contrato, sin copia de tablas ni un servicio
-Replay separado de moderación.
+VOD posee vodId, vínculo a sessionId/channelId, metadatos, variantes, manifiestos y publicación.
+Su base es privada, independiente del motor elegido. La grabación toma la preferencia de
+autopublicación al inicio: activada por defecto; desactivada conserva borrador privado. Solo un
+medio validado puede publicarse. Los segmentos de todas las rendiciones recibidas se conservan
+en S3; el evento de disponibilidad requiere carga confirmada y puede llegar repetido/desordenado.
+
+Chat posee mensajes y supresiones. El player consulta ventanas temporales/cursor por VOD autorizado
+y cambia de ventana tras seek. P2-10 cierra mapping de tiempo de sesión a medio, huecos de reconexión,
+paginación y limpieza coordinada. Un evento de borrado retira acceso y dispara limpieza reintentable;
+no se promete una transacción global ni caducidad automática del VOD.
+
+El streamer puede borrar mensajes y solicitar explícitamente la eliminación de mensajes de un usuario.
+Puede bloquearlo a nivel de canal con vencimiento o permanentemente hasta retiro manual. La vigencia
+se evalúa al escribir, también tras reinicio; bloquear no borra automáticamente el historial.
+Las supresiones se aplican a live/replay. P2-11 concreta selección, alcance y límites del borrado.
+
+## Notificaciones y acceso administrativo
+
+Notificaciones conserva bandeja, leído, preferencias, dispositivos e intentos. Un inicio LIVE
+genera un aviso lógico por destinatario/sesión; una reconexión de la misma sesión no crea otro.
+Correo y push requieren activación, combinando preferencias por canal e interruptor por medio.
+Los intentos se deduplican y reintentan independientemente. SMTP está disponible; el proveedor y
+registro de dispositivos push requieren configuración y pruebas. Las APIs `p2.notifications.*` están definidas; P2-12…13 cierran políticas de entrega y provisión.
+
+La suspensión revoca sesiones, impide acceso autenticado y emisión, detiene la fuente activa y
+deja indisponibles canal/VOD/pistas/replay. El contrato de propagación debe impedir eludir la
+restricción mediante URLs directas de medios. P2-17 cierra autorización durante fallos y retirada
+de acceso; reactivar respeta borradores, borrados y retiradas anteriores. Cuentas provisiona el
+rol administrativo sin permitir asignación desde el registro público.
 
 ## Contratos de consulta y reglas de filtros
 
@@ -708,7 +770,12 @@ contra su proveedor, no implica que todas las rutas produzcan todos los status. 
 y binarios se describen para herramientas; no se convierten en JSON en la red. Respuestas aceptan
 campos aditivos, pero datos públicos rechazan secretos mediante la comprobación de privacidad.
 
-La definición estructural está en [contracts/p1.json](../contracts/p1.json): schemas, ejemplos,
+La definición estructural de las APIs base está en [contracts/p1.json](../contracts/p1.json): schemas, ejemplos,
 operaciones, queries y casos negativos. Este documento conserva la semántica y el SDL GraphQL.
 Ambas fuentes se validan con `contracts/generate.py --check`; los consumidores usan únicamente
 los artefactos derivados de `contracts/generated/`.
+
+Los contratos generados P1 no incluyen agregados SSR, login móvil, broker, VOD, moderación,
+notificaciones, watch parties ni pistas P2. La ampliación estructural vive en [contracts/p2.json](../contracts/p2.json); `contracts/check_p2.py`
+valida fuentes y ejemplos sin modificar derivados. Watch parties/subtítulos y firmas en revisión
+requieren las decisiones indicadas en su registro. No editar derivados manualmente.

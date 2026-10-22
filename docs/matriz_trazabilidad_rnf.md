@@ -1,5 +1,10 @@
 # Matriz de trazabilidad y cierre de RNF
 
+> Perfil de aceptación y alcance P1. Las obligaciones actuales de P2 están en
+> [alcance P2](alcance_p2.md), [catálogo](catalogo_requisitos.md) y [SPEC-15](spec-p2/spec_15_int.md).
+> Los mínimos arquitectónicos, transporte de eventos, SSR y retención/replay de P2 se verifican allí.
+
+
 Para cada requisito no funcional, esta matriz identifica una SPEC principal, las SPEC que colaboran
 y los resultados necesarios para aceptarlo. La principal responde por el resultado integrado;
 las demás comprueban la parte que les corresponde. Cada módulo sigue siendo responsable de sus datos.

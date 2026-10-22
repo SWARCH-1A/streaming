@@ -1,5 +1,10 @@
 # Criterios de entrega P1
 
+> Perfil de aceptación y alcance P1. Las obligaciones actuales de P2 están en
+> [alcance P2](alcance_p2.md), [catálogo](catalogo_requisitos.md) y [SPEC-15](spec-p2/spec_15_int.md).
+> Los mínimos arquitectónicos, transporte de eventos, SSR y retención/replay de P2 se verifican allí.
+
+
 Esta lista reúne las comprobaciones necesarias para aceptar la entrega de P1. Para cerrar cada
 criterio necesitamos la implementación y los resultados de su ejecución.
 

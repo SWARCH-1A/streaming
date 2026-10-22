@@ -3,28 +3,30 @@
 ## Alcance y lectura
 
 Trabaja en las responsabilidades asignadas por el usuario. Los módulos son accounts, channels,
-streaming, taxonomy, discovery, chat, accessibility e integration; Core agrupa accounts, channels, taxonomy y discovery; streaming es servicio Rust independiente.
+streaming, taxonomy, discovery, chat, vod, notifications, accessibility e integration; Core agrupa accounts, channels, taxonomy y discovery; streaming es servicio Rust independiente.
 Identity y Profile son responsabilidades internas de accounts. Una tarea global de arquitectura o
 consolidación explícitamente autorizada puede cambiar el mapa, contratos y módulos afectados.
 Si el alcance no permite identificar una responsabilidad, pide aclaración antes de editar código.
 
 Lee README.md, docs/README.md, el mapa de responsabilidades, la SPEC afectada y sus RF/RNF en
 docs/catalogo_requisitos.md. Para interacciones, lee contratos_modelo_datos.md y
-integracion_sistema_p1.md; para infraestructura/Web, SPEC-09…SPEC-13 y el documento de proxy.
+integracion_sistema_p1.md; para P2, lee alcance_p2.md, decisiones_pendientes_p2.md y docs/spec-p2/README.md; para infraestructura/Web, el documento de Gateway.
 docs/ es la definición vigente. Usa exclusivamente MCP de Plane y proyecto STREAMING para Plane.
 
 ## Propiedad
 
 | Módulo | Unidad | SPEC | UI |
 | --- | --- | --- | --- |
-| accounts | Core: autenticación, sesión y perfil | SPEC-01 | src/modules/accounts |
-| channels | Core: canal y propiedad | SPEC-03 | src/modules/channels |
-| streaming | Streaming Rust: emisión, cupos, clock, leases y proyección pública; contrato Media | SPEC-04 | src/modules/streaming |
+| accounts | Core: autenticación, sesión y perfil | SPEC-01 P2 | src/modules/accounts |
+| channels | Core: canal y propiedad | SPEC-03 P2 | src/modules/channels |
+| streaming | Streaming Rust: emisión, cupos, clock, leases y proyección pública; contrato Media | SPEC-04 P2 | src/modules/streaming |
 | taxonomy | Core: categorías y etiquetas | SPEC-06 | src/modules/taxonomy |
-| discovery | Core: consultas y GraphQL | SPEC-07 | src/modules/discovery |
-| chat | Chat: mensajes, cuota, secuencia, historial y realtime | SPEC-05 | src/modules/chat |
+| discovery | Core: consultas y GraphQL | SPEC-07 P2 | src/modules/discovery |
+| chat | Chat: mensajes durables, cuota, secuencia, moderación y replay | SPEC-05 P2 | src/modules/chat |
+| vod | VOD: biblioteca, metadatos, publicación y referencias S3 | SPEC-14 P2 | Ubicación por definir |
+| notifications | Notificaciones: bandeja, preferencias e intentos por medio | SPEC-20 P2 | Ubicación por definir |
 | accessibility | Web y criterios de todas las vistas afectadas | SPEC-08 | src/accessibility y vistas |
-| integration | Shell, contracts, infra y pruebas compartidas | SPEC-09…SPEC-13 | src/shell |
+| integration | Gateway, SSR, móvil, broker, contratos e integración | SPEC-10/15…19/24 P2 | src/shell y nuevas ubicaciones por definir |
 
 Core se ubica en services/core; Streaming Rust y adaptador Media en services/streaming; Chat en services/chat; MediaMTX en infra/media; UI bajo apps/web.
 Las responsabilidades de autenticación y perfil viven en services/core/src/main/java/streaming/core/accounts.
@@ -37,13 +39,13 @@ Pruebas locales junto al módulo; contratos/integración/E2E compartidos bajo te
 - Cada módulo escribe mediante su repositorio. Dentro de Core se usan interfaces locales, un gestor de transacciones y FK; lecturas compuestas mediante vistas/DTO publicados, columnas explícitas y propiedad de escritura clara.
 - Ningún proceso externo accede a tablas/modelos internos de otro. Chat no lee PostgreSQL Core y Core no escribe mensajes Chat. Contratos entre lenguajes son schemas neutros, no clases de implementación.
 - Registro cuenta/perfil/canal comparte transacción; no introducir saga de provisión o replicación de identidad/perfil para consultas locales.
-- Integración no implementa lógica de negocio ni un orquestador central. Las responsabilidades de un caso de uso pertenecen al dueño de sus datos.
-- Limita cambios al encargo autorizado; modificar consumidores o infraestructura fuera de ese alcance requiere aclarar el alcance. La frontera Streaming Rust está aceptada en ADR-005; otras extracciones requieren los criterios de fases_futuras.md.
-- La semántica de contratos vive en docs/contratos_modelo_datos.md. contracts/generated contiene artefactos generados; no crear otra definición a mano.
+- El Gateway compone datos por pantalla, gestiona fallos parciales y enruta HTTP/WS/HLS. Cada dominio conserva sus reglas, escrituras y autorización. El servidor SSR renderiza HTML a partir de los agregados.
+- Limita cambios al encargo autorizado; modificar consumidores o infraestructura fuera de ese alcance requiere aclarar el alcance. La frontera Streaming Rust está aceptada en ADR-005; VOD, Notificaciones y Gateway tienen las fronteras aceptadas en ADR-015. Otras extracciones requieren los criterios de fases_futuras.md.
+- La semántica de contratos vive en docs/contratos_modelo_datos.md y docs/contratos_p2_{http,eventos,media}.md. contracts/p2.json amplía la fuente p1.json; valida con contracts/check_p2.py. Conserva el ID de una SPEC al evolucionar su responsabilidad; crea otro para un componente o responsabilidad distintos. contracts/generated contiene artefactos generados; no crear otra definición a mano.
 
 ## Requisitos y decisiones
 
-- Conserva RF-001…RF-079 y RNF-001…RNF-050, IDs y prioridades; capacidades futuras siguen en el catálogo. No renumerar requisitos por agrupar SPEC.
+- Conserva RF-001…RF-083 y RNF-001…RNF-051 sin renumerar. P2 incluye todos los RF salvo RF-038…RF-045; las capacidades P1 continúan. Las políticas y tecnologías pendientes se resuelven por su responsable, sin inventarlas.
 - Si cambian comportamiento, contrato, propiedad, seguridad o aceptación, actualiza SPEC, contratos, mapa y ADR afectados en el mismo cambio. Mantén una definición vigente, sin anexos de corrección contradictorios.
 - Tecnología candidata no equivale a decisión aceptada. Registra opciones y consecuencias en docs/adr/ según politica_ADR.md.
 - Una decisión aceptada no demuestra implementación; reporta solo evidencia ejecutada. No inventar políticas de producto pendientes.
