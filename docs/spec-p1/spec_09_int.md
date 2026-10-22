@@ -1,5 +1,10 @@
 # SPEC-09 Integración transversal P1
 
+> Perfil de la primera entrega. Para P2 rigen el [alcance vigente](../alcance_p2.md),
+> las [SPEC P2](../spec-p2/README.md) y [ADR-015](../adr/ADR-015-arquitectura-p2.md).
+> Este documento conserva contratos y aceptación de P1; no acredita las ampliaciones de P2.
+
+
 - **Módulo:** integration
 - **Padre:** Ninguno
 - **Prioridad:** P1

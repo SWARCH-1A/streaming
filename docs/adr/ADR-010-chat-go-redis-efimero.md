@@ -1,5 +1,9 @@
 # ADR-010: Chat en Go con Redis efímero por sesión
 
+> Ámbito: perfil P1. [ADR-015](ADR-015-arquitectura-p2.md) define la arquitectura P2:
+> SSR, Gateway, broker, VOD y chat durable. Este ADR conserva la decisión de la primera entrega.
+
+
 - Estado: aceptada
 - Fecha: 2026-10-03
 - Responsable: Chat

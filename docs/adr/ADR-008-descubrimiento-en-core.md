@@ -1,5 +1,9 @@
 # ADR-008: Descubrimiento en Core con GraphQL propio y proyección SQL de Streaming
 
+> Ámbito: perfil P1. [ADR-015](ADR-015-arquitectura-p2.md) conserva Discovery en Core y
+> define entrega de proyecciones mediante broker y frescura hasta la interfaz para P2.
+
+
 - Estado: aceptada
 - Fecha: 2026-10-08
 - Responsable: Core / Consultas y descubrimiento; revisión con Core, Streaming e Integración

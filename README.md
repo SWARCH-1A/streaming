@@ -5,7 +5,9 @@ Permite crear una cuenta y un canal, emitir video, conversar por chat y encontra
 La interfaz se presenta como Vault tv.
 
 Los requisitos, contratos y decisiones están en [docs](docs/README.md). Esta guía explica
-cómo levantar el sistema completo en local.
+cómo levantar el código disponible en local. El [alcance P2](docs/alcance_p2.md) y sus
+[decisiones pendientes](docs/decisiones_pendientes_p2.md) describen la próxima entrega; estos
+comandos todavía corresponden al perfil implementado de P1.
 
 ## Ejecutar todo en local
 
