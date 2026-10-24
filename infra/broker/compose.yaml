@@ -12,7 +12,7 @@ services:
       - ${P1_STATE}/broker.key:/run/secrets/broker.key:ro
       - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      test: ["CMD", "gosu", "rabbitmq", "rabbitmq-diagnostics", "-q", "check_running"]
       interval: 10s
       timeout: 5s
       start_period: 30s
@@ -25,7 +25,7 @@ services:
       SPRING_RABBITMQ_PORT: "5671"
       SPRING_RABBITMQ_VIRTUAL_HOST: streaming-p2
       SPRING_RABBITMQ_USERNAME: core
-      SPRING_RABBITMQ_PASSWORD: ${BROKER_CORE_PASSWORD:?Run init --broker}
+      SPRING_RABBITMQ_PASSWORD: ${BROKER_CORE_PASSWORD:?Run python3 infra/local/dev.py init}
       SPRING_RABBITMQ_SSL_ENABLED: "true"
       SPRING_RABBITMQ_SSL_VALIDATE_SERVER_CERTIFICATE: "true"
       SPRING_RABBITMQ_SSL_VERIFY_HOSTNAME: "true"
@@ -36,12 +36,12 @@ services:
   live:
     environment:
       STREAMING_EVENTS_TRANSPORT: amqp
-      STREAMING_BROKER_URL: amqps://streaming:${BROKER_STREAMING_PASSWORD:?Run init --broker}@broker:5671/streaming-p2?heartbeat=30
+      STREAMING_BROKER_URL: amqps://streaming:${BROKER_STREAMING_PASSWORD:?Run python3 infra/local/dev.py init}@broker:5671/streaming-p2?heartbeat=30
       STREAMING_BROKER_CA_FILE: /run/secrets/ca.crt
   chat:
     environment:
       CHAT_EVENTS_TRANSPORT: amqp
-      CHAT_BROKER_URL: amqps://chat:${BROKER_CHAT_PASSWORD:?Run init --broker}@broker:5671/streaming-p2?heartbeat=30
+      CHAT_BROKER_URL: amqps://chat:${BROKER_CHAT_PASSWORD:?Run python3 infra/local/dev.py init}@broker:5671/streaming-p2?heartbeat=30
       CHAT_BROKER_CA_FILE: /run/secrets/ca.crt
   broker-ops:
     profiles: [tools]
@@ -49,7 +49,7 @@ services:
       context: ./infra/broker
       dockerfile: Dockerfile.operator
     environment:
-      BROKER_OPERATOR_PASSWORD: ${BROKER_OPERATOR_PASSWORD:?Run init --broker}
+      BROKER_OPERATOR_PASSWORD: ${BROKER_OPERATOR_PASSWORD:?Run python3 infra/local/dev.py init}
     volumes:
       - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
       - broker-audit:/audit

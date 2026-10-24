@@ -1,6 +1,6 @@
 # ADR-016: RabbitMQ y AMQP 0-9-1 para eventos y trabajos P2
 
-- Estado: aceptada para la integración inicial; recuperación integrada por acreditar
+- Estado: aceptada; ciclo/Discovery verificados, aceptación completa de SPEC-17 pendiente
 - Fecha: 2026-10-23
 - Responsable: Integración, con consumidores Streaming, Core y Chat
 - SPEC/contratos: SPEC-04/05/07/10/17/24; P2-07; contratos de eventos P2
@@ -62,9 +62,12 @@ responsables; aprovisionar sus colas no acredita esas funciones ni completa SPEC
 11. Inspección privada, métricas de colas y redrive/cierre explícitos con auditoría persistente.
     El redrive apunta solo a la suscripción original, conserva eventId/body y reinicia el
     presupuesto operativo de intentos. Publica con confirmación antes de ACK de DLQ.
-12. Activación optativa --broker en el arranque local. Cada servicio usa HTTP P1 o AMQP P2
-    para entrega de eventos, sin doble publicación. Las consultas de contexto/rebuild siguen
-    por HTTP, el video por HLS y Chat por WebSocket. Core conserva sus módulos en un proceso.
+12. RabbitMQ se incluye por defecto en el arranque local: init prepara sus secretos/certificados,
+    build incluye la herramienta operativa y up espera servicios saludables, Web y API.
+    Los comandos habituales no requieren parámetros adicionales. Los fixtures default/load de P1
+    mantienen HTTP; --broker se conserva como compatibilidad del gestor local. Cada servicio usa
+    HTTP P1 o AMQP P2 para entrega de eventos, sin doble publicación. Las consultas de contexto/rebuild
+    siguen por HTTP, el video por HLS y Chat por WebSocket. Core conserva sus módulos en un proceso.
 
 ## Opciones consideradas
 
@@ -111,8 +114,15 @@ Fuentes: [confirms y ACK](https://www.rabbitmq.com/docs/confirms),
 [NATS JetStream](https://docs.nats.io/concepts/jetstream),
 [diseño Kafka](https://kafka.apache.org/41/design/design/).
 
-Evidencia de esta integración inicial: validadores P1/P2 y configuración Compose ejecutados;
-Core empaquetado con JDK 25 y Chat compilado para Windows y Linux. No se ejecutaron suites
-de pruebas. La comprobación de compilación Rust en este host quedó detenida por ausencia del
-linker MSVC link.exe; Cargo.lock está resuelto y el código Rust formateado/parseado. Docker
-no respondió para levantar el conjunto, por lo que entrega/recuperación integrada sigue pendiente.
+La verificación de la integración inicial incluye validadores P1/P2, compilación Streaming con
+Rust 1.98.1/Cargo.lock y pruebas PostgreSQL del envelope inmutable. La prueba reproducible de
+[infraestructura](../../infra/broker/README.md#contratos-y-evidencia) comprueba arranque, CLI,
+TLS/ACL, suscripciones, persistencia tras reinicio y operación de DLQ. El workflow Broker regression
+ejecuta esa prueba y compila el adaptador Streaming.
+
+Se verificaron además emisión RTMPS real con video sintético, ciclo en Core/Chat y visibilidad
+GraphQL en Discovery; duplicados/desorden/conflictos; Chat detenido; reintentos 1/5/30 s con
+Redis indisponible; DLQ/redrive y recuperación de outbox con identidad/cuerpo conservados tras
+reiniciar publicador y broker. Estas comprobaciones cubren las dos familias implementadas.
+Quedan pendientes las ventanas exactas de fallo entre confirmación/commit/ACK, el presupuesto
+completo hasta interfaz bajo carga, restauración de backup y los recorridos VOD/Notificaciones.

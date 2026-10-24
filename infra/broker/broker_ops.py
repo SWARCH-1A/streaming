@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Private operator: inspect or transfer a DLQ message without rewriting its envelope."""
+"""Private broker operations: inspect or transfer DLQ messages without rewriting envelopes."""
 import argparse
 import hashlib
 import json

@@ -1,6 +1,6 @@
 # Perfil integrado persistente P1
 
-Para usar la aplicación en equipo, sigue la [guía del Compose raíz de nueve servicios](../../README.md).
+Para usar la aplicación en equipo, sigue la [guía local que incluye RabbitMQ](../../README.md).
 Este perfil se usa para las pruebas de aceptación, réplicas y carga, con sus propios datos y configuración.
 
 Implementación de [SPEC-13](../../docs/spec-p1/spec_13_int.md) y

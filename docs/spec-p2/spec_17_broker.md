@@ -1,6 +1,6 @@
 # SPEC-17 — Broker y entrega durable de eventos y trabajos
 
-**Prioridad:** P2. **Responsable:** Mensajería / integración. **Estado:** integración inicial implementada; aceptación integrada pendiente.
+**Prioridad:** P2. **Responsable:** Mensajería / integración. **Estado:** ciclo/Discovery verificados; aceptación completa pendiente.
 **RF:** RF-011, 020…022, 052, 056, 061, 079, 082. **RNF:** RNF-001, 006, 009…010, 014, 020…024, 025, 038, 041…047, 050…051.
 
 ## 1. Contexto y problema
@@ -102,5 +102,13 @@ No se bloquea un commit de dominio esperando a todos los consumidores.
 ## Integración inicial disponible
 
 El [perfil RabbitMQ](../../infra/broker/README.md) conecta los eventos de Streaming con
-core.lifecycle, core.discovery y chat.lifecycle. Los criterios anteriores continúan sin marcar
-hasta disponer de evidencia integrada; las colas VOD/Notificaciones no acreditan sus funciones.
+core.lifecycle, core.discovery y chat.lifecycle. Se verificaron emisión real, efectos en Core/Chat,
+Discovery, duplicados/desorden/conflictos, consumidores detenidos, reintentos, DLQ/redrive y reinicio
+con outbox/colas conservados. La prueba automatizada de infraestructura y su alcance están en
+el runbook del perfil. Los criterios anteriores conservan pendiente la aceptación completa:
+faltan las ventanas exactas de commit/confirm/ACK, la medición hasta interfaz bajo carga y las
+demás familias. Las colas VOD/Notificaciones no acreditan sus funciones.
+
+El gestor infra/local/dev.py incorpora el broker por defecto en init/build/up/status/down.
+La inicialización conserva datos y secretos existentes; up espera salud de RabbitMQ y los demás
+servicios con healthcheck, además de Web/API. Los perfiles de prueba P1 mantienen su aislamiento.

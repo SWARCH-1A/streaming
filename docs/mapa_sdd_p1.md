@@ -32,6 +32,9 @@ sus invariantes de registro transaccional, identidad opaca, propiedad y aislamie
 La retención efímera de Chat, SPA y eventos HTTPS punto a punto son perfiles P1; para P2 rigen
 las SPEC actuales, SSR y broker con consumidores independientes.
 
+Integración mantiene infra/local/dev.py e infra/p1/manage.py. El arranque local incluye RabbitMQ
+por defecto junto con los nueve servicios base; los fixtures P1 conservan HTTP y sus almacenes separados.
+
 No se asignan integrantes nominales desde este mapa. Cada responsable cierra sus
 [decisiones pendientes](decisiones_pendientes_p2.md), selecciona tecnología mediante ADR y
 ratifica las interfaces marcadas en revisión y completa schemas bloqueados antes de integrar sus consumidores. Los módulos Core siguen en su

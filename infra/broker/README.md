@@ -9,24 +9,44 @@ Las dieciocho suscripciones se aprovisionan para conservar las copias de cada do
 
 Desde la raíz, en Linux/macOS o WSL, con los requisitos del README principal:
 
-    python3 infra/local/dev.py init --broker
-    python3 infra/local/dev.py build --broker
-    python3 infra/local/dev.py up --broker
-    python3 infra/local/dev.py status --broker
-    python3 infra/local/dev.py down --broker
+Los comandos habituales incluyen RabbitMQ automáticamente:
 
-Detener emisiones y los servicios antes de cambiar de transporte. init --broker conserva
-contraseñas/volúmenes y añade certificado/credenciales/definiciones en el estado local ignorado.
-Repetirlo actualiza la definición sin rotar las claves existentes. El Compose raíz continúa
-arrancando P1 sin broker si no se indica --broker; no combinar instancias de ambos transportes.
+    python3 infra/local/dev.py init
+    python3 infra/local/dev.py build
+    python3 infra/local/dev.py up
+    python3 infra/local/dev.py status
+
+Abrir https://localhost:3445 con la CA local confiada según la
+[guía de certificados](../local/certificados.md). Se conservan las cuentas, sesiones y volúmenes
+existentes. Para detener este perfil conservando los datos:
+
+    python3 infra/local/dev.py down
+
+Al actualizar una instalación HTTP P1, detener las emisiones antes de cambiar de transporte.
+init conserva contraseñas/volúmenes y añade certificado/credenciales/definiciones en el estado local ignorado.
+Repetirlo actualiza la definición sin rotar las claves existentes. Los perfiles de aceptación
+default/load bajo infra/p1 conservan HTTP y sus datos separados. El indicador --broker se
+acepta por compatibilidad; el perfil local ya lo incluye en todas sus operaciones.
 
 El perfil añade un contenedor permanente broker y su volumen. broker-ops es una herramienta
 efímera con perfil tools; no cuenta como componente de negocio. No publica AMQP ni administración
 en el host. Cada dominio conserva su almacén privado. HTTP sigue para contexto/reconstrucción,
 WebSocket para mensajes al cliente y HLS para video.
-build --broker prepara también la imagen de operación para que esté disponible antes de una caída.
+build prepara también la imagen de operación para que esté disponible antes de una caída.
 Los servicios reintentan conexión de forma independiente; su arranque no exige que el broker
-ya esté saludable. Las operaciones de dominio no esperan el ACK de todos los consumidores.
+ya esté saludable. El comando up espera a los servicios con healthcheck y a Web/API antes de
+declarar listo el entorno. Las operaciones de dominio no esperan el ACK de todos los consumidores.
+En status, el broker debe alcanzar healthy. AMQP usa TLS en el puerto interno 5671 y
+administración HTTPS en 15671; ambos permanecen dentro de la red Docker. La configuración
+declara solo management.ssl para desactivar administración HTTP; management.tcp.port no
+admite el valor none. El script de operación se instala como broker_ops.py para conservar
+el acceso al módulo operator de la biblioteca estándar Python.
+El healthcheck usa el usuario rabbitmq para evitar crear una cookie Erlang de root durante
+un arranque lento.
+
+Para revisar el arranque y las conexiones:
+
+    docker compose --env-file infra/p1/.state-local/environment.env -f compose.yaml -f infra/broker/compose.yaml logs --tail=100 broker live core chat
 
 ## Fallos, métricas y DLQ
 
@@ -76,6 +96,18 @@ continúa con la implementación P1; esta integración no acredita el archivo du
 
     python3 contracts/check_p2.py
     python3 contracts/check_p2.py --event /ruta/a/envelope.json
+    python3 -m unittest discover -s infra/p1 -p 'test_*.py'
+    python3 infra/broker/smoke_test.py
+
+La prueba smoke requiere Docker, Python 3.12 y OpenSSL. Crea una red, certificados,
+credenciales, imagen de operación y volúmenes desechables con nombre aleatorio. No publica
+puertos ni modifica el proyecto local. Comprueba el arranque con la configuración del repo,
+CLI de operación, TLS y ACL negativas, suscripciones independientes, filtros, persistencia
+de un envelope P2 al reiniciar RabbitMQ, inspect/redrive/close, auditoría y métricas de colas.
+Al terminar retira sus recursos; si falla conserva diagnósticos privados en la ruta temporal
+indicada. Esta prueba acredita infraestructura; no ejecuta efectos de negocio en Core/Chat.
+El workflow Broker regression ejecuta esta prueba y compila la imagen Streaming con su
+Cargo.lock, para detectar incompatibilidades del adaptador AMQP.
 
 El registro neutral conserva nueve tipos/dieciocho suscripciones; solo dos payloads están listos.
 El código de cada servicio valida su contrato. Los criterios de recuperación/ACL/frescura

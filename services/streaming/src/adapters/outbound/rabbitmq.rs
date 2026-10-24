@@ -105,7 +105,7 @@ impl RabbitDomainEventPublisher {
                     .with_delivery_mode(2)
                     .with_content_type("application/json".into())
                     .with_message_id(event.event_id.to_string().into())
-                    .with_kind(kind.into())
+                    .with_type(kind.into())
                     .with_timestamp(
                         time::OffsetDateTime::parse(
                             &event.occurred_at_utc,

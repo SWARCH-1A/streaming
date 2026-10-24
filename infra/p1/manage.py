@@ -82,7 +82,7 @@ def local_network():
             raise RuntimeError("Choose an unused LOCAL_SUBNET and LOCAL_PROXY_IP before init")
     proxy_ip = ipaddress.ip_address(os.environ.get("LOCAL_PROXY_IP", str(subnet.network_address + 2)))
     if subnet.version != 4 or not subnet.is_private or subnet.prefixlen > 28:
-        raise RuntimeError("LOCAL_SUBNET must be a private IPv4 network with room for nine services")
+        raise RuntimeError("LOCAL_SUBNET must be a private IPv4 network with room for ten services")
     dynamic_range = list(subnet.subnets(prefixlen_diff=1))[1]
     if proxy_ip not in subnet or proxy_ip in dynamic_range or proxy_ip in (subnet.network_address, subnet.broadcast_address, subnet.network_address + 1):
         raise RuntimeError("LOCAL_PROXY_IP must be a usable address in the private IPv4 LOCAL_SUBNET")
@@ -172,15 +172,17 @@ def configured_ports(env):
     return https_port, rtmps_port
 
 
-def command(env, *args, s3=False, broker=False, timeout=180):
+def command(env, *args, s3=False, broker=None, timeout=180):
     if env.get("P1_STATE") != str(STATE): raise RuntimeError("Command state differs from the selected profile")
     if PROFILE == "local" and s3:
-        raise RuntimeError("The local nine-service installation uses filesystem; use the P1 profile for external S3")
+        raise RuntimeError("The local installation uses filesystem; use the P1 profile for external S3")
+    if broker is None:
+        broker = PROFILE == "local"
     compose = ROOT / "compose.yaml" if PROFILE == "local" else HERE / ("compose.s3.yaml" if s3 else "compose.yaml")
     cmd = ["docker","compose","--env-file",str(STATE / "environment.env"),"-p",PROJECT,"-f",str(compose)]
     if broker:
         if PROFILE != "local": raise RuntimeError("The broker overlay currently targets the root local profile")
-        if not env.get("BROKER_STREAMING_PASSWORD"): raise RuntimeError("Run init --broker first")
+        if not env.get("BROKER_STREAMING_PASSWORD"): raise RuntimeError("Run python3 infra/local/dev.py init first")
         cmd += ["-f",str(ROOT / "infra/broker/compose.yaml")]
     if s3 and env.get("CORE_IMAGE_S3_ENDPOINT") and not env["CORE_IMAGE_S3_ENDPOINT"].startswith("https://"):
         raise RuntimeError("The TLS profile requires an HTTPS S3 endpoint")
@@ -209,18 +211,19 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("init","build","up","status","down","reset"))
     parser.add_argument("--s3", action="store_true", help="External private S3; configure its environment first")
-    parser.add_argument("--broker", action="store_true", help="P2 RabbitMQ transport in the root local profile")
+    parser.add_argument("--broker", action="store_true", default=PROFILE == "local",
+                        help="RabbitMQ transport (already included in the local profile)")
     parser.add_argument("--replicas", type=int, choices=(1,2), default=1)
     parser.add_argument("--confirm-disposable", action="store_true", help="Required to remove only this project's volumes")
     args = parser.parse_args()
     if PROFILE == "local" and args.replicas != 1:
-        raise RuntimeError("The local installation has exactly nine services; use P1 for replica tests")
+        raise RuntimeError("The local installation has exactly ten services; use P1 for replica tests")
     # Lock outside .state so initialization is serialized too.
     with open(HERE / LOCK_NAME,"a") as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         env = initialize() if args.action=="init" else environment()
         if args.broker and args.action=="init":
-            if PROFILE != "local": raise RuntimeError("Use infra/local/dev.py init --broker")
+            if PROFILE != "local": raise RuntimeError("Use infra/local/dev.py init")
             import runpy
             setup = runpy.run_path(str(ROOT / "infra/broker/bootstrap.py"))
             env = setup["initialize"](env, STATE, run)
@@ -231,7 +234,9 @@ def main():
             print("Current runtime images built")
         elif args.action=="up":
             (STATE / "Caddyfile").write_text(render_proxy())
-            command(env,"up","-d","--scale",f"core={args.replicas}","--scale",f"chat={args.replicas}",s3=args.s3,broker=args.broker)
+            up_args = ("up", "-d", "--wait", "--wait-timeout", "180") if PROFILE == "local" else ("up", "-d")
+            command(env,*up_args,"--scale",f"core={args.replicas}","--scale",f"chat={args.replicas}",
+                    s3=args.s3,broker=args.broker,timeout=360 if PROFILE == "local" else 180)
             if PROFILE == "local":
                 wait_local(env)
                 print(f"Ready {PROJECT}: {env['WEB_ORIGIN']} (local CA required in the browser)")
