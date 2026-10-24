@@ -50,8 +50,9 @@ durable, consumidores independientes y reglas de disponibilidad compartidas.
 - VOD agrupa metadatos, publicación y referencias audiovisuales. La base privada puede compartir
   un servidor físico con otra base si conserva credenciales y propiedad; su despliegue se decide
   junto al inventario de componentes exigido por la asignatura.
-- MinIO y RustFS son candidatos locales. Producto del broker, runtime del Gateway/VOD/Notificaciones
-  y motores nuevos corresponden a los responsables; este ADR no selecciona esas tecnologías.
+- MinIO y RustFS son candidatos locales. El runtime del Gateway/VOD/Notificaciones
+  y los motores nuevos corresponden a sus responsables. [ADR-016](ADR-016-rabbitmq-eventos-p2.md)
+  selecciona posteriormente RabbitMQ para el broker.
 
 ## Consecuencias
 
@@ -70,7 +71,9 @@ Las responsabilidades existentes conservan su ID de SPEC; los componentes nuevos
 particulares en [índice P2](../spec-p2/README.md). SPEC-15 verifica integración, SPEC-16 define
 Gateway, SPEC-17 broker y entrega durable, SPEC-18 SSR, SPEC-19 móvil y SPEC-20 Notificaciones.
 
-La fuente [contracts/p2.json](../../contracts/p2.json) amplía schemas P1 con operaciones y eventos.
+La fuente [contracts/p2.json](../../contracts/p2.json) amplía progresivamente schemas P1. La
+cobertura actual incluye el registro de eventos y los payloads de ciclo/Discovery; el resto
+de operaciones y payloads P2 sigue pendiente.
 [HTTP/WS](../contratos_p2_http.md), [eventos](../contratos_p2_eventos.md) y
 [S3/timeline](../contratos_p2_media.md) fijan semántica, permisos, fallos y recuperación.
 Las firmas con políticas delegadas siguen identificadas en revisión o bloqueadas.

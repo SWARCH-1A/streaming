@@ -83,3 +83,9 @@ monotónico de 500 ms abarca solicitar contexto e intentar el script; el I/O Red
 contexto y no hace retries automáticos. Timeout Redis puede dejar un commit desconocido sin ACK: el
 cliente recupera con el mismo clientMessageId, sin prometer cancelación retroactiva del script.
 La [suite integrada P1](../../tests/integration/p1-domains/README.md) usa los proveedores reales.
+
+## Transporte P2 por RabbitMQ
+
+CHAT_EVENTS_TRANSPORT=http (por defecto) conserva recepción HTTP P1. Con amqp, CHAT_BROKER_URL y CHAT_BROKER_CA_FILE son obligatorios: consume chat.lifecycle y deshabilita su endpoint HTTP de eventos. Inbox y barrera P2 se persisten sin TTL en Redis, atómicos con el efecto. El historial/replay sigue pendiente de la evolución SPEC-05; el broker no cambia su retención P1.
+
+Ver [perfil compartido](../../infra/broker/README.md) y [ADR-016](../../docs/adr/ADR-016-rabbitmq-eventos-p2.md).

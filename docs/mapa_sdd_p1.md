@@ -18,7 +18,7 @@ locales; Gateway, Streaming, Chat, VOD y Notificaciones tienen sus fronteras des
 | Subtítulos / accesibilidad | Publicación y sincronía de pistas; controles accesibles | [SPEC-22](spec-p2/spec_22_subtitles.md); RF-063…065; P2-04…05 | Dueños del contenido y clientes; contrato por cerrar |
 | Web | SSR, rutas, HTML inicial, hidratación y módulos de interacción | [SPEC-18](spec-p2/spec_18_ssr.md); RNF-002/035…037 | apps/web |
 | Móvil | Experiencia de espectador KMP + Compose, sesión segura y push | [SPEC-19](spec-p2/spec_19_mobile.md); RNF-002/007 | Nueva aplicación; ubicación por definir |
-| Gateway / integración | Entrada, agregación por pantalla, errores parciales, HTTP/WS/HLS y broker compartido | [SPEC-16](spec-p2/spec_16_gateway.md), [SPEC-17](spec-p2/spec_17_broker.md), [SPEC-10](spec-p2/spec_10_contracts.md) y [SPEC-24](spec-p2/spec_24_deployment.md); RNF-003/006/023/051 | Nuevo Gateway; contracts, infra y tests compartidos |
+| Gateway / integración | Entrada, agregación por pantalla, errores parciales, HTTP/WS/HLS y broker compartido | [SPEC-16](spec-p2/spec_16_gateway.md), [SPEC-17](spec-p2/spec_17_broker.md), [SPEC-10](spec-p2/spec_10_contracts.md) y [SPEC-24](spec-p2/spec_24_deployment.md); RNF-003/006/023/051 | Nuevo Gateway; contracts, infra/broker (ADR-016) y tests compartidos |
 | Administración | Operaciones privilegiadas sobre cada dominio y UI común | [SPEC-23](spec-p2/spec_23_admin.md); RF-076…079; P2-17 | Cuentas provisiona rol; cada dominio ejecuta su operación |
 
 La bandeja VOD por canal puede componerse en Gateway, pero VOD conserva su consulta y autorización.

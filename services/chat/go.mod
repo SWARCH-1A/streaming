@@ -3,6 +3,7 @@ module streaming/chat
 go 1.26.0
 
 require (
+	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/alicebob/miniredis/v2 v2.39.0
 	github.com/coder/websocket v1.8.15
 	github.com/google/uuid v1.6.0

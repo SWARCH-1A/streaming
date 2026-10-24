@@ -90,7 +90,7 @@ flowchart LR
     V[Contenedor VOD]
     N[Contenedor Notificaciones / workers]
     M[Contenedor Media]
-    B[Contenedor broker]
+    B[Contenedor RabbitMQ / AMQP]
     D[(Almacenes privados persistentes)]
   end
   G --> C
@@ -146,3 +146,5 @@ necesita su almacenamiento y recuperación correspondientes.
 VOD conserva todas las rendiciones recibidas y valida el medio antes de publicar. La limpieza
 es reintentable, con retirada de acceso inmediata. La suspensión de cuenta afecta también a
 manifiestos, segmentos, subtítulos y replay; no basta ocultar enlaces de la interfaz.
+
+La selección RabbitMQ y la integración inicial Streaming–Core/Chat están en [ADR-016](adr/ADR-016-rabbitmq-eventos-p2.md). El diagrama P2 sigue incluyendo componentes/recorridos pendientes; ver [perfil implementado](../infra/broker/README.md).

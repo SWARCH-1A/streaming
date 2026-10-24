@@ -1,6 +1,6 @@
 # SPEC-17 — Broker y entrega durable de eventos y trabajos
 
-**Prioridad:** P2. **Responsable:** Mensajería / integración. **Estado:** diseño para desarrollo.
+**Prioridad:** P2. **Responsable:** Mensajería / integración. **Estado:** integración inicial implementada; aceptación integrada pendiente.
 **RF:** RF-011, 020…022, 052, 056, 061, 079, 082. **RNF:** RNF-001, 006, 009…010, 014, 020…024, 025, 038, 041…047, 050…051.
 
 ## 1. Contexto y problema
@@ -12,8 +12,8 @@ incoherentes ni perder trabajos aceptados.
 ## 2. Definición del componente
 
 Un único broker interno compartido y adaptadores de publicación/consumo en los servicios.
-No se implementa un motor de mensajería desde cero. La selección del producto y protocolo
-corresponde al responsable; esta SPEC define la semántica exigida a cualquier selección.
+No se implementa un motor de mensajería desde cero. RabbitMQ y AMQP 0-9-1 están seleccionados en
+[ADR-016](../adr/ADR-016-rabbitmq-eventos-p2.md); esta SPEC conserva la semántica exigida.
 
 ## 3. Historia de usuario
 
@@ -49,7 +49,8 @@ continúa para consultas y autorización inmediata. El broker no transporta byte
 ## 7. Diseño técnico y datos
 
 [Mensajería P2](../contratos_p2_eventos.md) y `contracts/p2.json.events` fijan nueve tipos de
-mensaje, productores, payloads y suscripciones lógicas. El responsable mapea esos nombres al
+mensaje, productores y suscripciones lógicas. Los payloads ejecutables de ciclo/Discovery están
+listos; las otras siete familias permanecen pendientes de sus responsables. El responsable mapea esos nombres al
 producto elegido sin cambiar qué consumidores reciben cada mensaje.
 
 El outbox se escribe con el cambio de dominio. Solo se marca publicado tras confirmación durable
@@ -79,7 +80,9 @@ adaptador neutral, sin importar clases de dominio de otro lenguaje.
 
 ## 9. Decisiones y preguntas abiertas
 
-P2-07: producto, protocolo, SDK por lenguaje, topología física, tamaños, reintentos, DLQ y redrive.
+P2-07: [ADR-016](../adr/ADR-016-rabbitmq-eventos-p2.md) fija producto, protocolo, SDK iniciales,
+topología, tamaños, reintentos, DLQ/redrive y retención. La evidencia integrada de recuperación
+y la compatibilidad de runtimes futuros permanecen pendientes.
 La entrega durable, suscripciones independientes y un único broker son obligatorios. El ADR
 incluye matriz de compatibilidad Java/Rust/Go y runtimes nuevos, más evidencia de recuperación.
 
@@ -95,3 +98,9 @@ funcional; SPEC-15 exige grabación o entrega real procesada por un worker.
 Esfuerzo L. Introduce dependencia operativa y coordinación por contratos. La instancia única
 no garantiza alta disponibilidad; el runbook debe describir recuperación y efecto de su caída.
 No se bloquea un commit de dominio esperando a todos los consumidores.
+
+## Integración inicial disponible
+
+El [perfil RabbitMQ](../../infra/broker/README.md) conecta los eventos de Streaming con
+core.lifecycle, core.discovery y chat.lifecycle. Los criterios anteriores continúan sin marcar
+hasta disponer de evidencia integrada; las colas VOD/Notificaciones no acreditan sus funciones.

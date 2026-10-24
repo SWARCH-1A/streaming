@@ -221,3 +221,9 @@ rechazar schemas no vacíos sin historial Core; no activar baseline-on-migrate n
 La base actual está vacía: se inicializa con Flyway V1 y no requiere importar datos ni archivos de
 prototipos anteriores. La secuencia anterior solo describe evolución del esquema Core, no una
 migración de datos.
+
+## Transporte P2 por RabbitMQ
+
+CORE_EVENTS_TRANSPORT=http (por defecto) conserva recepción HTTP P1. Con amqp, consume core.lifecycle/core.discovery mediante Spring AMQP y deshabilita la entrega HTTP de eventos. El inbox P2 es SQL local sin TTL automático; la barrera de ciclo no reemplaza metadatos/contadores. Configurar host/puerto/vhost/usuario/password spring.rabbitmq y truststore JVM con CA/hostname verificados.
+
+Ver [perfil compartido](../../infra/broker/README.md) y [ADR-016](../../docs/adr/ADR-016-rabbitmq-eventos-p2.md).

@@ -31,6 +31,7 @@ management:
       probes:
         enabled: true
 core:
+  events-transport: ${CORE_EVENTS_TRANSPORT:http}
   images:
     storage-provider: ${CORE_IMAGE_STORAGE_PROVIDER:s3}
     s3:

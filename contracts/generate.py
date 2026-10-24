@@ -214,7 +214,8 @@ def main():
             path = OUTPUT / name
             if not path.is_file() or path.read_text(encoding="utf-8") != content:
                 raise ValueError(f"Generated contract drift: {name}; run --write")
-        unexpected = {p.name for p in OUTPUT.iterdir() if p.is_file()} - set(files) - {"README.md"}
+        # P2's independent validator owns this generated extension.
+        unexpected = {p.name for p in OUTPUT.iterdir() if p.is_file()} - set(files) - {"README.md", "p2.schema.json"}
         if unexpected:
             raise ValueError(f"Unexpected generated files: {sorted(unexpected)}")
     print(f"PASS: {len(bundle['schemas'])} schemas, {len(bundle['operations'])} operations, examples and SDL")

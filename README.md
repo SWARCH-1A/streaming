@@ -7,7 +7,8 @@ La interfaz se presenta como Vault tv.
 Los requisitos, contratos y decisiones están en [docs](docs/README.md). Esta guía explica
 cómo levantar el código disponible en local. El [alcance P2](docs/alcance_p2.md) y sus
 [decisiones pendientes](docs/decisiones_pendientes_p2.md) describen la próxima entrega; estos
-comandos todavía corresponden al perfil implementado de P1.
+comandos base corresponden al perfil implementado de P1. La integración inicial de broker P2
+se activa con --broker; ver [RabbitMQ](infra/broker/README.md).
 
 ## Ejecutar todo en local
 
@@ -115,3 +116,10 @@ IP fija porque Core solo acepta los headers de forwarding de esa IP.
 
 [Arquitectura](docs/arquitectura_c4_cnc_despliegue.md), [SPEC P1](docs/spec-p1/README.md),
 [contratos](docs/contratos_modelo_datos.md) y [ADR](docs/adr/README.md) describen las fronteras técnicas.
+
+## Integración inicial P2 por broker
+
+RabbitMQ transporta ciclo de sesión a Core/Chat y snapshots a Discovery. Para activarlo,
+seguir [arranque y recuperación](infra/broker/README.md). Se conserva el perfil P1 por defecto.
+La selección está en [ADR-016](docs/adr/ADR-016-rabbitmq-eventos-p2.md); quedan pendientes las
+funciones VOD/Notificaciones/cuentas y su evidencia integrada.

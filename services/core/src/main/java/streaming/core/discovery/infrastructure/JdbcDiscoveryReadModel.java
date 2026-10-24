@@ -22,12 +22,15 @@ import tools.jackson.databind.ObjectMapper;
  */
 @Repository
 public class JdbcDiscoveryReadModel implements DiscoveryReadModel {
+    private static final String LIFECYCLE_NEWER="(sl.stream_generation>sp.stream_generation OR (sl.stream_generation=sp.stream_generation AND sl.session_version>COALESCE(sp.session_version,0)))";
     private static final String CHANNEL_JOINS="""
             FROM discovery.stream_projection sp
             JOIN channels.public_channels c ON c.channel_id=sp.channel_id
             JOIN identity.public_accounts a ON a.user_id=c.owner_user_id
             JOIN profile.public_profiles p ON p.user_id=c.owner_user_id
-            WHERE sp.status='LIVE' AND sp.availability='PLAYABLE' AND sp.state_observed_at_utc BETWEEN :oldest AND :newest""";
+            LEFT JOIN discovery.session_lifecycle sl ON sl.stream_id=sp.stream_id
+            WHERE sp.status='LIVE' AND sp.availability='PLAYABLE' AND sp.state_observed_at_utc BETWEEN :oldest AND :newest"""
+            +" AND NOT (COALESCE("+LIFECYCLE_NEWER+",false) AND (sl.status<>'LIVE' OR sl.availability<>'PLAYABLE'))";
     private final JdbcClient jdbc;
     private final ObjectMapper json;
     private final String avatarBase;
@@ -83,8 +86,12 @@ public class JdbcDiscoveryReadModel implements DiscoveryReadModel {
            .append("ranked AS (SELECT m.*,LEAST(class_h,class_d) AS best_class,CASE WHEN class_h<=class_d THEN 0 ELSE 1 END AS field_rank ")
            .append("FROM matched m WHERE LEAST(class_h,class_d)<3) ")
            .append("SELECT r.channel_id,r.user_id,r.channel_version,r.handle,r.display_name,r.avatar_key,r.best_class,r.field_rank,")
-           .append("sp.stream_id IS NOT NULL AS has_projection,sp.title,sp.status,sp.availability,sp.metadata_version,sp.session_version,sp.state_observed_at_utc ")
-           .append("FROM ranked r LEFT JOIN discovery.stream_projection sp ON sp.channel_id=r.channel_id");
+           .append("sp.stream_id IS NOT NULL AS has_projection,sp.title,")
+           .append("CASE WHEN "+LIFECYCLE_NEWER+" THEN CASE WHEN sl.status='RECONNECT_GRACE' THEN 'LIVE' ELSE sl.status END ELSE sp.status END AS status,")
+           .append("CASE WHEN "+LIFECYCLE_NEWER+" THEN sl.availability ELSE sp.availability END AS availability,sp.metadata_version,")
+           .append("CASE WHEN "+LIFECYCLE_NEWER+" THEN sl.session_version ELSE sp.session_version END AS session_version,")
+           .append("CASE WHEN "+LIFECYCLE_NEWER+" THEN sl.occurred_at_utc ELSE sp.state_observed_at_utc END AS state_observed_at_utc ")
+           .append("FROM ranked r LEFT JOIN discovery.stream_projection sp ON sp.channel_id=r.channel_id LEFT JOIN discovery.session_lifecycle sl ON sl.stream_id=sp.stream_id");
         var params=new HashMap<String,Object>();
         if(search) params.put("q",normalizedQuery);
         if(after!=null) {

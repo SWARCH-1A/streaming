@@ -11,6 +11,7 @@ pub enum Environment {
 }
 
 pub struct AppConfig {
+    pub broker: Option<(String, String)>,
     pub instance_id: String,
     pub bind_addr: SocketAddr,
     pub private_bind_addr: SocketAddr,
@@ -46,6 +47,32 @@ pub struct AppConfig {
 impl AppConfig {
     pub fn from_env() -> Result<Self, ConfigError> {
         let environment = environment_from_env()?;
+        let transport = optional("STREAMING_EVENTS_TRANSPORT").unwrap_or_else(|| "http".into());
+        let broker = match transport.as_str() {
+            "http" => None,
+            "amqp" => {
+                let url = required("STREAMING_BROKER_URL")?;
+                if !url.starts_with("amqps://") || url.parse::<lapin::uri::AMQPUri>().is_err() {
+                    return Err(ConfigError::InvalidValue {
+                        name: "STREAMING_BROKER_URL",
+                        reason: "must be a valid AMQPS URI",
+                    });
+                }
+                let ca = std::fs::read_to_string(required("STREAMING_BROKER_CA_FILE")?).map_err(
+                    |_| ConfigError::InvalidValue {
+                        name: "STREAMING_BROKER_CA_FILE",
+                        reason: "must be a readable CA PEM file",
+                    },
+                )?;
+                Some((url, ca))
+            }
+            _ => {
+                return Err(ConfigError::InvalidValue {
+                    name: "STREAMING_EVENTS_TRANSPORT",
+                    reason: "must be http or amqp",
+                });
+            }
+        };
 
         let bind_addr = parse_or("STREAMING_BIND_ADDR", "0.0.0.0:8080")?;
         let private_bind_addr = parse_or("STREAMING_PRIVATE_BIND_ADDR", "0.0.0.0:8091")?;
@@ -224,11 +251,13 @@ impl AppConfig {
                 "STREAMING_CORE_CONSUMER_TOKEN",
                 core_consumer_token.as_deref(),
             )?;
-            require_bearer_token(
-                "STREAMING_CHAT_SERVICE_TOKEN",
-                chat_service_token.as_deref(),
-            )?;
-            require_https("STREAMING_CHAT_BASE_URL", chat_base_url.as_deref())?;
+            if broker.is_none() {
+                require_bearer_token(
+                    "STREAMING_CHAT_SERVICE_TOKEN",
+                    chat_service_token.as_deref(),
+                )?;
+                require_https("STREAMING_CHAT_BASE_URL", chat_base_url.as_deref())?;
+            }
             require_postgres_tls("STREAMING_DATABASE_URL", &database_url)?;
             if let Some(database_read_url) = database_read_url.as_deref() {
                 require_postgres_tls("STREAMING_DATABASE_READ_URL", database_read_url)?;
@@ -289,6 +318,7 @@ impl AppConfig {
         }
 
         Ok(Self {
+            broker,
             instance_id: format!("instance_{}", Uuid::now_v7()),
             bind_addr,
             private_bind_addr,

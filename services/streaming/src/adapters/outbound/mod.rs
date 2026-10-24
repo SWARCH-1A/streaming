@@ -5,6 +5,7 @@ pub mod mediamtx;
 pub mod monotonic_clock;
 pub mod os_secret_generator;
 pub mod postgres;
+pub mod rabbitmq;
 pub mod readiness;
 pub mod viewer_lease_credentials;
 pub(crate) mod worker_health;
