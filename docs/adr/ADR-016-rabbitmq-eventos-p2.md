@@ -38,7 +38,9 @@ responsables; aprovisionar sus colas no acredita esas funciones ni completa SPEC
    initialLive; conserva ID y cuerpo al reintentar. CorrelationId usa el eventId opaco del outbox:
    no se fabrica una correlación con credenciales ni con una petición histórica desconocida.
 6. Inbox con identidad (consumer,eventId), fingerprint y efecto atómicos antes del ACK manual.
-   Core usa SQL local; Chat, Lua/Redis con AOF. Las versiones de ciclo y proyección no se comparan
+   Core usa los repositorios Discovery BrokerEventStore/ProjectionStore en una transacción local
+   compartida; sus adaptadores JDBC poseen el SQL, y la aplicación coordina validación y reglas.
+   Chat usa Lua/Redis con AOF. Las versiones de ciclo y proyección no se comparan
    entre sí. Core conserva una barrera de ciclo separada; Chat conserva la barrera incluso si
    expira la caché de sala. Los eventos no autorizan operaciones protegidas.
 7. Un consumidor por cola y prefetch 16. Errores transitorios: tres reintentos tras 1, 5 y 30 s;
@@ -119,6 +121,8 @@ Rust 1.98.1/Cargo.lock y pruebas PostgreSQL del envelope inmutable. La prueba re
 [infraestructura](../../infra/broker/README.md#contratos-y-evidencia) comprueba arranque, CLI,
 TLS/ACL, suscripciones, persistencia tras reinicio y operación de DLQ. El workflow Broker regression
 ejecuta esa prueba y compila el adaptador Streaming.
+Core/Discovery comprueba además sus puertos de repositorio y rollback conjunto de inbox P2 y
+ciclo/proyección con PostgreSQL desechable; esas pruebas forman parte del mismo workflow.
 
 Se verificaron además emisión RTMPS real con video sintético, ciclo en Core/Chat y visibilidad
 GraphQL en Discovery; duplicados/desorden/conflictos; Chat detenido; reintentos 1/5/30 s con

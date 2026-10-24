@@ -46,6 +46,14 @@ El evento usa `DiscoverySnapshot` canónico de P1 dentro del nuevo envelope tipa
 el significado de projectionVersion, discoveryPosition ni watermark. El transporte ya no llama
 los endpoints HTTPS de entrega de eventos P1. Inbox y actualizaciones se confirman antes de ACK.
 
+En Core, BrokerEventIngestService valida y coordina una sola transacción. BrokerEventStore y
+su adaptador JdbcBrokerEventStore poseen el SQL del inbox P2 y la barrera de ciclo; ProjectionStore
+posee la proyección y los conflictos. Ambos repositorios participan en esa misma transacción,
+incluido el bloqueo de la fila de ciclo, sin commits independientes ni SQL en el servicio de aplicación.
+Los conflictos de proyección conservan los motivos CHANNEL_MISMATCH/SAME_VERSION_DIFFERENT_CONTENT;
+los de la barrera de ciclo se registran como LIFECYCLE_CONFLICT. Un redrive conserva el resultado
+de conflicto y no se convierte en duplicado aceptado ni en un error transitorio SQL.
+
 Un evento de ciclo de sesión puede invalidar elegibilidad vieja por sessionVersion/generación,
 pero no reemplaza un snapshot más nuevo con un contador anterior. La reconstrucción sigue
 recibiendo eventos y aplica solo versiones pertinentes tras el corte consistente.

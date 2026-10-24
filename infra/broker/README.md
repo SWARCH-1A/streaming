@@ -107,7 +107,9 @@ de un envelope P2 al reiniciar RabbitMQ, inspect/redrive/close, auditoría y mé
 Al terminar retira sus recursos; si falla conserva diagnósticos privados en la ruta temporal
 indicada. Esta prueba acredita infraestructura; no ejecuta efectos de negocio en Core/Chat.
 El workflow Broker regression ejecuta esta prueba y compila la imagen Streaming con su
-Cargo.lock, para detectar incompatibilidades del adaptador AMQP.
+Cargo.lock, para detectar incompatibilidades del adaptador AMQP. También ejecuta las pruebas
+de puertos de repositorio y transacciones PostgreSQL de Core/Discovery con compilación limpia,
+incluidos fallos después del efecto y antes de completar el inbox P2.
 
 El registro neutral conserva nueve tipos/dieciocho suscripciones; solo dos payloads están listos.
 El código de cada servicio valida su contrato. Los criterios de recuperación/ACL/frescura
