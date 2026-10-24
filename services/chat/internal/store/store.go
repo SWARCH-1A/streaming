@@ -368,3 +368,42 @@ func (s *Store) ApplyEvent(ctx context.Context, eventID, fingerprint string, st 
 		[]string{inboxKey(eventID), roomKey(sid), seqKey(sid), dedupeKey(sid), msgsKey(sid)}, args...).Text()
 	return ApplyResult(res), err
 }
+
+// P2 preserves identity/fingerprint and the version barrier across room expiry and
+// operational redrive. These compact records have no automatic expiry.
+var applyBrokerEventScript = redis.NewScript(applyLua + `
+local previous = redis.call('GET', KEYS[1])
+if previous then
+  if previous == ARGV[8] then return 'DUPLICATE' end
+  return 'CONFLICT'
+end
+local state = redis.call('HMGET', KEYS[6], 'generation', 'version', 'status', 'fingerprint')
+local gen, ver = tonumber(ARGV[1]), tonumber(ARGV[2])
+if state[1] then
+  local cg, cv = tonumber(state[1]), tonumber(state[2])
+  if gen < cg or (gen == cg and ver < cv) then
+    redis.call('SET', KEYS[1], ARGV[8])
+    return 'STALE'
+  end
+  if gen == cg and ver == cv then
+    if state[4] ~= ARGV[9] then return 'CONFLICT' end
+    redis.call('SET', KEYS[1], ARGV[8])
+    return 'STALE'
+  end
+  if state[3] == 'READ_ONLY' then return 'CONFLICT' end
+end
+local result = apply(KEYS[2], {KEYS[3], KEYS[4], KEYS[5]}, gen, ver, ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7])
+redis.call('HSET', KEYS[6], 'generation', gen, 'version', ver, 'status', ARGV[3], 'fingerprint', ARGV[9])
+redis.call('SET', KEYS[1], ARGV[8])
+return result
+`)
+
+func (s *Store) ApplyBrokerEvent(ctx context.Context, eventID, fingerprint, stateFingerprint string, st chat.SessionState) (ApplyResult, error) {
+	sid := st.SessionID
+	args := append(s.stateArgs(st), fingerprint, stateFingerprint)
+	result, err := applyBrokerEventScript.Run(ctx, s.rdb, []string{
+		"chat:p2:inbox:chat.lifecycle:" + eventID, roomKey(sid), seqKey(sid), dedupeKey(sid), msgsKey(sid),
+		"chat:p2:lifecycle:{" + sid + "}",
+	}, args...).Text()
+	return ApplyResult(result), err
+}

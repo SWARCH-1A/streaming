@@ -6,8 +6,8 @@ La interfaz se presenta como Vault tv.
 
 Los requisitos, contratos y decisiones están en [docs](docs/README.md). Esta guía explica
 cómo levantar el código disponible en local. El [alcance P2](docs/alcance_p2.md) y sus
-[decisiones pendientes](docs/decisiones_pendientes_p2.md) describen la próxima entrega; estos
-comandos todavía corresponden al perfil implementado de P1.
+[decisiones pendientes](docs/decisiones_pendientes_p2.md) describen la próxima entrega. El arranque
+local incluye las capacidades existentes y la integración inicial P2 de [RabbitMQ](infra/broker/README.md).
 
 ## Ejecutar todo en local
 
@@ -27,8 +27,11 @@ python3 infra/local/dev.py status
 ```
 
 `init` genera los secretos y certificados locales en `infra/p1/.state-local/`, que Git ignora.
-Puedes repetirlo: conserva la configuración y los datos existentes. `up` espera respuestas HTTPS
-de Web y la API. El [Compose raíz](compose.yaml) levanta **nueve contenedores**:
+Puedes repetirlo: conserva la configuración y los datos existentes. También prepara certificados,
+credenciales y topología del broker. `build` compila los servicios y la herramienta de operación.
+`up` espera los servicios con healthcheck, incluido RabbitMQ, y respuestas HTTPS de Web y la API.
+El gestor combina el [Compose raíz](compose.yaml) y la [configuración RabbitMQ](infra/broker/compose.yaml)
+para levantar **diez contenedores**:
 
 | Servicio | Función |
 | --- | --- |
@@ -41,6 +44,7 @@ de Web y la API. El [Compose raíz](compose.yaml) levanta **nueve contenedores**
 | `media-server` | MediaMTX: ingesta RTMPS y entrega HLS |
 | `web` | Build estático de la SPA React, servido por HTTPS |
 | `proxy` | Entrada pública HTTPS y rutas Web/API/WebSocket/HLS |
+| `broker` | RabbitMQ: eventos de sesión para Core/Chat y snapshots de Discovery |
 
 Abrir **[https://localhost:3445](https://localhost:3445)**. Antes, confiar en
 `infra/p1/.state-local/ca.crt` en el sistema donde corren OBS y el navegador, siguiendo la
@@ -76,18 +80,19 @@ sus rutas y variables `STREAMING_*`.
 ## Parar, actualizar y diagnosticar
 
 ```sh
+python3 infra/local/dev.py init       # conserva datos y añade configuración nueva
 python3 infra/local/dev.py down       # conserva datos y secretos
 python3 infra/local/dev.py build      # recompila el checkout después de actualizarlo
 python3 infra/local/dev.py up
 ```
 
-También se puede usar Compose directamente; el único manifest es el de la raíz:
+También se puede usar Compose directamente, incluyendo los dos manifests:
 
 ```sh
-docker compose --env-file infra/p1/.state-local/environment.env up --build -d
-docker compose --env-file infra/p1/.state-local/environment.env ps
-docker compose --env-file infra/p1/.state-local/environment.env logs --tail=100 core live chat proxy
-docker compose --env-file infra/p1/.state-local/environment.env down
+docker compose --env-file infra/p1/.state-local/environment.env -f compose.yaml -f infra/broker/compose.yaml up --build -d --wait
+docker compose --env-file infra/p1/.state-local/environment.env -f compose.yaml -f infra/broker/compose.yaml ps
+docker compose --env-file infra/p1/.state-local/environment.env -f compose.yaml -f infra/broker/compose.yaml logs --tail=100 broker core live chat proxy
+docker compose --env-file infra/p1/.state-local/environment.env -f compose.yaml -f infra/broker/compose.yaml down
 ```
 
 Los errores del gestor quedan en `infra/p1/.state-local/diagnostics.log`. Para empezar con bases
@@ -115,3 +120,14 @@ IP fija porque Core solo acepta los headers de forwarding de esa IP.
 
 [Arquitectura](docs/arquitectura_c4_cnc_despliegue.md), [SPEC P1](docs/spec-p1/README.md),
 [contratos](docs/contratos_modelo_datos.md) y [ADR](docs/adr/README.md) describen las fronteras técnicas.
+
+## Integración inicial P2 por broker
+
+RabbitMQ transporta ciclo de sesión a Core/Chat y snapshots a Discovery y forma parte del arranque
+local anterior. Sus métricas, DLQ y recuperación están en el [runbook](infra/broker/README.md).
+La selección está en [ADR-016](docs/adr/ADR-016-rabbitmq-eventos-p2.md); quedan pendientes las
+funciones VOD/Notificaciones/cuentas y su evidencia integrada.
+
+Al actualizar una instalación que usaba entrega HTTP P1, detener las emisiones antes del cambio
+y repetir `init` para añadir la configuración privada del broker conservando los secretos y datos.
+Los perfiles de pruebas bajo `infra/p1` mantienen su transporte HTTP y su estado independiente.

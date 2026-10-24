@@ -131,8 +131,8 @@ provisión HTTP de canal. Los outboxes se reservan para efectos entre procesos y
 | VOD/administración: retirada o borrado | Dueños de objetos, pistas y replay | Retirada de acceso y limpieza reintentable |
 
 El único broker tiene colas/suscripciones independientes. Core y Chat deben recibir cada uno
-el evento de ciclo de sesión; no compiten por una sola entrega. El producto, nombres de canales,
-retención, clientes, confirmaciones y DLQ se definen en P2-07. Los bytes de video permanecen en S3.
+el evento de ciclo de sesión; no compiten por una sola entrega. [ADR-016](adr/ADR-016-rabbitmq-eventos-p2.md)
+selecciona RabbitMQ/AMQP, nombres físicos, retención, clientes, confirmaciones y DLQ para P2-07. Los bytes de video permanecen en S3.
 
 ## Registro y cuentas: transacción local
 
@@ -777,5 +777,6 @@ los artefactos derivados de `contracts/generated/`.
 
 Los contratos generados P1 no incluyen agregados SSR, login móvil, broker, VOD, moderación,
 notificaciones, watch parties ni pistas P2. La ampliación estructural vive en [contracts/p2.json](../contracts/p2.json); `contracts/check_p2.py`
-valida fuentes y ejemplos sin modificar derivados. Watch parties/subtítulos y firmas en revisión
+valida fuentes y ejemplos sin modificar derivados. La cobertura ejecutable actual contiene
+el registro de nueve eventos y los dos payloads de ciclo/Discovery; el resto permanece pendiente. Watch parties/subtítulos y firmas en revisión
 requieren las decisiones indicadas en su registro. No editar derivados manualmente.

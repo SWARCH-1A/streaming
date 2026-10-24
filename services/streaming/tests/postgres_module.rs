@@ -249,7 +249,73 @@ async fn migration_snapshots_timeline_and_metadata_remain_local_and_atomic() -> 
     let migrations: i64 = sqlx::query_scalar("SELECT count(*) FROM _sqlx_migrations")
         .fetch_one(&pool)
         .await?;
-    assert_eq!(migrations, 1);
+    assert_eq!(migrations, 2);
+    pool.close().await;
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requiere STREAMING_TEST_DATABASE_URL PostgreSQL desechable"]
+async fn broker_envelopes_capture_lifecycle_once_and_survive_outbox_claims() -> Result<(), TestError>
+{
+    let pool = database().await?;
+    let clock = MonotonicSessionClock::default();
+    let ingest = playable(&pool, &clock).await?;
+    let events = sqlx::query_as::<_, (Uuid, i64, serde_json::Value, serde_json::Value)>(
+        "SELECT event_id,sequence,payload,broker_envelope FROM streaming_outbox WHERE consumer='chat' ORDER BY sequence",
+    )
+    .fetch_all(&pool)
+    .await?;
+    assert_eq!(events.len(), 2);
+    for (id, sequence, legacy, body) in &events {
+        assert_eq!(body["eventId"], id.to_string());
+        assert_eq!(body["correlationId"], id.to_string());
+        assert_eq!(body["eventType"], "stream.session.changed.v1");
+        assert_eq!(body["schemaVersion"], 1);
+        assert_eq!(body["producer"], "streaming");
+        assert_eq!(
+            body["aggregateId"],
+            format!("session:{}", ingest.session_id.as_str())
+        );
+        assert_eq!(body["sequence"], *sequence);
+        assert_eq!(body["payload"]["channelId"], "channel_1");
+        assert_eq!(body["payload"]["sessionVersion"], *sequence);
+        assert_eq!(body["payload"]["streamId"], ingest.stream_id.as_str());
+        assert!(legacy.get("channelId").is_none());
+        assert!(
+            body["occurredAtUtc"]
+                .as_str()
+                .is_some_and(|value| value.ends_with('Z'))
+        );
+    }
+    assert_eq!(events[0].3["payload"]["status"], "PREPARING");
+    assert!(events[0].3["payload"]["firstLiveAtUtc"].is_null());
+    assert_eq!(events[0].3["payload"]["initialLive"], false);
+    assert_eq!(events[1].3["payload"]["status"], "LIVE");
+    assert!(events[1].3["payload"]["firstLiveAtUtc"].is_string());
+    assert_eq!(events[1].3["payload"]["initialLive"], true);
+
+    let outbox = PostgresDomainEventOutboxRepository::new(pool.clone()).durable_broker();
+    let claim = outbox
+        .claim_next("broker_test".into(), Duration::from_secs(5))
+        .await?
+        .ok_or("outbox vacío")?;
+    assert_eq!(claim.envelope.event_id, events[0].0);
+    let captured = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT broker_envelope FROM streaming_outbox WHERE event_id=$1",
+    )
+    .bind(events[0].0)
+    .fetch_one(&pool)
+    .await?;
+    assert_eq!(captured, events[0].3);
+    let error = sqlx::query(
+        "UPDATE streaming_outbox SET broker_envelope=jsonb_set(broker_envelope,'{correlationId}',to_jsonb('tampered'::text)) WHERE event_id=$1",
+    ).bind(events[0].0).execute(&pool).await.err().ok_or("mutable broker envelope")?;
+    assert!(
+        error
+            .as_database_error()
+            .is_some_and(|error| error.message().contains("immutable"))
+    );
     pool.close().await;
     Ok(())
 }

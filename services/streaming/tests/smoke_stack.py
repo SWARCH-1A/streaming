@@ -93,8 +93,8 @@ def main():
             up()
             assert len(run('ps', '-a', '-q').stdout.splitlines()) == 3
             assert json.loads(http(http_url + '/health/ready'))['status'] == 'ready'
-            for database in ('streaming', 'streaming_media'):
-                assert sql('SELECT count(*) FROM _sqlx_migrations WHERE success;', database) == '1'
+            for database, expected in (('streaming', '2'), ('streaming_media', '1')):
+                assert sql('SELECT count(*) FROM _sqlx_migrations WHERE success;', database) == expected
             # This CLI remains available inside the same container, with no daemon mode.
             run('exec', '-T', 'streaming', 'media-adapter', 'dead-letter', 'list')
             assert run('exec', '-T', 'streaming', 'media-adapter', check=False).returncode != 0

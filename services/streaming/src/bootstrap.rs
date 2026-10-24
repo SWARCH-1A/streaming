@@ -32,6 +32,7 @@ use crate::{
                 PostgresStreamingRepository, PostgresViewerCountSnapshotRepository,
                 PostgresViewerLeaseRepository, PostgresWorkerQueueMetricsRepository,
             },
+            rabbitmq::RabbitDomainEventPublisher,
             readiness::StreamingReadinessProbe,
             viewer_lease_credentials::HmacViewerLeaseCredentialIssuer,
             worker_health::BackgroundWorkerHealth,
@@ -729,7 +730,28 @@ pub async fn build_app(config: &AppConfig) -> Result<StreamingApp, BootstrapErro
                 config.chat_service_token.clone(),
             )
         };
-        if url.is_some() && token.is_some() {
+        if let Some((broker_url, ca)) = config.broker.as_ref() {
+            let relay = RelayDomainEvents::new(
+                Arc::new(repository.durable_broker()),
+                Arc::new(RabbitDomainEventPublisher::new(
+                    pool.clone(),
+                    broker_url.clone(),
+                    ca.clone(),
+                )),
+            )
+            .durable_broker();
+            let owner = config.instance_id.clone();
+            worker_tasks.push((
+                consumer,
+                spawn_cancellable_worker(
+                    consumer,
+                    worker_shutdown_rx.clone(),
+                    Arc::clone(&worker_health),
+                    worker_failure_sender.clone(),
+                    async move { relay.run(owner).await },
+                ),
+            ));
+        } else if url.is_some() && token.is_some() {
             let relay = RelayDomainEvents::new(
                 Arc::new(repository),
                 Arc::new(HttpDomainEventPublisher::new(

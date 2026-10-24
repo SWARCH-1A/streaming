@@ -14,6 +14,10 @@ Fuente neutral de schemas y registro de operaciones/eventos. `contracts/p1.json`
 base; `contracts/p2.json` la amplía mediante schemas locales y un registro explícito de rutas,
 productores, consumidores, timeouts, visibilidad e idempotencia.
 
+La fuente actual incorpora el registro de nueve eventos y los dos schemas de ciclo/Discovery.
+Los payloads restantes y el inventario ejecutable HTTP/WS/media P2 siguen pendientes; esa
+cobertura parcial no acredita los criterios completos de esta SPEC.
+
 ## 3. Historia de usuario
 
 Como implementador, quiero validar mi respuesta o evento contra el contrato y conocer quién

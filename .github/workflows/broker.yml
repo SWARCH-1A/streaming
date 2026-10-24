@@ -1,0 +1,56 @@
+name: Broker regression
+
+on:
+  push:
+    branches: [main, develop]
+    paths: ['infra/broker/**', 'infra/p1/**', 'infra/local/dev.py', 'compose.yaml', 'services/streaming/**', 'services/core/**', 'contracts/p2.json', '.github/workflows/broker.yml']
+  pull_request:
+    paths: ['infra/broker/**', 'infra/p1/**', 'infra/local/dev.py', 'compose.yaml', 'services/streaming/**', 'services/core/**', 'contracts/p2.json', '.github/workflows/broker.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: broker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  broker-and-operator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s infra/p1 -p 'test_*.py'
+      - run: python infra/broker/smoke_test.py
+  streaming-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: docker build -t streaming-broker-ci services/streaming
+  core-discovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Discovery repository boundaries and PostgreSQL transactions
+        run: |
+          docker run --rm --add-host host.docker.internal:host-gateway \
+            --mount "type=bind,source=$PWD,target=/workspace" \
+            --mount type=volume,source=streaming-core-maven-cache,target=/root/.m2 \
+            --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock \
+            --env DOCKER_HOST=unix:///var/run/docker.sock \
+            --env TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal \
+            --workdir /workspace/services/core eclipse-temurin:25-jdk \
+            sh ./mvnw -B clean verify -P integration \
+            -Dtest=BrokerRepositoryBoundaryTest,ProjectionIngestServiceTest,ProjectionParserTest,ProjectionReconcilerTest,DiscoveryQueryServiceTest \
+            -Dit.test=BrokerEventIngestIT,DiscoveryIngestIT,DiscoveryReconcileIT,DiscoveryIT,DiscoveryMigrationIT

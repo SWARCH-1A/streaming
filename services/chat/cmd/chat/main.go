@@ -15,6 +15,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"streaming/chat/internal/broker"
 	"streaming/chat/internal/config"
 	"streaming/chat/internal/core"
 	"streaming/chat/internal/service"
@@ -58,11 +59,20 @@ func main() {
 		EndedRetention: cfg.EndedRetention, IdleTTL: cfg.RoomIdleTTL,
 		InboxTTL: cfg.InboxTTL,
 	})
+	var lifecycle *broker.Consumer
+	if cfg.EventsTransport == "amqp" {
+		lifecycle, err = broker.New(cfg.BrokerURL, cfg.BrokerCAFile, st, log)
+		if err != nil {
+			log.Error("configuración de broker inválida", "err", err)
+			os.Exit(1)
+		}
+	}
 	svc := service.New(coreClient, st, log, cfg.AuthBudget)
 	hub := transport.NewHub(st, log, cfg.ReaderBlock)
 	srv := transport.NewServer(transport.Config{
 		AllowedOrigins: cfg.AllowedOrigins, SessionCookie: cfg.SessionCookie,
 		EventsProducer: cfg.EventsProducer, EventsToken: cfg.EventsToken,
+		EventsTransport: cfg.EventsTransport,
 	}, svc, hub, st.Ping, log)
 
 	public := &http.Server{Addr: cfg.PublicAddr, Handler: srv.PublicHandler(), ReadHeaderTimeout: 5 * time.Second, TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12}}
@@ -89,6 +99,9 @@ func main() {
 	defer cancel()
 	sweepCtx, stopSweep := context.WithCancel(context.Background())
 	defer stopSweep()
+	if lifecycle != nil {
+		go lifecycle.Run(sweepCtx)
+	}
 	// Un ENDED que nunca llegó dejaría la sala sin TTL; el barrido lo recupera por snapshot.
 	go func() {
 		ticker := time.NewTicker(cfg.RoomSweepInterval)

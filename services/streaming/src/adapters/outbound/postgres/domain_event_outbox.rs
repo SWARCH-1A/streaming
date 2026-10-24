@@ -11,6 +11,7 @@ use crate::application::ports::domain_event_outbox::{
 pub struct PostgresDomainEventOutboxRepository {
     pool: PgPool,
     consumer: &'static str,
+    retry_forever: bool,
 }
 
 impl PostgresDomainEventOutboxRepository {
@@ -18,13 +19,20 @@ impl PostgresDomainEventOutboxRepository {
         Self {
             pool,
             consumer: "chat",
+            retry_forever: false,
         }
     }
     pub fn for_discovery(pool: PgPool) -> Self {
         Self {
             pool,
             consumer: "discovery",
+            retry_forever: false,
         }
+    }
+
+    pub fn durable_broker(mut self) -> Self {
+        self.retry_forever = true;
+        self
     }
 }
 
@@ -127,13 +135,14 @@ impl DomainEventOutboxRepository for PostgresDomainEventOutboxRepository {
             let mut transaction = self.pool.begin().await.map_err(unavailable)?;
             lock_current_claim(&mut transaction, event_id, &owner_instance_id, claim_token).await?;
             let result = sqlx::query(
-                "UPDATE streaming_outbox SET available_at = LEAST(clock_timestamp() + ($4 * INTERVAL '1 millisecond'),first_attempt_at+INTERVAL '15 minutes'), last_error_code = $5, claim_owner = NULL, claim_token = NULL, claim_expires_at = NULL WHERE event_id = $1 AND published_at IS NULL AND claim_owner = $2 AND claim_token = $3 AND claim_expires_at > clock_timestamp()",
+                "UPDATE streaming_outbox SET available_at = CASE WHEN $6 THEN clock_timestamp() + ($4 * INTERVAL '1 millisecond') ELSE LEAST(clock_timestamp() + ($4 * INTERVAL '1 millisecond'),first_attempt_at+INTERVAL '15 minutes') END, last_error_code = $5, claim_owner = NULL, claim_token = NULL, claim_expires_at = NULL WHERE event_id = $1 AND published_at IS NULL AND claim_owner = $2 AND claim_token = $3 AND claim_expires_at > clock_timestamp()",
             )
             .bind(event_id)
             .bind(owner_instance_id)
             .bind(claim_token)
             .bind(delay_millis)
             .bind(error_code)
+            .bind(self.retry_forever)
             .execute(&mut *transaction)
             .await
             .map_err(unavailable)?;

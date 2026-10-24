@@ -12,7 +12,7 @@ un ADR. Las fechas de trabajo se organizan en Plane; el cierre de código es el 
 | P2-04 | Subtítulos / accesibilidad | ¿Se asocian a live, VOD o ambos? ¿Quién los aporta y mediante qué operación? | Antes de definir publicación y permisos de pistas |
 | P2-05 | Subtítulos / accesibilidad | ¿Se cargan archivos o se generan pistas? ¿Qué formatos, idiomas, validaciones, sincronía y estados de disponibilidad se admiten? | Antes de cerrar contratos y controles del player |
 | P2-06 | Gateway | Elegir lenguaje/framework, proxy HTTP/WS/HLS, terminación TLS y límites. Ratificar agregados y errores parciales de SPEC-16/contratos P2; fijar límites y presupuestos concretos. | Antes de integrar SSR y móvil |
-| P2-07 | Mensajería / integración | Elegir producto del único broker, topología, protocolo y clientes compatibles. Implementar la semántica de SPEC-17/contratos de eventos y fijar parámetros de confirmación, reintento, DLQ/redrive y recuperación. | Antes de publicar eventos compartidos |
+| P2-07 | Mensajería / integración | RabbitMQ/AMQP, clientes, topología y parámetros seleccionados en [ADR-016](adr/ADR-016-rabbitmq-eventos-p2.md). Integración inicial de ciclo/Discovery; recuperación, ACL y cobertura completa de SPEC-17 por acreditar. | Antes de publicar eventos compartidos |
 | P2-08 | Streaming / Media | Resolver empaquetado HLS de hasta cuatro rendiciones codificadas en origen. Probar OBS → ingesta → manifiesto maestro → selección manual/automática, keyframes, discontinuidades y VOD. | Antes de dar por válida la estrategia multicalidad |
 | P2-09 | VOD | Elegir runtime, motor de metadatos y proveedor S3; definir identidad de objeto, escritor de segmentos, permisos y transferencia de responsabilidad tras carga confirmada. Seleccionar proveedor S3 local; MinIO y RustFS son candidatos. | Antes de integrar grabación |
 | P2-10 | Chat / VOD | Elegir persistencia durable y archivo sin pérdida de mensajes confirmados. Definir mapping entre tiempo de sesión y video, tratamiento de huecos de reconexión, paginación/seek y limpieza coordinada. | Antes de habilitar replay |
@@ -28,8 +28,8 @@ un ADR. Las fechas de trabajo se organizan en Plane; el cierre de código es el 
 ## Límite de la definición
 
 Las políticas de watch parties y subtítulos quedan a cargo de sus responsables. Las tecnologías
-de los componentes nuevos, incluido el broker y el almacenamiento de metadatos, no están
-seleccionadas. La independencia y propiedad de datos de VOD sí están definidas.
+de Gateway/VOD/Notificaciones y el almacenamiento de metadatos siguen pendientes. RabbitMQ
+está seleccionado para el broker por ADR-016. La independencia y propiedad de datos de VOD sí están definidas.
 
 La aceptación de una interfaz requiere esquema, permisos, fallos, idempotencia y consumidor
 identificados. Una dependencia de provisión o una prueba pendiente debe permanecer visible;

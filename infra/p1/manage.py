@@ -82,7 +82,7 @@ def local_network():
             raise RuntimeError("Choose an unused LOCAL_SUBNET and LOCAL_PROXY_IP before init")
     proxy_ip = ipaddress.ip_address(os.environ.get("LOCAL_PROXY_IP", str(subnet.network_address + 2)))
     if subnet.version != 4 or not subnet.is_private or subnet.prefixlen > 28:
-        raise RuntimeError("LOCAL_SUBNET must be a private IPv4 network with room for nine services")
+        raise RuntimeError("LOCAL_SUBNET must be a private IPv4 network with room for ten services")
     dynamic_range = list(subnet.subnets(prefixlen_diff=1))[1]
     if proxy_ip not in subnet or proxy_ip in dynamic_range or proxy_ip in (subnet.network_address, subnet.broadcast_address, subnet.network_address + 1):
         raise RuntimeError("LOCAL_PROXY_IP must be a usable address in the private IPv4 LOCAL_SUBNET")
@@ -172,12 +172,18 @@ def configured_ports(env):
     return https_port, rtmps_port
 
 
-def command(env, *args, s3=False, timeout=180):
+def command(env, *args, s3=False, broker=None, timeout=180):
     if env.get("P1_STATE") != str(STATE): raise RuntimeError("Command state differs from the selected profile")
     if PROFILE == "local" and s3:
-        raise RuntimeError("The local nine-service installation uses filesystem; use the P1 profile for external S3")
+        raise RuntimeError("The local installation uses filesystem; use the P1 profile for external S3")
+    if broker is None:
+        broker = PROFILE == "local"
     compose = ROOT / "compose.yaml" if PROFILE == "local" else HERE / ("compose.s3.yaml" if s3 else "compose.yaml")
     cmd = ["docker","compose","--env-file",str(STATE / "environment.env"),"-p",PROJECT,"-f",str(compose)]
+    if broker:
+        if PROFILE != "local": raise RuntimeError("The broker overlay currently targets the root local profile")
+        if not env.get("BROKER_STREAMING_PASSWORD"): raise RuntimeError("Run python3 infra/local/dev.py init first")
+        cmd += ["-f",str(ROOT / "infra/broker/compose.yaml")]
     if s3 and env.get("CORE_IMAGE_S3_ENDPOINT") and not env["CORE_IMAGE_S3_ENDPOINT"].startswith("https://"):
         raise RuntimeError("The TLS profile requires an HTTPS S3 endpoint")
     return run([*cmd,*args],cwd=ROOT,env=env,timeout=timeout)
@@ -205,37 +211,50 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("init","build","up","status","down","reset"))
     parser.add_argument("--s3", action="store_true", help="External private S3; configure its environment first")
+    parser.add_argument("--broker", action="store_true", default=PROFILE == "local",
+                        help="RabbitMQ transport (already included in the local profile)")
     parser.add_argument("--replicas", type=int, choices=(1,2), default=1)
     parser.add_argument("--confirm-disposable", action="store_true", help="Required to remove only this project's volumes")
     args = parser.parse_args()
     if PROFILE == "local" and args.replicas != 1:
-        raise RuntimeError("The local installation has exactly nine services; use P1 for replica tests")
+        raise RuntimeError("The local installation has exactly ten services; use P1 for replica tests")
     # Lock outside .state so initialization is serialized too.
     with open(HERE / LOCK_NAME,"a") as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         env = initialize() if args.action=="init" else environment()
-        if args.action=="build": command(env,"build",s3=args.s3,timeout=1800); print("Current runtime images built")
+        if args.broker and args.action=="init":
+            if PROFILE != "local": raise RuntimeError("Use infra/local/dev.py init")
+            import runpy
+            setup = runpy.run_path(str(ROOT / "infra/broker/bootstrap.py"))
+            env = setup["initialize"](env, STATE, run)
+            print("P2 broker certificates, credentials and topology ready; existing data retained")
+        if args.action=="build":
+            build_args = ("--profile","tools","build") if args.broker else ("build",)
+            command(env,*build_args,s3=args.s3,broker=args.broker,timeout=1800)
+            print("Current runtime images built")
         elif args.action=="up":
             (STATE / "Caddyfile").write_text(render_proxy())
-            command(env,"up","-d","--scale",f"core={args.replicas}","--scale",f"chat={args.replicas}",s3=args.s3)
+            up_args = ("up", "-d", "--wait", "--wait-timeout", "180") if PROFILE == "local" else ("up", "-d")
+            command(env,*up_args,"--scale",f"core={args.replicas}","--scale",f"chat={args.replicas}",
+                    s3=args.s3,broker=args.broker,timeout=360 if PROFILE == "local" else 180)
             if PROFILE == "local":
                 wait_local(env)
-                print(f"Ready {PROJECT}: {env['WEB_ORIGIN']} (nine services; local CA required in the browser)")
+                print(f"Ready {PROJECT}: {env['WEB_ORIGIN']} (local CA required in the browser)")
                 return
-            web_id = command(env,"ps","-q","web",s3=args.s3).strip()
+            web_id = command(env,"ps","-q","web",s3=args.s3,broker=args.broker).strip()
             networks = json.loads(run(["docker","inspect",web_id]))[0]["NetworkSettings"]["Networks"]
             if len(networks)!=1: raise RuntimeError("Review trusted proxy when changing topology")
             env["WEB_PROXY_IP"] = next(iter(networks.values()))["IPAddress"]
             path = STATE / "environment.env"
             lines = [line for line in path.read_text().splitlines() if not line.startswith("WEB_PROXY_IP=")]
             path.write_text("\n".join([*lines,"WEB_PROXY_IP="+env["WEB_PROXY_IP"]])+"\n")
-            command(env,"up","-d","--no-deps","--scale",f"core={args.replicas}","core",s3=args.s3)
+            command(env,"up","-d","--no-deps","--scale",f"core={args.replicas}","core",s3=args.s3,broker=args.broker)
             print(f"Started {PROJECT}: {env['WEB_ORIGIN']}; wait for health/status before use")
-        elif args.action=="status": print(command(env,"ps",s3=args.s3))
-        elif args.action=="down": command(env,"down",s3=args.s3); print("Stopped; persistent volumes retained")
+        elif args.action=="status": print(command(env,"ps",s3=args.s3,broker=args.broker))
+        elif args.action=="down": command(env,"down",s3=args.s3,broker=args.broker); print("Stopped; persistent volumes retained")
         elif args.action=="reset":
             if not args.confirm_disposable: raise RuntimeError(f"Reset requires --confirm-disposable; only {PROJECT} volumes are removed")
-            command(env,"down","--volumes","--remove-orphans",s3=args.s3); print(f"Only {PROJECT} disposable volumes removed; private config retained")
+            command(env,"down","--volumes","--remove-orphans",s3=args.s3,broker=args.broker); print(f"Only {PROJECT} disposable volumes removed; private config retained")
 
 
 if __name__=="__main__": main()

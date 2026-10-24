@@ -24,10 +24,11 @@ import (
 )
 
 type Config struct {
-	AllowedOrigins []string // orígenes web exactos (esquema://host[:puerto])
-	SessionCookie  string   // nombre de la cookie de sesión Core
-	EventsProducer string   // X-Service-Name autorizado para session-events
-	EventsToken    string   // X-Service-Token de ese productor
+	EventsTransport string
+	AllowedOrigins  []string // orígenes web exactos (esquema://host[:puerto])
+	SessionCookie   string   // nombre de la cookie de sesión Core
+	EventsProducer  string   // X-Service-Name autorizado para session-events
+	EventsToken     string   // X-Service-Token de ese productor
 }
 
 type Server struct {
@@ -55,7 +56,9 @@ func (s *Server) PublicHandler() http.Handler {
 // InternalHandler sirve contratos entre procesos; nunca se expone en la entrada pública.
 func (s *Server) InternalHandler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /internal/chat/session-events", s.handleSessionEvent)
+	if s.cfg.EventsTransport != "amqp" {
+		mux.HandleFunc("POST /internal/chat/session-events", s.handleSessionEvent)
+	}
 	mux.HandleFunc("GET /healthz", s.handleLive)
 	mux.HandleFunc("GET /readyz", s.handleReady)
 	return s.withRequestID(mux)

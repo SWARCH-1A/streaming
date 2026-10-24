@@ -1,0 +1,814 @@
+{
+  "version": 2,
+  "extends": "p1.json",
+  "coverage": "Initial broker integration: lifecycle and Discovery only. Other P2 HTTP/WS/media contracts and event payloads remain pending their owners.",
+  "schemas": {
+    "P2StreamSessionChangedPayload": {
+      "type": "object",
+      "properties": {
+        "streamId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "streamGeneration": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "sessionVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "status": {
+          "enum": [
+            "PREPARING",
+            "LIVE",
+            "RECONNECT_GRACE",
+            "ENDED"
+          ]
+        },
+        "availability": {
+          "enum": [
+            "OFFLINE",
+            "PLAYABLE",
+            "RECONNECTING"
+          ]
+        },
+        "channelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "firstLiveAtUtc": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "(Z|\\+00:00)$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "initialLive": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "streamId",
+        "sessionId",
+        "streamGeneration",
+        "sessionVersion",
+        "status",
+        "availability",
+        "channelId",
+        "firstLiveAtUtc",
+        "initialLive"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "initialLive": {
+                "const": true
+              }
+            },
+            "required": [
+              "initialLive"
+            ]
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "const": "LIVE"
+              },
+              "availability": {
+                "const": "PLAYABLE"
+              },
+              "firstLiveAtUtc": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "PREPARING"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "availability": {
+                "const": "OFFLINE"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "LIVE"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "availability": {
+                "const": "PLAYABLE"
+              },
+              "firstLiveAtUtc": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "RECONNECT_GRACE"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "availability": {
+                "const": "RECONNECTING"
+              },
+              "firstLiveAtUtc": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "ENDED"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "availability": {
+                "const": "OFFLINE"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "P2EventStreamSessionChanged": {
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "eventType": {
+          "const": "stream.session.changed.v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "aggregateId": {
+          "type": "string",
+          "pattern": "^session:[A-Za-z0-9_-]{1,128}$"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "occurredAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(Z|\\+00:00)$"
+        },
+        "producer": {
+          "const": "streaming"
+        },
+        "payload": {
+          "$ref": "#/$defs/P2StreamSessionChangedPayload"
+        },
+        "correlationId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,128}$"
+        }
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "producer",
+        "payload",
+        "correlationId"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "eventId": "00000000-0000-4000-8000-000000000001",
+          "eventType": "stream.session.changed.v1",
+          "schemaVersion": 1,
+          "aggregateId": "session:ses_fixture",
+          "sequence": 1,
+          "occurredAtUtc": "2026-10-08T20:00:00Z",
+          "producer": "streaming",
+          "payload": {
+            "streamId": "str_fixture",
+            "sessionId": "ses_fixture",
+            "streamGeneration": 1,
+            "sessionVersion": 1,
+            "status": "PREPARING",
+            "availability": "OFFLINE",
+            "channelId": "chn_fixture",
+            "firstLiveAtUtc": null,
+            "initialLive": false
+          },
+          "correlationId": "00000000-0000-4000-8000-000000000001"
+        },
+        {
+          "eventId": "00000000-0000-4000-8000-000000000002",
+          "eventType": "stream.session.changed.v1",
+          "schemaVersion": 1,
+          "aggregateId": "session:ses_fixture",
+          "sequence": 2,
+          "occurredAtUtc": "2026-10-08T20:00:01Z",
+          "producer": "streaming",
+          "payload": {
+            "streamId": "str_fixture",
+            "sessionId": "ses_fixture",
+            "streamGeneration": 1,
+            "sessionVersion": 2,
+            "status": "LIVE",
+            "availability": "PLAYABLE",
+            "channelId": "chn_fixture",
+            "firstLiveAtUtc": "2026-10-08T20:00:01Z",
+            "initialLive": true
+          },
+          "correlationId": "00000000-0000-4000-8000-000000000002"
+        },
+        {
+          "eventId": "00000000-0000-4000-8000-000000000003",
+          "eventType": "stream.session.changed.v1",
+          "schemaVersion": 1,
+          "aggregateId": "session:ses_fixture",
+          "sequence": 3,
+          "occurredAtUtc": "2026-10-08T20:00:02Z",
+          "producer": "streaming",
+          "payload": {
+            "streamId": "str_fixture",
+            "sessionId": "ses_fixture",
+            "streamGeneration": 1,
+            "sessionVersion": 3,
+            "status": "RECONNECT_GRACE",
+            "availability": "RECONNECTING",
+            "channelId": "chn_fixture",
+            "firstLiveAtUtc": "2026-10-08T20:00:01Z",
+            "initialLive": false
+          },
+          "correlationId": "00000000-0000-4000-8000-000000000003"
+        },
+        {
+          "eventId": "00000000-0000-4000-8000-000000000004",
+          "eventType": "stream.session.changed.v1",
+          "schemaVersion": 1,
+          "aggregateId": "session:ses_fixture",
+          "sequence": 4,
+          "occurredAtUtc": "2026-10-08T20:00:03Z",
+          "producer": "streaming",
+          "payload": {
+            "streamId": "str_fixture",
+            "sessionId": "ses_fixture",
+            "streamGeneration": 1,
+            "sessionVersion": 4,
+            "status": "LIVE",
+            "availability": "PLAYABLE",
+            "channelId": "chn_fixture",
+            "firstLiveAtUtc": "2026-10-08T20:00:01Z",
+            "initialLive": false
+          },
+          "correlationId": "00000000-0000-4000-8000-000000000004"
+        },
+        {
+          "eventId": "00000000-0000-4000-8000-000000000005",
+          "eventType": "stream.session.changed.v1",
+          "schemaVersion": 1,
+          "aggregateId": "session:ses_fixture",
+          "sequence": 5,
+          "occurredAtUtc": "2026-10-08T20:00:04Z",
+          "producer": "streaming",
+          "payload": {
+            "streamId": "str_fixture",
+            "sessionId": "ses_fixture",
+            "streamGeneration": 1,
+            "sessionVersion": 5,
+            "status": "ENDED",
+            "availability": "OFFLINE",
+            "channelId": "chn_fixture",
+            "firstLiveAtUtc": "2026-10-08T20:00:01Z",
+            "initialLive": false
+          },
+          "correlationId": "00000000-0000-4000-8000-000000000005"
+        }
+      ]
+    },
+    "P2EventStreamDiscoverySnapshot": {
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "eventType": {
+          "const": "stream.discovery.snapshot.v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "aggregateId": {
+          "type": "string",
+          "pattern": "^stream:[A-Za-z0-9_-]{1,128}$"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "occurredAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(Z|\\+00:00)$"
+        },
+        "producer": {
+          "const": "streaming"
+        },
+        "payload": {
+          "$ref": "#/$defs/DiscoverySnapshot"
+        },
+        "correlationId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,128}$"
+        }
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "producer",
+        "payload",
+        "correlationId"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "eventId": "00000000-0000-4000-8000-000000000001",
+          "eventType": "stream.discovery.snapshot.v1",
+          "schemaVersion": 1,
+          "aggregateId": "stream:str_fixture",
+          "sequence": 1,
+          "occurredAtUtc": "2026-10-08T20:00:00Z",
+          "producer": "streaming",
+          "payload": {
+            "streamId": "str_fixture",
+            "channelId": "chn_fixture",
+            "sessionId": "ses_fixture",
+            "streamGeneration": 1,
+            "title": "Conversación",
+            "category": {
+              "id": "cat_00000000000000000000000000000001",
+              "name": "Conversación"
+            },
+            "tags": [],
+            "status": "LIVE",
+            "availability": "PLAYABLE",
+            "metadataVersion": 1,
+            "sessionVersion": 1,
+            "viewerCount": 1,
+            "countVersion": 1,
+            "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z",
+            "projectionVersion": 1,
+            "discoveryPosition": 1,
+            "startedAtUtc": "2026-10-08T20:00:00Z",
+            "stateObservedAtUtc": "2026-10-08T20:00:00Z"
+          },
+          "correlationId": "00000000-0000-4000-8000-000000000001"
+        }
+      ]
+    }
+  },
+  "events": [
+    {
+      "eventType": "stream.session.changed.v1",
+      "producers": [
+        "streaming"
+      ],
+      "subscriptions": [
+        "core.lifecycle",
+        "chat.lifecycle",
+        "notifications.live",
+        "vod.lifecycle"
+      ],
+      "schema": "P2EventStreamSessionChanged",
+      "status": "contract-ready",
+      "spec": [
+        "SPEC-17",
+        "SPEC-10"
+      ]
+    },
+    {
+      "eventType": "stream.discovery.snapshot.v1",
+      "producers": [
+        "streaming"
+      ],
+      "subscriptions": [
+        "core.discovery"
+      ],
+      "schema": "P2EventStreamDiscoverySnapshot",
+      "status": "contract-ready",
+      "spec": [
+        "SPEC-17",
+        "SPEC-10"
+      ]
+    },
+    {
+      "eventType": "recording.segment.available.v1",
+      "producers": [
+        "streaming",
+        "media"
+      ],
+      "subscriptions": [
+        "vod.segments"
+      ],
+      "schema": null,
+      "status": "pending-owner",
+      "spec": [
+        "SPEC-17",
+        "SPEC-10"
+      ]
+    },
+    {
+      "eventType": "recording.closed.v1",
+      "producers": [
+        "streaming",
+        "media"
+      ],
+      "subscriptions": [
+        "vod.recording"
+      ],
+      "schema": null,
+      "status": "pending-owner",
+      "spec": [
+        "SPEC-17",
+        "SPEC-10"
+      ]
+    },
+    {
+      "eventType": "channel.follow.changed.v1",
+      "producers": [
+        "core"
+      ],
+      "subscriptions": [
+        "notifications.follow"
+      ],
+      "schema": null,
+      "status": "pending-owner",
+      "spec": [
+        "SPEC-17",
+        "SPEC-10"
+      ]
+    },
+    {
+      "eventType": "account.status.changed.v1",
+      "producers": [
+        "core"
+      ],
+      "subscriptions": [
+        "streaming.account",
+        "chat.account",
+        "vod.account",
+        "notifications.account"
+      ],
+      "schema": null,
+      "status": "pending-owner",
+      "spec": [
+        "SPEC-17",
+        "SPEC-10"
+      ]
+    },
+    {
+      "eventType": "vod.availability.changed.v1",
+      "producers": [
+        "vod"
+      ],
+      "subscriptions": [
+        "chat.vod",
+        "core.vod"
+      ],
+      "schema": null,
+      "status": "pending-owner",
+      "spec": [
+        "SPEC-17",
+        "SPEC-10"
+      ]
+    },
+    {
+      "eventType": "notification.delivery.requested.v1",
+      "producers": [
+        "notifications"
+      ],
+      "subscriptions": [
+        "notifications.delivery.inbox",
+        "notifications.delivery.email",
+        "notifications.delivery.push"
+      ],
+      "schema": null,
+      "status": "pending-owner",
+      "spec": [
+        "SPEC-17",
+        "SPEC-10"
+      ]
+    },
+    {
+      "eventType": "credential.recovery.delivery.requested.v1",
+      "producers": [
+        "core"
+      ],
+      "subscriptions": [
+        "notifications.recovery.email"
+      ],
+      "schema": null,
+      "status": "pending-owner",
+      "spec": [
+        "SPEC-17",
+        "SPEC-10"
+      ]
+    }
+  ],
+  "negativeExamples": [
+    {
+      "schema": "P2EventStreamSessionChanged",
+      "value": {
+        "eventId": "00000000-0000-4000-8000-000000000001",
+        "eventType": "stream.session.changed.v1",
+        "schemaVersion": 1,
+        "aggregateId": "session:ses_fixture",
+        "sequence": 0,
+        "occurredAtUtc": "2026-10-08T20:00:00Z",
+        "producer": "streaming",
+        "payload": {
+          "streamId": "str_fixture",
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1,
+          "sessionVersion": 1,
+          "status": "LIVE",
+          "availability": "PLAYABLE",
+          "channelId": "chn_fixture",
+          "firstLiveAtUtc": "2026-10-08T20:00:00Z",
+          "initialLive": true
+        },
+        "correlationId": "00000000-0000-4000-8000-000000000001"
+      }
+    },
+    {
+      "schema": "P2EventStreamSessionChanged",
+      "value": {
+        "eventId": "00000000-0000-4000-8000-000000000001",
+        "eventType": "stream.session.changed.v1",
+        "schemaVersion": 1,
+        "aggregateId": "session:ses_fixture",
+        "sequence": 1,
+        "occurredAtUtc": "2026-10-08T20:00:00Z",
+        "producer": "chat",
+        "payload": {
+          "streamId": "str_fixture",
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1,
+          "sessionVersion": 1,
+          "status": "LIVE",
+          "availability": "PLAYABLE",
+          "channelId": "chn_fixture",
+          "firstLiveAtUtc": "2026-10-08T20:00:00Z",
+          "initialLive": true
+        },
+        "correlationId": "00000000-0000-4000-8000-000000000001"
+      }
+    },
+    {
+      "schema": "P2EventStreamSessionChanged",
+      "value": {
+        "eventId": "00000000-0000-4000-8000-000000000001",
+        "eventType": "stream.session.changed.v1",
+        "schemaVersion": 1,
+        "aggregateId": "session:ses_fixture",
+        "sequence": 2,
+        "occurredAtUtc": "2026-10-08T20:00:00Z",
+        "producer": "streaming",
+        "payload": {
+          "streamId": "str_fixture",
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1,
+          "sessionVersion": 1,
+          "status": "LIVE",
+          "availability": "PLAYABLE",
+          "channelId": "chn_fixture",
+          "firstLiveAtUtc": "2026-10-08T20:00:00Z",
+          "initialLive": true
+        },
+        "correlationId": "00000000-0000-4000-8000-000000000001"
+      }
+    },
+    {
+      "schema": "P2EventStreamDiscoverySnapshot",
+      "value": {
+        "eventId": "00000000-0000-4000-8000-000000000001",
+        "eventType": "stream.discovery.snapshot.v1",
+        "schemaVersion": 1,
+        "aggregateId": "stream:str_fixture",
+        "sequence": 0,
+        "occurredAtUtc": "2026-10-08T20:00:00Z",
+        "producer": "streaming",
+        "payload": {
+          "streamId": "str_fixture",
+          "channelId": "chn_fixture",
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1,
+          "title": "Conversación",
+          "category": {
+            "id": "cat_00000000000000000000000000000001",
+            "name": "Conversación"
+          },
+          "tags": [],
+          "status": "LIVE",
+          "availability": "PLAYABLE",
+          "metadataVersion": 1,
+          "sessionVersion": 1,
+          "viewerCount": 1,
+          "countVersion": 1,
+          "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z",
+          "projectionVersion": 1,
+          "discoveryPosition": 1,
+          "startedAtUtc": "2026-10-08T20:00:00Z",
+          "stateObservedAtUtc": "2026-10-08T20:00:00Z"
+        },
+        "correlationId": "00000000-0000-4000-8000-000000000001"
+      }
+    },
+    {
+      "schema": "P2EventStreamDiscoverySnapshot",
+      "value": {
+        "eventId": "00000000-0000-4000-8000-000000000001",
+        "eventType": "stream.discovery.snapshot.v1",
+        "schemaVersion": 1,
+        "aggregateId": "stream:str_fixture",
+        "sequence": 1,
+        "occurredAtUtc": "2026-10-08T20:00:00Z",
+        "producer": "chat",
+        "payload": {
+          "streamId": "str_fixture",
+          "channelId": "chn_fixture",
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1,
+          "title": "Conversación",
+          "category": {
+            "id": "cat_00000000000000000000000000000001",
+            "name": "Conversación"
+          },
+          "tags": [],
+          "status": "LIVE",
+          "availability": "PLAYABLE",
+          "metadataVersion": 1,
+          "sessionVersion": 1,
+          "viewerCount": 1,
+          "countVersion": 1,
+          "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z",
+          "projectionVersion": 1,
+          "discoveryPosition": 1,
+          "startedAtUtc": "2026-10-08T20:00:00Z",
+          "stateObservedAtUtc": "2026-10-08T20:00:00Z"
+        },
+        "correlationId": "00000000-0000-4000-8000-000000000001"
+      }
+    },
+    {
+      "schema": "P2EventStreamDiscoverySnapshot",
+      "value": {
+        "eventId": "00000000-0000-4000-8000-000000000001",
+        "eventType": "stream.discovery.snapshot.v1",
+        "schemaVersion": 1,
+        "aggregateId": "stream:str_fixture",
+        "sequence": 2,
+        "occurredAtUtc": "2026-10-08T20:00:00Z",
+        "producer": "streaming",
+        "payload": {
+          "streamId": "str_fixture",
+          "channelId": "chn_fixture",
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1,
+          "title": "Conversación",
+          "category": {
+            "id": "cat_00000000000000000000000000000001",
+            "name": "Conversación"
+          },
+          "tags": [],
+          "status": "LIVE",
+          "availability": "PLAYABLE",
+          "metadataVersion": 1,
+          "sessionVersion": 1,
+          "viewerCount": 1,
+          "countVersion": 1,
+          "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z",
+          "projectionVersion": 1,
+          "discoveryPosition": 1,
+          "startedAtUtc": "2026-10-08T20:00:00Z",
+          "stateObservedAtUtc": "2026-10-08T20:00:00Z"
+        },
+        "correlationId": "00000000-0000-4000-8000-000000000001"
+      }
+    },
+    {
+      "schema": "P2EventStreamSessionChanged",
+      "value": {
+        "eventId": "00000000-0000-4000-8000-000000000002",
+        "eventType": "stream.session.changed.v1",
+        "schemaVersion": 1,
+        "aggregateId": "session:ses_fixture",
+        "sequence": 2,
+        "occurredAtUtc": "2026-10-08T20:00:01Z",
+        "producer": "streaming",
+        "payload": {
+          "streamId": "str_fixture",
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1,
+          "sessionVersion": 2,
+          "status": "LIVE",
+          "availability": "PLAYABLE",
+          "channelId": "chn_fixture",
+          "firstLiveAtUtc": "2026-10-08T20:00:01Z",
+          "initialLive": true,
+          "providerToken": "fictitious-private-data"
+        },
+        "correlationId": "00000000-0000-4000-8000-000000000002"
+      }
+    },
+    {
+      "schema": "P2EventStreamSessionChanged",
+      "value": {
+        "eventId": "00000000-0000-4000-8000-000000000003",
+        "eventType": "stream.session.changed.v1",
+        "schemaVersion": 1,
+        "aggregateId": "session:ses_fixture",
+        "sequence": 3,
+        "occurredAtUtc": "2026-10-08T20:00:02Z",
+        "producer": "streaming",
+        "payload": {
+          "streamId": "str_fixture",
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1,
+          "sessionVersion": 3,
+          "status": "RECONNECT_GRACE",
+          "availability": "RECONNECTING",
+          "channelId": "chn_fixture",
+          "firstLiveAtUtc": "2026-10-08T20:00:01Z",
+          "initialLive": true
+        },
+        "correlationId": "00000000-0000-4000-8000-000000000003"
+      }
+    }
+  ]
+}

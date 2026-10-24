@@ -10,6 +10,9 @@ import (
 )
 
 type Config struct {
+	EventsTransport     string
+	BrokerURL           string
+	BrokerCAFile        string
 	PublicAddr          string
 	InternalAddr        string
 	PublicTLSCert       string
@@ -59,6 +62,9 @@ func Load() (Config, error) {
 		return d
 	}
 	c := Config{
+		EventsTransport:     str("CHAT_EVENTS_TRANSPORT", "http"),
+		BrokerURL:           str("CHAT_BROKER_URL", ""),
+		BrokerCAFile:        str("CHAT_BROKER_CA_FILE", ""),
 		PublicAddr:          str("CHAT_PUBLIC_ADDR", ":8085"),
 		InternalAddr:        str("CHAT_INTERNAL_ADDR", ":8086"),
 		PublicTLSCert:       str("CHAT_PUBLIC_TLS_CERT_FILE", ""),
@@ -75,13 +81,22 @@ func Load() (Config, error) {
 		CoreTimeout:         dur("CHAT_CORE_TIMEOUT", "400ms"),
 		AuthBudget:          dur("CHAT_AUTH_BUDGET", "500ms"),
 		EventsProducer:      str("CHAT_SESSION_EVENTS_PRODUCER", "streaming"),
-		EventsToken:         required("CHAT_SESSION_EVENTS_TOKEN"),
+		EventsToken:         str("CHAT_SESSION_EVENTS_TOKEN", ""),
 		EndedRetention:      dur("CHAT_ENDED_RETENTION", "5m"),
 		RoomIdleTTL:         dur("CHAT_ROOM_IDLE_TTL", "12h"),
 		InboxTTL:            dur("CHAT_EVENT_INBOX_TTL", "24h"),
 		ReaderBlock:         dur("CHAT_READER_BLOCK", "2s"),
 		RoomSweepInterval:   dur("CHAT_ROOM_SWEEP_INTERVAL", "1m"),
 		LogLevel:            str("CHAT_LOG_LEVEL", "info"),
+	}
+	if c.EventsTransport != "http" && c.EventsTransport != "amqp" {
+		errs = append(errs, "CHAT_EVENTS_TRANSPORT debe ser http o amqp")
+	}
+	if c.EventsTransport == "http" && c.EventsToken == "" {
+		errs = append(errs, "CHAT_SESSION_EVENTS_TOKEN es obligatorio")
+	}
+	if c.EventsTransport == "amqp" && (c.BrokerURL == "" || c.BrokerCAFile == "") {
+		errs = append(errs, "CHAT_BROKER_URL y CHAT_BROKER_CA_FILE son obligatorios")
 	}
 	for _, o := range strings.Split(required("CHAT_ALLOWED_ORIGINS"), ",") {
 		if o = strings.TrimRight(strings.TrimSpace(o), "/"); o != "" {

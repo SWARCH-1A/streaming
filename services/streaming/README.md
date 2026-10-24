@@ -163,3 +163,9 @@ STREAMING_TEST_DATABASE_URL=postgres://... cargo test --all-targets --all-featur
 La prueba de stack `python3 tests/smoke_stack.py` requiere Docker y Python 3. Usa un proyecto y puertos desechables; construye la imagen, verifica tres contenedores, video RTMP→HLS real, cierre coordinado, fallos de arranque, reinicios, migraciones, callbacks persistentes y cambio de contraseña Media sobre el mismo volumen. Elimina únicamente su proyecto/volumen al terminar. No sustituye la aceptación integrada Core/Chat/Web ni la carga de SPEC-13.
 
 Las pruebas del módulo usan fixtures propios y bases/esquemas desechables. La aceptación del primer frame visible en Web, los receptores Core/Chat y la carga del sistema se verifica conforme a [SPEC-13](../../docs/spec-p1/spec_13_int.md).
+
+## Transporte P2 por RabbitMQ
+
+STREAMING_EVENTS_TRANSPORT=http (por defecto) conserva publicadores HTTP P1. Con amqp, STREAMING_BROKER_URL (AMQPS) y STREAMING_BROKER_CA_FILE son obligatorios. Los dos relays publican envelopes P2 persistidos en el outbox, con mandatory/confirm antes de marcar publicados. Reintentan caídas del broker sin agotar la ventana P1 de quince minutos. Las consultas Core/Streaming siguen por HTTP.
+
+Ver [perfil compartido](../../infra/broker/README.md) y [ADR-016](../../docs/adr/ADR-016-rabbitmq-eventos-p2.md).

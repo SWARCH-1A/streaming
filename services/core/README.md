@@ -221,3 +221,24 @@ rechazar schemas no vacíos sin historial Core; no activar baseline-on-migrate n
 La base actual está vacía: se inicializa con Flyway V1 y no requiere importar datos ni archivos de
 prototipos anteriores. La secuencia anterior solo describe evolución del esquema Core, no una
 migración de datos.
+
+## Transporte P2 por RabbitMQ
+
+CORE_EVENTS_TRANSPORT=http (por defecto) conserva recepción HTTP P1. Con amqp, consume core.lifecycle/core.discovery mediante Spring AMQP y deshabilita la entrega HTTP de eventos. El inbox P2 es SQL local sin TTL automático; la barrera de ciclo no reemplaza metadatos/contadores. Configurar host/puerto/vhost/usuario/password spring.rabbitmq y truststore JVM con CA/hostname verificados.
+
+BrokerEventIngestService escribe mediante los puertos Discovery BrokerEventStore y ProjectionStore.
+JdbcBrokerEventStore posee el SQL del inbox P2 y la barrera de ciclo; JdbcProjectionStore posee
+el de proyección y conflictos. La aplicación mantiene una sola TransactionTemplate para ambos
+repositorios; la confirmación AMQP ocurre después del commit. No hay transacciones independientes
+por repositorio ni cambios en los envelopes del contrato.
+
+BrokerRepositoryBoundaryTest comprueba la dependencia de esos puertos. BrokerEventIngestIT usa
+PostgreSQL desechable para verificar dedupe, versiones, conflictos, concurrencia y rollback de inbox
+y efectos ante un fallo SQL posterior a insertar o actualizar ciclo/proyección. Se ejecutan con
+las suites Unit/Integration anteriores.
+
+V8__broker_lifecycle_conflicts.sql amplía los motivos de conflicto de Discovery con
+LIFECYCLE_CONFLICT, conservando los de P1. Se aplica sobre V7 sin modificar migraciones anteriores;
+la prueba de actualización verifica conservación del inbox, ciclo y checksums existentes.
+
+Ver [perfil compartido](../../infra/broker/README.md) y [ADR-016](../../docs/adr/ADR-016-rabbitmq-eventos-p2.md).

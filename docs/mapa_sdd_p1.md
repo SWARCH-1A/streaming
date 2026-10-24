@@ -18,7 +18,7 @@ locales; Gateway, Streaming, Chat, VOD y Notificaciones tienen sus fronteras des
 | Subtítulos / accesibilidad | Publicación y sincronía de pistas; controles accesibles | [SPEC-22](spec-p2/spec_22_subtitles.md); RF-063…065; P2-04…05 | Dueños del contenido y clientes; contrato por cerrar |
 | Web | SSR, rutas, HTML inicial, hidratación y módulos de interacción | [SPEC-18](spec-p2/spec_18_ssr.md); RNF-002/035…037 | apps/web |
 | Móvil | Experiencia de espectador KMP + Compose, sesión segura y push | [SPEC-19](spec-p2/spec_19_mobile.md); RNF-002/007 | Nueva aplicación; ubicación por definir |
-| Gateway / integración | Entrada, agregación por pantalla, errores parciales, HTTP/WS/HLS y broker compartido | [SPEC-16](spec-p2/spec_16_gateway.md), [SPEC-17](spec-p2/spec_17_broker.md), [SPEC-10](spec-p2/spec_10_contracts.md) y [SPEC-24](spec-p2/spec_24_deployment.md); RNF-003/006/023/051 | Nuevo Gateway; contracts, infra y tests compartidos |
+| Gateway / integración | Entrada, agregación por pantalla, errores parciales, HTTP/WS/HLS y broker compartido | [SPEC-16](spec-p2/spec_16_gateway.md), [SPEC-17](spec-p2/spec_17_broker.md), [SPEC-10](spec-p2/spec_10_contracts.md) y [SPEC-24](spec-p2/spec_24_deployment.md); RNF-003/006/023/051 | Nuevo Gateway; contracts, infra/broker (ADR-016) y tests compartidos |
 | Administración | Operaciones privilegiadas sobre cada dominio y UI común | [SPEC-23](spec-p2/spec_23_admin.md); RF-076…079; P2-17 | Cuentas provisiona rol; cada dominio ejecuta su operación |
 
 La bandeja VOD por canal puede componerse en Gateway, pero VOD conserva su consulta y autorización.
@@ -31,6 +31,9 @@ Las [SPEC P1](spec-p1/README.md) conservan contratos de las capacidades existent
 sus invariantes de registro transaccional, identidad opaca, propiedad y aislamiento de bases.
 La retención efímera de Chat, SPA y eventos HTTPS punto a punto son perfiles P1; para P2 rigen
 las SPEC actuales, SSR y broker con consumidores independientes.
+
+Integración mantiene infra/local/dev.py e infra/p1/manage.py. El arranque local incluye RabbitMQ
+por defecto junto con los nueve servicios base; los fixtures P1 conservan HTTP y sus almacenes separados.
 
 No se asignan integrantes nominales desde este mapa. Cada responsable cierra sus
 [decisiones pendientes](decisiones_pendientes_p2.md), selecciona tecnología mediante ADR y

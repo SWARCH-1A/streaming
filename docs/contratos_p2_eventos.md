@@ -1,7 +1,8 @@
 # Contratos de eventos y trabajos P2
 
-[contracts/p2.json](../contracts/p2.json) define envelope especializado, payload, productor,
-clave de partición y bindings. [SPEC-17](spec-p2/spec_17_broker.md) define entrega y operación.
+[contracts/p2.json](../contracts/p2.json) registra tipos, productores y suscripciones. Los envelopes/payloads ejecutables
+de ciclo y Discovery están definidos; las otras siete familias siguen como pending-owner,
+sin schemas vacíos que simulen disponibilidad. [SPEC-17](spec-p2/spec_17_broker.md) define entrega y operación.
 Los nombres son lógicos; su mapeo a exchanges/topics/streams/queues depende del broker elegido.
 
 ## Envelope
@@ -111,3 +112,14 @@ Ejemplos válidos/negativos se comprueban con `contracts/check_p2.py`. Las prueb
 incluyen commit sin publicar, confirmación perdida, proceso muerto antes/después de ACK, versiones
 viejas, consumidor detenido, corrupción de payload, reinicio de broker y redrive. No basta un
 publish/subscribe con texto arbitrario para acreditar estos contratos.
+
+## Mapeo de transporte vigente
+
+[ADR-016](adr/ADR-016-rabbitmq-eventos-p2.md) selecciona RabbitMQ/AMQP. El exchange p2.events
+usa la routing key del tipo; ciclo añade .initial/.update según initialLive y entregas por medio
+añaden .inbox/.email/.push. El eventType del envelope no cambia. Cada suscripción tiene cola
+propia; p2.redelivery devuelve solo a la suscripción original. Los filtros no inspeccionan JSON.
+
+La integración inicial conecta ciclo a Core/Chat y snapshots a Discovery. Cuenta/suspensión,
+VOD y Notificaciones requieren sus payloads y operaciones de dominio antes de activar productores.
+Los contratos HTTP/WS/media P2 restantes aún no están materializados en la fuente ejecutable.
