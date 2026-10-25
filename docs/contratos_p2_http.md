@@ -190,7 +190,61 @@ aceptación si ese dominio no la persistió. Suspensión no borra datos ni repub
 
 ## Interfaces aún bloqueadas
 
-Watch parties y subtítulos figuran en `pendingInterfaces`, con operaciones requeridas y P2-01…05.
-Sus responsables deben cerrar acceso/origen/formato/ciclo y publicar los schemas antes de integrar.
-No se declara lista una API con permisos o formatos sin definir. P2-09/11/15 identifican las firmas
-concretas que necesitan ratificación; las demás forman el diseño compartido de P2.
+Watch parties requiere cerrar P2-01…03. `pendingInterfaces` no existe en la fuente actual.
+Subtítulos tiene los contratos siguientes, marcados contract-only: no hay proveedor ejecutable.
+P2-09/11/15 identifican otras firmas que necesitan ratificación; las tablas de diseño por sí solas
+no demuestran schemas completos ni endpoints disponibles.
+
+## Subtitulos VOD
+
+SPEC-22 y ADR-018 definen carga por propietario, exclusivamente sobre VOD. Fuente neutral:
+`contracts/p2.json.operations` y schemas P2Subtitle*. Cada operación declara proveedor VOD,
+consumidores Web/móvil y status=contract-only. El tiempo máximo propuesto es 10 s; el cliente
+no transforma un timeout en éxito ni reintenta una mutación con una clave nueva.
+
+| ID | Método y ruta | Entrada | Éxito | Permiso |
+| --- | --- | --- | --- | --- |
+| p2.subtitles.upload | POST `/api/vods/{vodId}/subtitles` | multipart: metadata y file | 201 P2SubtitleTrack | Propietario activo |
+| p2.subtitles.list | GET `/api/vods/{vodId}/subtitles` | P2SubtitleQuery | 200 P2SubtitlePage | Lectura vigente del VOD o propietario activo |
+| p2.subtitles.read | GET `/vod-media/{vodId}/subtitles/{trackId}.vtt` | — | 200 bytes UTF-8, text/vtt | Igual comprobación de lectura |
+| p2.subtitles.delete | DELETE `/api/vods/{vodId}/subtitles/{trackId}` | If-Match e Idempotency-Key | 204 sin cuerpo | Propietario activo |
+
+IDs de path opacos de 1–128 caracteres `[A-Za-z0-9_-]`; query ajeno se rechaza. En listado limit
+1…50 (20 por defecto), cursor firmado/opaco ligado a principal o público, vodId, filtro de
+disponibilidad, mapping y revisión del listado. Orden por trackId. Vencido/cambiado: 410;
+el cliente vuelve a la primera página. Cursores duran 5 min y no eluden revocación de permisos.
+No se mezclan VOD ni IDs repetidos en una página. Se devuelven únicamente pistas READY vigentes.
+
+Multipart contiene exactamente una parte metadata (application/json, ≤16 KiB) y una parte file
+(text/vtt, ≤1 MiB). Cuerpo completo ≤1 114 112 bytes para acotar también delimitadores/cabeceras.
+Nombre de archivo no determina identidad, idioma, ruta ni MIME de respuesta. Metadata estricta:
+language, label y expectedMappingVersion; no acepta propietario, URL, duración ni ruta S3.
+VOD obtiene duración/mapping/propiedad autoritativos; valida el perfil y confirma el objeto
+antes de asociarlo, revalidando permiso y mapping al confirmar. Una carrera con retirada o
+suspensión no publica una pista nueva. Un objeto huérfano queda para limpieza recuperable.
+
+Cada carga crea trackId inmutable y trackVersion=1; el contentPath coincide exactamente con
+vodId/trackId y se resuelve contra el inventario. No se almacenan links arbitrarios del cliente.
+Retirar requiere `If-Match: "1"` (versión vigente) y conserva tombstone con versión incrementada.
+Precondición ausente: 428; versión diferente: 412. La retirada deshabilita lectura/listado antes
+de devolver 204. La limpieza de objetos es posterior, durable e idempotente; el proveedor debe
+exponer su estado operativo al integrar. Una respuesta 204 no afirma que S3 ya borró los bytes.
+
+Mutaciones requieren Idempotency-Key UUID y CSRF para cookie. El resultado se liga al actor,
+operación, VOD, metadata y hash SHA-256 de los bytes originales; DELETE incluye trackId/If-Match.
+Repetir el mismo comando devuelve su resultado original sin duplicar pistas ni retiradas;
+cambiarlo con la misma clave da 409 IDEMPOTENCY_KEY_REUSED. Se conserva al menos 24 h, plazo
+que debe ratificarse con consumidores. Revalidar identidad/acceso antes de devolver resultados
+guardados. Retención de idempotencia no concede acceso a bytes retirados. Tras timeout de carga,
+el cliente conserva clave y archivo para reintentar; pasado el plazo, consulta antes de otra carga.
+
+Errores Error base: 400 estructura, 401 sesión inválida, 403 no propietario, 404 no visible o
+inexistente, 409 mapping cambiado/idempotencia, 410 cursor inválido o pista retirada accesible
+al propietario, 413 tamaño, 415 MIME, 422 perfil/timing (fieldErrors.file), 429 cuota y 503/504
+dependencia/plazo. El reader devuelve errores JSON, no un WebVTT vacío que parezca éxito.
+No se filtra contenido privado: para visitantes, borrador/restringido/retirado es 404.
+
+Todas estas respuestas usan Cache-Control: no-store; reader añade Content-Type: text/vtt y
+X-Content-Type-Options: nosniff. No necesita Range: devuelve la pista completa acotada. Cada
+petición revalida acceso y mapping; P2-17 fijará cómo se obtiene autorización vigente y su plazo.
+Las URLs no van directamente a S3. Esto no revoca texto previamente descargado por el usuario.

@@ -30,7 +30,8 @@ schemas generados no acreditan que esos endpoints estén implementados.
 La fuente p2.json extiende los schemas P1 sin modificar sus artefactos. Registra nueve familias
 y dieciocho suscripciones; actualmente solo los payloads de ciclo y snapshot Discovery están
 listos. Las demás entradas están marcadas pending-owner y no admiten publicación como contratos
-validados. El inventario ejecutable HTTP/WS/media P2 continúa pendiente.
+validados. Las cuatro operaciones p2.subtitles.* y schemas P2Subtitle* son contratos VOD
+marcados contract-only, aún sin endpoints/reproductores; el resto del inventario sigue pendiente.
 
     python contracts/check_p2.py --write
     python contracts/check_p2.py
@@ -39,3 +40,17 @@ validados. El inventario ejecutable HTTP/WS/media P2 continúa pendiente.
 El primer comando genera contracts/generated/p2.schema.json; no editarlo a mano. La validación
 es offline, comprueba referencias, ejemplos válidos/negativos, identidad/versiones y privacidad.
 El arranque RabbitMQ y los SDK de cada lenguaje se documentan en infra/broker/README.md y ADR-016.
+
+## Perfil de subtítulos VOD
+
+[SPEC-22](../docs/spec-p2/spec_22_subtitles.md) define el perfil p2-webvtt-text-v1 y su alcance.
+El checker `webvtt.py` valida bytes/tiempos sin publicar ni modificar archivos:
+
+```sh
+python contracts/webvtt.py tests/contracts/fixtures/subtitles/education-es.vtt --duration-ms 12000
+python -m unittest discover -s tests/contracts -p 'test_*.py'
+```
+
+`check_p2.py` comprueba además ejemplos, referencias de operaciones, paths y páginas de pistas.
+La duración usada en pruebas es ficticia; el futuro proveedor debe consultar la duración/mapping
+de VOD y aplicar permisos. No se acredita VOD funcional ni se decide su runtime mediante Python.

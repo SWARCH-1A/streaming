@@ -4151,6 +4151,191 @@
           "correlationId": "00000000-0000-4000-8000-000000000001"
         }
       ]
+    },
+    "P2SubtitleUploadMetadata": {
+      "type": "object",
+      "properties": {
+        "language": {
+          "type": "string",
+          "pattern": "^[a-z]{2,3}(-[A-Z][a-z]{3})?(-([A-Z]{2}|[0-9]{3}))?$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^(?!.*[\\u0000-\\u001f\\u007f])\\S(?:.*\\S)?$"
+        },
+        "expectedMappingVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "language",
+        "label",
+        "expectedMappingVersion"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "language": "es",
+          "label": "Español",
+          "expectedMappingVersion": 1
+        }
+      ]
+    },
+    "P2SubtitleTrack": {
+      "type": "object",
+      "properties": {
+        "trackId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "vodId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "language": {
+          "type": "string",
+          "pattern": "^[a-z]{2,3}(-[A-Z][a-z]{3})?(-([A-Z]{2}|[0-9]{3}))?$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^(?!.*[\\u0000-\\u001f\\u007f])\\S(?:.*\\S)?$"
+        },
+        "kind": {
+          "const": "subtitles"
+        },
+        "format": {
+          "const": "WEBVTT"
+        },
+        "state": {
+          "const": "READY"
+        },
+        "trackVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "mappingVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "mediaDurationMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "contentPath": {
+          "type": "string",
+          "maxLength": 300,
+          "pattern": "^/vod-media/[A-Za-z0-9_-]{1,128}/subtitles/[A-Za-z0-9_-]{1,128}\\.vtt$"
+        }
+      },
+      "required": [
+        "trackId",
+        "vodId",
+        "language",
+        "label",
+        "kind",
+        "format",
+        "state",
+        "trackVersion",
+        "mappingVersion",
+        "mediaDurationMs",
+        "contentPath"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "trackId": "sub_fixture",
+          "vodId": "vod_fixture",
+          "language": "es",
+          "label": "Español",
+          "kind": "subtitles",
+          "format": "WEBVTT",
+          "state": "READY",
+          "trackVersion": 1,
+          "mappingVersion": 1,
+          "mediaDurationMs": 12000,
+          "contentPath": "/vod-media/vod_fixture/subtitles/sub_fixture.vtt"
+        }
+      ]
+    },
+    "P2SubtitlePage": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/P2SubtitleTrack"
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "items": [
+            {
+              "trackId": "sub_fixture",
+              "vodId": "vod_fixture",
+              "language": "es",
+              "label": "Español",
+              "kind": "subtitles",
+              "format": "WEBVTT",
+              "state": "READY",
+              "trackVersion": 1,
+              "mappingVersion": 1,
+              "mediaDurationMs": 12000,
+              "contentPath": "/vod-media/vod_fixture/subtitles/sub_fixture.vtt"
+            }
+          ],
+          "nextCursor": null
+        }
+      ]
+    },
+    "P2SubtitleQuery": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 20
+        },
+        "cursor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {},
+        {
+          "limit": 20
+        }
+      ]
     }
   }
 }

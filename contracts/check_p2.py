@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the implemented P2 event contracts; generate their neutral schema offline."""
+"""Validate P2 schemas and contract-only operations; generate the neutral schema offline."""
 from __future__ import annotations
 
 import argparse
@@ -46,6 +46,18 @@ def schema_bundle():
 
 def validate(schema, name, value):
     Draft202012Validator({**schema, "$ref": "#/$defs/" + name}, format_checker=FormatChecker()).validate(value)
+    if name == "P2SubtitleTrack":
+        expected = f"/vod-media/{value['vodId']}/subtitles/{value['trackId']}.vtt"
+        if value["contentPath"] != expected:
+            raise ValueError("Subtitle path does not match its VOD and track")
+    if name == "P2SubtitlePage":
+        ids = [track["trackId"] for track in value["items"]]
+        if len(ids) != len(set(ids)) or len({track["vodId"] for track in value["items"]}) > 1:
+            raise ValueError("Subtitle page mixes VODs or duplicate tracks")
+        for track in value["items"]:
+            validate(schema, "P2SubtitleTrack", track)
+    if not name.startswith("P2Event"):
+        return
     for obj in objects(value):
         if FORBIDDEN.intersection(obj):
             raise ValueError("Private data in event")
@@ -65,6 +77,8 @@ def validate(schema, name, value):
 def verify(p2, schema):
     for name in p2["schemas"]:
         Draft202012Validator.check_schema(schema["$defs"][name])
+        for example in p2["schemas"][name].get("examples", []):
+            validate(schema, name, example)
     for obj in objects(schema["$defs"]):
         if "$ref" in obj and (not obj["$ref"].startswith("#/$defs/") or obj["$ref"][8:] not in schema["$defs"]):
             raise ValueError("Nonlocal/unresolved schema reference")
@@ -98,6 +112,16 @@ def verify(p2, schema):
         except (ValueError, ValidationError):
             continue
         raise ValueError("A negative example was accepted")
+    operation_ids = set()
+    for operation in p2.get("operations", []):
+        if operation["id"] in operation_ids:
+            raise ValueError("Duplicate operation ID")
+        operation_ids.add(operation["id"])
+        names = [operation.get("request"), operation.get("query"), *operation["responses"].values()]
+        names.extend(part.get("schema") for part in operation.get("parts", {}).values())
+        for name in names:
+            if name is not None and name not in schema["$defs"]:
+                raise ValueError("Unknown HTTP schema")
 
 
 def main():
@@ -110,7 +134,7 @@ def main():
     output = HERE / "generated/p2.schema.json"
     encoded = json.dumps(schema, ensure_ascii=False, indent=2) + "\n"
     if args.write:
-        output.write_text(encoded, encoding="utf-8")
+        output.write_text(encoded, encoding="utf-8", newline="\n")
     elif not output.exists() or output.read_text(encoding="utf-8") != encoded:
         raise SystemExit("Run python contracts/check_p2.py --write")
     if args.event:
@@ -119,7 +143,8 @@ def main():
         if event is None or event["schema"] is None:
             raise SystemExit("The event payload is not ready")
         validate(schema, event["schema"], value)
-    print("P2: two event schemas validated; nine types/eighteen subscriptions registered; remaining payloads pending")
+    print(f"P2: {sum(e['schema'] is not None for e in p2['events'])} event schemas and "
+          f"{len(p2.get('operations', []))} HTTP contracts validated; provider implementation is separate")
 
 
 if __name__ == "__main__":

@@ -22,6 +22,7 @@ y cuáles fueron sustituidos. Las fechas conservan el momento de cada decisión.
 | [ADR-014](ADR-014-perfil-integrado-tls-p1.md) | Aceptada en P1 | Perfil académico persistente, TLS nativo por runtime, RTMPS, CA explícita y almacenamiento compartido. |
 | [ADR-015](ADR-015-arquitectura-p2.md) | Aceptada para diseño P2 | React Router SSR, KMP + Compose, Gateway, broker único, VOD independiente, replay durable y Notificaciones. Tecnologías nuevas por responsable. |
 | [ADR-016](ADR-016-rabbitmq-eventos-p2.md) | Aceptada para integración inicial | RabbitMQ/AMQP, contratos de ciclo/Discovery, outbox/inbox, DLQ y operación. Recuperación integrada por acreditar. |
+| [ADR-018](ADR-018-subtitulos-vod-webvtt.md) | Propuesta; contratos comprobables | WebVTT aportado por propietario, dentro de VOD; perfil limitado y reproducción integrada pendiente. |
 
 Chat conserva Go; ADR-010 describe su perfil efímero P1. La retención durable P2 rige por ADR-015; las herramientas pendientes de operación y despliegue se registran conforme
 a la [política ADR](../politica_ADR.md). Las alternativas candidatas requieren decisión del responsable.
