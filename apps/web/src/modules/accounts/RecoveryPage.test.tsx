@@ -1,5 +1,5 @@
 import { StrictMode } from 'react';
-import { MemoryRouter, useLocation } from 'react-router';
+import { Link, MemoryRouter, useLocation } from 'react-router';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RecoveryPage } from './RecoveryPage';
 
 const token = 'a'.repeat(43);
+const replacementToken = 'b'.repeat(43);
 const message =
   'Si existe una cuenta asociada, recibirás un correo para restablecer la contraseña.';
 
@@ -17,15 +18,21 @@ function json(value: unknown, status = 200) {
   });
 }
 
-function Location() {
+function Location({ replacementFragment }: { replacementFragment: string }) {
   const location = useLocation();
-  return <span data-testid="location">{location.pathname + location.hash}</span>;
+  return (
+    <>
+      <span data-testid="location">{location.pathname + location.hash}</span>
+      <Link to={`/reset-password${replacementFragment}`}>Abrir otro enlace</Link>
+    </>
+  );
 }
 
 function setup(
   mode: 'request' | 'confirm',
   responder?: (path: string) => Promise<Response>,
   fragment = `#token=${token}`,
+  replacementFragment = `#token=${replacementToken}`,
 ) {
   const fetch = vi.fn((path: string, options?: RequestInit) => {
     void options;
@@ -44,7 +51,7 @@ function setup(
         initialEntries={[mode === 'confirm' ? `/reset-password${fragment}` : '/forgot-password']}
       >
         <RecoveryPage mode={mode} />
-        <Location />
+        <Location replacementFragment={replacementFragment} />
       </MemoryRouter>
     </StrictMode>,
   );
@@ -161,6 +168,155 @@ describe('confirmación de recuperación', () => {
     expect(screen.getByLabelText('Repite la contraseña')).toHaveFocus();
     expect(screen.getByRole('alert')).toHaveTextContent('Las contraseñas deben coincidir.');
   });
+
+  it('captura un enlace nuevo desde el estado sin token en la misma pestaña', async () => {
+    setup('confirm', undefined, '');
+    expect(screen.getByRole('alert')).toHaveTextContent('El enlace no es válido.');
+    await userEvent.click(screen.getByRole('link', { name: 'Abrir otro enlace' }));
+    expect(screen.getByLabelText('Nueva contraseña')).toHaveValue('');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByTestId('location')).toHaveTextContent('/reset-password');
+    expect(screen.getByTestId('location')).not.toHaveTextContent('#');
+  });
+
+  it('reemplaza el token, limpia errores y campos y usa otra clave de idempotencia', async () => {
+    let attempts = 0;
+    const { fetch } = setup('confirm', () =>
+      Promise.resolve(
+        attempts++ === 0
+          ? json(
+              {
+                code: 'RECOVERY_INVALID',
+                message: 'El enlace ha vencido.',
+                requestId: 'req_fixture',
+              },
+              422,
+            )
+          : new Response(null, { status: 204 }),
+      ),
+    );
+    await userEvent.type(screen.getByLabelText('Nueva contraseña'), 'fixture password 12');
+    await userEvent.type(screen.getByLabelText('Repite la contraseña'), 'fixture password 12');
+    await userEvent.click(screen.getByRole('button', { name: 'Guardar nueva contraseña' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('El enlace ha vencido.');
+    await userEvent.clear(screen.getByLabelText('Repite la contraseña'));
+    await userEvent.click(screen.getByRole('button', { name: 'Guardar nueva contraseña' }));
+    expect(screen.getByLabelText('Repite la contraseña')).toHaveAttribute('aria-invalid', 'true');
+
+    await userEvent.click(screen.getByRole('link', { name: 'Abrir otro enlace' }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Nueva contraseña')).toHaveValue('');
+    expect(screen.getByLabelText('Repite la contraseña')).toHaveValue('');
+    expect(screen.getByLabelText('Repite la contraseña')).toHaveAttribute('aria-invalid', 'false');
+    expect(screen.getByTestId('location')).not.toHaveTextContent('#');
+    await userEvent.type(screen.getByLabelText('Nueva contraseña'), 'fixture replacement 12');
+    await userEvent.type(screen.getByLabelText('Repite la contraseña'), 'fixture replacement 12');
+    await userEvent.click(screen.getByRole('button', { name: 'Guardar nueva contraseña' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Contraseña actualizada.');
+    const calls = fetch.mock.calls.filter(([path]) => path.endsWith('/confirm'));
+    expect(calls).toHaveLength(2);
+    const first = calls[0]?.[1] as RequestInit;
+    const second = calls[1]?.[1] as RequestInit;
+    expect(JSON.parse(first.body as string)).toEqual({
+      recoveryToken: token,
+      newPassword: 'fixture password 12',
+    });
+    expect(JSON.parse(second.body as string)).toEqual({
+      recoveryToken: replacementToken,
+      newPassword: 'fixture replacement 12',
+    });
+    expect(new Headers(second.headers).get('Idempotency-Key')).not.toBe(
+      new Headers(first.headers).get('Idempotency-Key'),
+    );
+  });
+
+  it('reabre el formulario al recibir otro enlace después de confirmar', async () => {
+    setup('confirm');
+    await userEvent.type(screen.getByLabelText('Nueva contraseña'), 'fixture password 12');
+    await userEvent.type(screen.getByLabelText('Repite la contraseña'), 'fixture password 12');
+    await userEvent.click(screen.getByRole('button', { name: 'Guardar nueva contraseña' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Contraseña actualizada.');
+    await userEvent.click(screen.getByRole('link', { name: 'Abrir otro enlace' }));
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Nueva contraseña')).toHaveValue('');
+    expect(screen.getByLabelText('Repite la contraseña')).toHaveValue('');
+  });
+
+  it('descarta el token anterior si el nuevo fragmento es inválido', async () => {
+    const { fetch } = setup('confirm', undefined, `#token=${token}`, '#token=invalid');
+    await userEvent.type(screen.getByLabelText('Nueva contraseña'), 'fixture password 12');
+    await userEvent.click(screen.getByRole('link', { name: 'Abrir otro enlace' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('El enlace no es válido.');
+    expect(screen.queryByLabelText('Nueva contraseña')).not.toBeInTheDocument();
+    expect(screen.getByTestId('location')).not.toHaveTextContent('#');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it.each(['success', 'failure'])(
+    'descarta una respuesta tardía de %s del enlace anterior',
+    async (outcome) => {
+      let complete!: (response: Response) => void;
+      const response = new Promise<Response>((resolve) => {
+        complete = resolve;
+      });
+      let attempts = 0;
+      const { fetch } = setup('confirm', () =>
+        attempts++ === 0 ? response : Promise.resolve(new Response(null, { status: 204 })),
+      );
+      await userEvent.type(screen.getByLabelText('Nueva contraseña'), 'fixture password 12');
+      await userEvent.type(screen.getByLabelText('Repite la contraseña'), 'fixture password 12');
+      await userEvent.click(screen.getByRole('button', { name: 'Guardar nueva contraseña' }));
+      await waitFor(() =>
+        expect(fetch.mock.calls.some(([path]) => path.endsWith('/confirm'))).toBe(true),
+      );
+      const previous = fetch.mock.calls.find(([path]) =>
+        path.endsWith('/confirm'),
+      )?.[1] as RequestInit;
+      const expired = vi.fn();
+      window.addEventListener('session-expired', expired);
+      try {
+        await userEvent.click(screen.getByRole('link', { name: 'Abrir otro enlace' }));
+        expect(previous.signal?.aborted).toBe(true);
+        expect(screen.getByRole('button', { name: 'Guardar nueva contraseña' })).toBeEnabled();
+        expect(screen.getByLabelText('Nueva contraseña')).toHaveValue('');
+        await act(async () => {
+          complete(
+            outcome === 'success'
+              ? new Response(null, { status: 204 })
+              : json(
+                  {
+                    code: 'RECOVERY_INVALID',
+                    message: 'Respuesta del enlace anterior.',
+                    requestId: 'req_fixture',
+                  },
+                  422,
+                ),
+          );
+          await response;
+        });
+        expect(expired).not.toHaveBeenCalled();
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        await userEvent.type(screen.getByLabelText('Nueva contraseña'), 'fixture replacement 12');
+        await userEvent.type(
+          screen.getByLabelText('Repite la contraseña'),
+          'fixture replacement 12',
+        );
+        await userEvent.click(screen.getByRole('button', { name: 'Guardar nueva contraseña' }));
+        expect(await screen.findByRole('status')).toHaveTextContent('Contraseña actualizada.');
+        const options = fetch.mock.calls
+          .filter(([path]) => path.endsWith('/confirm'))
+          .at(-1)?.[1] as RequestInit;
+        expect(JSON.parse(options.body as string)).toEqual({
+          recoveryToken: replacementToken,
+          newPassword: 'fixture replacement 12',
+        });
+        expect(expired).toHaveBeenCalledOnce();
+      } finally {
+        window.removeEventListener('session-expired', expired);
+      }
+    },
+  );
 
   it('muestra un token vencido como error y mantiene acceso a pedir otro', async () => {
     setup('confirm', () =>

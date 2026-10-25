@@ -21,9 +21,50 @@ export function RecoveryPage({ mode }: { mode: 'request' | 'confirm' }) {
   const confirming = mode === 'confirm';
   const location = useLocation();
   const navigate = useNavigate();
-  const [token, setToken] = useState(
-    () => new URLSearchParams(location.hash.slice(1)).get('token') ?? '',
+  const [link, setLink] = useState(() => ({
+    fragment: location.hash,
+    token: confirming ? (new URLSearchParams(location.hash.slice(1)).get('token') ?? '') : '',
+    version: 0,
+  }));
+
+  if (confirming && location.hash !== link.fragment) {
+    // URL cleanup retains the captured token; an incoming fragment starts a fresh form.
+    setLink({
+      fragment: location.hash,
+      token: location.hash
+        ? (new URLSearchParams(location.hash.slice(1)).get('token') ?? '')
+        : link.token,
+      version: link.version + (location.hash ? 1 : 0),
+    });
+  }
+
+  useEffect(() => {
+    if (confirming && location.hash) {
+      // A fragment is not sent to the server. Remove it from browser history once captured in memory.
+      void navigate(location.pathname, { replace: true });
+    }
+  }, [confirming, location.hash, location.pathname, navigate]);
+
+  return (
+    <RecoveryForm
+      key={`${mode}:${link.version}`}
+      mode={mode}
+      token={link.token}
+      onConfirmed={() => setLink((previous) => ({ ...previous, token: '' }))}
+    />
   );
+}
+
+function RecoveryForm({
+  mode,
+  token,
+  onConfirmed,
+}: {
+  mode: 'request' | 'confirm';
+  token: string;
+  onConfirmed: () => void;
+}) {
+  const confirming = mode === 'confirm';
   const [values, setValues] = useState({ email: '', newPassword: '', confirmation: '' });
   const [errors, setErrors] = useState<Partial<Record<Fields, string>>>({});
   const [pending, setPending] = useState(false);
@@ -33,13 +74,6 @@ export function RecoveryPage({ mode }: { mode: 'request' | 'confirm' }) {
   const lifetime = useLifetime();
   const focusError = useErrorFocus(pending);
   const validToken = /^[A-Za-z0-9_-]{43}$/.test(token);
-
-  useEffect(() => {
-    if (confirming && location.hash) {
-      // A fragment is not sent to the server. Remove it from browser history once captured in memory.
-      void navigate(location.pathname, { replace: true });
-    }
-  }, [confirming, location.hash, location.pathname, navigate]);
 
   function change(field: Fields, value: string) {
     key.current = crypto.randomUUID();
@@ -82,7 +116,7 @@ export function RecoveryPage({ mode }: { mode: 'request' | 'confirm' }) {
           signal,
         });
         signal.throwIfAborted();
-        setToken('');
+        onConfirmed();
         setValues({ email: '', newPassword: '', confirmation: '' });
         window.dispatchEvent(new Event('session-expired'));
         setDone('Contraseña actualizada. Inicia sesión con tu nueva contraseña.');

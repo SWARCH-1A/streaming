@@ -68,6 +68,9 @@ siga vigente. Así, un login concurrente no crea una sesión con la contraseña 
 Web añade `/forgot-password` y `/reset-password`. El enlace SMTP utiliza el fragmento `#token=...`,
 que no se envía al servidor, y Web lo retira de la URL al capturarlo en memoria. Confirmar limpia
 los campos y el estado de sesión local; el usuario inicia sesión con su nueva contraseña.
+Un fragmento nuevo en la misma pestaña reemplaza el token y reinicia campos, errores, resultado
+y clave de idempotencia. Las solicitudes pendientes del enlace anterior se cancelan y sus
+respuestas tardías no modifican la pantalla del enlace nuevo.
 
 ## 8. Dependencias y contratos de integración
 

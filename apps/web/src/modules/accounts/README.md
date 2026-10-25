@@ -14,6 +14,8 @@ la SPEC base conserva registro/perfil. `/forgot-password` solicita el correo con
 y `/reset-password` confirma el token de un uso recibido en el fragmento del enlace. La vista retira
 ese fragmento de la URL, conserva el token en memoria y limpia los secretos al terminar. Solicitud
 y confirmación usan CSRF e Idempotency-Key; los tipos y la respuesta se validan desde contratos P2.
+Abrir otro enlace en la misma pestaña captura el nuevo token y reinicia el formulario y su clave
+de idempotencia, cancelando las solicitudes pendientes del enlace anterior.
 Core publica la solicitud en RabbitMQ; el consumidor y envío del correo están pendientes de
 Notificaciones. Estas vistas y la aceptación de la solicitud no acreditan entrega SMTP.
 [SPEC-08](../../../../../docs/spec-p1/spec_08_a11y.md) fija los criterios de accesibilidad
