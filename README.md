@@ -28,9 +28,10 @@ python3 infra/local/dev.py status
 
 `init` genera los secretos y certificados locales en `infra/p1/.state-local/`, que Git ignora.
 Puedes repetirlo: conserva la configuración y los datos existentes. También prepara certificados,
-credenciales y topología del broker. `build` compila los servicios y la herramienta de operación.
+credenciales y topología del broker, y las claves de recuperación de Cuentas. `build` compila
+los servicios y la herramienta de operación.
 `up` espera los servicios con healthcheck, incluido RabbitMQ, y respuestas HTTPS de Web y la API.
-El gestor combina el [Compose raíz](compose.yaml) y la [configuración RabbitMQ](infra/broker/compose.yaml)
+El gestor combina el [Compose raíz](compose.yaml) y [RabbitMQ](infra/broker/compose.yaml)
 para levantar **diez contenedores**:
 
 | Servicio | Función |
@@ -44,7 +45,7 @@ para levantar **diez contenedores**:
 | `media-server` | MediaMTX: ingesta RTMPS y entrega HLS |
 | `web` | Build estático de la SPA React, servido por HTTPS |
 | `proxy` | Entrada pública HTTPS y rutas Web/API/WebSocket/HLS |
-| `broker` | RabbitMQ: eventos de sesión para Core/Chat y snapshots de Discovery |
+| `broker` | RabbitMQ: ciclo de sesión, Discovery y trabajos de recuperación |
 
 Abrir **[https://localhost:3445](https://localhost:3445)**. Antes, confiar en
 `infra/p1/.state-local/ca.crt` en el sistema donde corren OBS y el navegador, siguiendo la
@@ -62,7 +63,15 @@ Comprobar la API sin modificar el almacén de confianza del sistema:
 curl --fail --cacert infra/p1/.state-local/ca.crt https://localhost:3445/api/taxonomy
 ```
 
-Registrarse en `/register` e iniciar sesión en `/login`. En `/profile` se edita el perfil y avatar;
+Registrarse en `/register` e iniciar sesión en `/login`. «¿Olvidaste tu contraseña?», debajo del
+botón de inicio de sesión, abre `/forgot-password`. Cuentas registra la recuperación y publica
+la solicitud de envío en RabbitMQ. **La entrega del correo está pendiente del responsable de
+Notificaciones**; este checkout no incluye consumidor SMTP, buzón ni base de datos de ese módulo.
+Cuentas ya permite confirmar un token válido, cambiar la contraseña y revocar sesiones anteriores.
+La integración está definida en los [contratos de recuperación](docs/contratos_p2_http.md#sesión-nativa-y-recuperación)
+y [eventos](docs/contratos_p2_eventos.md#integración-de-recuperación-entre-cuentas-y-notificaciones).
+
+En `/profile` se edita el perfil y avatar;
 `/studio/channel` permite editar el canal y su portada. `/studio` crea una emisión, muestra la URL y
 clave de ingest y permite detenerla. Para **OBS**, seleccionar Servicio: Personalizado, copiar
 «Servidor» en «Servidor» y «Clave de retransmisión» completa en «Clave de retransmisión»;
@@ -86,13 +95,17 @@ python3 infra/local/dev.py build      # recompila el checkout después de actual
 python3 infra/local/dev.py up
 ```
 
+Al actualizar una instalación que tenía worker SMTP, `up` retira los contenedores anteriores
+de recuperación y buzón sin borrar volúmenes ni los datos de cuentas. No se requiere configurar
+un proveedor de correo para levantar la parte de Cuentas y el broker.
+
 También se puede usar Compose directamente, incluyendo los dos manifests:
 
 ```sh
-docker compose --env-file infra/p1/.state-local/environment.env -f compose.yaml -f infra/broker/compose.yaml up --build -d --wait
+docker compose --env-file infra/p1/.state-local/environment.env -f compose.yaml -f infra/broker/compose.yaml up --build -d --remove-orphans --wait
 docker compose --env-file infra/p1/.state-local/environment.env -f compose.yaml -f infra/broker/compose.yaml ps
 docker compose --env-file infra/p1/.state-local/environment.env -f compose.yaml -f infra/broker/compose.yaml logs --tail=100 broker core live chat proxy
-docker compose --env-file infra/p1/.state-local/environment.env -f compose.yaml -f infra/broker/compose.yaml down
+docker compose --env-file infra/p1/.state-local/environment.env -f compose.yaml -f infra/broker/compose.yaml down --remove-orphans
 ```
 
 Los errores del gestor quedan en `infra/p1/.state-local/diagnostics.log`. Para empezar con bases
@@ -107,6 +120,15 @@ inicializados. El inicializador selecciona una subred Docker libre. Para fijarla
 IP fija porque Core solo acepta los headers de forwarding de esa IP.
 
 ## Desarrollo y comprobaciones
+
+La recuperación de contraseña incorpora APIs Core, tokens de un uso, revocación de sesiones y
+las vistas `/forgot-password` y `/reset-password`. Su [configuración](services/core/README.md#recuperación-de-contraseña)
+se habilita automáticamente en el arranque local con RabbitMQ. La publicación del trabajo y los
+contratos privados de entrega pertenecen a Cuentas; el consumidor, almacenamiento de intentos y
+proveedor SMTP corresponden a Notificaciones y están pendientes. Core aislado conserva default
+deshabilitado hasta configurar su publicador.
+La política y los contratos se documentan en [SPEC-01 P2](docs/spec-p2/spec_01_auth.md) y
+[ADR-017](docs/adr/ADR-017-recuperacion-de-credenciales.md).
 
 - [Core](services/core/README.md), [Live](services/streaming/README.md), [Chat](services/chat/README.md)
   y [Web](apps/web/README.md) documentan sus comandos y configuración.
@@ -126,7 +148,8 @@ IP fija porque Core solo acepta los headers de forwarding de esa IP.
 RabbitMQ transporta ciclo de sesión a Core/Chat y snapshots a Discovery y forma parte del arranque
 local anterior. Sus métricas, DLQ y recuperación están en el [runbook](infra/broker/README.md).
 La selección está en [ADR-016](docs/adr/ADR-016-rabbitmq-eventos-p2.md); quedan pendientes las
-funciones VOD/Notificaciones/cuentas y su evidencia integrada.
+funciones VOD, bandeja de notificaciones, push y las demás ampliaciones P2. La recuperación
+RF-004 usa el mismo broker y el worker de [ADR-017](docs/adr/ADR-017-recuperacion-de-credenciales.md).
 
 Al actualizar una instalación que usaba entrega HTTP P1, detener las emisiones antes del cambio
 y repetir `init` para añadir la configuración privada del broker conservando los secretos y datos.

@@ -63,6 +63,10 @@ public class JdbcIdentityStore implements IdentityStore {
             return true;
         }));
     }
+    @Override public Optional<Account> accountForUpdate(String userId) {
+        return jdbc.sql("SELECT user_id,handle,password_hash FROM identity.accounts WHERE user_id=:user FOR UPDATE")
+                .param("user",userId).query((rs,n)->new Account(rs.getString(1),rs.getString(2),rs.getString(3))).optional();
+    }
     @Override public boolean loginLimitReached(String identifierHash, String ipHash, Instant since) {
         int idCount=jdbc.sql("SELECT count(*) FROM identity.rate_limit_events WHERE bucket_type='LOGIN_IDENTIFIER' AND bucket_hash=:hash AND occurred_at_utc>:since")
                 .param("hash",identifierHash).param("since",java.sql.Timestamp.from(since)).query(Integer.class).single();

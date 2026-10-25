@@ -21,7 +21,8 @@ y cuáles fueron sustituidos. Las fechas conservan el momento de cada decisión.
 | [ADR-013](ADR-013-web-integrada-caddy-hls.md) | Aceptada en P1 | Web con APIs reales/CSRF, Caddy same-origin, HLS nativo/hls.js, leases y chat recuperable; tipos/validación desde contratos. |
 | [ADR-014](ADR-014-perfil-integrado-tls-p1.md) | Aceptada en P1 | Perfil académico persistente, TLS nativo por runtime, RTMPS, CA explícita y almacenamiento compartido. |
 | [ADR-015](ADR-015-arquitectura-p2.md) | Aceptada para diseño P2 | React Router SSR, KMP + Compose, Gateway, broker único, VOD independiente, replay durable y Notificaciones. Tecnologías nuevas por responsable. |
-| [ADR-016](ADR-016-rabbitmq-eventos-p2.md) | Aceptada para integración inicial | RabbitMQ/AMQP, contratos de ciclo/Discovery, outbox/inbox, DLQ y operación. Recuperación integrada por acreditar. |
+| [ADR-016](ADR-016-rabbitmq-eventos-p2.md) | Aceptada para integración inicial | RabbitMQ/AMQP, contratos de ciclo/Discovery, outbox/inbox, DLQ y operación; recuperación ampliada por ADR-017. |
+| [ADR-017](ADR-017-recuperacion-de-credenciales.md) | Aceptada para Cuentas | Recuperación de un uso, cuotas SQL, AES-GCM, revocación transaccional, publicación RabbitMQ y claim/result; consumidor y SMTP pendientes de Notificaciones. |
 
 Chat conserva Go; ADR-010 describe su perfil efímero P1. La retención durable P2 rige por ADR-015; las herramientas pendientes de operación y despliegue se registran conforme
 a la [política ADR](../politica_ADR.md). Las alternativas candidatas requieren decisión del responsable.

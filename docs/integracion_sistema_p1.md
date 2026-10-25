@@ -74,8 +74,9 @@ Bandeja, correo y push tienen reintentos independientes: el fallo de push no ree
 ya entregado. Dedupe cubre reentregas del evento y de cada intento.
 
 Bandeja es el medio inicial. Correo y push requieren activación; las preferencias por canal se
-combinan con el interruptor general de cada medio. SMTP está disponible; proveedor, credenciales
-y dispositivos de prueba push deben provisionarse. Un fallo de entrega no revierte LIVE.
+combinan con el interruptor general de cada medio. SMTP es el protocolo previsto para correo;
+Notificaciones tiene pendientes el consumidor, proveedor, credenciales y dispositivos de prueba
+push. Un fallo de entrega no revierte LIVE.
 
 ## Suspensión y acceso
 

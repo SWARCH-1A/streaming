@@ -99,6 +99,19 @@ class CoreIT {
         assertThat(request("GET","/api/channels/chn_missing",null,false).statusCode()).isEqualTo(404);
     }
 
+    @Test void recoveryIsUnavailableUntilItsDeliveryIsConfigured() throws Exception {
+        obtainCsrf();
+        var response=browser.send(HttpRequest.newBuilder(uri("/api/identity/recovery-requests"))
+                .header("Content-Type","application/json").header("X-XSRF-TOKEN",csrf)
+                .header("Idempotency-Key",UUID.randomUUID().toString())
+                .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(Map.of("email","fixture@example.test")))).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).isEqualTo(503);
+        assertThat(json.readTree(response.body()).get("code").asText()).isEqualTo("RECOVERY_UNAVAILABLE");
+        assertThat(count("identity.credential_recoveries")).isZero();
+        assertThat(count("identity.recovery_outbox")).isZero();
+    }
+
     @ParameterizedTest
     @ValueSource(strings={"profile.profiles","channels.channels","identity.registrations"})
     void failureAtEveryDependentWriteRollsBackTheWholeRegistration(String table) {
