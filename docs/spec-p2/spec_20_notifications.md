@@ -1,6 +1,6 @@
 # SPEC-20 — Bandeja y entrega de notificaciones
 
-**Prioridad:** P2. **Responsable:** Notificaciones. **Estado:** diseño para desarrollo.
+**Prioridad:** P2. **Responsable:** Notificaciones. **Estado:** en diseño; Cuentas proporciona el contrato y la publicación de recuperación, con consumidor y entrega SMTP pendientes de este módulo.
 **RF:** RF-004, 014…016, 052…055, 079. **RNF:** RNF-020, 022…032, 038, 041…047, 050…051.
 
 ## 1. Contexto y problema
@@ -75,15 +75,25 @@ fijan firmas y productores. Push requiere configuración externa y prueba en dis
 
 ## 9. Decisiones y preguntas abiertas
 
-P2-12: runtime/almacén, caducidad de avisos atrasados, preferencias concurrentes y dispositivos.
-P2-13: proveedor y provisión push. SMTP está disponible. P2-15: política del token de recuperación
-Core y protección del material de entrega. No se selecciona proveedor push por esta SPEC.
+P2-12: el responsable de Notificaciones selecciona runtime, almacén de intentos/bandeja,
+proveedor SMTP y políticas de caducidad, preferencias concurrentes y dispositivos inválidos.
+P2-13: proveedor y provisión push. La implementación de Cuentas no selecciona ni despliega
+tecnologías de este módulo. P2-15 está resuelta por
+[ADR-017](../adr/ADR-017-recuperacion-de-credenciales.md): Core protege y autoriza el material
+temporal mediante claim/result y publica en `notifications.recovery.email` del RabbitMQ
+compartido. El consumidor obtendrá el material por TLS con la identidad lógica `recovery-email`
+y reportará el resultado; no accede a tablas Core ni guarda dirección/token/enlace en eventos,
+logs o en su registro durable de intentos. La implementación y entrega SMTP siguen pendientes.
 
 ## 10. Verificación
 
 Ejecutar entrega real SMTP y push con destinatarios de prueba y bandeja persistente. Inyectar
 fallo por medio, respuesta externa perdida, dispositivo inválido y reinicio entre commit/ACK.
 Medir backlog/edad y revisar ausencia de direcciones, credenciales o enlaces privados en logs.
+Cuentas dispone de pruebas de solicitud, confirmación, publicación y contratos privados. El
+responsable de Notificaciones debe aportar la prueba del consumidor y entrega real SMTP,
+incluidos duplicados, respuesta perdida y reinicios. Los criterios de este módulo permanecen
+pendientes hasta ejecutar esos recorridos.
 
 ## 11. Esfuerzo, riesgos y consecuencias
 

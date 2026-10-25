@@ -30,6 +30,10 @@ public class PrivateCoreSecurity {
                         .access((authentication,context)->new AuthorizationDecision(listener.permits(context.getRequest(),PrivateCoreListener.Permission.CATALOG_VALUES)))
                         .requestMatchers(HttpMethod.POST,"/internal/core/discovery/stream-events")
                         .access((authentication,context)->new AuthorizationDecision(listener.permits(context.getRequest(),PrivateCoreListener.Permission.DISCOVERY_EVENTS)))
+                        .requestMatchers(HttpMethod.POST,"/internal/core/recovery-deliveries/*/claim")
+                        .access((authentication,context)->new AuthorizationDecision(listener.permits(context.getRequest(),PrivateCoreListener.Permission.RECOVERY_DELIVERY)))
+                        .requestMatchers(HttpMethod.PUT,"/internal/core/recovery-deliveries/*/result")
+                        .access((authentication,context)->new AuthorizationDecision(listener.permits(context.getRequest(),PrivateCoreListener.Permission.RECOVERY_DELIVERY)))
                         .anyRequest().denyAll())
                 .exceptionHandling(e->e
                         .authenticationEntryPoint((request,response,error)->deny(request,response,listener,json))

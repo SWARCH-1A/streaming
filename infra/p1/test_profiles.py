@@ -1,7 +1,9 @@
 """Profile ownership and destructive-command isolation; no Docker operations."""
+import base64
 import importlib.util
 import json
 import os
+import runpy
 from pathlib import Path
 import tempfile
 import unittest
@@ -141,14 +143,15 @@ class Profiles(unittest.TestCase):
                     with patch("sys.argv", ["dev.py", action]):
                         local.main()
                 initialize.assert_called_once_with()
-                bootstrap.assert_called_once_with(env, local.STATE, local.run)
+                self.assertEqual(bootstrap.call_count, 2)
+                bootstrap.assert_called_with(env, local.STATE, local.run)
                 ready.assert_called_once_with(env)
                 command.assert_any_call(env, "--profile", "tools", "build", s3=False, broker=True, timeout=1800)
-                command.assert_any_call(env, "up", "-d", "--wait", "--wait-timeout", "180",
+                command.assert_any_call(env, "up", "-d", "--remove-orphans", "--wait", "--wait-timeout", "180",
                                         "--scale", "core=1", "--scale", "chat=1",
                                         s3=False, broker=True, timeout=360)
                 command.assert_any_call(env, "ps", s3=False, broker=True)
-                command.assert_any_call(env, "down", s3=False, broker=True)
+                command.assert_any_call(env, "down", "--remove-orphans", s3=False, broker=True)
 
     def test_p1_cli_keeps_broker_disabled_by_default(self):
         for profile in ("default", "load"):
@@ -161,6 +164,42 @@ class Profiles(unittest.TestCase):
                     selected.main()
                     environment.assert_called_once_with()
                     command.assert_called_once_with({}, "ps", s3=False, broker=False)
+
+
+class RecoveryConfiguration(unittest.TestCase):
+    def test_recovery_setup_only_provisions_core_keys_and_retains_existing_state(self):
+        setup = runpy.run_path(str(Path(__file__).resolve().parents[1] / "local/recovery_config.py"))
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            path = state / "environment.env"
+            path.write_text("EXISTING_KEY=fixture\n")
+            env = {"UNRELATED_SECRET": "must-not-be-copied"}
+            run = Mock()
+            setup["initialize"](env, state, run)
+            first = path.read_text()
+            self.assertEqual(env["CORE_RECOVERY_ENABLED"], "true")
+            self.assertEqual(len(base64.b64decode(env["CORE_RECOVERY_ENCRYPTION_KEY"], validate=True)), 32)
+            keys = set(line.split("=", 1)[0] for line in first.splitlines())
+            self.assertEqual(keys, {"EXISTING_KEY", "CORE_RECOVERY_ENABLED", "CORE_RECOVERY_ENCRYPTION_KEY", "CORE_RECOVERY_SERVICE_TOKEN"})
+            self.assertNotIn("must-not-be-copied", first)
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            setup["initialize"](env, state, run)
+            self.assertEqual(path.read_text(), first)
+            run.assert_not_called()
+
+    def test_recovery_setup_rejects_invalid_keys_before_writing(self):
+        setup = runpy.run_path(str(Path(__file__).resolve().parents[1] / "local/recovery_config.py"))
+        valid = {"CORE_RECOVERY_ENABLED": "true", "CORE_RECOVERY_ENCRYPTION_KEY": base64.b64encode(b"x" * 32).decode(),
+                 "CORE_RECOVERY_SERVICE_TOKEN": "x" * 48}
+        for key, value in (("CORE_RECOVERY_ENABLED", "invalid"), ("CORE_RECOVERY_ENCRYPTION_KEY", "invalid"),
+                           ("CORE_RECOVERY_SERVICE_TOKEN", "short")):
+            with self.subTest(key=key), tempfile.TemporaryDirectory() as directory:
+                state = Path(directory)
+                path = state / "environment.env"
+                path.write_text("EXISTING_KEY=fixture\n")
+                with self.assertRaises(RuntimeError):
+                    setup["initialize"]({**valid, key: value}, state, Mock())
+                self.assertEqual(path.read_text(), "EXISTING_KEY=fixture\n")
 
 
 if __name__ == "__main__":

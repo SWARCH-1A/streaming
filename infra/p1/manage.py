@@ -81,8 +81,8 @@ def local_network():
         if subnet is None:
             raise RuntimeError("Choose an unused LOCAL_SUBNET and LOCAL_PROXY_IP before init")
     proxy_ip = ipaddress.ip_address(os.environ.get("LOCAL_PROXY_IP", str(subnet.network_address + 2)))
-    if subnet.version != 4 or not subnet.is_private or subnet.prefixlen > 28:
-        raise RuntimeError("LOCAL_SUBNET must be a private IPv4 network with room for ten services")
+    if subnet.version != 4 or not subnet.is_private or subnet.prefixlen > 27:
+        raise RuntimeError("LOCAL_SUBNET must be a private IPv4 network with room for the local services and test tools")
     dynamic_range = list(subnet.subnets(prefixlen_diff=1))[1]
     if proxy_ip not in subnet or proxy_ip in dynamic_range or proxy_ip in (subnet.network_address, subnet.broadcast_address, subnet.network_address + 1):
         raise RuntimeError("LOCAL_PROXY_IP must be a usable address in the private IPv4 LOCAL_SUBNET")
@@ -117,7 +117,7 @@ def initialize():
         env = {key: secrets.token_urlsafe(36) for key in keys}
         openssl("pkcs12","-export","-in","core.crt","-inkey","core.key","-certfile","ca.crt","-out","core-internal.p12",
                 "-passout","env:P1_KEYSTORE_PASSWORD",env={**os.environ,"P1_KEYSTORE_PASSWORD":env["CORE_INTERNAL_TLS_KEYSTORE_PASSWORD"]})
-        # Preserve JDK public roots for the optional HTTPS S3 provider; append our local CA.
+        # Preserve JDK public roots for HTTPS providers; append our local CA.
         run(["docker","run","--rm","--network","none","--user",f"{os.getuid()}:{os.getgid()}","-v",str(temporary)+":/state","eclipse-temurin:25-jdk",
              "sh","-c",'keytool -importkeystore -noprompt -srckeystore "$JAVA_HOME/lib/security/cacerts" -srcstorepass changeit -destkeystore /state/truststore.p12 -deststoretype PKCS12 -deststorepass changeit'])
         run(["docker","run","--rm","--network","none","--user",f"{os.getuid()}:{os.getgid()}","-v",str(temporary)+":/state","eclipse-temurin:25-jdk",
@@ -217,7 +217,7 @@ def main():
     parser.add_argument("--confirm-disposable", action="store_true", help="Required to remove only this project's volumes")
     args = parser.parse_args()
     if PROFILE == "local" and args.replicas != 1:
-        raise RuntimeError("The local installation has exactly ten services; use P1 for replica tests")
+        raise RuntimeError("The local installation uses one replica per service; use P1 for replica tests")
     # Lock outside .state so initialization is serialized too.
     with open(HERE / LOCK_NAME,"a") as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
@@ -228,18 +228,22 @@ def main():
             setup = runpy.run_path(str(ROOT / "infra/broker/bootstrap.py"))
             env = setup["initialize"](env, STATE, run)
             print("P2 broker certificates, credentials and topology ready; existing data retained")
+            recovery = runpy.run_path(str(ROOT / "infra/local/recovery_config.py"))
+            env = recovery["initialize"](env, STATE, run)
+            print("Cuentas recovery keys and broker publication configured; email delivery belongs to Notifications")
         if args.action=="build":
             build_args = ("--profile","tools","build") if args.broker else ("build",)
             command(env,*build_args,s3=args.s3,broker=args.broker,timeout=1800)
             print("Current runtime images built")
         elif args.action=="up":
             (STATE / "Caddyfile").write_text(render_proxy())
-            up_args = ("up", "-d", "--wait", "--wait-timeout", "180") if PROFILE == "local" else ("up", "-d")
+            up_args = ("up", "-d", "--remove-orphans", "--wait", "--wait-timeout", "180") if PROFILE == "local" else ("up", "-d")
             command(env,*up_args,"--scale",f"core={args.replicas}","--scale",f"chat={args.replicas}",
                     s3=args.s3,broker=args.broker,timeout=360 if PROFILE == "local" else 180)
             if PROFILE == "local":
                 wait_local(env)
                 print(f"Ready {PROJECT}: {env['WEB_ORIGIN']} (local CA required in the browser)")
+                print("Recovery requests publish to RabbitMQ; email delivery awaits the Notifications consumer")
                 return
             web_id = command(env,"ps","-q","web",s3=args.s3,broker=args.broker).strip()
             networks = json.loads(run(["docker","inspect",web_id]))[0]["NetworkSettings"]["Networks"]
@@ -251,7 +255,10 @@ def main():
             command(env,"up","-d","--no-deps","--scale",f"core={args.replicas}","core",s3=args.s3,broker=args.broker)
             print(f"Started {PROJECT}: {env['WEB_ORIGIN']}; wait for health/status before use")
         elif args.action=="status": print(command(env,"ps",s3=args.s3,broker=args.broker))
-        elif args.action=="down": command(env,"down",s3=args.s3,broker=args.broker); print("Stopped; persistent volumes retained")
+        elif args.action=="down":
+            down_args = ("down", "--remove-orphans") if PROFILE == "local" else ("down",)
+            command(env,*down_args,s3=args.s3,broker=args.broker)
+            print("Stopped; persistent volumes retained")
         elif args.action=="reset":
             if not args.confirm_disposable: raise RuntimeError(f"Reset requires --confirm-disposable; only {PROJECT} volumes are removed")
             command(env,"down","--volumes","--remove-orphans",s3=args.s3,broker=args.broker); print(f"Only {PROJECT} disposable volumes removed; private config retained")

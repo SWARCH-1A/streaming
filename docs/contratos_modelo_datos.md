@@ -190,6 +190,26 @@ reintentos de “canal activándose” ni gates de evento. Perfil sin personaliz
 un perfil perdido es una inconsistencia a reparar localmente, no justificación para consultar Identity
 por red. Una caída SQL/Core devuelve 503, nunca un falso 404.
 
+## Recuperación de credenciales
+
+Cuentas posee `identity.credential_recoveries`, `identity.recovery_operations` y
+`identity.recovery_outbox`, creadas por V9 sin modificar migraciones aplicadas. Conserva hash
+SHA-256 del token, vencimiento, uso/invalidez, versión y material de correo cifrado AES-256-GCM.
+La clave está fuera de PostgreSQL y del repositorio. Las políticas de [ADR-017](adr/ADR-017-recuperacion-de-credenciales.md)
+y los [contratos HTTP P2](contratos_p2_http.md#sesión-nativa-y-recuperación) fijan cuotas,
+idempotencia, estados y acceso privado.
+
+La solicitud guarda recuperación e intención de entrega en el mismo commit. El evento solo
+contiene identificadores opacos. Confirmar bloquea la cuenta y el token, consume un uso, cambia
+el hash y revoca todas sus sesiones en una transacción. Login serializa la creación de sesión
+sobre la misma cuenta y vuelve a comprobar el hash autenticado. Perfil y canal se conservan.
+El consumidor de Notificaciones accede exclusivamente por claim/result; no lee PostgreSQL Core.
+Su responsable implementará el almacenamiento durable de identidad del trabajo, intento y
+resultado para deduplicar y recuperar fallos sin reenviar una entrega confirmada. El motor y
+modelo físico quedan pendientes de P2-12. La dirección y el enlace se obtienen de Core por TLS;
+no se copian a eventos, logs ni al registro durable de intentos. Los resultados desconocidos
+de SMTP no autorizan reenvíos automáticos. Este checkout implementa únicamente el lado de Cuentas.
+
 ## Perfil y composición de canal
 
 GET perfil público devuelve {userId,displayName,bio,avatarUri,updatedAtUtc,profileVersion}. GET/PATCH me
@@ -635,8 +655,9 @@ Las supresiones se aplican a live/replay. P2-11 concreta selección, alcance y l
 Notificaciones conserva bandeja, leído, preferencias, dispositivos e intentos. Un inicio LIVE
 genera un aviso lógico por destinatario/sesión; una reconexión de la misma sesión no crea otro.
 Correo y push requieren activación, combinando preferencias por canal e interruptor por medio.
-Los intentos se deduplican y reintentan independientemente. SMTP está disponible; el proveedor y
-registro de dispositivos push requieren configuración y pruebas. Las APIs `p2.notifications.*` están definidas; P2-12…13 cierran políticas de entrega y provisión.
+Los intentos se deduplican y reintentan independientemente. La entrega SMTP, su proveedor y el
+registro de dispositivos push están pendientes de implementación y pruebas en Notificaciones.
+Las APIs `p2.notifications.*` están definidas; P2-12…13 cierran políticas de entrega y provisión.
 
 La suspensión revoca sesiones, impide acceso autenticado y emisión, detiene la fuente activa y
 deja indisponibles canal/VOD/pistas/replay. El contrato de propagación debe impedir eludir la
@@ -778,5 +799,6 @@ los artefactos derivados de `contracts/generated/`.
 Los contratos generados P1 no incluyen agregados SSR, login móvil, broker, VOD, moderación,
 notificaciones, watch parties ni pistas P2. La ampliación estructural vive en [contracts/p2.json](../contracts/p2.json); `contracts/check_p2.py`
 valida fuentes y ejemplos sin modificar derivados. La cobertura ejecutable actual contiene
-el registro de nueve eventos y los dos payloads de ciclo/Discovery; el resto permanece pendiente. Watch parties/subtítulos y firmas en revisión
+el registro de nueve eventos, tres payloads de ciclo/Discovery/recuperación y las cuatro operaciones
+de recuperación; el resto permanece pendiente. Watch parties/subtítulos y firmas en revisión
 requieren las decisiones indicadas en su registro. No editar derivados manualmente.

@@ -1,6 +1,6 @@
 # ADR-016: RabbitMQ y AMQP 0-9-1 para eventos y trabajos P2
 
-- Estado: aceptada; ciclo/Discovery verificados, aceptación completa de SPEC-17 pendiente
+- Estado: aceptada; ciclo/Discovery verificados y recuperación ampliada por ADR-017; aceptación completa de SPEC-17 pendiente
 - Fecha: 2026-10-23
 - Responsable: Integración, con consumidores Streaming, Core y Chat
 - SPEC/contratos: SPEC-04/05/07/10/17/24; P2-07; contratos de eventos P2
@@ -14,8 +14,9 @@ consultas/autorización inmediata y la propiedad de datos de cada servicio. Rabb
 seleccionado por esa decisión.
 
 La primera integración implementa dos familias: ciclo de sesión y snapshot público Discovery.
-El registro conserva nueve familias y dieciocho suscripciones. Cuenta/suspensión, grabación,
-VOD, seguimiento, recuperación y notificaciones requieren payloads/implementaciones de sus
+ADR-017 añade la publicación de trabajos de recuperación al mismo broker; su consumidor y SMTP
+quedan pendientes del responsable de Notificaciones. El registro conserva nueve familias y
+dieciocho suscripciones. Cuenta/suspensión, grabación, VOD, seguimiento y notificaciones generales requieren payloads/implementaciones de sus
 responsables; aprovisionar sus colas no acredita esas funciones ni completa SPEC-17.
 
 ## Decisión
@@ -43,7 +44,9 @@ responsables; aprovisionar sus colas no acredita esas funciones ni completa SPEC
    Chat usa Lua/Redis con AOF. Las versiones de ciclo y proyección no se comparan
    entre sí. Core conserva una barrera de ciclo separada; Chat conserva la barrera incluso si
    expira la caché de sala. Los eventos no autorizan operaciones protegidas.
-7. Un consumidor por cola y prefetch 16. Errores transitorios: tres reintentos tras 1, 5 y 30 s;
+7. Un consumidor por cola y prefetch 16 en Core/Chat; Notificaciones concretará su concurrencia
+   al implementar sus consumidores.
+   Errores transitorios: tres reintentos tras 1, 5 y 30 s;
    inválidos/conflictos: DLQ inmediata. Antes de ACK del origen se confirma la publicación de
    retry/DLQ, con el cuerpo original y headers de consumidor/causa/intentos/fechas/ruta.
    Las colas de espera usan TTL exclusivamente para transferir al consumidor, con dead-letter
@@ -108,7 +111,8 @@ interfaz el objetivo nominal; faltan los recorridos VOD/Notificaciones de SPEC-1
 Revisar con los dueños al añadir payloads pendientes, fijar sus runtimes, ampliar carga,
 necesitar HA, compactar inbox o cambiar retención/capacidad. La matriz inicial es Java 25/
 Spring Boot 4.1.1 + Spring AMQP, Rust 1.98/Tokio + Lapin y Go 1.26 + amqp091-go. Los runtimes
-VOD/Notificaciones continúan pendientes y requieren su propia comprobación.
+VOD y Notificaciones continúan pendientes de sus responsables. ADR-017 entrega el productor y
+los contratos privados de recuperación de Cuentas, sin seleccionar el runtime del consumidor.
 
 Fuentes: [confirms y ACK](https://www.rabbitmq.com/docs/confirms),
 [quorum y dead-letter](https://www.rabbitmq.com/docs/4.3/quorum-queues),
@@ -127,6 +131,8 @@ ciclo/proyección con PostgreSQL desechable; esas pruebas forman parte del mismo
 Se verificaron además emisión RTMPS real con video sintético, ciclo en Core/Chat y visibilidad
 GraphQL en Discovery; duplicados/desorden/conflictos; Chat detenido; reintentos 1/5/30 s con
 Redis indisponible; DLQ/redrive y recuperación de outbox con identidad/cuerpo conservados tras
-reiniciar publicador y broker. Estas comprobaciones cubren las dos familias implementadas.
+reiniciar publicador y broker. Estas comprobaciones cubren ciclo/Discovery; ADR-017 define
+las pruebas de Cuentas y publicación de recuperación. El recorrido SMTP, duplicados y reinicios
+del consumidor quedan pendientes de Notificaciones.
 Quedan pendientes las ventanas exactas de fallo entre confirmación/commit/ACK, el presupuesto
 completo hasta interfaz bajo carga, restauración de backup y los recorridos VOD/Notificaciones.

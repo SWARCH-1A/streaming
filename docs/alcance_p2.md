@@ -105,9 +105,21 @@ desactivados; hay preferencias por canal seguido y un interruptor general por me
 de una sesión genera un aviso lógico por destinatario; una reconexión de la misma sesión no
 genera otro. Un fallo de push no provoca reenvío de un correo ya confirmado ni bloquea la bandeja.
 
-SMTP está disponible. La configuración de proveedores y dispositivos de push está pendiente.
+SMTP es el protocolo previsto para correo. Su consumidor y proveedor, junto con la configuración
+de dispositivos de push, están pendientes de implementación en Notificaciones.
 FCM/APNs son dependencias externas de entrega admitidas; los servicios de aplicación se alojan
 en infraestructura propia. Recuperación de contraseña utiliza la entrega por correo.
+
+La política de recuperación de [ADR-017](adr/ADR-017-recuperacion-de-credenciales.md) usa un token
+de un uso válido durante 30 minutos. Una solicitud nueva invalida los tokens anteriores; se
+admiten tres solicitudes por dirección/hora y diez operaciones de recuperación por IP/15 minutos.
+Los reintentos idempotentes no emiten otro token. La respuesta protege la existencia de cuentas.
+Confirmar cambia la contraseña y revoca todas las sesiones conservando perfil y canal.
+Cuentas implementa tokens, confirmación, outbox, publicación en RabbitMQ y claim/result privados
+(ADR-017). El consumidor de recuperación, persistencia de intentos y entrega SMTP corresponden
+al responsable de Notificaciones y están pendientes. Su tecnología y proveedor se deciden en
+ese módulo. La recuperación no depende de las preferencias opcionales de avisos por seguimiento;
+la publicación del trabajo no acredita entrega de correo.
 
 ## Administración y disponibilidad
 

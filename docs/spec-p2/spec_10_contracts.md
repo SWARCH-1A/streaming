@@ -49,8 +49,11 @@ bloqueadas hasta cerrar sus políticas, sin rutas ficticias consideradas listas.
 ## 7. Diseño técnico y datos
 
 El bundle P2 hereda schemas P1; referencias `#/$defs/...` se resuelven sobre la unión, sin copiar
-schemas base a mano. Los IDs de operaciones son únicos. Las dos entregas de eventos HTTP P1
-retiradas figuran en `retiredP1Operations`; el resto mantiene su semántica base.
+schemas base a mano. Los IDs de operaciones son únicos. La fuente actual incorpora las cuatro
+operaciones y el evento de recuperación; el checker genera `contracts/generated/p2`, incluidos
+tipos TypeScript y manifest, y valida esta ampliación. Las demás familias del inventario siguen
+en diseño hasta aportar sus schemas y consumidores. `retiredP1Operations` permanece vacío mientras
+no se migren las entregas P1; retirar una operación exige registrar su migración de consumidores.
 
 El formato es JSON Schema 2020-12. Los timestamps son UTC y los enteros interoperables no exceden
 9007199254740991. Un tipo estructural no expresa todas las reglas: igualdad entre IDs path/body,

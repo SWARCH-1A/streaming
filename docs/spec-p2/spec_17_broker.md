@@ -1,6 +1,6 @@
 # SPEC-17 — Broker y entrega durable de eventos y trabajos
 
-**Prioridad:** P2. **Responsable:** Mensajería / integración. **Estado:** ciclo/Discovery verificados; aceptación completa pendiente.
+**Prioridad:** P2. **Responsable:** Mensajería / integración. **Estado:** ciclo/Discovery integrados y productor de recuperación disponible; consumidor SMTP y aceptación completa pendientes.
 **RF:** RF-011, 020…022, 052, 056, 061, 079, 082. **RNF:** RNF-001, 006, 009…010, 014, 020…024, 025, 038, 041…047, 050…051.
 
 ## 1. Contexto y problema
@@ -49,8 +49,8 @@ continúa para consultas y autorización inmediata. El broker no transporta byte
 ## 7. Diseño técnico y datos
 
 [Mensajería P2](../contratos_p2_eventos.md) y `contracts/p2.json.events` fijan nueve tipos de
-mensaje, productores y suscripciones lógicas. Los payloads ejecutables de ciclo/Discovery están
-listos; las otras siete familias permanecen pendientes de sus responsables. El responsable mapea esos nombres al
+mensaje, productores y suscripciones lógicas. Los payloads ejecutables de ciclo, Discovery y
+recuperación están listos; las otras seis familias permanecen pendientes de sus responsables. El responsable mapea esos nombres al
 producto elegido sin cambiar qué consumidores reciben cada mensaje.
 
 El outbox se escribe con el cambio de dominio. Solo se marca publicado tras confirmación durable
@@ -81,8 +81,10 @@ adaptador neutral, sin importar clases de dominio de otro lenguaje.
 ## 9. Decisiones y preguntas abiertas
 
 P2-07: [ADR-016](../adr/ADR-016-rabbitmq-eventos-p2.md) fija producto, protocolo, SDK iniciales,
-topología, tamaños, reintentos, DLQ/redrive y retención. La evidencia integrada de recuperación
-y la compatibilidad de runtimes futuros permanecen pendientes.
+topología, tamaños, reintentos, DLQ/redrive y retención. ADR-017 incorpora la publicación desde
+Cuentas y contratos privados de recuperación. El responsable de Notificaciones implementará
+el consumidor y elegirá su runtime, almacén y proveedor SMTP en P2-12. La compatibilidad de
+runtimes futuros y la cobertura completa siguen pendientes.
 La entrega durable, suscripciones independientes y un único broker son obligatorios. El ADR
 incluye matriz de compatibilidad Java/Rust/Go y runtimes nuevos, más evidencia de recuperación.
 

@@ -1,7 +1,7 @@
 # Contratos de eventos y trabajos P2
 
 [contracts/p2.json](../contracts/p2.json) registra tipos, productores y suscripciones. Los envelopes/payloads ejecutables
-de ciclo y Discovery están definidos; las otras siete familias siguen como pending-owner,
+de ciclo, Discovery y recuperación están definidos; las otras seis familias siguen como pending-owner,
 sin schemas vacíos que simulen disponibilidad. [SPEC-17](spec-p2/spec_17_broker.md) define entrega y operación.
 Los nombres son lógicos; su mapeo a exchanges/topics/streams/queues depende del broker elegido.
 
@@ -120,6 +120,32 @@ usa la routing key del tipo; ciclo añade .initial/.update según initialLive y 
 añaden .inbox/.email/.push. El eventType del envelope no cambia. Cada suscripción tiene cola
 propia; p2.redelivery devuelve solo a la suscripción original. Los filtros no inspeccionan JSON.
 
-La integración inicial conecta ciclo a Core/Chat y snapshots a Discovery. Cuenta/suspensión,
-VOD y Notificaciones requieren sus payloads y operaciones de dominio antes de activar productores.
-Los contratos HTTP/WS/media P2 restantes aún no están materializados en la fuente ejecutable.
+La integración conecta ciclo a Core/Chat, snapshots a Discovery y publica trabajos opacos de
+recuperación en `notifications.recovery.email`. Su consumidor y SMTP están pendientes de
+Notificaciones. Cuenta/suspensión, VOD y las demás funciones de Notificaciones requieren sus
+payloads y operaciones de dominio antes de activar productores. La recuperación incorpora sus
+operaciones HTTP; los contratos HTTP/WS/media P2 restantes siguen pendientes.
+
+## Integración de recuperación entre Cuentas y Notificaciones
+
+Cuentas confirma token e intención en una transacción y publica
+`credential.recovery.delivery.requested.v1`, productor `core`, en `p2.events` con routing key
+igual al tipo. La cola lógica es `notifications.recovery.email`. El schema ejecutable está en
+`contracts/p2.json`; el payload contiene únicamente recoveryId y deliveryId, con eventId/cuerpo
+estables al reintentar. La identidad agregada es `recovery:<recoveryId>` y sequence es 1.
+
+El broker conserva el usuario y permisos `recovery-email` para esta suscripción; es una identidad
+lógica de consumo y no selecciona el runtime de Notificaciones. Su credencial se provisiona de
+forma privada por Integración, separada del token HTTP de Core.
+
+El responsable de Notificaciones implementará validación/deduplicación, persistencia durable,
+envío SMTP y reintentos/DLQ conforme a ADR-016. Antes de enviar debe obtener destinatario, enlace
+y vencimiento mediante `p2.recovery.delivery-claim`, y después registrar el resultado mediante
+`p2.recovery.delivery-result`, con la identidad privada `recovery-email` y claves idempotentes.
+Los permisos, payloads y resultados están en los [contratos HTTP](contratos_p2_http.md#sesión-nativa-y-recuperación).
+No consulta tablas Core ni incluye dirección/token/enlace en eventos, logs o registro de intentos.
+No reenvía una entrega confirmada ni interpreta UNKNOWN como autorización para repetir SMTP.
+Un trabajo expirado o invalidado obtiene 410 y no permite emitir un enlace nuevo.
+
+La publicación de Cuentas y el contrato están disponibles. El consumidor, su tecnología y la
+entrega de correo no forman parte de esta implementación y conservan aceptación pendiente.
