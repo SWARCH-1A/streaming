@@ -28,14 +28,14 @@ schemas generados no acreditan que esos endpoints estén implementados.
 ## Extensión P2 de eventos
 
 La fuente p2.json extiende los schemas P1 sin modificar sus artefactos. Registra nueve familias
-y dieciocho suscripciones; actualmente solo los payloads de ciclo y snapshot Discovery están
-listos. Las demás entradas están marcadas pending-owner y no admiten publicación como contratos
-validados. El inventario ejecutable HTTP/WS/media P2 continúa pendiente.
+y dieciocho suscripciones; los payloads de ciclo, snapshot Discovery y estado de cuenta están
+definidos. Las demás entradas están marcadas pending-owner y no admiten publicación como contratos
+validados. Los tres endpoints administrativos Core tienen schemas; el resto del inventario P2 continúa pendiente.
 
     python contracts/check_p2.py --write
     python contracts/check_p2.py
     python contracts/check_p2.py --event /ruta/a/envelope.json
 
-El primer comando genera contracts/generated/p2.schema.json; no editarlo a mano. La validación
+El primer comando genera p2.schema.json, p2.operations.json y p2.d.ts bajo contracts/generated; no editarlo a mano. La validación
 es offline, comprueba referencias, ejemplos válidos/negativos, identidad/versiones y privacidad.
 El arranque RabbitMQ y los SDK de cada lenguaje se documentan en infra/broker/README.md y ADR-016.

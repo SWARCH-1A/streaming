@@ -184,6 +184,21 @@ cliente. installationId del path y body deben coincidir. Una instalación se vin
 logout/cambio de usuario retira la asociación anterior. Tokens de proveedor no aparecen en lectura
 pública ni logs. La provisión push real permanece en P2-13.
 
+Los tres endpoints Core administrativos están implementados; retirada por Gateway y contexto
+privado de acceso continúan pendientes. GET users/channels acepta limit 1…50 (20 por defecto)
+y cursor firmado de cinco minutos ligado a actor/listado; claves query ajenas dan 400 y cursor
+inválido/vencido da 410 CURSOR_INVALID. La paginación por ID no ofrece snapshot entre páginas.
+Todas las respuestas exitosas usan no-store. Visitante: 401 SESSION_REQUIRED; usuario ordinario:
+403 ADMIN_REQUIRED. No se exponen email, hashes, credenciales ni motivos en los listados.
+
+PUT account-status exige cookie/CSRF e Idempotency-Key UUID, status ACTIVE/SUSPENDED,
+expectedVersion entero 0…9007199254740990 y motivo no blanco de hasta 500 caracteres.
+No admite campos adicionales. Responde 404 ACCOUNT_NOT_FOUND, 409 ACCOUNT_VERSION_CONFLICT
+o 409 IDEMPOTENCY_KEY_REUSED. La clave se liga al actor; se compara objetivo/estado/versión/motivo
+recortado. La repetición devuelve el resultado original y no vuelve a auditar. Una orden sin
+cambio real se audita sin incrementar versión ni emitir evento. Auditoría y resultados se
+conservan sin limpieza automática. Reactivar no restaura sesiones revocadas.
+
 Las operaciones administrativas requieren rol provisionado y motivo; accountVersion/expectedVersion
 resuelven concurrencia. La retirada se enruta al dominio según resourceType. El Gateway no confirma
 aceptación si ese dominio no la persistió. Suspensión no borra datos ni republica al reactivar.

@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Route, Routes, useLocation } from 'react-router';
 
 import { AuthPage, ProfilePage } from '@/src/modules/accounts/entry';
+import { AdministrationPage } from '@/src/modules/administration/entry';
 import { ChannelEditorPage } from '@/src/modules/channels/entry';
 import { DiscoveryPage } from '@/src/modules/discovery/entry';
 import { StudioPage } from '@/src/modules/streaming/entry';
@@ -28,6 +29,7 @@ function AppRoutes() {
         <Route path="login" element={<AuthPage key="login" mode="login" />} />
         <Route path="register" element={<AuthPage key="register" mode="register" />} />
         <Route element={<RequireSession />}>
+          <Route path="admin" element={<AdministrationPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="studio" element={<StudioPage />} />
           <Route path="studio/channel" element={<ChannelEditorPage />} />

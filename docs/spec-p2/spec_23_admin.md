@@ -1,6 +1,6 @@
 # SPEC-23 — Administración, suspensión y retirada
 
-**Prioridad:** P2. **Responsable:** Administración / dueños de dominio. **Estado:** diseño para desarrollo.
+**Prioridad:** P2. **Responsable:** Administración / dueños de dominio. **Estado:** incremento Core/Web implementado; aceptación integrada pendiente.
 **RF:** RF-076…079. **RNF:** RNF-022…032, 038, 041…050.
 
 ## 1. Contexto y problema
@@ -58,6 +58,29 @@ cese de nuevas entregas y actualización del player de una revocación retroacti
 Las retiradas se despachan a Streaming/VOD/Chat según resourceType y conservan su versión.
 Gateway no escribe auditoría de dominio en una base compartida ni confirma una operación que
 su dueño no aceptó. La auditoría incluye actor, objetivo, motivo, instante y resultado sin secretos.
+
+### Incremento Core/Web disponible
+
+`services/core/src/main/java/streaming/core/accounts/administration` implementa listados y
+cambio de estado. V9 añade rol/estado/versión, operaciones idempotentes, auditoría y outbox.
+`apps/web/src/modules/administration` ofrece `/admin`; el servidor valida el rol en cada
+operación. La lectura de canales usa una interfaz publicada por Canales.
+
+Los listados aceptan limit 1…50 (20 por defecto) y cursor firmado de cinco minutos, ligado
+al administrador y tipo de listado. Ordenan por ID; no son snapshots inmutables entre páginas.
+El cambio exige cookie, CSRF e Idempotency-Key UUID. Motivo: 1…500 caracteres no blancos;
+expectedVersion debe coincidir. Una repetición idéntica conserva resultado/auditoría; otro
+comando con la misma clave da 409. El motivo se compara tras recortar espacios exteriores.
+Sin cambio real se audita, pero no aumenta versión ni genera evento. Los registros se
+conservan sin vencimiento automático en este incremento. Reactivar exige nuevo login.
+
+El outbox se habilita con CORE_EVENTS_TRANSPORT=amqp, usando la configuración RabbitMQ
+existente. Mantiene el envelope ante fallo y reintenta tras 30 segundos. No hay un consumidor
+integrado de suspensión acreditado todavía. `/api/admin/content-removals` y
+`/internal/core/access-context` siguen pendientes; no se anuncia RF-078/079 completo.
+
+La provisión se describe en el [README Core](../../services/core/README.md). La decisión
+está en [ADR-017](../adr/ADR-017-administracion-core.md).
 
 ## 8. Dependencias y contratos de integración
 

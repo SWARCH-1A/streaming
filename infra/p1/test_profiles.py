@@ -86,6 +86,8 @@ class Profiles(unittest.TestCase):
         self.assertNotIn("file_server", proxy)
         self.assertNotIn("https://streaming:", proxy)
         self.assertNotIn("tls_insecure_skip_verify", proxy)
+        self.assertIn("@core path /api/admin/*", proxy)
+        self.assertIn("path / /admin /search", proxy)
         with self.assertRaisesRegex(RuntimeError, "filesystem"):
             local.command({"P1_STATE": str(local.STATE)}, "up", s3=True)
 

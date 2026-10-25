@@ -46,12 +46,17 @@ def schema_bundle():
 
 def validate(schema, name, value):
     Draft202012Validator({**schema, "$ref": "#/$defs/" + name}, format_checker=FormatChecker()).validate(value)
+    if not name.startswith("P2Event"):
+        return
     for obj in objects(value):
         if FORBIDDEN.intersection(obj):
             raise ValueError("Private data in event")
     payload = value["payload"]
     lifecycle = value["eventType"] == "stream.session.changed.v1"
-    key, version, prefix = ("sessionId", "sessionVersion", "session:") if lifecycle else ("streamId", "projectionVersion", "stream:")
+    coordinates = {"stream.session.changed.v1": ("sessionId", "sessionVersion", "session:"),
+                   "stream.discovery.snapshot.v1": ("streamId", "projectionVersion", "stream:"),
+                   "account.status.changed.v1": ("userId", "accountVersion", "account:")}
+    key, version, prefix = coordinates[value["eventType"]]
     if value["aggregateId"] != prefix + payload[key] or value["sequence"] != payload[version]:
         raise ValueError("Aggregate/sequence do not match payload")
     if lifecycle:
@@ -65,6 +70,8 @@ def validate(schema, name, value):
 def verify(p2, schema):
     for name in p2["schemas"]:
         Draft202012Validator.check_schema(schema["$defs"][name])
+        for example in p2["schemas"][name].get("examples", []):
+            validate(schema, name, example)
     for obj in objects(schema["$defs"]):
         if "$ref" in obj and (not obj["$ref"].startswith("#/$defs/") or obj["$ref"][8:] not in schema["$defs"]):
             raise ValueError("Nonlocal/unresolved schema reference")
@@ -98,6 +105,14 @@ def verify(p2, schema):
         except (ValueError, ValidationError):
             continue
         raise ValueError("A negative example was accepted")
+    operation_ids = set()
+    for operation in p2.get("operations", []):
+        if operation["id"] in operation_ids:
+            raise ValueError("Duplicate operation ID")
+        operation_ids.add(operation["id"])
+        for name in [operation.get("request"), operation.get("query"), *operation["responses"].values()]:
+            if name is not None and name not in schema["$defs"]:
+                raise ValueError("Unknown HTTP schema")
 
 
 def main():
@@ -107,19 +122,23 @@ def main():
     args = parser.parse_args()
     p2, schema = schema_bundle()
     verify(p2, schema)
-    output = HERE / "generated/p2.schema.json"
-    encoded = json.dumps(schema, ensure_ascii=False, indent=2) + "\n"
-    if args.write:
-        output.write_text(encoded, encoding="utf-8")
-    elif not output.exists() or output.read_text(encoding="utf-8") != encoded:
-        raise SystemExit("Run python contracts/check_p2.py --write")
+    from generate import typescript_schemas
+    artifacts = {"p2.schema.json": json.dumps(schema, ensure_ascii=False, indent=2) + "\n",
+                 "p2.operations.json": json.dumps(p2.get("operations", []), ensure_ascii=False, indent=2) + "\n",
+                 "p2.d.ts": "// Generated from contracts/p2.json (extends p1); do not edit.\n" + "\n".join(typescript_schemas(schema["$defs"])) + "\n"}
+    for name, encoded in artifacts.items():
+        output = HERE / "generated" / name
+        if args.write:
+            output.write_text(encoded, encoding="utf-8", newline="\n")
+        elif not output.exists() or output.read_text(encoding="utf-8") != encoded:
+            raise SystemExit("Run python contracts/check_p2.py --write")
     if args.event:
         value = read(args.event)
         event = next((e for e in p2["events"] if e["eventType"] == value["eventType"]), None)
         if event is None or event["schema"] is None:
             raise SystemExit("The event payload is not ready")
         validate(schema, event["schema"], value)
-    print("P2: two event schemas validated; nine types/eighteen subscriptions registered; remaining payloads pending")
+    print(f"P2: {sum(e['schema'] is not None for e in p2['events'])} event schemas validated; nine types/eighteen subscriptions registered; remaining payloads pending")
 
 
 if __name__ == "__main__":

@@ -123,3 +123,13 @@ propia; p2.redelivery devuelve solo a la suscripción original. Los filtros no i
 La integración inicial conecta ciclo a Core/Chat y snapshots a Discovery. Cuenta/suspensión,
 VOD y Notificaciones requieren sus payloads y operaciones de dominio antes de activar productores.
 Los contratos HTTP/WS/media P2 restantes aún no están materializados en la fuente ejecutable.
+
+## Publicación de estado de cuenta
+
+Core publica `account.status.changed.v1` tras confirmar estado, revocación, auditoría y outbox
+en una transacción. `aggregateId=account:<userId>`; sequence coincide con accountVersion del
+payload `{userId, accountVersion, status}`. Status es ACTIVE o SUSPENDED. No contiene motivo,
+email, sesiones ni contraseñas. EventId y cuerpo son estables entre reintentos; correlationId
+es el Idempotency-Key de la operación. Los consumidores aplican únicamente versiones mayores,
+deduplican eventId y reconcilian su estado al recuperarse. El esquema está disponible;
+los consumidores de suspensión y P2-17 siguen pendientes. Confirmar publicación no los acredita.
