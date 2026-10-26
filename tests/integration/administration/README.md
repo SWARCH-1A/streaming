@@ -21,3 +21,8 @@ Chromium registra cuentas ficticias, provisiona el rol mediante el script operat
 login, permisos, CSRF, suspensión/reactivación, revocación, idempotencia, conflicto concurrente,
 formulario/foco, anchos de pantalla y Axe. No acredita TLS de despliegue ni revocación de medios
 en Streaming/Chat/VOD, ni sustituye pruebas humanas con lector de pantalla.
+
+También comprueba navegación directa de recuperación/restablecimiento y solicitud uniforme
+con Core real. La fixture habilita recuperación con una clave efímera, sin consumidor SMTP;
+no afirma recepción de correo. RecoveryIT comprueba confirmación, concurrencia con login y
+suspensión, y que recuperar no reactive la cuenta ni restaure sesiones revocadas.

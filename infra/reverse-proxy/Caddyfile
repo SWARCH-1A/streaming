@@ -78,7 +78,7 @@
     file_server @assets
     @spa {
       method GET HEAD
-      path / /admin /search /login /register /profile /studio /studio/channel /channels/* /watch/* /design-system /design-system/* /prototype
+      path / /admin /search /login /register /forgot-password /reset-password /profile /studio /studio/channel /channels/* /watch/* /design-system /design-system/* /prototype
       header Accept *text/html*
     }
     handle @spa {

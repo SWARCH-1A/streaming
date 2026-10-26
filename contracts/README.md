@@ -25,17 +25,24 @@ Los ejemplos verifican forma; las [pruebas de consumidores reales](../tests/cont
 verifican permisos, errores y comportamiento. Contextos Chat y bootstrap necesitan SPEC-11;
 schemas generados no acreditan que esos endpoints estén implementados.
 
-## Extensión P2 de eventos
+## Extensión P2 de eventos y recuperación
 
 La fuente p2.json extiende los schemas P1 sin modificar sus artefactos. Registra nueve familias
-y dieciocho suscripciones; los payloads de ciclo, snapshot Discovery y estado de cuenta están
-definidos. Las demás entradas están marcadas pending-owner y no admiten publicación como contratos
-validados. Los tres endpoints administrativos Core tienen schemas; el resto del inventario P2 continúa pendiente.
+y dieciocho suscripciones; los payloads de ciclo, snapshot Discovery y recuperación están listos.
+RF-004 incorpora solicitud/confirmación públicas y claim/result privados. Las demás entradas
+permanecen pending-owner y no admiten publicación como contratos validados. Las otras operaciones
+HTTP/WS/media P2 siguen pendientes de sus responsables.
 
     python contracts/check_p2.py --write
     python contracts/check_p2.py
     python contracts/check_p2.py --event /ruta/a/envelope.json
+    python contracts/check_p2.py --payload P2RecoveryAccepted /ruta/a/respuesta.json --public
 
-El primer comando genera p2.schema.json, p2.operations.json y p2.d.ts bajo contracts/generated; no editarlo a mano. La validación
-es offline, comprueba referencias, ejemplos válidos/negativos, identidad/versiones y privacidad.
+El primer comando genera contracts/generated/p2.schema.json y los schemas/tipos/inventarios de
+contracts/generated/p2. Web importa @contracts/p2. No editar los derivados a mano. La validación
+es offline, comprueba referencias, ejemplos válidos/negativos, identidad/versiones, privacidad,
+permisos, idempotencia y trazabilidad de las operaciones, además de detectar drift.
 El arranque RabbitMQ y los SDK de cada lenguaje se documentan en infra/broker/README.md y ADR-016.
+
+Administración añade listados y cambios de estado en `p2.admin.*`, y el evento
+`account.status.changed.v1`. Su aceptación transversal sigue pendiente de P2-17.

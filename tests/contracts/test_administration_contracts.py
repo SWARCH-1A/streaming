@@ -2,9 +2,11 @@
 import importlib.util
 from pathlib import Path
 import unittest
+import sys
 
 from jsonschema.exceptions import ValidationError
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "contracts"))
 SPEC = importlib.util.spec_from_file_location("p2_admin_contracts", Path(__file__).resolve().parents[2] / "contracts/check_p2.py")
 p2 = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(p2)

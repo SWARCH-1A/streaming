@@ -30,6 +30,17 @@ try {
   expect((await mutate(visitor.request, '/api/identity/sessions', { login: viewerHandle, password })).status()).toBe(200);
   expect((await visitor.request.get('/api/admin/users')).status()).toBe(403);
   const page = await context.newPage();
+  // Direct navigation must retain Recovery and Administration after merging their routes.
+  await page.goto('/forgot-password');
+  await expect(page.getByRole('heading', { name: 'Recupera tu cuenta' })).toBeVisible();
+  await page.getByLabel('Correo electrónico').fill('missing@example.test');
+  await page.getByRole('button', { name: 'Enviar correo de recuperación' }).click();
+  await expect(page.getByText('Si existe una cuenta asociada, recibirás un correo para restablecer la contraseña.')).toBeVisible();
+  await page.goto('/reset-password');
+  await expect(page.getByRole('heading', { name: 'Restablece tu contraseña' })).toBeVisible();
+  await expect(page.getByRole('alert')).toContainText('El enlace no es válido');
+  await page.goto('/admin');
+  await page.waitForURL((url) => url.pathname === '/login');
   await page.goto('/login');
   await page.getByLabel('Handle o correo').fill(adminHandle);
   await page.getByLabel('Contraseña', { exact: true }).fill(password);
@@ -72,5 +83,5 @@ try {
   const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
   expect(result.violations.map(({ id }) => id)).toEqual([]);
   expect((await visitor.request.get('/internal/core/access-context')).status()).toBe(404);
-  console.log('PASS: real Web/Core/Caddy, role/CSRF, suspension/reactivation, revoked sessions, idempotency, conflict, focus, responsive layout and Axe');
+  console.log('PASS: real Web/Core/Caddy, recovery routes/request, role/CSRF, suspension/reactivation, revoked sessions, idempotency, conflict, focus, responsive layout and Axe');
 } finally { await browser.close(); }

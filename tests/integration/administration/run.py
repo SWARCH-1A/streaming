@@ -5,6 +5,7 @@ HTTP is confined to a private fixture network and a random loopback port. No dem
 """
 from pathlib import Path
 import os
+import base64
 import secrets
 import subprocess
 import time
@@ -33,6 +34,7 @@ def main():
     env = {**os.environ, "POSTGRES_PASSWORD": secrets.token_urlsafe(32),
            "CORE_RATE_LIMIT_HMAC_SECRET": secrets.token_urlsafe(48)}
     env.update(CORE_DB_PASSWORD=env["POSTGRES_PASSWORD"], CORE_DB_USER="fixture",
+               CORE_RECOVERY_ENABLED="true", CORE_RECOVERY_ENCRYPTION_KEY=base64.b64encode(secrets.token_bytes(32)).decode(),
                CORE_DB_URL="jdbc:postgresql://" + db + ":5432/core", CORE_IMAGE_STORAGE_PROVIDER="filesystem",
                PROFILE_AVATAR_STORAGE="/tmp/avatars", CHANNELS_BANNER_STORAGE="/tmp/banners")
     run("docker", "network", "create", prefix)
@@ -48,6 +50,7 @@ def main():
         env["WEB_ORIGIN"] = origin
         args = ["docker", "run", "--rm", "-d", "--name", core, "--network", prefix]
         for key in ("CORE_DB_URL", "CORE_DB_USER", "CORE_DB_PASSWORD", "CORE_RATE_LIMIT_HMAC_SECRET",
+                    "CORE_RECOVERY_ENABLED", "CORE_RECOVERY_ENCRYPTION_KEY",
                     "CORE_IMAGE_STORAGE_PROVIDER", "PROFILE_AVATAR_STORAGE", "CHANNELS_BANNER_STORAGE", "WEB_ORIGIN"):
             args.extend(["-e", key])
         args.extend(["--mount", f"type=bind,source={jar},target=/app/core.jar,readonly", "eclipse-temurin:25-jdk", "java", "-jar", "/app/core.jar"])

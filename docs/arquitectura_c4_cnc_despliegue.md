@@ -63,7 +63,7 @@ consultas y autorización se describen en los [flujos](integracion_sistema_p1.md
 | Gateway | Entrada HTTPS, rutas, agregados por pantalla, timeouts y errores parciales | HTTP, Upgrade WS y HLS |
 | Web SSR | Rutas, carga inicial de datos y renderizado HTML; hidratación en navegador | HTTP al Gateway; HLS/WS en navegador |
 | Móvil | Presentación de espectador y sesión nativa segura | APIs Gateway, HLS/WS y push |
-| Broker | Distribución durable y aislamiento de consumidores/trabajos | Protocolo y producto pendientes |
+| Broker | Distribución durable y aislamiento de consumidores/trabajos | RabbitMQ / AMQP 0-9-1 con TLS (ADR-016) |
 
 ## Capas y descomposición
 
@@ -73,7 +73,9 @@ Una vista agregada no desplaza permisos ni escrituras al Gateway.
 
 Core mantiene módulos de Cuentas, Canales/seguimiento, Catálogo y Discovery en un proceso Java.
 Streaming conserva su proceso Rust y Chat su proceso Go. VOD y Notificaciones son unidades
-independientes. Sus tecnologías y las del Gateway se seleccionan por responsable mediante ADR.
+independientes. Las tecnologías de VOD, de Notificaciones y del Gateway se seleccionan por
+responsable mediante ADR. Cuentas publica trabajos de recuperación y ofrece contratos privados
+de entrega; su consumidor y SMTP pertenecen a Notificaciones y están pendientes (ADR-017).
 Web usa TypeScript y móvil Kotlin. Watch parties y subtítulos requieren concretar su SPEC y
 ubicación funcional antes de atribuirles un nuevo proceso.
 

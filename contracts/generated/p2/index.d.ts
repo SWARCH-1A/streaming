@@ -1,4 +1,4 @@
-// Generated from contracts/p2.json (extends p1); do not edit.
+// Generated from contracts/p2.json, inherited P1 schemas and the canonical GraphQL SDL; do not edit.
 export type ActiveTaxonomyValue = { "id": string; "name": string; "active": true };
 export type Binary = string;
 export type BootstrapStream = { "streamId": string; "channelId": string; "sessionId": string | null; "streamGeneration": number; "title": string; "category": TaxonomyLabel; "tags": Array<TaxonomyLabel>; "status": "OFFLINE" | "PREPARING" | "LIVE" | "ENDED"; "availability": "OFFLINE" | "PLAYABLE" | "RECONNECTING"; "statusFresh": boolean; "metadataVersion": number; "sessionVersion": number | null; "viewerCount"?: number | null; "countVersion"?: number | null; "viewerCountObservedAtUtc"?: string | null; "session": PublicSession | null };
@@ -56,10 +56,17 @@ export type P2AccountStatusCommand = { "status": "ACTIVE" | "SUSPENDED"; "expect
 export type P2AccountStatusPayload = { "userId": string; "accountVersion": number; "status": "ACTIVE" | "SUSPENDED" };
 export type P2ChannelAdmin = { "channelId": string; "ownerUserId": string; "channelVersion": number };
 export type P2ChannelAdminPage = { "items": Array<P2ChannelAdmin>; "nextCursor": string | null };
+export type P2DeliveryResult = { "deliveryId": string; "attempt": number; "status": "DELIVERED" | "RETRYABLE_FAILURE" | "PERMANENT_FAILURE" | "UNKNOWN" };
 export type P2EventAccountStatusChanged = { "eventId": string; "eventType": "account.status.changed.v1"; "schemaVersion": 1; "aggregateId": string; "sequence": number; "occurredAtUtc": string; "producer": "core"; "payload": P2AccountStatusPayload; "correlationId": string };
+export type P2EventCredentialRecoveryDeliveryRequested = { "eventId": string; "eventType": "credential.recovery.delivery.requested.v1"; "schemaVersion": 1; "producer": "core"; "aggregateId": string; "sequence": number; "occurredAtUtc": string; "correlationId": string; "payload": { "recoveryId": string; "deliveryId": string } };
 export type P2EventStreamDiscoverySnapshot = { "eventId": string; "eventType": "stream.discovery.snapshot.v1"; "schemaVersion": 1; "aggregateId": string; "sequence": number; "occurredAtUtc": string; "producer": "streaming"; "payload": DiscoverySnapshot; "correlationId": string };
 export type P2EventStreamSessionChanged = { "eventId": string; "eventType": "stream.session.changed.v1"; "schemaVersion": 1; "aggregateId": string; "sequence": number; "occurredAtUtc": string; "producer": "streaming"; "payload": P2StreamSessionChangedPayload; "correlationId": string };
 export type P2PageQuery = { "limit"?: number; "cursor"?: string };
+export type P2RecoveryAccepted = { "message": "Si existe una cuenta asociada, recibir\u00e1s un correo para restablecer la contrase\u00f1a." };
+export type P2RecoveryClaim = { "deliveryId": string; "attempt": number };
+export type P2RecoveryConfirm = { "recoveryToken": string; "newPassword": string };
+export type P2RecoveryDelivery = { "recoveryId": string; "deliveryId": string; "attempt": number; "recipient": string; "resetUrl": string; "expiresAtUtc": string };
+export type P2RecoveryRequest = { "email": string };
 export type P2StreamSessionChangedPayload = { "streamId": string; "sessionId": string; "streamGeneration": number; "sessionVersion": number; "status": "PREPARING" | "LIVE" | "RECONNECT_GRACE" | "ENDED"; "availability": "OFFLINE" | "PLAYABLE" | "RECONNECTING"; "channelId": string; "firstLiveAtUtc": string | null; "initialLive": boolean };
 export type PlaybackCallback = { "eventId": string; "streamId": string; "sessionId": string; "streamGeneration": number; "sourceGeneration": number; "playbackPath": string };
 export type Profile = { "userId": string; "displayName": string; "bio": string; "avatarUri": string | null; "updatedAtUtc": string; "profileVersion": number };
@@ -81,3 +88,10 @@ export type TaxonomyLabel = { "id": string; "name": string };
 export type TaxonomyValue = { "id": string; "kind": "CATEGORY" | "TAG"; "name": string; "active": boolean };
 export type Upload = { "uploadId": string; "expiresAtUtc": string };
 export type ViewerLease = { "leaseId": string; "leaseToken": string; "sessionId": string; "heartbeatEverySeconds": 10; "expiresAfterSeconds": 30 };
+export type GqlChannelConnection = { "items": Array<GqlPublicChannelResult>; "nextCursor": string | null; "generatedAtUtc": string; "statusFresh": boolean };
+export type GqlLiveStream = { "streamId": string; "sessionId": string; "previewUri": string; "channel": GqlPublicChannel; "title": string; "category": GqlTaxonomyValue; "tags": Array<GqlTaxonomyValue>; "status": string; "availability": string; "viewerCount": number; "viewerCountFresh": boolean; "viewerCountObservedAtUtc": string; "startedAtUtc": string; "metadataVersion": number; "sessionVersion": number; "statusFresh": boolean };
+export type GqlPublicChannel = { "channelId": string; "handle": string; "displayName": string; "avatarUri": string | null };
+export type GqlPublicChannelResult = { "channelId": string; "userId": string; "handle": string; "displayName": string; "avatarUri": string | null; "status": string; "availability": string; "title": string | null; "channelVersion": number; "metadataVersion": number | null; "sessionVersion": number | null; "statusFresh": boolean };
+export type GqlQuery = { "streams": GqlStreamConnection | null; "channels": GqlChannelConnection | null };
+export type GqlStreamConnection = { "items": Array<GqlLiveStream>; "nextCursor": string | null; "generatedAtUtc": string; "statusFresh": boolean };
+export type GqlTaxonomyValue = { "id": string; "name": string };

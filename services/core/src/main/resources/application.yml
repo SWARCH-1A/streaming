@@ -48,6 +48,7 @@ core:
     streaming-service-token: ${CORE_STREAMING_SERVICE_TOKEN:}
     streaming-catalog-service-token: ${CORE_STREAMING_CATALOG_SERVICE_TOKEN:}
     chat-service-token: ${CHAT_CORE_SERVICE_TOKEN:}
+    recovery-service-token: ${CORE_RECOVERY_SERVICE_TOKEN:}
     tls-keystore: ${CORE_INTERNAL_TLS_KEYSTORE:}
     tls-keystore-password: ${CORE_INTERNAL_TLS_KEYSTORE_PASSWORD:}
   streaming:
@@ -57,6 +58,9 @@ core:
   cookie-name: stream_session
   secure-cookie: ${CORE_SECURE_COOKIE:false}
   public-origin: ${WEB_ORIGIN:http://localhost:3000}
+  recovery:
+    enabled: ${CORE_RECOVERY_ENABLED:false}
+    encryption-key: ${CORE_RECOVERY_ENCRYPTION_KEY:}
   rate-limit-hmac-secret: ${CORE_RATE_LIMIT_HMAC_SECRET}
   # CIDR list of reverse proxies whose X-Forwarded-For is trusted; empty = always use the socket address.
   trusted-proxies: ${CORE_TRUSTED_PROXIES:}

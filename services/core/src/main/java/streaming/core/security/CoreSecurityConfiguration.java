@@ -45,6 +45,7 @@ public class CoreSecurityConfiguration {
                             "/api/channels/csrf","/api/channels/banners/*","/api/taxonomy",
                             "/actuator/health","/actuator/health/**","/actuator/info").permitAll()
                     .requestMatchers(HttpMethod.POST,"/api/identity/registrations","/api/identity/sessions",
+                            "/api/identity/recovery-requests","/api/identity/recoveries/confirm",
                             "/api/profile/me/avatar-uploads","/api/channels/*/banner-uploads","/api/discovery/graphql").permitAll()
                     .requestMatchers(HttpMethod.PATCH,"/api/profile/me","/api/channels/*").permitAll()
                     .requestMatchers(HttpMethod.DELETE,"/api/identity/sessions/current").permitAll()

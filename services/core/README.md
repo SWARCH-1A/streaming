@@ -18,7 +18,7 @@ La persistencia y validación de Catálogo se documentan en
 
 Código bajo `src/main/java/streaming/core`:
 
-- `accounts/identity`: registro, credenciales, sesiones, idempotencia y cuotas SQL.
+- `accounts/identity`: registro, credenciales, sesiones, recuperación de contraseña, idempotencia, cuotas SQL y outbox de correo.
 - `accounts/profile`: perfil, edición propia y archivos/permisos de avatar. Valida sesión localmente.
 - `channels`: creación inicial transaccional, edición propia, portadas y bootstrap público por handle/owner, con vistas SQL públicas de Cuentas.
 - `taxonomy`: catálogo público activo/versionado, semilla SQL, tombstones y validación local de IDs.
@@ -32,7 +32,9 @@ canal versión 0 y resultado idempotente juntos. No inicia sesión. Las FK y UNI
 y unicidad. Un reintento recupera los mismos IDs; un fallo revierte todas las escrituras de negocio.
 Las cuotas se guardan aparte para limitar intentos fallidos.
 
-No hay HTTP entre estos módulos, worker de provisión, reservas PENDING ni outbox de identidad/perfil.
+Los módulos se comunican mediante interfaces locales. La provisión de cuenta/perfil/canal no
+necesita un worker ni un outbox. El outbox de recuperación guarda exclusivamente la intención
+de entrega de correo a otro proceso, conforme a ADR-017 y al broker de ADR-016.
 La consulta pública compone canal/handle/perfil en una sentencia SQL y un batch autoritativo
 Streaming. La ausencia confirmada devuelve `stream:null`, `streamStatusFresh=true` y OFFLINE;
 una dependencia fallida devuelve UNKNOWN/false preservando los datos locales. Edición/portada usa la sesión y CSRF de Core; los PATCH
@@ -41,6 +43,39 @@ replica permisos en Discovery. Las pruebas entre proveedores están en
 [la suite P1](../../tests/integration/p1-domains/README.md); Web y carga se verifican por separado.
 
 ## Configuración
+
+### Recuperación de contraseña
+
+`V9__credential_recovery.sql` añade el estado de tokens, idempotencia y outbox conservando
+las cuentas y sesiones existentes. La política vigente está en
+[ADR-017](../../docs/adr/ADR-017-recuperacion-de-credenciales.md).
+
+| Variable | Uso |
+| --- | --- |
+| CORE_RECOVERY_ENABLED | `true` habilita solicitud, confirmación y publicación de recuperación; default `false` en Core aislado |
+| CORE_RECOVERY_ENCRYPTION_KEY | Base64 de 32 bytes aleatorios; clave AES-256-GCM independiente y persistente |
+| CORE_RECOVERY_SERVICE_TOKEN | Secreto privado de entrega para Notificaciones, identidad lógica `recovery-email`, distinto de Streaming/Catálogo/Chat |
+| WEB_ORIGIN | Origen HTTPS usado para el enlace; HTTP se admite únicamente en loopback para desarrollo |
+
+Las dos APIs públicas requieren CSRF e Idempotency-Key UUID. `/internal/core/recovery-deliveries/*`
+solo está disponible en el listener privado mediante `X-Service-Name: recovery-email` y su
+`X-Service-Token`, con la pareja recoveryId/deliveryId e intento monotónico 1..2147483647. Nunca admite una sesión de
+usuario como credencial de servicio. El consumidor de Notificaciones usará claim/result y no
+leerá las tablas Core; el nombre lógico de la credencial no selecciona su tecnología.
+
+Solicitud, confirmación y contratos privados están implementados. El publicador usa el puerto
+`RecoveryPublisher`: solo confirma el outbox después del ACK durable; un fallo recupera la misma
+identidad con lease de 60 s y backoff 1/2/5/10 s. `RabbitRecoveryPublisher` publica el cuerpo
+original con confirmación y detección de mensajes sin ruta, hacia `notifications.recovery.email`
+del broker compartido (ADR-016). El consumidor, almacenamiento de intentos y SMTP están pendientes
+del responsable de Notificaciones; el [contrato de integración](../../docs/contratos_p2_eventos.md#integración-de-recuperación-entre-cuentas-y-notificaciones)
+define lo que debe consumir. Publicar el trabajo no acredita entrega de correo. En instalaciones existentes,
+configurar la clave sin sustituir secretos ni borrar `.state-local` o bases de datos.
+
+`RecoveryIT` verifica uniformidad, cuotas, consumo concurrente, revocación, rollback, aislamiento
+del listener, reintentos privados y recuperación del outbox sobre PostgreSQL desechable.
+
+### Variables comunes
 
 | Variable | Uso |
 | --- | --- |
@@ -257,7 +292,14 @@ operador a la base; no se expone por HTTP. Valida la cuenta, provisiona ADMIN, a
 sesiones anteriores. Volver a iniciar sesión y abrir `/admin` desde el origen público.
 Si se repite no duplica la auditoría de provisión; vuelve a revocar sesiones existentes.
 
-V9 preserva identidades/perfiles/canales y asigna USER/ACTIVE/version 0 a cuentas previas.
+V10 preserva identidades/perfiles/canales y asigna USER/ACTIVE/version 0 a cuentas previas.
+V9 corresponde exclusivamente a recuperación de credenciales (ADR-017); Administración
+usa V10 y ADR-019. Antes de actualizar una base de una revisión experimental de este PR,
+consultar `SELECT version,description,checksum FROM flyway_schema_history ORDER BY installed_rank;`.
+Si V9 indica `account administration`, detener la actualización y conservar el volumen:
+su historial no corresponde a develop. No ejecutar `repair`, borrar volúmenes ni sustituir
+checksums para ocultar esa colisión; acordar una transición respaldada de esa base aparte.
+Las pruebas cubren actualización desde V8 y desde V9 de recuperación, además de instalación limpia.
 No modifica migraciones aplicadas. El cambio de estado usa cookie, CSRF, versión e idempotencia.
 Los datos administrativos solo se obtienen con rol válido. `CORE_EVENTS_TRANSPORT=amqp` activa
 el outbox mediante el broker existente; el perfil HTTP P1 conserva pendientes los eventos.

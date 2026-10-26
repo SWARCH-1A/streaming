@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { P2AccountAdmin, P2AccountAdminPage, P2ChannelAdminPage } from '@contracts/p2';
+import type { P2AccountAdmin, P2AccountAdminPage, P2ChannelAdminPage } from '@contracts/p2/index';
 
 import { Button } from '@/src/components/atoms/Button';
 import { Textarea } from '@/src/components/atoms/Textarea';

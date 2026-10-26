@@ -1,10 +1,13 @@
 package streaming.core.accounts.administration;
 
 import java.nio.file.Path;
+import java.nio.file.Files;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.support.JdbcTransactionManager;
@@ -21,18 +24,22 @@ import static org.assertj.core.api.Assertions.*;
 
 /** Disposable providers; does not connect to the developer's application databases. */
 class AdministrationInfrastructureIT {
-    @Test void upgradeFromV8PreservesIdentityAndRunsTheOperatorScript() throws Exception {
+    @ParameterizedTest @ValueSource(ints={8,9})
+    void upgradePreservesIdentityRecoveryChecksumsAndRunsTheOperatorScript(int baseline) throws Exception {
         try (var db = new PostgreSQLContainer("postgres:18-alpine")) {
             db.start();
-            Flyway.configure().dataSource(db.getJdbcUrl(),db.getUsername(),db.getPassword()).target("8").load().migrate();
+            Flyway.configure().dataSource(db.getJdbcUrl(),db.getUsername(),db.getPassword()).target(Integer.toString(baseline)).load().migrate();
             var jdbc = JdbcClient.create(new DriverManagerDataSource(db.getJdbcUrl(),db.getUsername(),db.getPassword()));
             jdbc.sql("INSERT INTO identity.accounts VALUES ('usr_upgrade','fixture@example.test','fixture@example.test','upgrade_test','upgrade_test','test-only-hash',CURRENT_TIMESTAMP)").update();
             jdbc.sql("INSERT INTO identity.sessions VALUES (:id,'usr_upgrade',:hash,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP+INTERVAL '1 hour',NULL)")
                 .param("id",UUID.randomUUID()).param("hash","a".repeat(64)).update();
             var checksums = jdbc.sql("SELECT version,checksum FROM flyway_schema_history WHERE version IS NOT NULL ORDER BY installed_rank").query().listOfRows();
+            if (baseline==9) jdbc.sql("INSERT INTO identity.credential_recoveries(recovery_id,delivery_id,user_id,token_hash,created_at_utc,expires_at_utc) VALUES ('rec_fixture','del_fixture','usr_upgrade',:hash,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP+INTERVAL '1 hour')")
+                .param("hash","b".repeat(64)).update();
             var flyway=Flyway.configure().dataSource(db.getJdbcUrl(),db.getUsername(),db.getPassword()).load();
             flyway.migrate(); flyway.validate();
-            assertThat(jdbc.sql("SELECT version,checksum FROM flyway_schema_history WHERE version<>'9' AND version IS NOT NULL ORDER BY installed_rank").query().listOfRows()).isEqualTo(checksums);
+            assertThat(jdbc.sql("SELECT version,checksum FROM flyway_schema_history WHERE version::integer<=:baseline ORDER BY installed_rank").param("baseline",baseline).query().listOfRows()).isEqualTo(checksums);
+            assertThat(jdbc.sql("SELECT count(*) FROM identity.credential_recoveries").query(Integer.class).single()).isEqualTo(baseline==9?1:0);
             assertThat(jdbc.sql("SELECT account_role||':'||account_status||':'||account_version FROM identity.accounts").query(String.class).single()).isEqualTo("USER:ACTIVE:0");
             db.copyFileToContainer(MountableFile.forHostPath(Path.of("scripts/provision-admin.sql")),"/tmp/provision-admin.sql");
             for (int i=0;i<2;i++) {
@@ -67,7 +74,17 @@ class AdministrationInfrastructureIT {
                 var topology=new RabbitAdmin(factory);var exchange=new TopicExchange("p2.events",true,false);
                 topology.declareExchange(exchange);var queue=new Queue("fixture.account-status",true);topology.declareQueue(queue);
                 topology.declareBinding(BindingBuilder.bind(queue).to(exchange).with("account.status.changed.v1"));
+                var recoveryQueue=new Queue("fixture.recovery",true);topology.declareQueue(recoveryQueue);
+                topology.declareBinding(BindingBuilder.bind(recoveryQueue).to(exchange).with("credential.recovery.delivery.requested.v1"));
+                var recoveryPublisher=new streaming.core.accounts.identity.infrastructure.RabbitRecoveryPublisher(rabbit);
+                var recoveryExample=new tools.jackson.databind.ObjectMapper()
+                    .readTree(Files.readString(Path.of("../../contracts/p2.json")))
+                    .get("schemas").get("P2EventCredentialRecoveryDeliveryRequested").get("examples").get(0);
+                String recoveryEnvelope=recoveryExample.toString();
+                String recoveryEventId=recoveryExample.get("eventId").asText();
+                var publication=new streaming.core.accounts.identity.application.RecoveryStore.Publication(recoveryEventId,recoveryEnvelope,1);
                 assertThat(broker.execInContainer("rabbitmqctl","stop_app").getExitCode()).isZero();factory.resetConnection();
+                assertThatThrownBy(()->recoveryPublisher.publish(publication)).isInstanceOf(RuntimeException.class);
                 new AccountStatusPublisher(jdbc,tx,rabbit).publish();
                 assertThat(jdbc.sql("SELECT published_at_utc IS NULL AND attempts=1 FROM identity.account_status_outbox").query(Boolean.class).single()).isTrue();
                 assertThat(broker.execInContainer("rabbitmqctl","start_app").getExitCode()).isZero();
@@ -77,6 +94,12 @@ class AdministrationInfrastructureIT {
                 assertThat(delivered).isNotNull();
                 assertThat(new String(delivered.getBody(),StandardCharsets.UTF_8)).isEqualTo(envelope);
                 assertThat(jdbc.sql("SELECT published_at_utc IS NOT NULL AND attempts=2 FROM identity.account_status_outbox").query(Boolean.class).single()).isTrue();
+                recoveryPublisher.publish(publication);
+                var recoveryDelivered=rabbit.receive("fixture.recovery",5000);
+                assertThat(recoveryDelivered).isNotNull();
+                assertThat(recoveryDelivered.getMessageProperties().getMessageId()).isEqualTo(recoveryEventId);
+                assertThat(new String(recoveryDelivered.getBody(),StandardCharsets.UTF_8)).isEqualTo(recoveryEnvelope);
+                assertThat(rabbit.receive("fixture.account-status")).isNull();
             } finally { factory.destroy(); }
         }
     }

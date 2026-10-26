@@ -1,4 +1,4 @@
-# ADR-017: Administración local en Cuentas y propagación durable
+# ADR-019: Administración local en Cuentas y propagación durable
 
 - Estado: propuesta implementada; revisión de Cuentas y consumidores pendiente.
 - Fecha: 2026-10-24.
@@ -21,6 +21,12 @@ de lectura para el listado administrativo; no se duplican sus datos.
 El operador provisiona ADMIN sobre una cuenta ACTIVE existente mediante SQL explícito.
 El registro público siempre crea USER. La provisión revoca las sesiones anteriores.
 Las operaciones Web conservan cookie/CSRF; no se implementa todavía login móvil.
+
+Recuperar contraseña no reactiva una cuenta suspendida. Se permite recuperar manteniendo
+su estado/rol/versión y las garantías de privacidad de ADR-017; la reactivación exige una
+operación administrativa separada. Ambas operaciones y login bloquean la cuenta y login
+revalida contraseña y ACTIVE antes de crear sesión. Impedir la recuperación durante la
+suspensión mezclaría recuperación de credenciales con autorización administrativa.
 
 El outbox publica JSON neutral persistente mediante el RabbitMQ de ADR-016, con confirmación
 y retorno obligatorio. No se marca enviado ante falta de confirmación/ruta. Un reintento

@@ -62,7 +62,7 @@ su dueño no aceptó. La auditoría incluye actor, objetivo, motivo, instante y 
 ### Incremento Core/Web disponible
 
 `services/core/src/main/java/streaming/core/accounts/administration` implementa listados y
-cambio de estado. V9 añade rol/estado/versión, operaciones idempotentes, auditoría y outbox.
+cambio de estado. V10 añade rol/estado/versión, operaciones idempotentes, auditoría y outbox.
 `apps/web/src/modules/administration` ofrece `/admin`; el servidor valida el rol en cada
 operación. La lectura de canales usa una interfaz publicada por Canales.
 
@@ -74,13 +74,19 @@ comando con la misma clave da 409. El motivo se compara tras recortar espacios e
 Sin cambio real se audita, pero no aumenta versión ni genera evento. Los registros se
 conservan sin vencimiento automático en este incremento. Reactivar exige nuevo login.
 
+Una cuenta suspendida puede solicitar y confirmar recuperación de contraseña, manteniendo
+respuesta uniforme, cuotas e idempotencia de SPEC-01. La recuperación solo cambia la
+contraseña y revoca sesiones: no modifica rol, estado ni versión administrativa. El login
+comprueba bajo bloqueo tanto contraseña vigente como estado ACTIVE. Solo Administración
+puede reactivar; las sesiones antiguas no reaparecen tras la reactivación.
+
 El outbox se habilita con CORE_EVENTS_TRANSPORT=amqp, usando la configuración RabbitMQ
 existente. Mantiene el envelope ante fallo y reintenta tras 30 segundos. No hay un consumidor
 integrado de suspensión acreditado todavía. `/api/admin/content-removals` y
 `/internal/core/access-context` siguen pendientes; no se anuncia RF-078/079 completo.
 
 La provisión se describe en el [README Core](../../services/core/README.md). La decisión
-está en [ADR-017](../adr/ADR-017-administracion-core.md).
+está en [ADR-019](../adr/ADR-019-administracion-core.md).
 
 ## 8. Dependencias y contratos de integración
 

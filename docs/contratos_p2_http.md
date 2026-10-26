@@ -1,8 +1,10 @@
 # Contratos HTTP y WebSocket de P2
 
-La fuente estructural es [contracts/p2.json](../contracts/p2.json), que hereda schemas de
-[p1.json](../contracts/p1.json). [SPEC-10](spec-p2/spec_10_contracts.md) define mantenimiento y
-validación. Las rutas siguientes son diseño de interfaces; no acreditan endpoints implementados.
+La fuente estructural [contracts/p2.json](../contracts/p2.json) hereda schemas de
+[p1.json](../contracts/p1.json) y concreta las cuatro operaciones de recuperación de RF-004.
+Las demás familias del inventario conservan su diseño documental hasta incorporar sus schemas.
+[SPEC-10](spec-p2/spec_10_contracts.md) define mantenimiento y validación. El inventario de rutas
+describe interfaces; la implementación y las pruebas de cada proveedor se acreditan por separado.
 Cada operación tiene auth, timeout, idempotencia, consumidor, errores y SPEC en la fuente.
 
 ## Reglas comunes
@@ -119,14 +121,38 @@ Login móvil recibe LoginRequest y devuelve accessToken opaco, tokenType=Bearer,
 La credencial solo aparece en esa respuesta TLS/no-store y en su transporte autenticado posterior.
 Mantiene la misma vida fija de 24 h, expiración y revocación de Core; no hay refresh token nuevo.
 
-La solicitud de recuperación devuelve 202 con mensaje uniforme. Confirmar usa recoveryToken y
-newPassword; el token es de un uso, válido solo antes de vencer. Core consume token, cambia hash
-y revoca sesiones en una transacción. Los valores concretos de vigencia/cuotas siguen en P2-15.
+La solicitud recibe `{email}` y devuelve 202 con `P2RecoveryAccepted.message` uniforme.
+Confirmar recibe `{recoveryToken,newPassword}` y devuelve 204 sin cuerpo. El token opaco de
+256 bits es de un uso y vence a los 30 minutos; una solicitud nueva invalida los anteriores.
+Core consume token, cambia hash y revoca sesiones en una transacción. Token usado, vencido o
+manipulado devuelve 422 RECOVERY_INVALID, sin distinguir la causa. Payload inválido devuelve
+400 VALIDATION_ERROR. Ambos endpoints conservan CSRF para navegador y Cache-Control: no-store.
 
-El job de correo contiene recoveryId/deliveryId. El worker con permiso limitado obtiene material
-por claim y registra DELIVERED, RETRYABLE_FAILURE, PERMANENT_FAILURE o UNKNOWN. Repetir claim con
-el mismo deliveryId no genera otra recuperación ni extiende el vencimiento. El material sensible
-permanece protegido por Core; el mecanismo de protección debe ratificarse antes de implementar.
+La política [ADR-017](adr/ADR-017-recuperacion-de-credenciales.md) fija tres solicitudes nuevas
+por dirección normalizada/hora y diez operaciones por IP/15 minutos, incluyendo confirmaciones.
+Direcciones inexistentes consumen las mismas cuotas. Un exceso devuelve 429 RATE_LIMITED con
+Retry-After conservador de 3600 segundos para solicitud y 900 para confirmación. Idempotency-Key
+UUID conserva el resultado 24 horas; repetir la misma clave con otro contenido da 409.
+
+El job de correo contiene recoveryId/deliveryId. El consumidor de Notificaciones, con la
+identidad lógica `recovery-email`, credencial exclusiva y acceso al listener privado, pide
+claim con `{deliveryId,attempt}`; el intento va de
+1 a 2147483647, monotónico incluso tras redrive; el presupuesto de transporte sigue siendo
+cuatro intentos por ciclo operativo (ADR-016). Core valida la pareja autorizada antes de devolver `P2RecoveryDelivery`: identificadores,
+intento, recipient, resetUrl y expiresAtUtc. Una pareja desconocida da 404; material vencido,
+invalidado o eliminado da 410. La URL se deriva del origen configurado, nunca del Host recibido.
+
+El resultado recibe `{deliveryId,attempt,status}` con DELIVERED, RETRYABLE_FAILURE,
+PERMANENT_FAILURE o UNKNOWN. Un intento anterior no sobrescribe uno posterior; el estado terminal
+no se reemplaza por un fallo tardío. El siguiente claim requiere el resultado reintentable del
+intento anterior. Repetir claim no genera otra recuperación ni extiende el vencimiento. Claim y
+result son idempotentes, usan no-store y rechazan campos ajenos. DELIVERED, PERMANENT_FAILURE y
+UNKNOWN eliminan el material reversible; el hash de confirmación conserva su vigencia original.
+El material temporal se protege con AES-256-GCM según ADR-017 y no aparece en broker ni logs.
+El nombre de servicio es un permiso del contrato y no exige un contenedor o runtime específico.
+Cuentas implementa estas cuatro operaciones y publica el trabajo; el consumo de la cola,
+almacenamiento de intentos, configuración SMTP y envío corresponden a Notificaciones y están
+pendientes. La respuesta 202 confirma la solicitud, sin acreditar entrega de correo.
 
 ## Seguimiento y destinatarios
 

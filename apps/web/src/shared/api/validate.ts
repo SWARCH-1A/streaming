@@ -1,14 +1,13 @@
 import operations from '@contracts/operations.json';
-import schema from '@contracts/p1.schema.json';
-import p2Operations from '@contracts/p2.operations.json';
-import p2Schema from '@contracts/p2.schema.json';
+import p2Operations from '@contracts/p2/operations.json';
+import schema from '@contracts/p2/schema.json';
 import Ajv2020 from 'ajv/dist/2020';
 import addFormats from 'ajv-formats';
 
 const ajv = new Ajv2020({ strict: false, allErrors: false });
 addFormats(ajv);
-ajv.addSchema({ ...schema, $id: 'p1' });
-ajv.addSchema({ ...p2Schema, $id: 'p2' });
+ajv.addSchema({ ...schema, $id: 'p2' });
+const allOperations = [...operations, ...p2Operations];
 const cache = new Map<string, ReturnType<typeof ajv.compile>>();
 export function validateResponse(
   path: string,
@@ -17,8 +16,7 @@ export function validateResponse(
   body: unknown,
 ): void {
   const pathname = path.split('?')[0] ?? path;
-  const p2 = pathname.startsWith('/api/admin/');
-  const operation = (p2 ? p2Operations : operations).find(
+  const operation = allOperations.find(
     (item) =>
       item.method === method &&
       new RegExp(`^${item.path.replace(/\{[^}]+\}/g, '[^/]+')}$`).test(pathname),
@@ -26,11 +24,10 @@ export function validateResponse(
   const response = operation?.responses as Record<string, string | null> | undefined;
   const name = response?.[String(status)];
   if (!name) throw new Error('Respuesta sin contrato público.');
-  const cacheKey = `${p2 ? 'p2' : 'p1'}:${name}`;
-  let validate = cache.get(cacheKey);
+  let validate = cache.get(name);
   if (!validate) {
-    validate = ajv.compile({ $ref: `${p2 ? 'p2' : 'p1'}#/$defs/${name}` });
-    cache.set(cacheKey, validate);
+    validate = ajv.compile({ $ref: `p2#/$defs/${name}` });
+    cache.set(name, validate);
   }
   if (!validate(body)) throw new Error('El servicio devolvió una respuesta incompatible.');
 }
@@ -48,7 +45,7 @@ export function validateFrame(frame: unknown): void {
   if (!name) throw new Error('Tipo de frame de chat desconocido.');
   let validate = cache.get(name);
   if (!validate) {
-    validate = ajv.compile({ $ref: `p1#/$defs/${name}` });
+    validate = ajv.compile({ $ref: `p2#/$defs/${name}` });
     cache.set(name, validate);
   }
   if (!validate(frame)) throw new Error('Frame de chat incompatible.');

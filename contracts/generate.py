@@ -136,7 +136,7 @@ def verify(bundle, sdl):
         raise ValueError(f"Negative example unexpectedly valid: {negative['name']}")
 
 
-def typescript_schemas(schemas):
+def typescript(bundle, sdl):
     def ts(schema):
         if "$ref" in schema: return schema["$ref"].split("/")[-1]
         if "const" in schema: return json.dumps(schema["const"])
@@ -151,12 +151,8 @@ def typescript_schemas(schemas):
             required = schema.get("required", [])
             return "{ " + "; ".join(json.dumps(k) + ("" if k in required else "?") + ": " + ts(v) for k, v in props.items()) + " }"
         return {"string": "string", "integer": "number", "number": "number", "boolean": "boolean", "null": "null"}.get(kind, "unknown")
-    return ["export type " + name + " = " + ts(schema) + ";" for name, schema in sorted(schemas.items())]
-
-
-def typescript(bundle, sdl):
     lines = ["// Generated from contracts/p1.json and the canonical GraphQL SDL; do not edit."]
-    lines += typescript_schemas(bundle["schemas"])
+    lines += ["export type " + name + " = " + ts(schema) + ";" for name, schema in sorted(bundle["schemas"].items())]
     from graphql import GraphQLObjectType, GraphQLNonNull, GraphQLList
     def gql(t):
         if isinstance(t, GraphQLNonNull): return gql_inner(t.of_type)
@@ -219,7 +215,7 @@ def main():
             if not path.is_file() or path.read_text(encoding="utf-8") != content:
                 raise ValueError(f"Generated contract drift: {name}; run --write")
         # P2's independent validator owns this generated extension.
-        unexpected = {p.name for p in OUTPUT.iterdir() if p.is_file()} - set(files) - {"README.md", "p2.schema.json", "p2.d.ts", "p2.operations.json"}
+        unexpected = {p.name for p in OUTPUT.iterdir() if p.is_file()} - set(files) - {"README.md", "p2.schema.json"}
         if unexpected:
             raise ValueError(f"Unexpected generated files: {sorted(unexpected)}")
     print(f"PASS: {len(bundle['schemas'])} schemas, {len(bundle['operations'])} operations, examples and SDL")
