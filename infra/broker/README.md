@@ -1,8 +1,9 @@
-# Broker P2: Streaming → Core y Chat
+# Broker P2: ciclo, Discovery y recuperación
 
 RabbitMQ es un componente interno compartido. La selección y sus límites están en
 [ADR-016](../../docs/adr/ADR-016-rabbitmq-eventos-p2.md). Se implementan ciclo de sesión y
-snapshots Discovery; las otras siete familias permanecen pendientes de sus responsables.
+snapshots Discovery. Cuentas añade la publicación de solicitudes de recuperación; su consumidor
+y SMTP quedan pendientes de Notificaciones. Las otras seis familias permanecen pendientes de sus responsables.
 Las dieciocho suscripciones se aprovisionan para conservar las copias de cada dominio.
 
 ## Arranque
@@ -33,8 +34,9 @@ efímera con perfil tools; no cuenta como componente de negocio. No publica AMQP
 en el host. Cada dominio conserva su almacén privado. HTTP sigue para contexto/reconstrucción,
 WebSocket para mensajes al cliente y HLS para video.
 build prepara también la imagen de operación para que esté disponible antes de una caída.
-Los servicios reintentan conexión de forma independiente; su arranque no exige que el broker
-ya esté saludable. El comando up espera a los servicios con healthcheck y a Web/API antes de
+Core/Streaming/Chat reintentan conexión de forma independiente. Cuentas publica trabajos de
+recuperación sin depender de SMTP; el arranque no incluye runtimes ni almacenes de Notificaciones.
+El comando up espera a los servicios con healthcheck y a Web/API antes de
 declarar listo el entorno. Las operaciones de dominio no esperan el ACK de todos los consumidores.
 En status, el broker debe alcanzar healthy. AMQP usa TLS en el puerto interno 5671 y
 administración HTTPS en 15671; ambos permanecen dentro de la red Docker. La configuración
@@ -111,6 +113,8 @@ Cargo.lock, para detectar incompatibilidades del adaptador AMQP. También ejecut
 de puertos de repositorio y transacciones PostgreSQL de Core/Discovery con compilación limpia,
 incluidos fallos después del efecto y antes de completar el inbox P2.
 
-El registro neutral conserva nueve tipos/dieciocho suscripciones; solo dos payloads están listos.
+El registro neutral conserva nueve tipos/dieciocho suscripciones; tres payloads están listos (ciclo/Discovery/recuperación).
+El contrato de recuperación permite publicar desde Cuentas a `notifications.recovery.email`;
+su consumidor y la entrega de correo deben ser implementados por el responsable de Notificaciones.
 El código de cada servicio valida su contrato. Los criterios de recuperación/ACL/frescura
 de SPEC-17 siguen sujetos a ejecución integrada; arrancar el contenedor no acredita esos criterios.

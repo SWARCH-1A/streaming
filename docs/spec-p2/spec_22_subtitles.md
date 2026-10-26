@@ -115,6 +115,8 @@ La suite común de contratos/CI los descubre sin dependencias nuevas.
 python contracts/check_p2.py
 python -m unittest discover -s tests/contracts -p 'test_*.py'
 python contracts/webvtt.py tests/contracts/fixtures/subtitles/education-es.vtt --duration-ms 12000
+# Tras instalar las dependencias Web; también se ejecuta en CI Web.
+node tests/contracts/test_subtitle_schemas.mjs
 ```
 
 El número recibido por el checker es dato de prueba; el proveedor lo obtendrá de su propia
@@ -129,3 +131,20 @@ P2-04 queda definido como VOD y autoría del propietario; P2-05 como carga WebVT
 Límites, idiomas y firmas necesitan revisión de consumidores. El costo es preparar las pistas
 manualmente y restringir estilos avanzados; se evitan un proveedor de transcripción y otro runtime.
 Persistencia/permisos dependen de SPEC-14/P2-09/P2-17; presentación de SPEC-18/19 y SPEC-08.
+
+## 11. Entrega al proveedor y consumidores
+
+Los contratos permiten avanzar sin elegir el runtime de VOD. Antes de implementar el recorrido
+integrado, el responsable de cada dominio debe aportar y verificar lo siguiente:
+
+| Responsable | Entrega necesaria |
+| --- | --- |
+| VOD | vodId, propietario, duración validada y mappingVersion; estados de borrador/publicación/restricción y asociación transaccional de pistas |
+| VOD y almacenamiento | Objeto privado confirmado antes de READY; limpieza recuperable; no servir pistas con mapping obsoleto, retiradas o de contenido eliminado |
+| Cuentas/VOD/Gateway | Autorización de cada operación y URL directa, suspensión y fallo de autoridad conforme a P2-17; no basta con ocultar un botón |
+| Web/móvil | Selección/desactivación, seek, calidad, rechazo de respuestas tardías, controles accesibles y fallo de pista sin cortar vídeo |
+| Integración | Proveedores reales, acceso por URL directa y recuperación ante fallos; fixtures de texto no acreditan reproducción |
+
+`pendingInterfaces.subtitles` conserva P2-09 y P2-17 como dependencias de ejecución; P2-04/05
+describen las decisiones del perfil ya propuestas. La asignación de VOD requiere coordinación
+del equipo. SPEC-22 permanece abierta hasta completar los criterios anteriores.

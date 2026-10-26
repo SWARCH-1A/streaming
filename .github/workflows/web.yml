@@ -46,3 +46,4 @@ jobs:
           run_install: false
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+      - run: node ../../tests/contracts/test_subtitle_schemas.mjs

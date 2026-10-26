@@ -25,20 +25,23 @@ Los ejemplos verifican forma; las [pruebas de consumidores reales](../tests/cont
 verifican permisos, errores y comportamiento. Contextos Chat y bootstrap necesitan SPEC-11;
 schemas generados no acreditan que esos endpoints estén implementados.
 
-## Extensión P2 de eventos
+## Extensión P2 de eventos y recuperación
 
 La fuente p2.json extiende los schemas P1 sin modificar sus artefactos. Registra nueve familias
-y dieciocho suscripciones; actualmente solo los payloads de ciclo y snapshot Discovery están
-listos. Las demás entradas están marcadas pending-owner y no admiten publicación como contratos
-validados. Las cuatro operaciones p2.subtitles.* y schemas P2Subtitle* son contratos VOD
-marcados contract-only, aún sin endpoints/reproductores; el resto del inventario sigue pendiente.
+y dieciocho suscripciones; los payloads de ciclo, snapshot Discovery y recuperación están listos.
+RF-004 incorpora solicitud/confirmación públicas y claim/result privados. Las demás entradas
+permanecen pending-owner y no admiten publicación como contratos validados. Las otras operaciones
+HTTP/WS/media P2 siguen pendientes de sus responsables.
 
     python contracts/check_p2.py --write
     python contracts/check_p2.py
     python contracts/check_p2.py --event /ruta/a/envelope.json
+    python contracts/check_p2.py --payload P2RecoveryAccepted /ruta/a/respuesta.json --public
 
-El primer comando genera contracts/generated/p2.schema.json; no editarlo a mano. La validación
-es offline, comprueba referencias, ejemplos válidos/negativos, identidad/versiones y privacidad.
+El primer comando genera contracts/generated/p2.schema.json y los schemas/tipos/inventarios de
+contracts/generated/p2. Web importa @contracts/p2. No editar los derivados a mano. La validación
+es offline, comprueba referencias, ejemplos válidos/negativos, identidad/versiones, privacidad,
+permisos, idempotencia y trazabilidad de las operaciones, además de detectar drift.
 El arranque RabbitMQ y los SDK de cada lenguaje se documentan en infra/broker/README.md y ADR-016.
 
 ## Perfil de subtítulos VOD
@@ -54,3 +57,10 @@ python -m unittest discover -s tests/contracts -p 'test_*.py'
 `check_p2.py` comprueba además ejemplos, referencias de operaciones, paths y páginas de pistas.
 La duración usada en pruebas es ficticia; el futuro proveedor debe consultar la duración/mapping
 de VOD y aplicar permisos. No se acredita VOD funcional ni se decide su runtime mediante Python.
+
+Las cuatro operaciones `p2.subtitles.*` son `contract-only`. El mismo generador conserva Recuperación.
+Prueba adicional con Ajv (tras instalar las dependencias Web):
+
+```sh
+node tests/contracts/test_subtitle_schemas.mjs
+```

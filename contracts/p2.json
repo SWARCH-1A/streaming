@@ -1,7 +1,7 @@
 {
   "version": 2,
   "extends": "p1.json",
-  "coverage": "Initial broker integration: lifecycle and Discovery. Subtitle operations/schemas and WebVTT profile are contract-only; no VOD runtime or player integration. Other P2 contracts remain pending their owners.",
+  "coverage": "Lifecycle, Discovery and password recovery contracts; other P2 families remain pending their owners.",
   "schemas": {
     "P2StreamSessionChangedPayload": {
       "type": "object",
@@ -431,12 +431,274 @@
         }
       ]
     },
+    "P2RecoveryRequest": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        }
+      },
+      "required": [
+        "email"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "email": "fixture@example.test"
+        }
+      ]
+    },
+    "P2RecoveryAccepted": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "const": "Si existe una cuenta asociada, recibirás un correo para restablecer la contraseña."
+        }
+      },
+      "required": [
+        "message"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "message": "Si existe una cuenta asociada, recibirás un correo para restablecer la contraseña."
+        }
+      ]
+    },
+    "P2RecoveryConfirm": {
+      "type": "object",
+      "properties": {
+        "recoveryToken": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "newPassword": {
+          "type": "string",
+          "minLength": 12,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "recoveryToken",
+        "newPassword"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "recoveryToken": "ccccccccccccccccccccccccccccccccccccccccccc",
+          "newPassword": "Fictitious-new-password-123"
+        }
+      ]
+    },
+    "P2RecoveryClaim": {
+      "type": "object",
+      "properties": {
+        "deliveryId": {
+          "type": "string",
+          "pattern": "^del_[A-Za-z0-9_-]{32}$"
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        }
+      },
+      "required": [
+        "deliveryId",
+        "attempt"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "deliveryId": "del_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "attempt": 1
+        }
+      ]
+    },
+    "P2RecoveryDelivery": {
+      "type": "object",
+      "properties": {
+        "recoveryId": {
+          "type": "string",
+          "pattern": "^rec_[A-Za-z0-9_-]{32}$"
+        },
+        "deliveryId": {
+          "type": "string",
+          "pattern": "^del_[A-Za-z0-9_-]{32}$"
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "recipient": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 320,
+          "pattern": "^[^\\r\\n]+$"
+        },
+        "resetUrl": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 2048
+        },
+        "expiresAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        }
+      },
+      "required": [
+        "recoveryId",
+        "deliveryId",
+        "attempt",
+        "recipient",
+        "resetUrl",
+        "expiresAtUtc"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "recoveryId": "rec_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "deliveryId": "del_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "attempt": 1,
+          "recipient": "fixture@example.test",
+          "resetUrl": "https://vault.example.test/reset-password#token=ccccccccccccccccccccccccccccccccccccccccccc",
+          "expiresAtUtc": "2026-10-22T18:30:00Z"
+        }
+      ]
+    },
+    "P2DeliveryResult": {
+      "type": "object",
+      "properties": {
+        "deliveryId": {
+          "type": "string",
+          "pattern": "^del_[A-Za-z0-9_-]{32}$"
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "status": {
+          "enum": [
+            "DELIVERED",
+            "RETRYABLE_FAILURE",
+            "PERMANENT_FAILURE",
+            "UNKNOWN"
+          ]
+        }
+      },
+      "required": [
+        "deliveryId",
+        "attempt",
+        "status"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "deliveryId": "del_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "attempt": 1,
+          "status": "DELIVERED"
+        }
+      ]
+    },
+    "P2EventCredentialRecoveryDeliveryRequested": {
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "eventType": {
+          "const": "credential.recovery.delivery.requested.v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "producer": {
+          "const": "core"
+        },
+        "aggregateId": {
+          "type": "string",
+          "pattern": "^recovery:rec_[A-Za-z0-9_-]{32}$"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "occurredAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "correlationId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,128}$"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "recoveryId": {
+              "type": "string",
+              "pattern": "^rec_[A-Za-z0-9_-]{32}$"
+            },
+            "deliveryId": {
+              "type": "string",
+              "pattern": "^del_[A-Za-z0-9_-]{32}$"
+            }
+          },
+          "required": [
+            "recoveryId",
+            "deliveryId"
+          ],
+          "additionalProperties": false,
+          "examples": [
+            {
+              "recoveryId": "rec_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "deliveryId": "del_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            }
+          ]
+        }
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "producer",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "correlationId",
+        "payload"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "eventId": "11111111-1111-4111-8111-111111111111",
+          "eventType": "credential.recovery.delivery.requested.v1",
+          "schemaVersion": 1,
+          "producer": "core",
+          "aggregateId": "recovery:rec_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sequence": 1,
+          "occurredAtUtc": "2026-10-22T18:00:00Z",
+          "correlationId": "req_fixture",
+          "payload": {
+            "recoveryId": "rec_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "deliveryId": "del_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        }
+      ]
+    },
     "P2SubtitleUploadMetadata": {
       "type": "object",
       "properties": {
         "language": {
           "type": "string",
-          "pattern": "^[a-z]{2,3}(-[A-Z][a-z]{3})?(-([A-Z]{2}|[0-9]{3}))?$"
+          "pattern": "^[a-z]{2,3}(-[A-Z][a-z]{3})?(-([A-Z]{2}|[0-9]{3}))?(?![\\s\\S])"
         },
         "label": {
           "type": "string",
@@ -481,7 +743,7 @@
         },
         "language": {
           "type": "string",
-          "pattern": "^[a-z]{2,3}(-[A-Z][a-z]{3})?(-([A-Z]{2}|[0-9]{3}))?$"
+          "pattern": "^[a-z]{2,3}(-[A-Z][a-z]{3})?(-([A-Z]{2}|[0-9]{3}))?(?![\\s\\S])"
         },
         "label": {
           "type": "string",
@@ -757,10 +1019,12 @@
       "subscriptions": [
         "notifications.recovery.email"
       ],
-      "schema": null,
-      "status": "pending-owner",
+      "schema": "P2EventCredentialRecoveryDeliveryRequested",
+      "status": "contract-ready",
       "spec": [
+        "SPEC-01",
         "SPEC-17",
+        "SPEC-20",
         "SPEC-10"
       ]
     }
@@ -996,6 +1260,75 @@
       }
     },
     {
+      "name": "short recovery token",
+      "schema": "P2RecoveryConfirm",
+      "value": {
+        "recoveryToken": "short",
+        "newPassword": "Fictitious-new-password-123"
+      }
+    },
+    {
+      "name": "short new password",
+      "schema": "P2RecoveryConfirm",
+      "value": {
+        "recoveryToken": "ccccccccccccccccccccccccccccccccccccccccccc",
+        "newPassword": "short"
+      }
+    },
+    {
+      "name": "unexpected account target",
+      "schema": "P2RecoveryRequest",
+      "value": {
+        "email": "fixture@example.test",
+        "userId": "usr_other"
+      }
+    },
+    {
+      "name": "private field in public response",
+      "schema": "P2RecoveryAccepted",
+      "value": {
+        "message": "Si existe una cuenta asociada, recibirás un correo para restablecer la contraseña.",
+        "email": "fixture@example.test"
+      },
+      "public": true
+    },
+    {
+      "name": "unknown delivery result",
+      "schema": "P2DeliveryResult",
+      "value": {
+        "deliveryId": "del_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "attempt": 1,
+        "status": "SUCCESS"
+      }
+    },
+    {
+      "name": "unbounded delivery attempt",
+      "schema": "P2RecoveryClaim",
+      "value": {
+        "deliveryId": "del_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "attempt": 2147483648
+      }
+    },
+    {
+      "name": "secret in broker payload",
+      "schema": "P2EventCredentialRecoveryDeliveryRequested",
+      "value": {
+        "eventId": "11111111-1111-4111-8111-111111111111",
+        "eventType": "credential.recovery.delivery.requested.v1",
+        "schemaVersion": 1,
+        "producer": "core",
+        "aggregateId": "recovery:rec_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sequence": 1,
+        "occurredAtUtc": "2026-10-22T18:00:00Z",
+        "correlationId": "req_fixture",
+        "payload": {
+          "recoveryId": "rec_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "deliveryId": "del_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "recoveryToken": "ccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      }
+    },
+    {
       "schema": "P2SubtitleUploadMetadata",
       "value": {
         "language": "es_CO",
@@ -1041,18 +1374,164 @@
       "value": {
         "limit": 51
       }
+    },
+    {
+      "name": "P2SubtitleUploadMetadata-reject-final-newline",
+      "schema": "P2SubtitleUploadMetadata",
+      "value": {
+        "language": "es\n",
+        "label": "Español",
+        "expectedMappingVersion": 1
+      }
+    },
+    {
+      "name": "P2SubtitleTrack-reject-final-newline",
+      "schema": "P2SubtitleTrack",
+      "value": {
+        "trackId": "sub_fixture",
+        "vodId": "vod_fixture",
+        "language": "es\n",
+        "label": "Español",
+        "kind": "subtitles",
+        "format": "WEBVTT",
+        "state": "READY",
+        "trackVersion": 1,
+        "mappingVersion": 1,
+        "mediaDurationMs": 12000,
+        "contentPath": "/vod-media/vod_fixture/subtitles/sub_fixture.vtt"
+      }
     }
   ],
   "operations": [
+    {
+      "id": "p2.identity.recovery-request",
+      "method": "POST",
+      "path": "/api/identity/recovery-requests",
+      "provider": "Core",
+      "consumer": "Web, Mobile",
+      "owner": "Core / Cuentas",
+      "auth": "public; browser CSRF",
+      "request": "P2RecoveryRequest",
+      "responses": {
+        "202": "P2RecoveryAccepted",
+        "400": "Error",
+        "403": "Error",
+        "409": "Error",
+        "429": "Error",
+        "503": "Error",
+        "413": "Error"
+      },
+      "timeoutMs": 8000,
+      "idempotency": "Idempotency-Key UUID; operation plus HMAC fingerprint; replay same result for 24 h; different payload 409",
+      "recovery": "Retry the same key and payload after an uncertain response; never log credential-bearing payloads.",
+      "spec": "SPEC-01 P2",
+      "traceability": "docs/spec-p2/spec_01_auth.md",
+      "visibility": "public",
+      "limits": "JSON <=16 KiB; request: 3/email/hour and 10/IP/15 min; confirmations share the IP limit. Claim/result attempt 1..2147483647 (monotonic across operator redrive).",
+      "requiredHeaders": [
+        "Idempotency-Key",
+        "X-XSRF-TOKEN"
+      ]
+    },
+    {
+      "id": "p2.identity.recovery-confirm",
+      "method": "POST",
+      "path": "/api/identity/recoveries/confirm",
+      "provider": "Core",
+      "consumer": "Web, Mobile",
+      "owner": "Core / Cuentas",
+      "auth": "public; browser CSRF",
+      "request": "P2RecoveryConfirm",
+      "responses": {
+        "204": null,
+        "400": "Error",
+        "403": "Error",
+        "409": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "413": "Error"
+      },
+      "timeoutMs": 8000,
+      "idempotency": "Idempotency-Key UUID; operation plus HMAC fingerprint; replay same result for 24 h; different payload 409",
+      "recovery": "Retry the same key and payload after an uncertain response; never log credential-bearing payloads.",
+      "spec": "SPEC-01 P2",
+      "traceability": "docs/spec-p2/spec_01_auth.md",
+      "visibility": "public",
+      "limits": "JSON <=16 KiB; request: 3/email/hour and 10/IP/15 min; confirmations share the IP limit. Claim/result attempt 1..2147483647 (monotonic across operator redrive).",
+      "requiredHeaders": [
+        "Idempotency-Key",
+        "X-XSRF-TOKEN"
+      ]
+    },
+    {
+      "id": "p2.recovery.delivery-claim",
+      "method": "POST",
+      "path": "/internal/core/recovery-deliveries/{recoveryId}/claim",
+      "provider": "Core",
+      "consumer": "recovery-email",
+      "owner": "Core / Cuentas",
+      "auth": "private-listener; service:recovery-email; matching recoveryId/deliveryId",
+      "request": "P2RecoveryClaim",
+      "responses": {
+        "200": "P2RecoveryDelivery",
+        "400": "Error",
+        "401": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "503": "Error",
+        "413": "Error"
+      },
+      "timeoutMs": 8000,
+      "idempotency": "Idempotency-Key UUID; operation plus HMAC fingerprint; replay same result for 24 h; different payload 409",
+      "recovery": "Retry the same key and payload after an uncertain response; never log credential-bearing payloads.",
+      "spec": "SPEC-01 P2",
+      "traceability": "docs/spec-p2/spec_01_auth.md",
+      "visibility": "private",
+      "limits": "JSON <=16 KiB; request: 3/email/hour and 10/IP/15 min; confirmations share the IP limit. Claim/result attempt 1..2147483647 (monotonic across operator redrive).",
+      "requiredHeaders": [
+        "Idempotency-Key",
+        "X-Service-Name",
+        "X-Service-Token"
+      ]
+    },
+    {
+      "id": "p2.recovery.delivery-result",
+      "method": "PUT",
+      "path": "/internal/core/recovery-deliveries/{recoveryId}/result",
+      "provider": "Core",
+      "consumer": "recovery-email",
+      "owner": "Core / Cuentas",
+      "auth": "private-listener; service:recovery-email; matching recoveryId/deliveryId",
+      "request": "P2DeliveryResult",
+      "responses": {
+        "204": null,
+        "400": "Error",
+        "401": "Error",
+        "404": "Error",
+        "409": "Error",
+        "503": "Error",
+        "413": "Error"
+      },
+      "timeoutMs": 8000,
+      "idempotency": "Idempotency-Key UUID; operation plus HMAC fingerprint; replay same result for 24 h; different payload 409",
+      "recovery": "Retry the same key and payload after an uncertain response; never log credential-bearing payloads.",
+      "spec": "SPEC-01 P2",
+      "traceability": "docs/spec-p2/spec_01_auth.md",
+      "visibility": "private",
+      "limits": "JSON <=16 KiB; request: 3/email/hour and 10/IP/15 min; confirmations share the IP limit. Claim/result attempt 1..2147483647 (monotonic across operator redrive).",
+      "requiredHeaders": [
+        "Idempotency-Key",
+        "X-Service-Name",
+        "X-Service-Token"
+      ]
+    },
     {
       "id": "p2.subtitles.upload",
       "method": "POST",
       "path": "/api/vods/{vodId}/subtitles",
       "provider": "vod",
-      "consumers": [
-        "web",
-        "mobile"
-      ],
       "spec": "SPEC-22",
       "status": "contract-only",
       "auth": "active-owner-session",
@@ -1091,7 +1570,22 @@
       "idempotency": "actor+operation+vodId+metadata+sha256(original-file-bytes); minimum retention 24h",
       "headers": {
         "Idempotency-Key": "UUID required",
-        "X-CSRF-TOKEN": "required for cookie sessions"
+        "X-XSRF-TOKEN": "required for cookie sessions"
+      },
+      "consumer": [
+        "web",
+        "mobile"
+      ],
+      "owner": "vod",
+      "traceability": "docs/spec-p2/spec_22_subtitles.md",
+      "visibility": "private",
+      "limits": "p2-webvtt-text-v1; 1 MiB file, 10000 cues, authoritative VOD duration/mapping; list 1..50",
+      "recovery": "Retry an uncertain mutation with the same key and payload; revalidate access/mapping; a track failure does not interrupt video.",
+      "requiredHeaders": [
+        "Idempotency-Key"
+      ],
+      "conditionalHeaders": {
+        "X-XSRF-TOKEN": "required for cookie sessions; Bearer follows Accounts contract"
       }
     },
     {
@@ -1099,10 +1593,6 @@
       "method": "GET",
       "path": "/api/vods/{vodId}/subtitles",
       "provider": "vod",
-      "consumers": [
-        "web",
-        "mobile"
-      ],
       "spec": "SPEC-22",
       "status": "contract-only",
       "auth": "public-if-vod-readable-or-active-owner-session",
@@ -1122,17 +1612,23 @@
         "503": "Error",
         "504": "Error"
       },
-      "idempotency": "safe read"
+      "idempotency": "safe read",
+      "consumer": [
+        "web",
+        "mobile"
+      ],
+      "owner": "vod",
+      "traceability": "docs/spec-p2/spec_22_subtitles.md",
+      "visibility": "public",
+      "limits": "p2-webvtt-text-v1; 1 MiB file, 10000 cues, authoritative VOD duration/mapping; list 1..50",
+      "recovery": "Retry an uncertain mutation with the same key and payload; revalidate access/mapping; a track failure does not interrupt video.",
+      "requiredHeaders": []
     },
     {
       "id": "p2.subtitles.read",
       "method": "GET",
       "path": "/vod-media/{vodId}/subtitles/{trackId}.vtt",
       "provider": "vod",
-      "consumers": [
-        "web",
-        "mobile"
-      ],
       "spec": "SPEC-22",
       "status": "contract-only",
       "auth": "public-if-vod-readable-or-active-owner-session",
@@ -1155,17 +1651,23 @@
       "responseContentType": "text/vtt",
       "responseEncoding": "utf-8",
       "maxResponseBytes": 1048576,
-      "idempotency": "safe read; current access checked on every request"
+      "idempotency": "safe read; current access checked on every request",
+      "consumer": [
+        "web",
+        "mobile"
+      ],
+      "owner": "vod",
+      "traceability": "docs/spec-p2/spec_22_subtitles.md",
+      "visibility": "public",
+      "limits": "p2-webvtt-text-v1; 1 MiB file, 10000 cues, authoritative VOD duration/mapping; list 1..50",
+      "recovery": "Retry an uncertain mutation with the same key and payload; revalidate access/mapping; a track failure does not interrupt video.",
+      "requiredHeaders": []
     },
     {
       "id": "p2.subtitles.delete",
       "method": "DELETE",
       "path": "/api/vods/{vodId}/subtitles/{trackId}",
       "provider": "vod",
-      "consumers": [
-        "web",
-        "mobile"
-      ],
       "spec": "SPEC-22",
       "status": "contract-only",
       "auth": "active-owner-session",
@@ -1190,9 +1692,47 @@
       "headers": {
         "Idempotency-Key": "UUID required",
         "If-Match": "quoted trackVersion required",
-        "X-CSRF-TOKEN": "required for cookie sessions"
+        "X-XSRF-TOKEN": "required for cookie sessions"
       },
-      "idempotency": "actor+operation+vodId+trackId+If-Match; minimum retention 24h"
+      "idempotency": "actor+operation+vodId+trackId+If-Match; minimum retention 24h",
+      "consumer": [
+        "web",
+        "mobile"
+      ],
+      "owner": "vod",
+      "traceability": "docs/spec-p2/spec_22_subtitles.md",
+      "visibility": "private",
+      "limits": "p2-webvtt-text-v1; 1 MiB file, 10000 cues, authoritative VOD duration/mapping; list 1..50",
+      "recovery": "Retry an uncertain mutation with the same key and payload; revalidate access/mapping; a track failure does not interrupt video.",
+      "requiredHeaders": [
+        "Idempotency-Key",
+        "If-Match"
+      ],
+      "conditionalHeaders": {
+        "X-XSRF-TOKEN": "required for cookie sessions; Bearer follows Accounts contract"
+      }
+    }
+  ],
+  "retiredP1Operations": [],
+  "pendingInterfaces": [
+    {
+      "id": "watch-parties",
+      "blockedBy": [
+        "P2-01",
+        "P2-02",
+        "P2-03"
+      ],
+      "traceability": "docs/spec-p2/spec_21_watch_party.md"
+    },
+    {
+      "id": "subtitles",
+      "blockedBy": [
+        "P2-09",
+        "P2-17"
+      ],
+      "traceability": "docs/spec-p2/spec_22_subtitles.md",
+      "status": "provider-and-players-pending",
+      "description": "Contracts available; VOD persistence/access and Web/mobile playback acceptance remain pending."
     }
   ],
   "subtitleProfile": {

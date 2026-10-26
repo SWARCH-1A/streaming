@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Route, Routes, useLocation } from 'react-router';
 
-import { AuthPage, ProfilePage } from '@/src/modules/accounts/entry';
+import { AuthPage, ProfilePage, RecoveryPage } from '@/src/modules/accounts/entry';
 import { ChannelEditorPage } from '@/src/modules/channels/entry';
 import { DiscoveryPage } from '@/src/modules/discovery/entry';
 import { StudioPage } from '@/src/modules/streaming/entry';
@@ -27,6 +27,14 @@ function AppRoutes() {
         <Route path="channels/:handle" element={<ChannelRoute />} />
         <Route path="login" element={<AuthPage key="login" mode="login" />} />
         <Route path="register" element={<AuthPage key="register" mode="register" />} />
+        <Route
+          path="forgot-password"
+          element={<RecoveryPage key="recovery-request" mode="request" />}
+        />
+        <Route
+          path="reset-password"
+          element={<RecoveryPage key="recovery-confirm" mode="confirm" />}
+        />
         <Route element={<RequireSession />}>
           <Route path="profile" element={<ProfilePage />} />
           <Route path="studio" element={<StudioPage />} />

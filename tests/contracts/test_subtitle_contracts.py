@@ -1,5 +1,6 @@
 """Contract/profile evidence only: no VOD provider or media player is simulated."""
 import copy
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -7,7 +8,7 @@ from jsonschema import ValidationError
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'contracts'))
-from check_p2 import schema_bundle, validate, verify
+from check_p2 import load, schema_bundle, validate, validate_payload, verify
 from webvtt import InvalidTrack, MAX_BYTES, MAX_CUES, validate_webvtt
 
 FIXTURES = Path(__file__).parent / 'fixtures/subtitles'
@@ -24,11 +25,24 @@ class SubtitleContractsTest(unittest.TestCase):
         self.track = copy.deepcopy(self.source['schemas']['P2SubtitleTrack']['examples'][0])
 
     def test_examples_and_generated_source_remain_valid(self):
-        verify(self.source, self.schema)
+        verify(*load())
 
     def test_metadata_accepts_language_and_script_region_profile(self):
-        for language in ['es', 'en-US', 'zh-Hant-TW', 'es-419']:
-            validate(self.schema, 'P2SubtitleUploadMetadata', {**self.metadata, 'language': language})
+        cases = json.loads((FIXTURES / 'languages.json').read_text(encoding='utf-8'))
+        for name, example in [('P2SubtitleUploadMetadata', self.metadata), ('P2SubtitleTrack', self.track)]:
+            for language in cases['valid']:
+                validate(self.schema, name, {**example, 'language': language})
+            for language in cases['invalid']:
+                with self.subTest(schema=name, language=repr(language)), self.assertRaises(ValidationError):
+                    validate(self.schema, name, {**example, 'language': language})
+
+    def test_cli_and_compatibility_validators_enforce_identical_relations(self):
+        _, _, merged, _ = load()
+        wrong = {**self.track, 'contentPath': '/vod-media/other/subtitles/sub_other.vtt'}
+        for name, value in [('P2SubtitleTrack', wrong), ('P2SubtitlePage', {'items': [wrong], 'nextCursor': None})]:
+            for entry in [lambda: validate(self.schema, name, value), lambda: validate_payload(merged, name, value)]:
+                with self.subTest(schema=name), self.assertRaises(ValueError):
+                    entry()
 
     def test_invalid_metadata_and_claimed_ownership_are_rejected(self):
         for change in [{'language': 'es_CO'}, {'label': '   '}, {'label': 'x\ny'},
@@ -60,7 +74,7 @@ class SubtitleContractsTest(unittest.TestCase):
             if op['method'] in ['POST', 'DELETE']:
                 self.assertEqual(op['auth'], 'active-owner-session')
                 self.assertIn('Idempotency-Key', op['headers'])
-                self.assertIn('X-CSRF-TOKEN', op['headers'])
+                self.assertIn('X-XSRF-TOKEN', op['conditionalHeaders'])
 
     def test_unknown_response_schema_and_duplicate_operations_fail(self):
         for defect in ['unknown', 'duplicate']:
@@ -70,7 +84,8 @@ class SubtitleContractsTest(unittest.TestCase):
             else:
                 source['operations'].append(source['operations'][0])
             with self.assertRaises(ValueError):
-                verify(source, self.schema)
+                base, _, merged, sdl = load()
+                verify(base, source, merged, sdl)
 
     def test_profile_limits_match_checker(self):
         self.assertEqual(self.source['subtitleProfile']['maxBytes'], MAX_BYTES)

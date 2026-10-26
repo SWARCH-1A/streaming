@@ -72,7 +72,9 @@ def definitions(passwords):
             permissions.append(dict(user=role, vhost=VHOST, configure=".*", write=".*", read=".*"))
             topic_permissions.append(dict(user=role, vhost=VHOST, exchange="p2.events", write=".*", read=".*"))
             continue
-        owned = [s for s in subscriptions if s.split(".")[0] == role]
+        owned = ["notifications.recovery.email"] if role == "recovery-email" else [s for s in subscriptions if s.split(".")[0] == role]
+        if role == "notifications":
+            owned = [s for s in owned if s != "notifications.recovery.email"]
         resources = "|".join(re.escape(s) + r"\.(retry|dead)" for s in owned)
         write = r"^(p2\.events" + ("|" + resources if resources else "") + ")$"
         read = "^(" + "|".join(re.escape(s) for s in owned) + ")$" if owned else "^$"

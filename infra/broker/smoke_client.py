@@ -19,7 +19,7 @@ def connect(role="operator", context=None, hostname="broker"):
     context = context or ssl.create_default_context(cafile="/run/secrets/ca.crt")
     return pika.BlockingConnection(pika.ConnectionParameters(
         host="broker", port=5671, virtual_host="streaming-p2",
-        credentials=pika.PlainCredentials(role, os.environ["BROKER_" + role.upper() + "_PASSWORD"]),
+        credentials=pika.PlainCredentials(role, os.environ["BROKER_" + role.upper().replace("-", "_") + "_PASSWORD"]),
         ssl_options=pika.SSLOptions(context, hostname), heartbeat=30,
         socket_timeout=3, stack_timeout=5, blocked_connection_timeout=5))
 
