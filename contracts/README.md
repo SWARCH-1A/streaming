@@ -43,3 +43,24 @@ contracts/generated/p2. Web importa @contracts/p2. No editar los derivados a man
 es offline, comprueba referencias, ejemplos válidos/negativos, identidad/versiones, privacidad,
 permisos, idempotencia y trazabilidad de las operaciones, además de detectar drift.
 El arranque RabbitMQ y los SDK de cada lenguaje se documentan en infra/broker/README.md y ADR-016.
+
+## Perfil de subtítulos VOD
+
+[SPEC-22](../docs/spec-p2/spec_22_subtitles.md) define el perfil p2-webvtt-text-v1 y su alcance.
+El checker `webvtt.py` valida bytes/tiempos sin publicar ni modificar archivos:
+
+```sh
+python contracts/webvtt.py tests/contracts/fixtures/subtitles/education-es.vtt --duration-ms 12000
+python -m unittest discover -s tests/contracts -p 'test_*.py'
+```
+
+`check_p2.py` comprueba además ejemplos, referencias de operaciones, paths y páginas de pistas.
+La duración usada en pruebas es ficticia; el futuro proveedor debe consultar la duración/mapping
+de VOD y aplicar permisos. No se acredita VOD funcional ni se decide su runtime mediante Python.
+
+Las cuatro operaciones `p2.subtitles.*` son `contract-only`. El mismo generador conserva Recuperación.
+Prueba adicional con Ajv (tras instalar las dependencias Web):
+
+```sh
+node tests/contracts/test_subtitle_schemas.mjs
+```

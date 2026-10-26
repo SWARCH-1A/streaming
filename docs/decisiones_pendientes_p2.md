@@ -9,8 +9,8 @@ un ADR. Las fechas de trabajo se organizan en Plane; el cierre de código es el 
 | P2-01 | Watch parties | ¿Las salas son públicas, privadas o accesibles por enlace? ¿Quién puede entrar, crear y modificar? | Antes de implementar permisos y acceso |
 | P2-02 | Watch parties | ¿Cuántas emisiones admite una sala, cómo se disponen y qué ocurre al finalizar una fuente o salir el creador? | Antes de implementar sala y reproductores |
 | P2-03 | Watch parties | ¿Se requiere sincronización entre participantes, chat propio, invitaciones o mezcla audiovisual? ¿Cuál es el ciclo de vida y cierre de la sala? RF-046…051 exigen varios streams visibles, no fijan esas extensiones. | Antes de cerrar la SPEC funcional |
-| P2-04 | Subtítulos / accesibilidad | ¿Se asocian a live, VOD o ambos? ¿Quién los aporta y mediante qué operación? | Antes de definir publicación y permisos de pistas |
-| P2-05 | Subtítulos / accesibilidad | ¿Se cargan archivos o se generan pistas? ¿Qué formatos, idiomas, validaciones, sincronía y estados de disponibilidad se admiten? | Antes de cerrar contratos y controles del player |
+| P2-04 | Subtítulos / accesibilidad | Definido por alcance: solo VOD, archivos preparados por propietario; rutas VOD en SPEC-22. Proveedor/permiso real pendiente de VOD. | Revisión de interfaces antes de integrar |
+| P2-05 | Subtítulos / accesibilidad | Perfil propuesto p2-webvtt-text-v1, carga manual UTF-8; formato, límites, idioma y mapping definidos en SPEC-22/ADR-018 y comprobados offline. Falta ratificación y reproducción real. | Antes de aceptar controles del player |
 | P2-06 | Gateway | Elegir lenguaje/framework, proxy HTTP/WS/HLS, terminación TLS y límites. Ratificar agregados y errores parciales de SPEC-16/contratos P2; fijar límites y presupuestos concretos. | Antes de integrar SSR y móvil |
 | P2-07 | Mensajería / integración | RabbitMQ/AMQP, clientes, topología y parámetros seleccionados en [ADR-016](adr/ADR-016-rabbitmq-eventos-p2.md). Ciclo/Discovery integrados y productor de recuperación disponible; consumidor SMTP de Notificaciones y cobertura completa de SPEC-17 pendientes. | Antes de publicar eventos compartidos |
 | P2-08 | Streaming / Media | Resolver empaquetado HLS de hasta cuatro rendiciones codificadas en origen. Probar OBS → ingesta → manifiesto maestro → selección manual/automática, keyframes, discontinuidades y VOD. | Antes de dar por válida la estrategia multicalidad |
@@ -27,11 +27,11 @@ un ADR. Las fechas de trabajo se organizan en Plane; el cierre de código es el 
 
 ## Límite de la definición
 
-Las políticas de watch parties y subtítulos quedan a cargo de sus responsables. Las tecnologías
-de Gateway/VOD y de Notificaciones, incluido su consumidor SMTP de recuperación, siguen pendientes
-de sus responsables. Cuentas entrega la publicación y contratos privados definidos en ADR-017.
-RabbitMQ está seleccionado para el broker por ADR-016. La independencia y propiedad de datos de
-VOD sí están definidas.
+Las políticas de watch parties quedan a cargo de sus responsables. Subtítulos tiene alcance VOD
+y contratos propuestos en SPEC-22; proveedor y reproductores siguen pendientes de integración.
+Las tecnologías de Gateway/VOD y Notificaciones, incluido SMTP, corresponden a sus responsables.
+Cuentas entrega publicación y contratos privados de recuperación (ADR-017). RabbitMQ está
+seleccionado por ADR-016. La independencia y propiedad de datos de VOD están definidas.
 
 La aceptación de una interfaz requiere esquema, permisos, fallos, idempotencia y consumidor
 identificados. Una dependencia de provisión o una prueba pendiente debe permanecer visible;
