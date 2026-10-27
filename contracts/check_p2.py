@@ -34,6 +34,7 @@ def load(source=SOURCE):
 
 def validate_payload(bundle, name, value, public=False, event=False):
     generate.validator(bundle, name).validate(value)
+    validate_subtitle_identity(name, value)
     event = event or name.startswith("P2Event")
     if public or event:
         for node in generate.walk(value):
@@ -41,6 +42,19 @@ def validate_payload(bundle, name, value, public=False, event=False):
                 raise ValueError("Private field in a public response or broker message")
     if event:
         validate_event_identity(value)
+
+
+def validate_subtitle_identity(name, value):
+    if name == "P2SubtitleTrack":
+        expected = f"/vod-media/{value['vodId']}/subtitles/{value['trackId']}.vtt"
+        if value["contentPath"] != expected:
+            raise ValueError("Subtitle path does not match its VOD and track")
+    elif name == "P2SubtitlePage":
+        ids = [track["trackId"] for track in value["items"]]
+        if len(ids) != len(set(ids)) or len({track["vodId"] for track in value["items"]}) > 1:
+            raise ValueError("Subtitle page mixes VODs or duplicate tracks")
+        for track in value["items"]:
+            validate_subtitle_identity("P2SubtitleTrack", track)
 
 
 def validate_event_identity(value):
@@ -72,12 +86,8 @@ def schema_bundle():
 
 
 def validate(schema, name, value):
-    Draft202012Validator({**schema, "$ref": "#/$defs/" + name}, format_checker=FormatChecker()).validate(value)
-    if name.startswith("P2Event"):
-        for node in generate.walk(value):
-            if PRIVATE.intersection(node):
-                raise ValueError("Private data in event")
-        validate_event_identity(value)
+    # Keep the compatibility entry point identical to CLI/example validation.
+    validate_payload({"schemas": schema["$defs"]}, name, value)
 
 
 def verify_events(additions, merged):
@@ -125,7 +135,7 @@ def verify(base, additions, merged, sdl):
     required = {"id", "method", "path", "provider", "consumer", "owner", "auth", "request", "responses",
                 "timeoutMs", "idempotency", "recovery", "spec", "traceability", "visibility", "limits", "requiredHeaders"}
     for op in additions["operations"]:
-        if required - op.keys() or not all(op[key] for key in required - {"request", "responses"}):
+        if required - op.keys() or not all(op[key] for key in required - {"request", "responses", "requiredHeaders"}):
             raise ValueError("Incomplete P2 operation")
         identity = (op["provider"], op["method"], op["path"])
         if op["id"] in seen or identity in routes:

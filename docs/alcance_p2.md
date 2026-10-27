@@ -10,8 +10,9 @@ pagos, suscripciones de pago y acceso premium. Incluye recuperación de contrase
 calidades, moderación, watch parties, notificaciones, VOD, subtítulos y administración.
 Los requisitos nuevos cubren autopublicación, publicación manual y chat replay.
 
-Watch parties y subtítulos conservan sus requisitos funcionales. Sus políticas e interfaces
-se concretan por sus responsables en [decisiones pendientes](decisiones_pendientes_p2.md).
+Watch parties y subtítulos conservan sus requisitos funcionales. Subtítulos se concreta como carga
+de WebVTT por propietario para VOD (SPEC-22); no incluye transcripción ni directo. Las interfaces y
+dependencias de integración se mantienen en [decisiones pendientes](decisiones_pendientes_p2.md).
 Una pregunta pendiente no equivale a una función excluida de la entrega.
 
 ## Presentaciones

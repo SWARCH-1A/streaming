@@ -76,6 +76,12 @@ de entregar mensajes; una consulta antigua no repone contenido moderado.
 
 ## Entrega, suspensión y borrado
 
+Las pistas de SPEC-22 se preparan contra el tiempo del medio final, con mappingVersion y duración
+autoritativos. Una revisión del mapping invalida su lectura/listado; no se reutiliza directamente
+el reloj live ni se corrigen offsets en silencio. VOD confirma pista/objeto y permisos antes de
+anunciar READY. Sus [contratos HTTP](contratos_p2_http.md#subtitulos-vod) son contract-only hasta
+integrar el proveedor. El checker offline no acredita permisos, almacenamiento ni reproducción.
+
 S3 es privado. `/vod-media/{vodId}/{assetPath}` resuelve exclusivamente assets del inventario
 con disponibilidad válida, conserva MIME/Range y no sigue URLs aportadas por el cliente.
 Manifest master y playlists de variante usan rutas que mantienen la misma comprobación.

@@ -24,6 +24,7 @@ y cuáles fueron sustituidos. Las fechas conservan el momento de cada decisión.
 | [ADR-016](ADR-016-rabbitmq-eventos-p2.md) | Aceptada para integración inicial | RabbitMQ/AMQP, contratos de ciclo/Discovery, outbox/inbox, DLQ y operación; recuperación ampliada por ADR-017. |
 | [ADR-017](ADR-017-recuperacion-de-credenciales.md) | Aceptada para Cuentas | Recuperación de un uso, cuotas SQL, AES-GCM, revocación transaccional, publicación RabbitMQ y claim/result; consumidor y SMTP pendientes de Notificaciones. |
 
+| [ADR-018](ADR-018-subtitulos-vod-webvtt.md) | Propuesta; contratos comprobables | WebVTT aportado por propietario, dentro de VOD; perfil limitado y reproducción integrada pendiente. |
 | [ADR-019](ADR-019-administracion-core.md) | Propuesta implementada | Administración Core, revocación transaccional y outbox de estado; aceptación transversal pendiente. |
 
 Chat conserva Go; ADR-010 describe su perfil efímero P1. La retención durable P2 rige por ADR-015; las herramientas pendientes de operación y despliegue se registran conforme

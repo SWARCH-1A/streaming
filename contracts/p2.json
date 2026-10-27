@@ -693,6 +693,191 @@
         }
       ]
     },
+    "P2SubtitleUploadMetadata": {
+      "type": "object",
+      "properties": {
+        "language": {
+          "type": "string",
+          "pattern": "^[a-z]{2,3}(-[A-Z][a-z]{3})?(-([A-Z]{2}|[0-9]{3}))?(?![\\s\\S])"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^(?!.*[\\u0000-\\u001f\\u007f])\\S(?:.*\\S)?$"
+        },
+        "expectedMappingVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "language",
+        "label",
+        "expectedMappingVersion"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "language": "es",
+          "label": "Español",
+          "expectedMappingVersion": 1
+        }
+      ]
+    },
+    "P2SubtitleTrack": {
+      "type": "object",
+      "properties": {
+        "trackId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "vodId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "language": {
+          "type": "string",
+          "pattern": "^[a-z]{2,3}(-[A-Z][a-z]{3})?(-([A-Z]{2}|[0-9]{3}))?(?![\\s\\S])"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^(?!.*[\\u0000-\\u001f\\u007f])\\S(?:.*\\S)?$"
+        },
+        "kind": {
+          "const": "subtitles"
+        },
+        "format": {
+          "const": "WEBVTT"
+        },
+        "state": {
+          "const": "READY"
+        },
+        "trackVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "mappingVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "mediaDurationMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "contentPath": {
+          "type": "string",
+          "maxLength": 300,
+          "pattern": "^/vod-media/[A-Za-z0-9_-]{1,128}/subtitles/[A-Za-z0-9_-]{1,128}\\.vtt$"
+        }
+      },
+      "required": [
+        "trackId",
+        "vodId",
+        "language",
+        "label",
+        "kind",
+        "format",
+        "state",
+        "trackVersion",
+        "mappingVersion",
+        "mediaDurationMs",
+        "contentPath"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "trackId": "sub_fixture",
+          "vodId": "vod_fixture",
+          "language": "es",
+          "label": "Español",
+          "kind": "subtitles",
+          "format": "WEBVTT",
+          "state": "READY",
+          "trackVersion": 1,
+          "mappingVersion": 1,
+          "mediaDurationMs": 12000,
+          "contentPath": "/vod-media/vod_fixture/subtitles/sub_fixture.vtt"
+        }
+      ]
+    },
+    "P2SubtitlePage": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/P2SubtitleTrack"
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "items": [
+            {
+              "trackId": "sub_fixture",
+              "vodId": "vod_fixture",
+              "language": "es",
+              "label": "Español",
+              "kind": "subtitles",
+              "format": "WEBVTT",
+              "state": "READY",
+              "trackVersion": 1,
+              "mappingVersion": 1,
+              "mediaDurationMs": 12000,
+              "contentPath": "/vod-media/vod_fixture/subtitles/sub_fixture.vtt"
+            }
+          ],
+          "nextCursor": null
+        }
+      ]
+    },
+    "P2SubtitleQuery": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 20
+        },
+        "cursor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {},
+        {
+          "limit": 20
+        }
+      ]
+    },
     "P2AccountAdmin": {
       "type": "object",
       "properties": {
@@ -1463,6 +1648,79 @@
       }
     },
     {
+      "schema": "P2SubtitleUploadMetadata",
+      "value": {
+        "language": "es_CO",
+        "label": "Español",
+        "expectedMappingVersion": 1
+      }
+    },
+    {
+      "schema": "P2SubtitleUploadMetadata",
+      "value": {
+        "language": "es",
+        "label": "Español",
+        "expectedMappingVersion": 0
+      }
+    },
+    {
+      "schema": "P2SubtitleUploadMetadata",
+      "value": {
+        "language": "es",
+        "label": "Español",
+        "expectedMappingVersion": 1,
+        "ownerUserId": "usr_untrusted"
+      }
+    },
+    {
+      "schema": "P2SubtitleTrack",
+      "value": {
+        "trackId": "sub_fixture",
+        "vodId": "vod_fixture",
+        "language": "es",
+        "label": "Español",
+        "kind": "subtitles",
+        "format": "WEBVTT",
+        "state": "READY",
+        "trackVersion": 1,
+        "mappingVersion": 1,
+        "mediaDurationMs": 12000,
+        "contentPath": "https://bucket.example.test/private.vtt"
+      }
+    },
+    {
+      "schema": "P2SubtitleQuery",
+      "value": {
+        "limit": 51
+      }
+    },
+    {
+      "name": "P2SubtitleUploadMetadata-reject-final-newline",
+      "schema": "P2SubtitleUploadMetadata",
+      "value": {
+        "language": "es\n",
+        "label": "Español",
+        "expectedMappingVersion": 1
+      }
+    },
+    {
+      "name": "P2SubtitleTrack-reject-final-newline",
+      "schema": "P2SubtitleTrack",
+      "value": {
+        "trackId": "sub_fixture",
+        "vodId": "vod_fixture",
+        "language": "es\n",
+        "label": "Español",
+        "kind": "subtitles",
+        "format": "WEBVTT",
+        "state": "READY",
+        "trackVersion": 1,
+        "mappingVersion": 1,
+        "mediaDurationMs": 12000,
+        "contentPath": "/vod-media/vod_fixture/subtitles/sub_fixture.vtt"
+      }
+    },
+    {
       "schema": "P2EventAccountStatusChanged",
       "value": {
         "eventId": "a38a5088-2178-444f-9ebd-a3a1dfbe7d01",
@@ -1605,6 +1863,191 @@
         "X-Service-Name",
         "X-Service-Token"
       ]
+    },
+    {
+      "id": "p2.subtitles.upload",
+      "method": "POST",
+      "path": "/api/vods/{vodId}/subtitles",
+      "provider": "vod",
+      "spec": "SPEC-22",
+      "status": "contract-only",
+      "auth": "active-owner-session",
+      "timeoutMs": 10000,
+      "cacheControl": "no-store",
+      "request": "P2SubtitleUploadMetadata",
+      "query": null,
+      "responses": {
+        "201": "P2SubtitleTrack",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error",
+        "413": "Error",
+        "415": "Error",
+        "422": "Error"
+      },
+      "requestContentType": "multipart/form-data",
+      "parts": {
+        "metadata": {
+          "contentType": "application/json",
+          "schema": "P2SubtitleUploadMetadata",
+          "maxBytes": 16384
+        },
+        "file": {
+          "contentType": "text/vtt",
+          "maxBytes": 1048576
+        }
+      },
+      "maxBodyBytes": 1114112,
+      "idempotency": "actor+operation+vodId+metadata+sha256(original-file-bytes); minimum retention 24h",
+      "headers": {
+        "Idempotency-Key": "UUID required",
+        "X-XSRF-TOKEN": "required for cookie sessions"
+      },
+      "consumer": [
+        "web",
+        "mobile"
+      ],
+      "owner": "vod",
+      "traceability": "docs/spec-p2/spec_22_subtitles.md",
+      "visibility": "private",
+      "limits": "p2-webvtt-text-v1; 1 MiB file, 10000 cues, authoritative VOD duration/mapping; list 1..50",
+      "recovery": "Retry an uncertain mutation with the same key and payload; revalidate access/mapping; a track failure does not interrupt video.",
+      "requiredHeaders": [
+        "Idempotency-Key"
+      ],
+      "conditionalHeaders": {
+        "X-XSRF-TOKEN": "required for cookie sessions; Bearer follows Accounts contract"
+      }
+    },
+    {
+      "id": "p2.subtitles.list",
+      "method": "GET",
+      "path": "/api/vods/{vodId}/subtitles",
+      "provider": "vod",
+      "spec": "SPEC-22",
+      "status": "contract-only",
+      "auth": "public-if-vod-readable-or-active-owner-session",
+      "timeoutMs": 10000,
+      "cacheControl": "no-store",
+      "request": null,
+      "query": "P2SubtitleQuery",
+      "responses": {
+        "200": "P2SubtitlePage",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "idempotency": "safe read",
+      "consumer": [
+        "web",
+        "mobile"
+      ],
+      "owner": "vod",
+      "traceability": "docs/spec-p2/spec_22_subtitles.md",
+      "visibility": "public",
+      "limits": "p2-webvtt-text-v1; 1 MiB file, 10000 cues, authoritative VOD duration/mapping; list 1..50",
+      "recovery": "Retry an uncertain mutation with the same key and payload; revalidate access/mapping; a track failure does not interrupt video.",
+      "requiredHeaders": []
+    },
+    {
+      "id": "p2.subtitles.read",
+      "method": "GET",
+      "path": "/vod-media/{vodId}/subtitles/{trackId}.vtt",
+      "provider": "vod",
+      "spec": "SPEC-22",
+      "status": "contract-only",
+      "auth": "public-if-vod-readable-or-active-owner-session",
+      "timeoutMs": 10000,
+      "cacheControl": "no-store",
+      "request": null,
+      "query": null,
+      "responses": {
+        "200": null,
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "responseContentType": "text/vtt",
+      "responseEncoding": "utf-8",
+      "maxResponseBytes": 1048576,
+      "idempotency": "safe read; current access checked on every request",
+      "consumer": [
+        "web",
+        "mobile"
+      ],
+      "owner": "vod",
+      "traceability": "docs/spec-p2/spec_22_subtitles.md",
+      "visibility": "public",
+      "limits": "p2-webvtt-text-v1; 1 MiB file, 10000 cues, authoritative VOD duration/mapping; list 1..50",
+      "recovery": "Retry an uncertain mutation with the same key and payload; revalidate access/mapping; a track failure does not interrupt video.",
+      "requiredHeaders": []
+    },
+    {
+      "id": "p2.subtitles.delete",
+      "method": "DELETE",
+      "path": "/api/vods/{vodId}/subtitles/{trackId}",
+      "provider": "vod",
+      "spec": "SPEC-22",
+      "status": "contract-only",
+      "auth": "active-owner-session",
+      "timeoutMs": 10000,
+      "cacheControl": "no-store",
+      "request": null,
+      "query": null,
+      "responses": {
+        "204": null,
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "412": "Error",
+        "428": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "headers": {
+        "Idempotency-Key": "UUID required",
+        "If-Match": "quoted trackVersion required",
+        "X-XSRF-TOKEN": "required for cookie sessions"
+      },
+      "idempotency": "actor+operation+vodId+trackId+If-Match; minimum retention 24h",
+      "consumer": [
+        "web",
+        "mobile"
+      ],
+      "owner": "vod",
+      "traceability": "docs/spec-p2/spec_22_subtitles.md",
+      "visibility": "private",
+      "limits": "p2-webvtt-text-v1; 1 MiB file, 10000 cues, authoritative VOD duration/mapping; list 1..50",
+      "recovery": "Retry an uncertain mutation with the same key and payload; revalidate access/mapping; a track failure does not interrupt video.",
+      "requiredHeaders": [
+        "Idempotency-Key",
+        "If-Match"
+      ],
+      "conditionalHeaders": {
+        "X-XSRF-TOKEN": "required for cookie sessions; Bearer follows Accounts contract"
+      }
     },
     {
       "id": "p2.admin.users",
@@ -1750,10 +2193,41 @@
     {
       "id": "subtitles",
       "blockedBy": [
-        "P2-04",
-        "P2-05"
+        "P2-09",
+        "P2-17"
       ],
-      "traceability": "docs/spec-p2/spec_22_subtitles.md"
+      "traceability": "docs/spec-p2/spec_22_subtitles.md",
+      "status": "provider-and-players-pending",
+      "description": "Contracts available; VOD persistence/access and Web/mobile playback acceptance remain pending."
     }
-  ]
+  ],
+  "subtitleProfile": {
+    "id": "p2-webvtt-text-v1",
+    "status": "contract-only",
+    "scope": "owner-uploaded-vod",
+    "encoding": "UTF-8",
+    "contentType": "text/vtt",
+    "maxBytes": 1048576,
+    "maxCues": 10000,
+    "timeline": "VOD media offsets in milliseconds; expectedMappingVersion checked by VOD",
+    "allowed": [
+      "UTF-8 BOM",
+      "LF/CRLF/CR",
+      "cue identifiers",
+      "NOTE blocks",
+      "multiline text",
+      "nondecreasing cue starts",
+      "overlapping cues",
+      "amp/lt/gt/nbsp/lrm/rlm entities"
+    ],
+    "unsupported": [
+      "STYLE",
+      "REGION",
+      "cue settings",
+      "cue markup",
+      "embedded cue timestamps",
+      "live",
+      "automatic transcription"
+    ]
+  }
 }
