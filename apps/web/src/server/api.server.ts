@@ -15,8 +15,10 @@ export class UpstreamError extends Error {
   }
 }
 
-function upstream(): string {
-  const base = process.env.WEB_API_UPSTREAM;
+function upstream(streaming = false): string {
+  const base = streaming
+    ? (process.env.WEB_STREAMING_UPSTREAM ?? process.env.WEB_API_UPSTREAM)
+    : process.env.WEB_API_UPSTREAM;
   if (!base) throw new UpstreamError(503);
   return base.replace(/\/$/, '');
 }
@@ -36,14 +38,29 @@ export function hasSession(request: Request): boolean {
 /** GET only: loaders read. Commands keep running in the browser against the domain APIs. */
 export async function serverGet<T>(request: Request, path: string): Promise<T> {
   if (!path.startsWith('/api/')) throw new Error('Loader paths must target the public API');
+  return read<T>(request, path, upstream(), true);
+}
+
+/** Public live reads need no identity cookies; keep the configured Streaming origin server-only. */
+export async function serverStreamGet<T>(request: Request, path: string): Promise<T> {
+  if (!path.startsWith('/api/streams/')) throw new Error('Expected a public Streaming path');
+  return read<T>(request, path, upstream(true), false);
+}
+
+async function read<T>(
+  request: Request,
+  path: string,
+  base: string,
+  identity: boolean,
+): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
-  const cookie = cookies(request);
+  const cookie = identity ? cookies(request) : '';
   if (cookie) headers.Cookie = cookie;
   const requestId = request.headers.get('x-request-id');
   if (requestId && /^[A-Za-z0-9_-]{1,128}$/.test(requestId)) headers['X-Request-ID'] = requestId;
   let response: Response;
   try {
-    response = await fetch(upstream() + path, {
+    response = await fetch(base + path, {
       headers,
       redirect: 'error',
       signal: AbortSignal.any([AbortSignal.timeout(3000), request.signal]),

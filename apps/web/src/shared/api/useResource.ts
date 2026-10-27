@@ -45,11 +45,11 @@ export function useResource<T>(
           }, interval);
       }
     }
-    if (seeded.current === key && interval) {
-      seeded.current = null;
-      timer = setTimeout(() => {
-        void read();
-      }, interval);
+    if (seeded.current === key) {
+      if (interval)
+        timer = setTimeout(() => {
+          void read();
+        }, interval);
     } else {
       seeded.current = null;
       void read();

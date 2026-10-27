@@ -88,6 +88,10 @@ La UI distingue la calidad solicitada de la variante que ya se reproduce. Si des
 variante seleccionada, vuelve a automático; reordenar las variantes conserva la selección por
 URI. Con HLS nativo, el navegador administra la adaptación y la UI informa esa limitación sin
 ofrecer selección manual. No hay todavía reproductor VOD ni implementación móvil.
+La ruta watch SSR obtiene el estado inicial de Streaming y renderiza el marco del player sin
+cargar HLS. La hidratación reutiliza emisión/sesión/canal; el selector descubre las variantes
+después de montar hls.js, y el lease continúa ligado al primer frame decodificado. Véase
+[SPEC-18](spec_18_ssr.md) para destinos de API, plazos y revalidación.
 
 ## 9. Decisiones y preguntas abiertas
 

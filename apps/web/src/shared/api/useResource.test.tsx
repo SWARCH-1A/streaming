@@ -1,9 +1,23 @@
+import { StrictMode } from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { useResource } from './useResource';
 
 describe('resource lifecycle', () => {
+  it('keeps a non-polling SSR resource through hydration and StrictMode replay', async () => {
+    const load = vi.fn(() => Promise.resolve('fresh'));
+    const { result, rerender, unmount } = renderHook(
+      ({ id }) => useResource(id, load, 0, 'from-server'),
+      { initialProps: { id: 'channel' }, wrapper: StrictMode },
+    );
+    expect(result.current.data).toBe('from-server');
+    expect(load).not.toHaveBeenCalled();
+    rerender({ id: 'other-channel' });
+    await waitFor(() => expect(result.current.data).toBe('fresh'));
+    expect(load).toHaveBeenCalledOnce();
+    unmount();
+  });
   it('cancels the old resource and discards its late response', async () => {
     const pending: Record<string, { resolve: (value: string) => void; signal: AbortSignal }> = {};
     const loader = (key: string, signal: AbortSignal) =>

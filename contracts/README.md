@@ -29,9 +29,8 @@ schemas generados no acreditan que esos endpoints estén implementados.
 
 La fuente p2.json extiende los schemas P1 sin modificar sus artefactos. Registra nueve familias
 y dieciocho suscripciones; los payloads de ciclo, snapshot Discovery y recuperación están listos.
-RF-004 incorpora solicitud/confirmación públicas y claim/result privados. Las demás entradas
-permanecen pending-owner y no admiten publicación como contratos validados. Las otras operaciones
-HTTP/WS/media P2, salvo Calidades y Subtítulos descritos abajo, siguen pendientes de sus responsables.
+RF-004 incorpora solicitud/confirmación públicas y claim/result privados. Cada operación declara
+su estado; las entradas pending-owner no admiten publicación como contratos validados.
 
     python contracts/check_p2.py --write
     python contracts/check_p2.py
@@ -44,6 +43,9 @@ es offline, comprueba referencias, ejemplos válidos/negativos, identidad/versio
 permisos, idempotencia y trazabilidad de las operaciones, además de detectar drift.
 El arranque RabbitMQ y los SDK de cada lenguaje se documentan en infra/broker/README.md y ADR-016.
 
+Administración añade listados y cambios de estado en `p2.admin.*`, y el evento
+`account.status.changed.v1`. Su aceptación transversal sigue pendiente de P2-17.
+
 ## Calidades live
 
 `P2Rendition`, `P2Renditions` y `p2.streaming.renditions` describen la consulta implementada en
@@ -52,8 +54,6 @@ uno a cuatro IDs distintos y metadatos realmente anunciados por Media. El checke
 relaciones además de la forma; se generan con el mismo comando `check_p2.py --write` que los
 contratos del broker, Recuperación y Subtítulos. No se añaden eventos ni suscripciones de calidad:
 la consulta es HTTP y las variantes comparten el ciclo, la sesión y el cupo existentes.
-Administración añade listados y cambios de estado en `p2.admin.*`, y el evento
-`account.status.changed.v1`. Su aceptación transversal sigue pendiente de P2-17.
 
 ## Perfil de subtítulos VOD
 

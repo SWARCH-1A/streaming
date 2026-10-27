@@ -1,3 +1,5 @@
+import { hydrateRoot } from 'react-dom/client';
+import { renderToString } from 'react-dom/server';
 import type { PublicSession } from '@contracts/p1';
 import schema from '@contracts/p1.schema.json';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -100,6 +102,35 @@ beforeEach(() => {
 });
 
 describe('calidades reales de la emisión', () => {
+  it('hidrata el HTML SSR sin abrir leases ni montar dos motores HLS', async () => {
+    vi.stubGlobal('MediaSource', class {});
+    const view = <HlsPlayer session={session} title="Directo SSR" />;
+    const container = document.createElement('div');
+    container.innerHTML = renderToString(view);
+    document.body.append(container);
+    expect(container.querySelector('video')?.hasAttribute('src')).toBe(false);
+    expect(container.querySelector('select')).toBeNull();
+    expect(hls.attachMedia).not.toHaveBeenCalled();
+    expect(ViewerLeaseController).not.toHaveBeenCalled();
+    const recover = vi.fn();
+    const root = hydrateRoot(container, view, { onRecoverableError: recover });
+    try {
+      await waitFor(() => expect(hls.attachMedia).toHaveBeenCalledOnce());
+      expect(recover).not.toHaveBeenCalled();
+      expect(ViewerLeaseController).not.toHaveBeenCalled();
+      act(() => hls.parsed?.());
+      const selector = screen.getByRole('combobox', { name: 'Calidad' });
+      expect(selector).toHaveValue('');
+      fireEvent.change(selector, { target: { value: '720p.m3u8' } });
+      expect(hls.selectedLevel).toBe(0);
+      expect(hls.attachMedia).toHaveBeenCalledOnce();
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+    }
+    expect(hls.destroy).toHaveBeenCalledOnce();
+  });
+
   async function start() {
     vi.stubGlobal('MediaSource', class {});
     render(<HlsPlayer session={session} title="Directo" />);

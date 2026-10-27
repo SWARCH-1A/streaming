@@ -11,8 +11,15 @@ Broadcast y organiza sus funciones en módulos internos.
 - `src/app/routes.ts` declara las mismas URL del P1; cada archivo de `src/app/routes/` envuelve una
   página existente. `/channels/:handle` tiene `loader`: el HTML ya trae el canal y, con sesión, el
   estado de seguimiento (CA-01). La revalidación cada 4 s sigue en el navegador.
+- `/watch/:streamId` carga emisión, sesión y canal en SSR. Sesión y canal se leen en paralelo,
+  con un plazo total de 3 s. Canal no disponible conserva el player; sesión incoherente o
+  Streaming no disponible da 503 y una emisión inexistente da 404. El navegador reutiliza
+  estos datos iniciales y revalida emisión/conteo cada 4 s.
 - `src/server/api.server.ts` (solo servidor) reenvía únicamente las cookies `stream_session` y
   `XSRF-TOKEN` a `WEB_API_UPSTREAM` (Core hoy; el Gateway cuando exista). Nunca a una URL de usuario.
+- Las lecturas públicas de Streaming usan `WEB_STREAMING_UPSTREAM` sin reenviar cookies;
+  si no se configura, usan `WEB_API_UPSTREAM` para una entrada común de API. Ambas URL son
+  configuración del servidor y no se serializan al navegador.
 - El reproductor HLS y el WebSocket del chat se montan en efectos, después de hidratar.
 - HTML dependiente de identidad: `Cache-Control: no-store, private`; rutas inexistentes: 404 real.
 - `server.mjs` es el runtime de producción (HTTPS, assets con hash cacheados un año, resto por SSR).
@@ -34,7 +41,8 @@ pnpm dev
 ```
 
 `pnpm check` incluye una prueba HTTP del build de producción (`pnpm test:ssr`) con API ficticia:
-HTML inicial, rutas de administración/notificaciones, cookies permitidas, aislamiento y 404.
+HTML inicial de canal/live/offline, fallos parciales, coherencia de sesión, rutas de
+administración/notificaciones, cookies permitidas, aislamiento y códigos 404/503.
 
 Las vistas funcionales necesitan los servicios. Si no están disponibles, muestran el error.
 Los datos de muestra se usan en pruebas y en la biblioteca de desarrollo.
@@ -42,11 +50,8 @@ Los datos de muestra se usan en pruebas y en la biblioteca de desarrollo.
 Para desarrollar por HTTP con Core:8081, Streaming:8080, Chat:8085 y HLS:8888 ya iniciados:
 
 ```sh
-VITE_P1_PROXY=1 WEB_API_UPSTREAM=http://127.0.0.1:8081 pnpm dev
+VITE_P1_PROXY=1 WEB_API_UPSTREAM=http://127.0.0.1:8081 WEB_STREAMING_UPSTREAM=http://127.0.0.1:8080 pnpm dev
 ```
-
-`pnpm check` incluye una prueba HTTP del build de producción (`pnpm test:ssr`) con API ficticia:
-HTML inicial, rutas de administración/notificaciones, cookies permitidas, aislamiento y 404.
 
 Abrir http://localhost:3000, el mismo WEB_ORIGIN de los proveedores. En PowerShell, primero
 `$env:VITE_P1_PROXY='1'`. Opcionalmente configurar CORE_DEV_UPSTREAM, STREAMING_DEV_UPSTREAM,
@@ -109,6 +114,9 @@ alterar la posición ni abrir otro lease. La calidad reproducida se informa apar
 retirar una variante seleccionada vuelve a automático. HLS nativo conserva la adaptación del
 navegador y lo indica sin selector manual. El MediaMTX del perfil actual entrega una sola pista
 de vídeo; probar cuatro calidades reales depende de P2-08 en [SPEC-04](../../docs/spec-p2/spec_04_stream.md).
+El HTML SSR no carga vídeo ni ofrece variantes antes de leer el maestro en el navegador.
+Las pruebas de hidratación comprueban que no haya discrepancias, motores duplicados ni leases
+antes de recibir un frame.
 
 Chat abre WS antes del historial, fusiona secuencias, avisa de huecos no recuperables y permite
 reintentar el mismo clientMessageId. No se anuncia éxito sin ACK. Pausar autoscroll conserva foco.
