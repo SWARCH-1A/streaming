@@ -46,11 +46,11 @@ def run(args, **kwargs):
 
 def render_proxy():
     source = (ROOT / "infra/reverse-proxy/Caddyfile").read_text()
-    if source.count(":3000 {") != 1 or source.count("      import proxy_headers") != 6:
+    if source.count(":3000 {") != 1 or source.count("      import proxy_headers") != 8:
         raise RuntimeError("Review P1 TLS renderer after reverse-proxy structure changes")
     source = source.replace(":3000 {", "https://localhost:3443 {\n  tls /run/secrets/web.crt /run/secrets/web.key")
     source = source.replace("      transport http {\n        response_header_timeout 10s\n      }\n", "")
-    for name in ("CORE", "STREAMING", "CHAT", "HLS"):
+    for name in ("CORE", "STREAMING", "CHAT", "HLS", "NOTIFICATIONS", "WEB"):
         source = source.replace("{$" + name + "_UPSTREAM:http:" , "{$" + name + "_UPSTREAM:https:")
     source = source.replace("      import proxy_headers", """      import proxy_headers
       transport http {
@@ -59,10 +59,8 @@ def render_proxy():
       }""")
     if PROFILE == "local":
         source = source.replace("https://streaming:", "https://live:")
-        source = source.replace("  root * /srv\n", "")
-        transport = "transport http {\n        tls_trust_pool file /run/secrets/ca.crt\n      }"
-        source = source.replace("file_server @assets", "reverse_proxy @assets https://web:3443 {\n      " + transport + "\n    }")
-        source = source.replace("      file_server\n", "      reverse_proxy https://web:3443 {\n        " + transport + "\n      }\n")
+        # The SSR web container listens with TLS on 3443 (SPEC-18).
+        source = source.replace("{$WEB_UPSTREAM:https://web:3000}", "{$WEB_UPSTREAM:https://web:3443}")
     # Host-only session cookies remain on the public origin; private credentials never enter logs.
     return source
 
@@ -230,7 +228,10 @@ def main():
             print("P2 broker certificates, credentials and topology ready; existing data retained")
             recovery = runpy.run_path(str(ROOT / "infra/local/recovery_config.py"))
             env = recovery["initialize"](env, STATE, run)
-            print("Cuentas recovery keys and broker publication configured; email delivery belongs to Notifications")
+            print("Cuentas recovery keys and broker publication configured")
+            notifications = runpy.run_path(str(ROOT / "infra/local/notifications_config.py"))
+            env = notifications["initialize"](env, STATE, run)
+            print("Notifications certificates, database and service credentials ready (emails visible at http://127.0.0.1:8025)")
         if args.action=="build":
             build_args = ("--profile","tools","build") if args.broker else ("build",)
             command(env,*build_args,s3=args.s3,broker=args.broker,timeout=1800)
@@ -243,7 +244,7 @@ def main():
             if PROFILE == "local":
                 wait_local(env)
                 print(f"Ready {PROJECT}: {env['WEB_ORIGIN']} (local CA required in the browser)")
-                print("Recovery requests publish to RabbitMQ; email delivery awaits the Notifications consumer")
+                print("Emails sent by Notifications are caught by Mailpit: http://127.0.0.1:8025")
                 return
             web_id = command(env,"ps","-q","web",s3=args.s3,broker=args.broker).strip()
             networks = json.loads(run(["docker","inspect",web_id]))[0]["NetworkSettings"]["Networks"]

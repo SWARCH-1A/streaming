@@ -1,12 +1,13 @@
 import { fileURLToPath, URL } from 'node:url';
 
+import { reactRouter } from '@react-router/dev/vite';
 import react from '@vitejs/plugin-react-swc';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  // Una lista explícita mantiene SWC también en el build de Vite 8.
+  // SSR (React Router framework mode) for dev/build; Vitest keeps the plain SWC React transform.
   plugins: [
-    react({ plugins: [] }),
+    process.env.VITEST ? react({ plugins: [] }) : reactRouter(),
     {
       name: 'same-origin-development-api',
       configureServer(server) {

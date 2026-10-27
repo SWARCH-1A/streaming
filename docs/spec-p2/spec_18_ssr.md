@@ -1,6 +1,6 @@
 # SPEC-18 — Web React Router SSR
 
-**Prioridad:** P2. **Responsable:** Web. **Estado:** diseño para desarrollo.
+**Prioridad:** P2. **Responsable:** Web. **Estado:** implementado en [apps/web](../../apps/web/README.md); loaders leen Core mientras no exista el Gateway (SPEC-16).
 **RF:** Todos los RF web salvo RF-038…045. **RNF:** RNF-002, 011…014, 019…020, 023, 025…039, 046.
 
 ## 1. Contexto y problema
@@ -35,12 +35,12 @@ en el servidor.
 
 ## 6. Criterios de aceptación
 
-- [ ] CA-01: HTML de `/channels/{handle}` contiene canal y contenido real sin ejecutar JavaScript; no solo un contenedor vacío.
-- [ ] CA-02: SSR e hidratación coinciden y no repiten carga inicial, leases ni conexiones WS.
-- [ ] CA-03: dos solicitudes con usuarios distintos no cruzan cookies, estado, HTML privado o errores.
+- [x] CA-01: HTML de `/channels/{handle}` contiene canal y contenido real sin ejecutar JavaScript; no solo un contenedor vacío.
+- [x] CA-02: SSR e hidratación coinciden y no repiten carga inicial, leases ni conexiones WS.
+- [x] CA-03: dos solicitudes con usuarios distintos no cruzan cookies, estado, HTML privado o errores.
 - [ ] CA-04: login/logout/CSRF y redirecciones funcionan por dominio HTTPS; 401 atrasado no elimina una sesión nueva.
 - [ ] CA-05: cambiar de sesión/ruta cierra WS y lease anterior y descarta respuestas tardías.
-- [ ] CA-06: fallar VOD o Chat conserva canal/player con estado de error por sección.
+- [x] CA-06: fallar VOD o Chat conserva canal/player con estado de error por sección.
 - [ ] CA-07: live → reconexión → fin y canal offline → live se reflejan dentro del objetivo nominal sin recargar la página.
 - [ ] CA-08: teclado, foco, semántica, controles HLS/chat y navegación funcionan en Chrome/Firefox del perfil probado.
 
@@ -67,9 +67,12 @@ Móvil comparte contratos, no las cookies del servidor SSR. SPEC-16 define fallo
 
 ## 9. Decisiones y preguntas abiertas
 
-Framework SSR seleccionado: React Router. El responsable concreta adapter/runtime de despliegue,
-organización de rutas/loaders, sesiones de formulario y política de revalidación sin modificar
-las garantías de aislamiento. No se selecciona Next.js ni hosting gestionado.
+Framework SSR seleccionado: React Router. Decisiones del responsable: runtime Node.js 24 propio
+(`server.mjs` con `createRequestListener` de `@react-router/node`, HTTPS y assets estáticos), rutas en
+`src/app/routes.ts` que envuelven las páginas existentes, loaders solo de lectura con cookies de
+sesión/CSRF reenviadas a un upstream fijo (`WEB_API_UPSTREAM`) y revalidación en el navegador
+(canal cada 4 s, bandeja cada 5 s). Los comandos siguen llamando la API de dominio desde el navegador.
+CA-04/05/07/08 conservan el comportamiento P1 y quedan por verificar con el Gateway desplegado.
 
 ## 10. Verificación
 

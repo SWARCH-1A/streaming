@@ -23,7 +23,6 @@
 }
 
 :3000 {
-  root * /srv
   header X-Content-Type-Options nosniff
   header Referrer-Policy same-origin
   route {
@@ -63,6 +62,10 @@
       import proxy_headers
       # Media owns availability, byte ranges, MIME types and playlist/segment cache policy.
     }
+    @notifications path /api/notifications /api/notifications/*
+    reverse_proxy @notifications {$NOTIFICATIONS_UPSTREAM:http://notifications:8095} {
+      import proxy_headers
+    }
     @core path /api/identity/* /api/profile/* /api/channels/* /api/taxonomy /api/discovery/graphql
     reverse_proxy @core {$CORE_UPSTREAM:http://core:8081} {
       import proxy_headers
@@ -73,20 +76,13 @@
     @api path /api /api/* /realtime /realtime/* /hls /hls/*
     header @api Content-Type application/json
     respond @api `{"code":"NOT_FOUND","message":"Ruta no encontrada.","requestId":"proxy"}` 404
-    @assets path /assets/*
-    header @assets Cache-Control "public, max-age=31536000, immutable"
-    file_server @assets
-    @spa {
-      method GET HEAD
-      path / /search /login /register /profile /studio /studio/channel /channels/* /watch/* /design-system /design-system/* /prototype
-      header Accept *text/html*
+    # SSR web (SPEC-18): every other request is a page, its hydration data (*.data, /__manifest) or a
+    # hashed asset. The web server owns status codes (404 included) and per-user Cache-Control.
+    @web method GET HEAD POST
+    reverse_proxy @web {$WEB_UPSTREAM:http://web:3000} {
+      import proxy_headers
     }
-    handle @spa {
-      rewrite * /index.html
-      header Cache-Control no-cache
-      file_server
-    }
-    respond 404
+    respond 405
   }
   handle_errors {
     header Content-Type application/json
