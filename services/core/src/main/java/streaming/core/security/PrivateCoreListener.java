@@ -105,7 +105,7 @@ public class PrivateCoreListener implements WebServerFactoryCustomizer<TomcatSer
     public int localPort() { return connector==null?-1:connector.getLocalPort(); }
     public boolean isPrivate(HttpServletRequest request) { return enabled && localPort()>0 && request.getLocalPort()==localPort(); }
     public enum Permission { OWNER_CONTEXT, CATALOG_VALUES, DISCOVERY_EVENTS, CHAT_CONTEXT, CHAT_SNAPSHOT, RECOVERY_DELIVERY,
-        NOTIFICATION_RECIPIENTS, RECORDING_SETTINGS }
+        NOTIFICATIONS, RECORDING_SETTINGS }
 
     public boolean permits(HttpServletRequest request,Permission permission) {
         if(!isPrivate(request) || java.util.Collections.list(request.getHeaders("X-Service-Name")).size()!=1
@@ -115,7 +115,7 @@ public class PrivateCoreListener implements WebServerFactoryCustomizer<TomcatSer
         byte[] candidate=supplied.getBytes(StandardCharsets.UTF_8);
         if(permission==Permission.RECOVERY_DELIVERY)
             return "recovery-email".equals(request.getHeader("X-Service-Name")) && recoveryToken.length>0 && MessageDigest.isEqual(recoveryToken,candidate);
-        if(permission==Permission.NOTIFICATION_RECIPIENTS)
+        if(permission==Permission.NOTIFICATIONS)
             return "notifications".equals(request.getHeader("X-Service-Name")) && notificationsToken.length>0 && MessageDigest.isEqual(notificationsToken,candidate);
         if(permission==Permission.RECORDING_SETTINGS)
             return "streaming-recording-settings".equals(request.getHeader("X-Service-Name")) && recordingSettingsToken.length>0
@@ -128,7 +128,7 @@ public class PrivateCoreListener implements WebServerFactoryCustomizer<TomcatSer
         return switch(permission) {
             case OWNER_CONTEXT, DISCOVERY_EVENTS -> full;
             case CATALOG_VALUES -> full || catalogOnly;
-            case CHAT_CONTEXT, CHAT_SNAPSHOT, RECOVERY_DELIVERY, NOTIFICATION_RECIPIENTS, RECORDING_SETTINGS -> false;
+            case CHAT_CONTEXT, CHAT_SNAPSHOT, RECOVERY_DELIVERY, NOTIFICATIONS, RECORDING_SETTINGS -> false;
         };
     }
 }

@@ -64,6 +64,10 @@ def validate_event_identity(value):
         if value["aggregateId"] != "recovery:" + payload["recoveryId"] or value["sequence"] != 1:
             raise ValueError("Recovery aggregate/sequence do not match payload")
         return
+    if kind == "notification.delivery.requested.v1":
+        if value["aggregateId"] != "delivery:" + payload["deliveryId"] or value["sequence"] != 1:
+            raise ValueError("Delivery aggregate/sequence do not match payload")
+        return
     if kind == "channel.follow.changed.v1":
         if (value["aggregateId"] != f"follow:{payload['channelId']}:{payload['followerUserId']}"
                 or value["sequence"] != payload["followVersion"]):

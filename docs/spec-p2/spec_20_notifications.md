@@ -1,6 +1,6 @@
 # SPEC-20 — Bandeja y entrega de notificaciones
 
-**Prioridad:** P2. **Responsable:** Notificaciones. **Estado:** en diseño; Cuentas proporciona el contrato y la publicación de recuperación, con consumidor y entrega SMTP pendientes de este módulo.
+**Prioridad:** P2. **Responsable:** Notificaciones. **Estado:** implementado en [services/notifications](../../services/notifications/README.md) (TypeScript/Node.js 24, PostgreSQL, SMTP); push real pendiente de P2-13.
 **RF:** RF-004, 014…016, 052…055, 079. **RNF:** RNF-020, 022…032, 038, 041…047, 050…051.
 
 ## 1. Contexto y problema
@@ -35,14 +35,14 @@ muy atrasados y cambios concurrentes de preferencia se cierran por el responsabl
 
 ## 6. Criterios de aceptación
 
-- [ ] CA-01: seguir un canal y confirmar una sesión LIVE crea un aviso lógico; reentregar el evento o reconectar no duplica bandeja.
-- [ ] CA-02: listado/leído son privados e idempotentes; cuenta ajena no lee ni modifica otro aviso.
-- [ ] CA-03: email/push desactivados por defecto no entregan; activar medio y canal habilita solo la entrega autorizada.
-- [ ] CA-04: fallo push conserva correo entregado y bandeja; su reintento no repite ambos.
-- [ ] CA-05: SMTP temporal falla/reintenta; permanente o destino inválido deja estado observable sin bucle infinito.
+- [x] CA-01: seguir un canal y confirmar una sesión LIVE crea un aviso lógico; reentregar el evento o reconectar no duplica bandeja.
+- [x] CA-02: listado/leído son privados e idempotentes; cuenta ajena no lee ni modifica otro aviso.
+- [x] CA-03: email/push desactivados por defecto no entregan; activar medio y canal habilita solo la entrega autorizada.
+- [x] CA-04: fallo push conserva correo entregado y bandeja; su reintento no repite ambos.
+- [x] CA-05: SMTP temporal falla/reintenta; permanente o destino inválido deja estado observable sin bucle infinito.
 - [ ] CA-06: token push rotado actualiza la instalación; logout/cambio de cuenta elimina asociación anterior y un token inválido se deshabilita.
-- [ ] CA-07: reiniciar tras crear aviso y antes de encolar conserva trabajos; ACK perdido no duplica lógicamente el aviso.
-- [ ] CA-08: recuperación entrega un enlace de Core sin introducir token de restablecimiento en eventos/logs.
+- [x] CA-07: reiniciar tras crear aviso y antes de encolar conserva trabajos; ACK perdido no duplica lógicamente el aviso.
+- [x] CA-08: recuperación entrega un enlace de Core sin introducir token de restablecimiento en eventos/logs.
 - [ ] CA-09: un aviso antiguo puede permanecer como registro, pero abrirlo no permite acceder a contenido suspendido/retirado.
 
 ## 7. Diseño técnico y datos
@@ -75,8 +75,11 @@ fijan firmas y productores. Push requiere configuración externa y prueba en dis
 
 ## 9. Decisiones y preguntas abiertas
 
-P2-12: el responsable de Notificaciones selecciona runtime, almacén de intentos/bandeja,
-proveedor SMTP y políticas de caducidad, preferencias concurrentes y dispositivos inválidos.
+P2-12 (decidida por el responsable): Node.js 24 con TypeScript, PostgreSQL propio para bandeja,
+preferencias, dispositivos e intentos, SMTP con STARTTLS y Mailpit como proveedor local. Preferencias
+con versión y update condicional (409 si cambió); la selección lee las preferencias vigentes en la
+misma transacción que crea el aviso. Token push inválido deshabilita la instalación. CA-06 queda
+parcial (registro/rotación/baja sí; invalidez real depende del proveedor) y CA-09 depende de P2-17.
 P2-13: proveedor y provisión push. La implementación de Cuentas no selecciona ni despliega
 tecnologías de este módulo. P2-15 está resuelta por
 [ADR-017](../adr/ADR-017-recuperacion-de-credenciales.md): Core protege y autoriza el material

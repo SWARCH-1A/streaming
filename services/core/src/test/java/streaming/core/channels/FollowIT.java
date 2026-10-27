@@ -241,6 +241,22 @@ class FollowIT {
         assertThat(internalGet("/internal/core/channels/"+owner.channelId()+"/vod-settings","notifications",NOTIFICATIONS).statusCode()).isEqualTo(401);
     }
 
+    @Test void notificationsResolveSessionsAndAddressesOnlyThroughThePrivateListener() throws Exception {
+        var fan=account();
+        var session=HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://localhost:"+listener.localPort()+"/internal/core/notifications/session"))
+                .header("X-Service-Name","notifications").header("X-Service-Token",NOTIFICATIONS).header("X-Session-Credential",fan.credential())
+                .POST(HttpRequest.BodyPublishers.noBody()).build(),HttpResponse.BodyHandlers.ofString());
+        assertThat(body(session).get("userId").asText()).isEqualTo(fan.userId());
+        var invalid=HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://localhost:"+listener.localPort()+"/internal/core/notifications/session"))
+                .header("X-Service-Name","notifications").header("X-Service-Token",NOTIFICATIONS).header("X-Session-Credential","not-a-session")
+                .POST(HttpRequest.BodyPublishers.noBody()).build(),HttpResponse.BodyHandlers.ofString());
+        assertThat(invalid.statusCode()).isEqualTo(401);
+        var target=internal("/internal/core/notifications/email-target",Map.of("userId",fan.userId()),"notifications",NOTIFICATIONS);
+        assertThat(body(target).get("email").asText()).endsWith("@example.test");
+        assertThat(internal("/internal/core/notifications/email-target",Map.of("userId",fan.userId()),"streaming-recording-settings",RECORDING).statusCode()).isEqualTo(401);
+        assertThat(publicPost("/internal/core/notifications/email-target",Map.of("userId",fan.userId())).statusCode()).isEqualTo(404);
+    }
+
     private record Account(String userId,String channelId,String credential) { }
 
     private Account account() {

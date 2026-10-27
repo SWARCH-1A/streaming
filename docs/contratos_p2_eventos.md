@@ -1,7 +1,7 @@
 # Contratos de eventos y trabajos P2
 
 [contracts/p2.json](../contracts/p2.json) registra tipos, productores y suscripciones. Los envelopes/payloads ejecutables
-de ciclo, Discovery, recuperación y seguimiento están definidos; las otras cinco familias siguen como pending-owner,
+de ciclo, Discovery, recuperación, seguimiento y entregas de Notificaciones están definidos; las otras cuatro familias siguen como pending-owner,
 sin schemas vacíos que simulen disponibilidad. [SPEC-17](spec-p2/spec_17_broker.md) define entrega y operación.
 Los nombres son lógicos; su mapeo a exchanges/topics/streams/queues depende del broker elegido.
 
