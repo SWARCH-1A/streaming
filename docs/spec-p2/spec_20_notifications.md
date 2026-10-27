@@ -23,7 +23,7 @@ marcar avisos leídos sin recibir duplicados por reconexiones.
 
 Avisos por nueva sesión LIVE, bandeja paginada, leído, preferencias por canal y medio, dispositivos,
 colas de entrega y recuperación SMTP de RF-004. No se crea otro broker. Las políticas de avisos
-muy atrasados y cambios concurrentes de preferencia se cierran por el responsable.
+muy atrasados quedan abiertas; la selección y concurrencia de preferencias se fijan en ADR-020.
 
 ## 5. Requisitos funcionales
 
@@ -52,6 +52,8 @@ sessionId antes de seleccionar destinatarios. Reconectar no vuelve a seleccionar
 aunque alguno haya comenzado a seguir después del inicio original.
 
 Claves únicas: aviso `(kind,userId,sessionId)` y entrega `(notificationId,medium,targetId)`.
+Cada deliveryId tiene propiedad exclusiva entre workers. La bandeja interrumpida se completa
+localmente; solo los medios externos pueden quedar con resultado incierto tras un reinicio.
 Estados de intento: pendiente, en curso, entregado, error reintentable, error permanente o
 resultado desconocido. SMTP/push no garantizan exactly-once cuando se pierde una respuesta;
 la deduplicación del sistema no debe ocultar esa incertidumbre externa.
@@ -59,8 +61,8 @@ la deduplicación del sistema no debe ocultar esa incertidumbre externa.
 Core entrega destinatarios paginados con snapshot consistente. La proyección de seguimiento
 puede ayudar a consultar, pero no crea una relación nueva ni sustituye sus permisos. Las
 preferencias tienen versión y updates condicionales. Se fija una instantánea de selección por
-aviso para poder recuperar intentos; la política de cambios mientras está pendiente se ratifica
-en P2-12 antes de cerrar entrega.
+aviso para poder recuperar intentos; reanudar una página conserva los medios elegidos originalmente
+según ADR-020. Un cambio posterior de preferencias se aplica a los nuevos avisos.
 
 Tokens de proveedor y emails permanecen privados. El trabajo contiene targetId, no credenciales.
 Las instalaciones se vinculan al principal; cambios de token son idempotentes y revocables.
@@ -75,7 +77,7 @@ fijan firmas y productores. Push requiere configuración externa y prueba en dis
 
 ## 9. Decisiones y preguntas abiertas
 
-P2-12 (decidida por el responsable): Node.js 24 con TypeScript, PostgreSQL propio para bandeja,
+P2-12 (selección registrada en [ADR-020](../adr/ADR-020-notificaciones-typescript-postgresql-smtp.md)): Node.js 24 con TypeScript, PostgreSQL propio para bandeja,
 preferencias, dispositivos e intentos, SMTP con STARTTLS y Mailpit como proveedor local. Preferencias
 con versión y update condicional (409 si cambió); la selección lee las preferencias vigentes en la
 misma transacción que crea el aviso. Token push inválido deshabilita la instalación. CA-06 queda
@@ -84,19 +86,21 @@ P2-13: proveedor y provisión push. La implementación de Cuentas no selecciona 
 tecnologías de este módulo. P2-15 está resuelta por
 [ADR-017](../adr/ADR-017-recuperacion-de-credenciales.md): Core protege y autoriza el material
 temporal mediante claim/result y publica en `notifications.recovery.email` del RabbitMQ
-compartido. El consumidor obtendrá el material por TLS con la identidad lógica `recovery-email`
-y reportará el resultado; no accede a tablas Core ni guarda dirección/token/enlace en eventos,
-logs o en su registro durable de intentos. La implementación y entrega SMTP siguen pendientes.
+compartido. El consumidor obtiene el material por TLS con la identidad lógica `recovery-email`
+y reporta el resultado; no accede a tablas Core ni guarda dirección/token/enlace en eventos,
+logs o en su registro durable de intentos. El consumidor y adaptador SMTP están en `services/notifications`; su aceptación integrada se acredita por separado.
 
 ## 10. Verificación
 
 Ejecutar entrega real SMTP y push con destinatarios de prueba y bandeja persistente. Inyectar
 fallo por medio, respuesta externa perdida, dispositivo inválido y reinicio entre commit/ACK.
 Medir backlog/edad y revisar ausencia de direcciones, credenciales o enlaces privados en logs.
-Cuentas dispone de pruebas de solicitud, confirmación, publicación y contratos privados. El
-responsable de Notificaciones debe aportar la prueba del consumidor y entrega real SMTP,
-incluidos duplicados, respuesta perdida y reinicios. Los criterios de este módulo permanecen
-pendientes hasta ejecutar esos recorridos.
+Cuentas dispone de pruebas de solicitud, confirmación, publicación y contratos privados.
+`services/notifications/test/notifications.test.ts` verifica con PostgreSQL el consumidor, duplicados
+concurrentes, rollback de idempotencia, versiones y recuperación de fases; Core y proveedores
+son dobles en esa suite. `test/smtp.test.ts` verifica el adaptador contra Mailpit STARTTLS con CA
+confiable y rechazo de certificado sin confianza. Estas pruebas no cierran por sí solas la
+aceptación integrada completa de RF-004 ni la entrega push en dispositivo (P2-13).
 
 ## 11. Esfuerzo, riesgos y consecuencias
 

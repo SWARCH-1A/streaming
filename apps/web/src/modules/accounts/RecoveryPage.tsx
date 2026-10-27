@@ -1,7 +1,7 @@
 import type { FormEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import type { P2RecoveryAccepted, P2RecoveryConfirm, P2RecoveryRequest } from '@contracts/p2';
+import type { P2RecoveryAccepted, P2RecoveryConfirm, P2RecoveryRequest } from '@contracts/p2/index';
 
 import { useErrorFocus } from '@/src/accessibility/useErrorFocus';
 import { Button } from '@/src/components/atoms/Button';

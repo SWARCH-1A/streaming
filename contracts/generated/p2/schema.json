@@ -1109,6 +1109,55 @@
       "required": ["commandId", "operation", "channelId"],
       "type": "object"
     },
+    "P2AccountAdmin": {
+      "additionalProperties": false,
+      "examples": [{"accountVersion": 0, "handle": "fixture", "status": "ACTIVE", "userId": "usr_fixture"}],
+      "properties": {
+        "accountVersion": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "handle": {"maxLength": 25, "minLength": 4, "type": "string"},
+        "status": {"enum": ["ACTIVE", "SUSPENDED"]},
+        "userId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["userId", "handle", "status", "accountVersion"],
+      "type": "object"
+    },
+    "P2AccountAdminPage": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "items": [{"accountVersion": 0, "handle": "fixture", "status": "ACTIVE", "userId": "usr_fixture"}],
+          "nextCursor": null
+        }
+      ],
+      "properties": {
+        "items": {"items": {"$ref": "#/$defs/P2AccountAdmin"}, "maxItems": 50, "type": "array"},
+        "nextCursor": {"anyOf": [{"maxLength": 512, "minLength": 1, "type": "string"}, {"type": "null"}]}
+      },
+      "required": ["items", "nextCursor"],
+      "type": "object"
+    },
+    "P2AccountStatusCommand": {
+      "additionalProperties": false,
+      "examples": [{"expectedVersion": 0, "reason": "Fixture", "status": "SUSPENDED"}],
+      "properties": {
+        "expectedVersion": {"maximum": 9007199254740990, "minimum": 0, "type": "integer"},
+        "reason": {"maxLength": 500, "minLength": 1, "pattern": "\\S", "type": "string"},
+        "status": {"enum": ["ACTIVE", "SUSPENDED"]}
+      },
+      "required": ["status", "expectedVersion", "reason"],
+      "type": "object"
+    },
+    "P2AccountStatusPayload": {
+      "additionalProperties": false,
+      "examples": [{"accountVersion": 1, "status": "SUSPENDED", "userId": "usr_fixture"}],
+      "properties": {
+        "accountVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "status": {"enum": ["ACTIVE", "SUSPENDED"]},
+        "userId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["userId", "accountVersion", "status"],
+      "type": "object"
+    },
     "P2Autopublish": {
       "additionalProperties": false,
       "examples": [{"channelId": "chn_fixture", "enabled": true, "version": 1}],
@@ -1128,6 +1177,27 @@
         "expectedVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
       },
       "required": ["enabled", "expectedVersion"],
+      "type": "object"
+    },
+    "P2ChannelAdmin": {
+      "additionalProperties": false,
+      "examples": [{"channelId": "chn_fixture", "channelVersion": 0, "ownerUserId": "usr_fixture"}],
+      "properties": {
+        "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "channelVersion": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "ownerUserId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["channelId", "ownerUserId", "channelVersion"],
+      "type": "object"
+    },
+    "P2ChannelAdminPage": {
+      "additionalProperties": false,
+      "examples": [{"items": [{"channelId": "chn_fixture", "channelVersion": 0, "ownerUserId": "usr_fixture"}], "nextCursor": null}],
+      "properties": {
+        "items": {"items": {"$ref": "#/$defs/P2ChannelAdmin"}, "maxItems": 50, "type": "array"},
+        "nextCursor": {"anyOf": [{"maxLength": 512, "minLength": 1, "type": "string"}, {"type": "null"}]}
+      },
+      "required": ["items", "nextCursor"],
       "type": "object"
     },
     "P2ChannelPreference": {
@@ -1204,6 +1274,45 @@
       "examples": [{"userId": "usr_fixture"}],
       "properties": {"userId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}},
       "required": ["userId"],
+      "type": "object"
+    },
+    "P2EventAccountStatusChanged": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "aggregateId": "account:usr_example",
+          "correlationId": "62c083c5-4b90-4b34-969d-5698d4d64300",
+          "eventId": "a38a5088-2178-444f-9ebd-a3a1dfbe7d01",
+          "eventType": "account.status.changed.v1",
+          "occurredAtUtc": "2026-10-24T12:00:00Z",
+          "payload": {"accountVersion": 1, "status": "SUSPENDED", "userId": "usr_example"},
+          "producer": "core",
+          "schemaVersion": 1,
+          "sequence": 1
+        }
+      ],
+      "properties": {
+        "aggregateId": {"pattern": "^account:[A-Za-z0-9_-]{1,64}$", "type": "string"},
+        "correlationId": {"pattern": "^[A-Za-z0-9_-]{1,128}$", "type": "string"},
+        "eventId": {"format": "uuid", "type": "string"},
+        "eventType": {"const": "account.status.changed.v1"},
+        "occurredAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "payload": {"$ref": "#/$defs/P2AccountStatusPayload"},
+        "producer": {"const": "core"},
+        "schemaVersion": {"const": 1},
+        "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "producer",
+        "payload",
+        "correlationId"
+      ],
       "type": "object"
     },
     "P2EventChannelFollowChanged": {
@@ -1670,7 +1779,7 @@
     },
     "P2PageQuery": {
       "additionalProperties": false,
-      "examples": [{}, {"limit": 20}],
+      "examples": [{}, {"limit": 20}, {"limit": 50}],
       "properties": {
         "cursor": {"maxLength": 512, "minLength": 1, "type": "string"},
         "limit": {"default": 20, "maximum": 50, "minimum": 1, "type": "integer"}

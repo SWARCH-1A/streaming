@@ -36,6 +36,9 @@ public class CoreSecurityConfiguration {
             .sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .requestCache(c->c.disable())
             .authorizeHttpRequests(a->a
+                    // Role and current opaque session are checked by AdministrationService, as with other Core APIs.
+                    .requestMatchers(HttpMethod.GET,"/api/admin/users","/api/admin/channels").permitAll()
+                    .requestMatchers(HttpMethod.PUT,"/api/admin/users/*/status").permitAll()
                     .requestMatchers(HttpMethod.GET,"/api/identity/registrations/**","/api/identity/public/**",
                             "/api/identity/csrf","/api/profile/csrf","/api/profile/me","/api/profile/users/**",
                             "/api/profile/avatars/**","/api/channels/by-handle/*","/api/channels/by-owner/*","/api/channels/*",

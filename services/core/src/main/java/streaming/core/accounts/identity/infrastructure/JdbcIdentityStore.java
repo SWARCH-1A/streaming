@@ -37,16 +37,16 @@ public class JdbcIdentityStore implements IdentityStore {
         return registrationByKeyHash(d.idempotencyKeyHash()).orElseThrow();
     }
     @Override public Optional<PublicIdentity> activeByUserId(String userId) {
-        return jdbc.sql("SELECT user_id,handle FROM identity.accounts WHERE user_id=:id")
+        return jdbc.sql("SELECT user_id,handle FROM identity.accounts WHERE user_id=:id AND account_status='ACTIVE'")
                 .param("id",userId).query((rs,n)->new PublicIdentity(rs.getString(1),rs.getString(2))).optional();
     }
     @Override public Optional<PublicIdentity> activeByHandle(String handle) {
-        return jdbc.sql("SELECT user_id,handle FROM identity.accounts WHERE canonical_handle=:handle")
+        return jdbc.sql("SELECT user_id,handle FROM identity.accounts WHERE canonical_handle=:handle AND account_status='ACTIVE'")
                 .param("handle",handle).query((rs,n)->new PublicIdentity(rs.getString(1),rs.getString(2))).optional();
     }
     @Override public Optional<Account> activeByLogin(String login, boolean email) {
-        String sql=email ? "SELECT user_id,handle,password_hash FROM identity.accounts WHERE normalized_email=:value"
-                         : "SELECT user_id,handle,password_hash FROM identity.accounts WHERE canonical_handle=:value";
+        String sql=email ? "SELECT user_id,handle,password_hash FROM identity.accounts WHERE normalized_email=:value AND account_status='ACTIVE'"
+                         : "SELECT user_id,handle,password_hash FROM identity.accounts WHERE canonical_handle=:value AND account_status='ACTIVE'";
         return jdbc.sql(sql).param("value",login).query((rs,n)->new Account(rs.getString(1),rs.getString(2),rs.getString(3))).optional();
     }
     @Override public boolean tryRecordRegistrationKey(String ipHash, String keyHash, Instant now) {
@@ -64,7 +64,7 @@ public class JdbcIdentityStore implements IdentityStore {
         }));
     }
     @Override public Optional<Account> accountForUpdate(String userId) {
-        return jdbc.sql("SELECT user_id,handle,password_hash FROM identity.accounts WHERE user_id=:user FOR UPDATE")
+        return jdbc.sql("SELECT user_id,handle,password_hash FROM identity.accounts WHERE user_id=:user AND account_status='ACTIVE' FOR UPDATE")
                 .param("user",userId).query((rs,n)->new Account(rs.getString(1),rs.getString(2),rs.getString(3))).optional();
     }
     @Override public boolean loginLimitReached(String identifierHash, String ipHash, Instant since) {
@@ -88,11 +88,18 @@ public class JdbcIdentityStore implements IdentityStore {
                 .param("hash",identifierHash).update();
     }
     @Override public void createSession(String userId, String credentialHash, Instant created, Instant expires) {
+        transactions.executeWithoutResult(tx -> {
+        // Serialize login with suspension: a password check started earlier cannot create a post-revocation session.
+        String status=jdbc.sql("SELECT account_status FROM identity.accounts WHERE user_id=:user FOR UPDATE")
+                .param("user",userId).query(String.class).optional().orElse("");
+        if(!status.equals("ACTIVE")) throw new streaming.core.accounts.identity.application.IdentityException(
+                org.springframework.http.HttpStatus.UNAUTHORIZED,"INVALID_CREDENTIALS","Las credenciales no son válidas.");
         jdbc.sql("INSERT INTO identity.sessions(session_id,user_id,credential_hash,created_at_utc,expires_at_utc) VALUES (:id,:user,:hash,:created,:expires)")
                 .param("id",UUID.randomUUID()).param("user",userId).param("hash",credentialHash).param("created",java.sql.Timestamp.from(created)).param("expires",java.sql.Timestamp.from(expires)).update();
+        });
     }
     @Override public Optional<SessionIdentity> introspect(String credentialHash, Instant now) {
-        return jdbc.sql("SELECT s.user_id,a.handle,s.expires_at_utc FROM identity.sessions s JOIN identity.accounts a ON a.user_id=s.user_id WHERE s.credential_hash=:hash AND s.revoked_at_utc IS NULL AND s.expires_at_utc>:now")
+        return jdbc.sql("SELECT s.user_id,a.handle,s.expires_at_utc FROM identity.sessions s JOIN identity.accounts a ON a.user_id=s.user_id WHERE s.credential_hash=:hash AND s.revoked_at_utc IS NULL AND s.expires_at_utc>:now AND a.account_status='ACTIVE'")
                 .param("hash",credentialHash).param("now",java.sql.Timestamp.from(now)).query((rs,n)->new SessionIdentity(rs.getString(1),rs.getString(2),rs.getTimestamp(3).toInstant())).optional();
     }
     @Override public void revokeSession(String credentialHash, Instant now) {

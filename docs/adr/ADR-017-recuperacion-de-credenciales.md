@@ -74,7 +74,7 @@ un reinicio; su implementación y modelo físico se deciden dentro de Notificaci
 - Envío SMTP dentro de la petición: acopla disponibilidad/latencia y no cumple el recorrido P2.
 - Token opaco, hash y material temporal cifrado: permite uso único transaccional y entrega durable.
 - Intentos solo en memoria del worker: un reinicio pierde la distinción entre enviar y reportar; descartado.
-- Consumidor de Notificaciones con persistencia propia: conserva esa distinción respetando la propiedad de datos; tecnología pendiente de su responsable.
+- Consumidor de Notificaciones con persistencia propia: conserva esa distinción respetando la propiedad de datos; Node.js 24/TypeScript, PostgreSQL y SMTP se concretan en [ADR-020](ADR-020-notificaciones-typescript-postgresql-smtp.md).
 
 ## Consecuencias
 
@@ -82,10 +82,9 @@ Hacen falta una clave de cifrado respaldada y una credencial privada de entrega 
 Perder la clave impide enviar correos pendientes; se deben emitir nuevas solicitudes.
 Una respuesta SMTP perdida se registra UNKNOWN y no se convierte en entrega confirmada.
 El transporte usa el RabbitMQ compartido de ADR-016 y la suscripción notifications.recovery.email.
-El arranque local conserva diez servicios y no incluye worker SMTP, almacén de Notificaciones
-ni buzón de pruebas. Mientras su responsable no integre el consumidor, los trabajos permanecen
-pendientes y RF-004 no acredita la entrega completa por correo. La retención del consumidor
-deberá coordinarse con redrive y deduplicación del broker.
+El arranque local incorpora el consumidor `services/notifications`, su PostgreSQL y Mailpit con
+STARTTLS según ADR-020. La retención del consumidor deberá coordinarse con redrive y deduplicación
+del broker; el recorrido integrado se verifica por separado de las pruebas de Cuentas.
 
 ## Verificación
 
@@ -94,8 +93,9 @@ concurrente, revocación de sesiones, rollback y aislamiento del contrato privad
 por broker/SMTP debe verificarse con sus adaptadores y destinatarios ficticios.
 Las pruebas de [Cuentas](../../services/core/src/test/java/streaming/core/accounts/identity/RecoveryIT.java)
 y de [publicación](../../services/core/src/test/java/streaming/core/accounts/identity/infrastructure/RabbitRecoveryPublisherTest.java)
-definen la cobertura de Core. La entrega SMTP, deduplicación del consumidor, fallos externos y
-reinicios de ese proceso quedan pendientes de la implementación de Notificaciones.
+definen la cobertura de Core. Las pruebas de [Notificaciones](../../services/notifications/test/notifications.test.ts) cubren
+deduplicación, fases y fallos con adaptadores falsos. La entrega SMTP real se comprueba mediante
+el [recorrido integrado](../../tests/integration/p2-follow-notifications/run.py).
 
 ## Revisión
 

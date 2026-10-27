@@ -1,5 +1,6 @@
 // Integration tests against a real PostgreSQL (NOTIFICATIONS_TEST_DB_URL). Core, SMTP and the broker are fakes.
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { after, before, beforeEach, describe, it } from 'node:test';
@@ -136,6 +137,27 @@ describe('notifications', { skip: !url }, () => {
     await assert.rejects(live(json(changed)), (e: unknown) => e instanceof HandlerError && e.reason === 'EVENT_ID_CONFLICT');
   });
 
+  it('keeps the original medium selection when resuming an interrupted recipient page', async () => {
+    const live = liveHandler(db, core);
+    let fail = true;
+    const recipients = core.recipients.bind(core);
+    core.recipients = async (...args) => {
+      if (args[2] && fail) throw new CoreError(503, 'DOWN');
+      return recipients(...args);
+    };
+    await assert.rejects(live(liveEvent('evt_1')), (e: unknown) => e instanceof HandlerError && !e.permanent);
+    assert.equal(await count('SELECT count(*) n FROM notifications'), 2);
+    await db.query("INSERT INTO medium_preferences VALUES ('usr_a', true, false, 2)");
+    await db.query("INSERT INTO channel_preferences VALUES ('usr_a', 'chn_1', true, false, 2)");
+    // Simulate cursor expiry forcing a replay of the already committed first page.
+    await db.query('UPDATE live_sessions SET recipients_cursor=NULL');
+    fail = false;
+    assert.equal(await live(liveEvent('evt_1')), 'SELECTED');
+    assert.equal(await count('SELECT count(*) n FROM notifications'), 3);
+    assert.equal(await count("SELECT count(*) n FROM deliveries WHERE medium='EMAIL'"), 0);
+    assert.equal(await count('SELECT count(*) n FROM outbox'), 3);
+  });
+
   it('delivers email only when the medium and the channel are enabled, and push failure keeps email and inbox', async () => {
     await db.query("INSERT INTO medium_preferences VALUES ('usr_a', true, true, 2)");
     await db.query("INSERT INTO channel_preferences VALUES ('usr_a', 'chn_1', true, true, 2)");
@@ -184,6 +206,76 @@ describe('notifications', { skip: !url }, () => {
     assert.equal(await count("SELECT count(*) n FROM devices WHERE enabled"), 0);
   });
 
+  it('completes interrupted inbox deliveries without external sends', async () => {
+    await liveHandler(db, core)(liveEvent('evt_1'));
+    const [job] = await jobs('inbox');
+    const deliveryId = JSON.parse(job!.body).payload.deliveryId;
+    await db.query("UPDATE deliveries SET state='IN_PROGRESS' WHERE delivery_id=$1", [deliveryId]);
+    assert.equal(await deliveryHandler('INBOX', deps)(job!), 'DELIVERED');
+    assert.equal(await deliveryHandler('INBOX', deps)(job!), 'ALREADY_DELIVERED');
+    assert.equal(await count("SELECT count(*) n FROM deliveries WHERE delivery_id=$1 AND state='DELIVERED'", [deliveryId]), 1);
+    assert.equal(mailer.sent.length, 0);
+    assert.equal(push.calls, 0);
+  });
+
+  it('does not mark an active email send UNKNOWN when a duplicate arrives', async () => {
+    await db.query("INSERT INTO medium_preferences VALUES ('usr_a', true, false, 2)");
+    await db.query("INSERT INTO channel_preferences VALUES ('usr_a', 'chn_1', true, false, 2)");
+    await liveHandler(db, core)(liveEvent('evt_1'));
+    const [job] = await jobs('email');
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const handler = deliveryHandler('EMAIL', { ...deps, mailer: { async send(message) {
+      entered.resolve();
+      await release.promise;
+      return mailer.send(message);
+    } } });
+    const first = handler(job!);
+    await entered.promise;
+    try {
+      await assert.rejects(handler(job!), (e: unknown) => e instanceof HandlerError && e.reason === 'DELIVERY_BUSY' && !e.permanent);
+      assert.equal(await count("SELECT count(*) n FROM deliveries WHERE medium='EMAIL' AND state='IN_PROGRESS'"), 1);
+    } finally { release.resolve(); }
+    assert.equal(await first, 'DELIVERED');
+    assert.equal(await handler(job!), 'ALREADY_DELIVERED');
+    assert.equal(mailer.sent.length, 1);
+  });
+
+  it('does not disable a newly rotated push token after an old token fails', async () => {
+    await db.query("INSERT INTO medium_preferences VALUES ('usr_a', false, true, 2)");
+    await db.query("INSERT INTO channel_preferences VALUES ('usr_a', 'chn_1', false, true, 2)");
+    await db.query("INSERT INTO devices VALUES ('ins_a', 'usr_a', 'ANDROID', 'old-token', true, 1)");
+    await liveHandler(db, core)(liveEvent('evt_1'));
+    const [job] = await jobs('push');
+    const provider: PushProvider = { async send(token) {
+      assert.equal(token, 'old-token');
+      await db.query("UPDATE devices SET provider_token='new-token', version=2 WHERE installation_id='ins_a'");
+      return 'INVALID_TOKEN';
+    } };
+    assert.equal(await deliveryHandler('PUSH', { ...deps, push: provider })(job!), 'PERMANENT_FAILURE');
+    assert.equal(await count('SELECT count(*) n FROM devices WHERE enabled'), 1);
+  });
+
+  it('serializes recovery jobs across handlers and leaves other deliveries independent', async () => {
+    const job = (n: string) => json({ eventType: 'credential.recovery.delivery.requested.v1', producer: 'core',
+      aggregateId: `recovery:rec_${n.repeat(32)}`, payload: { recoveryId: `rec_${n.repeat(32)}`, deliveryId: `del_${n.repeat(32)}` } });
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const slow: Mailer = { async send(message) { entered.resolve(); await release.promise; return mailer.send(message); } };
+    const first = recoveryHandler(db, core, slow, silentLog)(job('a'));
+    await entered.promise;
+    try {
+      await assert.rejects(recoveryHandler(db, core, mailer, silentLog)(job('a')),
+        (e: unknown) => e instanceof HandlerError && e.reason === 'DELIVERY_BUSY' && !e.permanent);
+      assert.equal(await recoveryHandler(db, core, mailer, silentLog)(job('b')), 'DELIVERED');
+    } finally { release.resolve(); }
+    assert.equal(await first, 'DELIVERED');
+    assert.equal(await recoveryHandler(db, core, mailer, silentLog)(job('a')), 'ALREADY_REPORTED');
+    assert.equal(mailer.sent.length, 2);
+    assert.equal(core.claims.length, 2);
+    assert.equal(core.results.length, 2);
+  });
+
   it('applies follow changes by version and turns off channel switches on unfollow', async () => {
     const follow = followHandler(db);
     const event = (id: string, version: number, following: boolean) => json({ eventId: id, eventType: 'channel.follow.changed.v1',
@@ -193,7 +285,8 @@ describe('notifications', { skip: !url }, () => {
     assert.equal(await follow(event('11111111-1111-4111-8111-111111111111', 2, false)), 'APPLIED');
     assert.equal(await follow(event('22222222-2222-4222-8222-222222222222', 1, true)), 'STALE');
     assert.equal(await follow(event('11111111-1111-4111-8111-111111111111', 2, false)), 'DUPLICATE');
-    assert.equal(await count('SELECT count(*) n FROM channel_preferences'), 0);
+    assert.deepEqual((await db.query('SELECT email_enabled, push_enabled, version FROM channel_preferences')).rows,
+      [{ email_enabled: false, push_enabled: false, version: '3' }]);
     assert.equal((await db.query('SELECT following FROM follow_projection')).rows[0].following, false);
   });
 
@@ -283,6 +376,56 @@ describe('notifications', { skip: !url }, () => {
       const again = await (await call('PUT', `/api/notifications/${id}/read`, 'cred_a', { key: '55555555-5555-4555-8555-555555555555' })).json() as { readAtUtc: string };
       assert.equal(again.readAtUtc, read.readAtUtc);
       assert.equal((await call('PUT', `/api/notifications/${id}/read`, 'cred_b', { key: '66666666-6666-4666-8666-666666666666' })).status, 404);
+    });
+
+    it('supports repeated versioned edits, no-ops, stale writes and replay on both preference routes', async () => {
+      core.sessions.set('cred_a', 'usr_a');
+      for (const path of ['/api/notifications/preferences', '/api/notifications/channels/chn_1/preference']) {
+        const update = (emailEnabled: boolean, expectedVersion: number, key = randomUUID()) => call('PUT', path, 'cred_a',
+          { body: { emailEnabled, pushEnabled: false, expectedVersion }, key });
+        assert.equal((await update(true, 2)).status, 409);
+        const key = randomUUID();
+        const first = await update(true, 1, key);
+        assert.equal(first.status, 200);
+        const enabled = await first.json();
+        assert.equal(enabled.version, 2);
+        assert.equal((await update(true, 2)).status, 200);
+        const off = await update(false, 2);
+        assert.equal(off.status, 200);
+        assert.equal((await off.json()).version, 3);
+        assert.equal((await update(true, 2)).status, 409);
+        assert.deepEqual(await (await update(true, 1, key)).json(), enabled);
+        assert.equal((await (await call('GET', path, 'cred_a')).json()).emailEnabled, false);
+        const race = await Promise.all([update(true, 3), update(true, 3)]);
+        assert.deepEqual(race.map((r) => r.status).sort(), [200, 409]);
+      }
+    });
+
+    it('completes more mutations than the pool size on one connection per mutation', { timeout: 5000 }, async () => {
+      core.sessions.set('cred_a', 'usr_a');
+      const replies = await Promise.all(Array.from({ length: 20 }, (_, i) => call('PUT', '/api/notifications/devices/ins_' + i, 'cred_a',
+        { key: randomUUID(), body: { installationId: 'ins_' + i, platform: 'ANDROID', providerToken: 'fixture-token-' + i } })));
+      assert.ok(replies.every((r) => r.status === 200));
+      assert.equal(await count('SELECT count(*) n FROM devices'), 20);
+      assert.equal(await count('SELECT count(*) n FROM idempotency'), 20);
+    });
+
+    it('rolls back the mutation if storing the idempotency response fails', async () => {
+      core.sessions.set('cred_a', 'usr_a');
+      await db.query(`CREATE FUNCTION fixture_fail_idempotency() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture'; END $$`);
+      await db.query('CREATE TRIGGER fixture_fail BEFORE INSERT ON idempotency FOR EACH ROW EXECUTE FUNCTION fixture_fail_idempotency()');
+      const body = { emailEnabled: true, pushEnabled: false, expectedVersion: 1 };
+      const key = randomUUID();
+      try {
+        assert.equal((await call('PUT', '/api/notifications/preferences', 'cred_a', { body, key })).status, 503);
+        assert.equal(await count('SELECT count(*) n FROM medium_preferences'), 0);
+      } finally {
+        await db.query('DROP TRIGGER fixture_fail ON idempotency');
+        await db.query('DROP FUNCTION fixture_fail_idempotency()');
+      }
+      const retry = await call('PUT', '/api/notifications/preferences', 'cred_a', { body, key });
+      assert.equal(retry.status, 200);
+      assert.equal((await retry.json()).version, 2);
     });
 
     it('updates preferences with versions and keeps provider tokens private', async () => {

@@ -18,8 +18,8 @@ export function createPool(url: string, ca: string | null): Db {
   });
 }
 
-export async function transaction<T>(db: Db, work: (tx: Tx) => Promise<T>): Promise<T> {
-  const client = await db.connect();
+export async function transaction<T>(db: Db | Tx, work: (tx: Tx) => Promise<T>): Promise<T> {
+  const client = 'release' in db ? db : await db.connect();
   try {
     await client.query('BEGIN');
     const result = await work(client);
@@ -29,7 +29,7 @@ export async function transaction<T>(db: Db, work: (tx: Tx) => Promise<T>): Prom
     await client.query('ROLLBACK').catch(() => undefined);
     throw error;
   } finally {
-    client.release();
+    if (client !== db) client.release();
   }
 }
 

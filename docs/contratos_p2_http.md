@@ -151,8 +151,9 @@ UNKNOWN eliminan el material reversible; el hash de confirmación conserva su vi
 El material temporal se protege con AES-256-GCM según ADR-017 y no aparece en broker ni logs.
 El nombre de servicio es un permiso del contrato y no exige un contenedor o runtime específico.
 Cuentas implementa estas cuatro operaciones y publica el trabajo; el consumo de la cola,
-almacenamiento de intentos, configuración SMTP y envío corresponden a Notificaciones y están
-pendientes. La respuesta 202 confirma la solicitud, sin acreditar entrega de correo.
+almacenamiento de intentos, configuración SMTP y envío están implementados en Notificaciones
+según ADR-020. La aceptación integrada de RF-004 se acredita por separado: la respuesta 202
+confirma la solicitud, sin acreditar entrega de correo.
 
 ## Seguimiento y destinatarios
 
@@ -209,6 +210,21 @@ Preferencias, leído y dispositivos se obtienen del principal, nunca de un userI
 cliente. installationId del path y body deben coincidir. Una instalación se vincula a una cuenta;
 logout/cambio de usuario retira la asociación anterior. Tokens de proveedor no aparecen en lectura
 pública ni logs. La provisión push real permanece en P2-13.
+
+Los tres endpoints Core administrativos están implementados; retirada por Gateway y contexto
+privado de acceso continúan pendientes. GET users/channels acepta limit 1…50 (20 por defecto)
+y cursor firmado de cinco minutos ligado a actor/listado; claves query ajenas dan 400 y cursor
+inválido/vencido da 410 CURSOR_INVALID. La paginación por ID no ofrece snapshot entre páginas.
+Todas las respuestas exitosas usan no-store. Visitante: 401 SESSION_REQUIRED; usuario ordinario:
+403 ADMIN_REQUIRED. No se exponen email, hashes, credenciales ni motivos en los listados.
+
+PUT account-status exige cookie/CSRF e Idempotency-Key UUID, status ACTIVE/SUSPENDED,
+expectedVersion entero 0…9007199254740990 y motivo no blanco de hasta 500 caracteres.
+No admite campos adicionales. Responde 404 ACCOUNT_NOT_FOUND, 409 ACCOUNT_VERSION_CONFLICT
+o 409 IDEMPOTENCY_KEY_REUSED. La clave se liga al actor; se compara objetivo/estado/versión/motivo
+recortado. La repetición devuelve el resultado original y no vuelve a auditar. Una orden sin
+cambio real se audita sin incrementar versión ni emitir evento. Auditoría y resultados se
+conservan sin limpieza automática. Reactivar no restaura sesiones revocadas.
 
 Las operaciones administrativas requieren rol provisionado y motivo; accountVersion/expectedVersion
 resuelven concurrencia. La retirada se enruta al dominio según resourceType. El Gateway no confirma

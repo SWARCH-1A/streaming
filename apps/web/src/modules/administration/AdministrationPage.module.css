@@ -1,0 +1,44 @@
+.page {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+.list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--color-panel);
+  border-radius: var(--radius-sm);
+}
+.list span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.form {
+  display: grid;
+  gap: 1rem;
+  border: 1px solid var(--color-control);
+  padding: 1rem;
+}
+.form textarea {
+  width: 100%;
+  min-height: 6rem;
+  background: var(--color-canvas);
+  color: var(--color-text);
+  border: 1px solid var(--color-control);
+  padding: 0.75rem;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}

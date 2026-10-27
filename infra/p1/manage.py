@@ -61,6 +61,10 @@ def render_proxy():
         source = source.replace("https://streaming:", "https://live:")
         # The SSR web container listens with TLS on 3443 (SPEC-18).
         source = source.replace("{$WEB_UPSTREAM:https://web:3000}", "{$WEB_UPSTREAM:https://web:3443}")
+    # The SSR upstream reuses the existing web certificate (SAN web), including P1 web-ssr.
+    web_start = source.index("    reverse_proxy @web ")
+    trust_start = source.index("        tls_trust_pool", web_start)
+    source = source[:trust_start] + "        tls_server_name web\n" + source[trust_start:]
     # Host-only session cookies remain on the public origin; private credentials never enter logs.
     return source
 

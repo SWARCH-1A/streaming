@@ -37,22 +37,22 @@ interface Request {
   requestId: string;
 }
 
-type Route = { method: string; pattern: RegExp; mutation: boolean; run: (r: Request, user: string, m: string[]) => Promise<Result> };
+type Route = { method: string; pattern: RegExp; mutation: boolean; run: (r: Request, user: string, m: string[], db: Db | Tx) => Promise<Result> };
 type Result = { status: number; body?: unknown };
 
 /** p2.notifications.*: every operation acts on the session principal, never on a userId from the client. */
 export function apiHandler(deps: ApiDeps) {
   const routes: Route[] = [
     { method: 'GET', pattern: /^\/api\/notifications$/, mutation: false, run: (r, u) => list(deps, r, u) },
-    { method: 'PUT', pattern: /^\/api\/notifications\/([A-Za-z0-9_-]{1,128})\/read$/, mutation: true, run: (r, u, m) => markRead(deps, u, m[1]!) },
+    { method: 'PUT', pattern: /^\/api\/notifications\/([A-Za-z0-9_-]{1,128})\/read$/, mutation: true, run: (r, u, m, db) => markRead(db, u, m[1]!) },
     { method: 'GET', pattern: /^\/api\/notifications\/preferences$/, mutation: false, run: async (_r, u) => ({ status: 200, body: await mediums(deps.db, u) }) },
-    { method: 'PUT', pattern: /^\/api\/notifications\/preferences$/, mutation: true, run: (r, u) => putMediums(deps, r, u) },
+    { method: 'PUT', pattern: /^\/api\/notifications\/preferences$/, mutation: true, run: (r, u, _m, db) => putMediums(db, r, u) },
     { method: 'GET', pattern: /^\/api\/notifications\/channels\/([A-Za-z0-9_-]{1,128})\/preference$/, mutation: false,
       run: async (_r, u, m) => ({ status: 200, body: await channel(deps.db, u, m[1]!) }) },
     { method: 'PUT', pattern: /^\/api\/notifications\/channels\/([A-Za-z0-9_-]{1,128})\/preference$/, mutation: true,
-      run: (r, u, m) => putChannel(deps, r, u, m[1]!) },
-    { method: 'PUT', pattern: /^\/api\/notifications\/devices\/([A-Za-z0-9_-]{1,128})$/, mutation: true, run: (r, u, m) => putDevice(deps, r, u, m[1]!) },
-    { method: 'DELETE', pattern: /^\/api\/notifications\/devices\/([A-Za-z0-9_-]{1,128})$/, mutation: true, run: (_r, u, m) => deleteDevice(deps, u, m[1]!) },
+      run: (r, u, m, db) => putChannel(db, r, u, m[1]!) },
+    { method: 'PUT', pattern: /^\/api\/notifications\/devices\/([A-Za-z0-9_-]{1,128})$/, mutation: true, run: (r, u, m, db) => putDevice(db, r, u, m[1]!) },
+    { method: 'DELETE', pattern: /^\/api\/notifications\/devices\/([A-Za-z0-9_-]{1,128})$/, mutation: true, run: (_r, u, m, db) => deleteDevice(db, u, m[1]!) },
   ];
 
   return async (incoming: IncomingMessage, response: ServerResponse): Promise<void> => {
@@ -83,8 +83,8 @@ export function apiHandler(deps: ApiDeps) {
       }
       if (!user) throw new ApiError(401, 'AUTH_REQUIRED', 'Se requiere una sesión activa.');
       const result = route.mutation
-        ? await idempotent(deps.db, user, request, () => route.run(request, user, match))
-        : await route.run(request, user, match);
+        ? await idempotent(deps.db, user, request, (tx) => route.run(request, user, match, tx))
+        : await route.run(request, user, match, deps.db);
       send(response, result.status, result.body);
     } catch (error) {
       if (error instanceof ApiError) return send(response, error.status, { code: error.code, message: error.message, requestId });
@@ -162,7 +162,7 @@ function version(value: unknown): number {
 }
 
 /** Idempotency-Key UUID, bound to the user, operation and body; same key with other content is 409. */
-async function idempotent(db: Db, user: string, request: Request, action: () => Promise<Result>): Promise<Result> {
+async function idempotent(db: Db, user: string, request: Request, action: (tx: Tx) => Promise<Result>): Promise<Result> {
   const key = String(request.headers['idempotency-key'] ?? '');
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key)) {
     throw new ApiError(400, 'IDEMPOTENCY_KEY_REQUIRED', 'Se requiere Idempotency-Key UUID.');
@@ -178,7 +178,7 @@ async function idempotent(db: Db, user: string, request: Request, action: () => 
       if (row.fingerprint !== fingerprint) throw new ApiError(409, 'IDEMPOTENCY_CONFLICT', 'La Idempotency-Key ya se usó con otra solicitud.');
       return { status: row.status, body: row.response === '' ? undefined : JSON.parse(row.response) };
     }
-    const result = await action();
+    const result = await action(tx);
     await tx.query(
       `INSERT INTO idempotency (user_id, key_hash, fingerprint, status, response, retain_until_utc) VALUES ($1,$2,$3,$4,$5, now()+${IDEMPOTENCY_RETENTION})
        ON CONFLICT (user_id, key_hash) DO UPDATE SET fingerprint=EXCLUDED.fingerprint, status=EXCLUDED.status,
@@ -259,9 +259,9 @@ async function list(deps: ApiDeps, request: Request, user: string): Promise<Resu
   return { status: 200, body: { items: page.map(notificationView), nextCursor } };
 }
 
-async function markRead(deps: ApiDeps, user: string, notificationId: string): Promise<Result> {
+async function markRead(db: Db | Tx, user: string, notificationId: string): Promise<Result> {
   // Reading again keeps the first readAtUtc; another account's notice is indistinguishable from a missing one.
-  const row = await deps.db.query<NotificationRow>(
+  const row = await db.query<NotificationRow>(
     `UPDATE notifications n SET read_at_utc=COALESCE(n.read_at_utc, now())
      WHERE n.notification_id=$1 AND n.user_id=$2 AND ${VISIBLE} RETURNING ${NOTIFICATION_COLUMNS}`, [notificationId, user]);
   if (!row.rowCount) throw new ApiError(404, 'NOTIFICATION_NOT_FOUND', 'Aviso no encontrado.');
@@ -286,45 +286,43 @@ async function channel(db: Db | Tx, user: string, channelId: string) {
  * Conditional update: a missing row behaves as version 1 with both media off. The version only grows
  * when a value changes; a stale expectedVersion is a 409 so concurrent edits are never lost.
  */
-async function putMediums(deps: ApiDeps, request: Request, user: string): Promise<Result> {
+async function putMediums(db: Db | Tx, request: Request, user: string): Promise<Result> {
   const body = object(request.body, ['emailEnabled', 'pushEnabled', 'expectedVersion'], ['emailEnabled', 'pushEnabled', 'expectedVersion']);
   if (typeof body.emailEnabled !== 'boolean' || typeof body.pushEnabled !== 'boolean') throw invalid('emailEnabled y pushEnabled deben ser booleanos.');
   const expected = version(body.expectedVersion);
-  const updated = await deps.db.query(
-    `INSERT INTO medium_preferences AS m (user_id, email_enabled, push_enabled, version)
-     SELECT $1, $2, $3, CASE WHEN $2 OR $3 THEN 2 ELSE 1 END WHERE $4 = 1
-     ON CONFLICT (user_id) DO UPDATE SET email_enabled=EXCLUDED.email_enabled, push_enabled=EXCLUDED.push_enabled,
-       version=m.version + CASE WHEN (m.email_enabled, m.push_enabled) IS DISTINCT FROM (EXCLUDED.email_enabled, EXCLUDED.push_enabled) THEN 1 ELSE 0 END,
+  await db.query('INSERT INTO medium_preferences (user_id, email_enabled, push_enabled, version) VALUES ($1,false,false,1) ON CONFLICT DO NOTHING', [user]);
+  const updated = await db.query(
+    `UPDATE medium_preferences SET email_enabled=$2, push_enabled=$3,
+       version=version + CASE WHEN (email_enabled, push_enabled) IS DISTINCT FROM ($2, $3) THEN 1 ELSE 0 END,
        updated_at_utc=now()
-     WHERE m.version = $4`, [user, body.emailEnabled, body.pushEnabled, expected]);
+     WHERE user_id=$1 AND version=$4`, [user, body.emailEnabled, body.pushEnabled, expected]);
   if (!updated.rowCount) throw new ApiError(409, 'VERSION_CONFLICT', 'Las preferencias cambiaron; vuelve a leerlas.');
-  return { status: 200, body: await mediums(deps.db, user) };
+  return { status: 200, body: await mediums(db, user) };
 }
 
-async function putChannel(deps: ApiDeps, request: Request, user: string, channelId: string): Promise<Result> {
+async function putChannel(db: Db | Tx, request: Request, user: string, channelId: string): Promise<Result> {
   const body = object(request.body, ['emailEnabled', 'pushEnabled', 'expectedVersion'], ['emailEnabled', 'pushEnabled', 'expectedVersion']);
   if (typeof body.emailEnabled !== 'boolean' || typeof body.pushEnabled !== 'boolean') throw invalid('emailEnabled y pushEnabled deben ser booleanos.');
   const expected = version(body.expectedVersion);
-  const updated = await deps.db.query(
-    `INSERT INTO channel_preferences AS c (user_id, channel_id, email_enabled, push_enabled, version)
-     SELECT $1, $2, $3, $4, CASE WHEN $3 OR $4 THEN 2 ELSE 1 END WHERE $5 = 1
-     ON CONFLICT (user_id, channel_id) DO UPDATE SET email_enabled=EXCLUDED.email_enabled, push_enabled=EXCLUDED.push_enabled,
-       version=c.version + CASE WHEN (c.email_enabled, c.push_enabled) IS DISTINCT FROM (EXCLUDED.email_enabled, EXCLUDED.push_enabled) THEN 1 ELSE 0 END,
+  await db.query('INSERT INTO channel_preferences (user_id, channel_id, email_enabled, push_enabled, version) VALUES ($1,$2,false,false,1) ON CONFLICT DO NOTHING', [user, channelId]);
+  const updated = await db.query(
+    `UPDATE channel_preferences SET email_enabled=$3, push_enabled=$4,
+       version=version + CASE WHEN (email_enabled, push_enabled) IS DISTINCT FROM ($3, $4) THEN 1 ELSE 0 END,
        updated_at_utc=now()
-     WHERE c.version = $5`, [user, channelId, body.emailEnabled, body.pushEnabled, expected]);
+     WHERE user_id=$1 AND channel_id=$2 AND version=$5`, [user, channelId, body.emailEnabled, body.pushEnabled, expected]);
   if (!updated.rowCount) throw new ApiError(409, 'VERSION_CONFLICT', 'La preferencia cambió; vuelve a leerla.');
-  return { status: 200, body: await channel(deps.db, user, channelId) };
+  return { status: 200, body: await channel(db, user, channelId) };
 }
 
 // --- Devices ------------------------------------------------------------------------------------
 
-async function putDevice(deps: ApiDeps, request: Request, user: string, installationId: string): Promise<Result> {
+async function putDevice(db: Db | Tx, request: Request, user: string, installationId: string): Promise<Result> {
   const body = object(request.body, ['installationId', 'platform', 'providerToken'], ['installationId', 'platform', 'providerToken']);
   if (body.installationId !== installationId) throw invalid('installationId del cuerpo y de la ruta deben coincidir.');
   if (body.platform !== 'ANDROID' && body.platform !== 'IOS' && body.platform !== 'WEB') throw invalid('platform no es válida.');
   if (typeof body.providerToken !== 'string' || !body.providerToken || body.providerToken.length > 4096) throw invalid('providerToken no es válido.');
   // Re-registering under another account moves the installation; a rotated token re-enables it.
-  const row = (await deps.db.query<{ platform: string; enabled: boolean; version: string }>(
+  const row = (await db.query<{ platform: string; enabled: boolean; version: string }>(
     `INSERT INTO devices AS d (installation_id, user_id, platform, provider_token, enabled, version) VALUES ($1,$2,$3,$4,true,1)
      ON CONFLICT (installation_id) DO UPDATE SET user_id=EXCLUDED.user_id, platform=EXCLUDED.platform,
        provider_token=EXCLUDED.provider_token, enabled=true, updated_at_utc=now(),
@@ -334,9 +332,9 @@ async function putDevice(deps: ApiDeps, request: Request, user: string, installa
   return { status: 200, body: { installationId, platform: row.platform, enabled: row.enabled, version: Number(row.version) } };
 }
 
-async function deleteDevice(deps: ApiDeps, user: string, installationId: string): Promise<Result> {
+async function deleteDevice(db: Db | Tx, user: string, installationId: string): Promise<Result> {
   // Logout: only the caller's own association is removed; deleting twice is still 204.
-  await deps.db.query('DELETE FROM devices WHERE installation_id=$1 AND user_id=$2', [installationId, user]);
+  await db.query('DELETE FROM devices WHERE installation_id=$1 AND user_id=$2', [installationId, user]);
   return { status: 204 };
 }
 

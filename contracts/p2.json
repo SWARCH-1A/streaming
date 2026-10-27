@@ -898,6 +898,9 @@
         {},
         {
           "limit": 20
+        },
+        {
+          "limit": 50
         }
       ]
     },
@@ -1807,6 +1810,304 @@
           "email": "fixture@example.test"
         }
       ]
+    },
+    "P2AccountAdmin": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "handle": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 25
+        },
+        "status": {
+          "enum": [
+            "ACTIVE",
+            "SUSPENDED"
+          ]
+        },
+        "accountVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "userId",
+        "handle",
+        "status",
+        "accountVersion"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "userId": "usr_fixture",
+          "handle": "fixture",
+          "status": "ACTIVE",
+          "accountVersion": 0
+        }
+      ]
+    },
+    "P2ChannelAdmin": {
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "ownerUserId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "channelVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "channelId",
+        "ownerUserId",
+        "channelVersion"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "channelId": "chn_fixture",
+          "ownerUserId": "usr_fixture",
+          "channelVersion": 0
+        }
+      ]
+    },
+    "P2AccountAdminPage": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/P2AccountAdmin"
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "items": [
+            {
+              "userId": "usr_fixture",
+              "handle": "fixture",
+              "status": "ACTIVE",
+              "accountVersion": 0
+            }
+          ],
+          "nextCursor": null
+        }
+      ]
+    },
+    "P2ChannelAdminPage": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/P2ChannelAdmin"
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "items": [
+            {
+              "channelId": "chn_fixture",
+              "ownerUserId": "usr_fixture",
+              "channelVersion": 0
+            }
+          ],
+          "nextCursor": null
+        }
+      ]
+    },
+    "P2AccountStatusCommand": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "enum": [
+            "ACTIVE",
+            "SUSPENDED"
+          ]
+        },
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740990
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "status",
+        "expectedVersion",
+        "reason"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "status": "SUSPENDED",
+          "expectedVersion": 0,
+          "reason": "Fixture"
+        }
+      ]
+    },
+    "P2AccountStatusPayload": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "accountVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "status": {
+          "enum": [
+            "ACTIVE",
+            "SUSPENDED"
+          ]
+        }
+      },
+      "required": [
+        "userId",
+        "accountVersion",
+        "status"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "userId": "usr_fixture",
+          "accountVersion": 1,
+          "status": "SUSPENDED"
+        }
+      ]
+    },
+    "P2EventAccountStatusChanged": {
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "eventType": {
+          "const": "account.status.changed.v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "aggregateId": {
+          "type": "string",
+          "pattern": "^account:[A-Za-z0-9_-]{1,64}$"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "occurredAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(Z|\\+00:00)$"
+        },
+        "producer": {
+          "const": "core"
+        },
+        "payload": {
+          "$ref": "#/$defs/P2AccountStatusPayload"
+        },
+        "correlationId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,128}$"
+        }
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "producer",
+        "payload",
+        "correlationId"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "eventId": "a38a5088-2178-444f-9ebd-a3a1dfbe7d01",
+          "eventType": "account.status.changed.v1",
+          "schemaVersion": 1,
+          "producer": "core",
+          "aggregateId": "account:usr_example",
+          "sequence": 1,
+          "occurredAtUtc": "2026-10-24T12:00:00Z",
+          "correlationId": "62c083c5-4b90-4b34-969d-5698d4d64300",
+          "payload": {
+            "userId": "usr_example",
+            "accountVersion": 1,
+            "status": "SUSPENDED"
+          }
+        }
+      ]
     }
   },
   "events": [
@@ -1903,8 +2204,8 @@
         "vod.account",
         "notifications.account"
       ],
-      "schema": null,
-      "status": "pending-owner",
+      "schema": "P2EventAccountStatusChanged",
+      "status": "contract-ready",
       "spec": [
         "SPEC-17",
         "SPEC-10"
@@ -2390,6 +2691,24 @@
           "medium": "EMAIL",
           "targetId": "usr_fixture",
           "email": "fan@example.test"
+        }
+      }
+    },
+    {
+      "schema": "P2EventAccountStatusChanged",
+      "value": {
+        "eventId": "a38a5088-2178-444f-9ebd-a3a1dfbe7d01",
+        "eventType": "account.status.changed.v1",
+        "schemaVersion": 1,
+        "producer": "core",
+        "aggregateId": "account:usr_example",
+        "sequence": 2,
+        "occurredAtUtc": "2026-10-24T12:00:00Z",
+        "correlationId": "62c083c5-4b90-4b34-969d-5698d4d64300",
+        "payload": {
+          "userId": "usr_example",
+          "accountVersion": 1,
+          "status": "SUSPENDED"
         }
       }
     }
@@ -3202,6 +3521,135 @@
         "X-Service-Token"
       ],
       "semantics": "read"
+    },
+    {
+      "id": "p2.admin.users",
+      "method": "GET",
+      "path": "/api/admin/users",
+      "responses": {
+        "200": "P2AccountAdminPage",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "503": "Error",
+        "410": "Error"
+      },
+      "auth": "administrator-cookie-session",
+      "errors": [
+        400,
+        401,
+        403,
+        503,
+        410
+      ],
+      "cacheControl": "no-store",
+      "query": "P2PageQuery",
+      "provider": "core",
+      "consumer": [
+        "web"
+      ],
+      "owner": "accounts",
+      "timeoutMs": 10000,
+      "request": null,
+      "spec": "SPEC-23",
+      "traceability": "docs/spec-p2/spec_23_admin.md",
+      "visibility": "private",
+      "limits": "Page <=50; cursor expires after 5 minutes; reason <=500 characters",
+      "recovery": "After an uncertain mutation retry the same Idempotency-Key and payload; refresh state after a version conflict.",
+      "requiredHeaders": [
+        "Cookie"
+      ],
+      "idempotency": "Safe read"
+    },
+    {
+      "id": "p2.admin.channels",
+      "method": "GET",
+      "path": "/api/admin/channels",
+      "responses": {
+        "200": "P2ChannelAdminPage",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "503": "Error",
+        "410": "Error"
+      },
+      "auth": "administrator-cookie-session",
+      "errors": [
+        400,
+        401,
+        403,
+        503,
+        410
+      ],
+      "cacheControl": "no-store",
+      "query": "P2PageQuery",
+      "provider": "core",
+      "consumer": [
+        "web"
+      ],
+      "owner": "accounts",
+      "timeoutMs": 10000,
+      "request": null,
+      "spec": "SPEC-23",
+      "traceability": "docs/spec-p2/spec_23_admin.md",
+      "visibility": "private",
+      "limits": "Page <=50; cursor expires after 5 minutes; reason <=500 characters",
+      "recovery": "After an uncertain mutation retry the same Idempotency-Key and payload; refresh state after a version conflict.",
+      "requiredHeaders": [
+        "Cookie"
+      ],
+      "idempotency": "Safe read"
+    },
+    {
+      "id": "p2.admin.account-status",
+      "method": "PUT",
+      "path": "/api/admin/users/{userId}/status",
+      "request": "P2AccountStatusCommand",
+      "responses": {
+        "200": "P2AccountAdmin",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "503": "Error",
+        "404": "Error",
+        "409": "Error"
+      },
+      "auth": "administrator-cookie-session",
+      "errors": [
+        400,
+        401,
+        403,
+        503,
+        404,
+        409
+      ],
+      "cacheControl": "no-store",
+      "headers": {
+        "Idempotency-Key": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "X-XSRF-TOKEN": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "provider": "core",
+      "consumer": [
+        "web"
+      ],
+      "owner": "accounts",
+      "timeoutMs": 10000,
+      "spec": "SPEC-23",
+      "traceability": "docs/spec-p2/spec_23_admin.md",
+      "visibility": "private",
+      "limits": "Page <=50; cursor expires after 5 minutes; reason <=500 characters",
+      "recovery": "After an uncertain mutation retry the same Idempotency-Key and payload; refresh state after a version conflict.",
+      "requiredHeaders": [
+        "Idempotency-Key",
+        "X-XSRF-TOKEN"
+      ],
+      "idempotency": "Actor and UUID; same payload replays the recorded result, different payload returns 409"
     }
   ],
   "retiredP1Operations": [],

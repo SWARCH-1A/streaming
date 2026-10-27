@@ -33,18 +33,24 @@ pnpm check
 pnpm dev
 ```
 
+`pnpm check` incluye una prueba HTTP del build de producción (`pnpm test:ssr`) con API ficticia:
+HTML inicial, rutas de administración/notificaciones, cookies permitidas, aislamiento y 404.
+
 Las vistas funcionales necesitan los servicios. Si no están disponibles, muestran el error.
 Los datos de muestra se usan en pruebas y en la biblioteca de desarrollo.
 
 Para desarrollar por HTTP con Core:8081, Streaming:8080, Chat:8085 y HLS:8888 ya iniciados:
 
 ```sh
-VITE_P1_PROXY=1 pnpm dev
+VITE_P1_PROXY=1 WEB_API_UPSTREAM=http://127.0.0.1:8081 pnpm dev
 ```
+
+`pnpm check` incluye una prueba HTTP del build de producción (`pnpm test:ssr`) con API ficticia:
+HTML inicial, rutas de administración/notificaciones, cookies permitidas, aislamiento y 404.
 
 Abrir http://localhost:3000, el mismo WEB_ORIGIN de los proveedores. En PowerShell, primero
 `$env:VITE_P1_PROXY='1'`. Opcionalmente configurar CORE_DEV_UPSTREAM, STREAMING_DEV_UPSTREAM,
-CHAT_DEV_UPSTREAM y HLS_DEV_UPSTREAM; son variables del servidor Vite, no credenciales del browser.
+CHAT_DEV_UPSTREAM, NOTIFICATIONS_DEV_UPSTREAM y HLS_DEV_UPSTREAM; son variables del servidor Vite, no credenciales del browser.
 `pnpm dev` ejecuta `react-router dev` (SSR con recarga). `pnpm build` genera `build/client` y
 `build/server`; `pnpm start` los sirve con `server.mjs`. Caddy es la entrada integrada documentada
 [con sus rutas](../../infra/reverse-proxy/README.md).

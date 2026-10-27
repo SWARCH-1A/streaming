@@ -31,6 +31,9 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             <Icon name="bell" size={18} />
             Notificaciones
           </NavLink>
+          <NavLink to="/admin" onClick={onNavigate}>
+            Administración
+          </NavLink>
           <NavLink to="/profile" onClick={onNavigate}>
             <Icon name="user" size={18} />
             Mi perfil

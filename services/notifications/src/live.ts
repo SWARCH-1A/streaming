@@ -4,6 +4,7 @@ import { HandlerError, type IncomingMessage } from './broker.ts';
 import { CoreError, type CorePort } from './core.ts';
 import { type Db, transaction, type Tx } from './db.ts';
 import { ID, newId, sha256 } from './ids.ts';
+import { withDeliveryLock } from './ownership.ts';
 
 export const DELIVERY_EVENT = 'notification.delivery.requested.v1';
 const CONSUMER = 'notifications.live';
@@ -25,10 +26,11 @@ export function parseLiveEvent(message: IncomingMessage): LiveEvent {
   } catch {
     throw new HandlerError('INVALID_EVENT', true);
   }
+  if (event === null || typeof event !== 'object' || Array.isArray(event)) throw new HandlerError('INVALID_EVENT', true);
   const payload = event.payload as Record<string, unknown> | undefined;
   const valid =
     event.eventType === 'stream.session.changed.v1' && event.producer === 'streaming' && event.schemaVersion === 1 &&
-    typeof event.eventId === 'string' && payload !== undefined && payload.initialLive === true &&
+    typeof event.eventId === 'string' && payload !== undefined && payload !== null && payload.initialLive === true &&
     payload.status === 'LIVE' && typeof payload.sessionId === 'string' && ID.test(payload.sessionId) &&
     typeof payload.channelId === 'string' && ID.test(payload.channelId) && typeof payload.firstLiveAtUtc === 'string' &&
     !Number.isNaN(Date.parse(payload.firstLiveAtUtc));
@@ -63,54 +65,54 @@ export async function remember(tx: Tx, consumer: string, eventId: string, finger
 export function liveHandler(db: Db, core: CorePort) {
   return async (message: IncomingMessage): Promise<string> => {
     const event = parseLiveEvent(message);
-    const fingerprint = sha256(message.body);
-    const seen = await inboxState(db, CONSUMER, event.eventId, fingerprint);
-    if (seen === 'DUPLICATE') return 'DUPLICATE';
-    if (seen === 'CONFLICT') throw new HandlerError('EVENT_ID_CONFLICT', true);
+    return withDeliveryLock(db, `live:${event.sessionId}`, async (db) => {
+      const fingerprint = sha256(message.body);
+      const seen = await inboxState(db, CONSUMER, event.eventId, fingerprint);
+      if (seen === 'DUPLICATE') return 'DUPLICATE';
+      if (seen === 'CONFLICT') throw new HandlerError('EVENT_ID_CONFLICT', true);
 
-    await db.query(
-      `INSERT INTO live_sessions (session_id, channel_id, first_live_at_utc, state) VALUES ($1,$2,$3,'SELECTING')
-       ON CONFLICT (session_id) DO NOTHING`, [event.sessionId, event.channelId, event.firstLiveAtUtc]);
-    const session = (await db.query<{ channel_id: string; state: string; title: string | null; recipients_cursor: string | null }>(
-      'SELECT channel_id, state, title, recipients_cursor FROM live_sessions WHERE session_id=$1', [event.sessionId])).rows[0]!;
-    if (session.channel_id !== event.channelId) throw new HandlerError('SESSION_CHANNEL_CONFLICT', true);
-    if (session.state === 'SELECTED') {
-      await transaction(db, (tx) => remember(tx, CONSUMER, event.eventId, fingerprint, 'ALREADY_SELECTED'));
-      return 'ALREADY_SELECTED';
-    }
-
-    if (session.title === null) await describe(db, core, event);
-    let cursor = session.recipients_cursor;
-    for (;;) {
-      let page;
-      try {
-        page = await core.recipients(event.channelId, event.sessionId, cursor);
-      } catch (error) {
-        if (error instanceof CoreError && error.status === 410) {
-          cursor = null; // Expired cut: start again; already created notices are kept by their unique keys.
-          continue;
-        }
-        if (error instanceof CoreError && error.status === 404) throw new HandlerError('CHANNEL_NOT_FOUND', true);
-        throw new HandlerError('CORE_UNAVAILABLE', false);
+      await db.query(
+        `INSERT INTO live_sessions (session_id, channel_id, first_live_at_utc, state) VALUES ($1,$2,$3,'SELECTING')
+         ON CONFLICT (session_id) DO NOTHING`, [event.sessionId, event.channelId, event.firstLiveAtUtc]);
+      const session = (await db.query<{ channel_id: string; state: string; title: string | null; recipients_cursor: string | null }>(
+        'SELECT channel_id, state, title, recipients_cursor FROM live_sessions WHERE session_id=$1', [event.sessionId])).rows[0]!;
+      if (session.channel_id !== event.channelId) throw new HandlerError('SESSION_CHANNEL_CONFLICT', true);
+      if (session.state === 'SELECTED') {
+        await transaction(db, (tx) => remember(tx, CONSUMER, event.eventId, fingerprint, 'ALREADY_SELECTED'));
+        return 'ALREADY_SELECTED';
       }
-      await transaction(db, async (tx) => {
-        for (const item of page.items) await notify(tx, event, item.userId);
-        await tx.query(
-          `UPDATE live_sessions SET recipients_cursor=$2, selected_count=selected_count+$3, updated_at_utc=now()
-           WHERE session_id=$1`, [event.sessionId, page.nextCursor, page.items.length]);
-      });
-      if (!page.nextCursor) break;
-      cursor = page.nextCursor;
-    }
-    await transaction(db, async (tx) => {
-      await tx.query("UPDATE live_sessions SET state='SELECTED', updated_at_utc=now() WHERE session_id=$1", [event.sessionId]);
-      await remember(tx, CONSUMER, event.eventId, fingerprint, 'SELECTED');
+
+      if (session.title === null) await describe(db, core, event);
+      let cursor = session.recipients_cursor;
+      for (;;) {
+        let page;
+        try {
+          page = await core.recipients(event.channelId, event.sessionId, cursor);
+        } catch (error) {
+          if (error instanceof CoreError && error.status === 410) {
+            cursor = null; // Expired cut: start again; already created notices are kept by their unique keys.
+            continue;
+          }
+          if (error instanceof CoreError && error.status === 404) throw new HandlerError('CHANNEL_NOT_FOUND', true);
+          throw new HandlerError('CORE_UNAVAILABLE', false);
+        }
+        await transaction(db, async (tx) => {
+          for (const item of page.items) await notify(tx, event, item.userId);
+          await tx.query(
+            `UPDATE live_sessions SET recipients_cursor=$2, selected_count=selected_count+$3,
+               state=CASE WHEN $2::text IS NULL THEN 'SELECTED' ELSE 'SELECTING' END, updated_at_utc=now()
+             WHERE session_id=$1`, [event.sessionId, page.nextCursor, page.items.length]);
+          if (!page.nextCursor) await remember(tx, CONSUMER, event.eventId, fingerprint, 'SELECTED');
+        });
+        if (!page.nextCursor) break;
+        cursor = page.nextCursor;
+      }
+      return 'SELECTED';
     });
-    return 'SELECTED';
   };
 }
 
-async function describe(db: Db, core: CorePort, event: LiveEvent): Promise<void> {
+async function describe(db: Db | Tx, core: CorePort, event: LiveEvent): Promise<void> {
   // Best effort: a Core read failure keeps a generic title instead of blocking the notices.
   let title = 'Un canal que sigues está en vivo';
   let link = '/';
@@ -129,13 +131,13 @@ async function describe(db: Db, core: CorePort, event: LiveEvent): Promise<void>
 async function notify(tx: Tx, event: LiveEvent, userId: string): Promise<void> {
   const session = (await tx.query<{ title: string; link_path: string }>(
     'SELECT title, link_path FROM live_sessions WHERE session_id=$1', [event.sessionId])).rows[0]!;
-  await tx.query(
+  const insertedNotice = await tx.query<{ notification_id: string }>(
     `INSERT INTO notifications (notification_id, kind, user_id, channel_id, session_id, title, link_path, created_at_utc)
-     VALUES ($1,'LIVE_STARTED',$2,$3,$4,$5,$6,$7) ON CONFLICT (kind, user_id, session_id) DO NOTHING`,
+     VALUES ($1,'LIVE_STARTED',$2,$3,$4,$5,$6,$7) ON CONFLICT (kind, user_id, session_id) DO NOTHING RETURNING notification_id`,
     [newId('ntf'), userId, event.channelId, event.sessionId, session.title, session.link_path, event.firstLiveAtUtc]);
-  const notificationId = (await tx.query<{ notification_id: string }>(
-    "SELECT notification_id FROM notifications WHERE kind='LIVE_STARTED' AND user_id=$1 AND session_id=$2",
-    [userId, event.sessionId])).rows[0]!.notification_id;
+  // A resumed page must keep the original selection, even if preferences/devices changed meanwhile.
+  if (!insertedNotice.rowCount) return;
+  const notificationId = insertedNotice.rows[0]!.notification_id;
 
   const prefs = (await tx.query<{ email: boolean; push: boolean }>(
     `SELECT COALESCE(m.email_enabled,false) AND COALESCE(c.email_enabled,false) AS email,

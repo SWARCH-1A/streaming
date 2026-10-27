@@ -34,10 +34,11 @@ class ReconciliationSchedulingTest {
             context.register(SchedulingConfig.class,ReconciliationScheduler.class);
             context.refresh();
             long deadline=System.nanoTime()+8_000_000_000L;
-            while(starts.size()<3 && System.nanoTime()<deadline) Thread.sleep(50);
+            while(starts.size()<4 && System.nanoTime()<deadline) Thread.sleep(50);
         }
-        assertThat(starts).as("three cuts started by the real scheduler").hasSizeGreaterThanOrEqualTo(3);
-        double seconds=(starts.get(2)-starts.get(0))/1e9;
+        assertThat(starts).as("four cuts started by the real scheduler").hasSizeGreaterThanOrEqualTo(4);
+        // Ignore the first invocation's JVM/Mockito startup cost; measure two steady phase steps.
+        double seconds=(starts.get(3)-starts.get(1))/1e9;
         // 2 intervals start to start (about 2.1 s); a fixed delay would add each 0.6 s cut and need 3.2 s or more
         assertThat(seconds).as("two cadence steps").isBetween(1.9,2.8);
     }

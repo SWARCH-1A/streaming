@@ -16,6 +16,7 @@ export default [
       route('studio', 'routes/studio.tsx'),
       route('studio/channel', 'routes/studio-channel.tsx'),
       route('notifications', 'routes/notifications.tsx'),
+      route('admin', 'routes/admin.tsx'),
     ]),
     route('*', 'routes/not-found.tsx'),
   ]),

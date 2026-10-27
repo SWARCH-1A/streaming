@@ -50,8 +50,9 @@ durable, consumidores independientes y reglas de disponibilidad compartidas.
 - VOD agrupa metadatos, publicación y referencias audiovisuales. La base privada puede compartir
   un servidor físico con otra base si conserva credenciales y propiedad; su despliegue se decide
   junto al inventario de componentes exigido por la asignatura.
-- MinIO y RustFS son candidatos locales. El runtime del Gateway/VOD/Notificaciones
-  y los motores nuevos corresponden a sus responsables. [ADR-016](ADR-016-rabbitmq-eventos-p2.md)
+- MinIO y RustFS son candidatos locales. Los runtimes de Gateway/VOD
+  y sus motores nuevos corresponden a sus responsables. Notificaciones selecciona Node.js 24/TypeScript,
+  PostgreSQL y SMTP en [ADR-020](ADR-020-notificaciones-typescript-postgresql-smtp.md). [ADR-016](ADR-016-rabbitmq-eventos-p2.md)
   selecciona posteriormente RabbitMQ para el broker.
 
 ## Consecuencias

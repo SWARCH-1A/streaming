@@ -1,6 +1,6 @@
 # SPEC-03 — Canales y seguimiento
 
-**Prioridad:** P2. **Responsable:** Core / Canales. **Estado:** implementado salvo CA-07 (depende de P2-17).
+**Prioridad:** P2. **Responsable:** Core / Canales. **Estado:** implementado parcialmente: CA-07 depende de P2-17 y la copia de CA-08 requiere integración con Streaming.
 **RF:** RF-008…016, 077, 080. **RNF:** RNF-014, 022…032, 038…042, 046…050.
 
 ## 1. Contexto y problema
@@ -39,7 +39,10 @@ se propone como configuración del canal y debe ratificarse con VOD antes de fij
 - [x] CA-05: relación y outbox confirman juntos; reiniciar o perder ACK no pierde el aviso de cambio.
 - [x] CA-06: destinatarios solo son accesibles por credencial privada limitada, sin devolver email ni tokens.
 - [ ] CA-07: canal suspendido aparece indisponible y no permite eludir acceso a su live/VOD.
-- [x] CA-08: autopublicación por defecto es true, update concurrente usa versión y una sesión iniciada conserva su copia.
+- [ ] CA-08: autopublicación por defecto es true, update concurrente usa versión y una sesión iniciada conserva su copia.
+
+La API de autopublicación conserva el valor y su versión; este checkout todavía no implementa
+la copia al iniciar sesión en Streaming. CA-08 permanece abierta hasta verificarla.
 
 ## 7. Diseño técnico y datos
 

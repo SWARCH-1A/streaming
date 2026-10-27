@@ -4,7 +4,7 @@ Para usar la aplicación en equipo, sigue la [guía local que incluye RabbitMQ](
 Este perfil se usa para las pruebas de aceptación, réplicas y carga, con sus propios datos y configuración.
 
 Implementación de [SPEC-13](../../docs/spec-p1/spec_13_int.md) y
-[ADR-014](../../docs/adr/ADR-014-perfil-integrado-tls-p1.md). Ocho contenedores con una réplica de
+[ADR-014](../../docs/adr/ADR-014-perfil-integrado-tls-p1.md). Nueve contenedores (incluido Web SSR separado del proxy) con una réplica de
 Core/Chat; el stack propio Streaming conserva exactamente tres: PostgreSQL, Streaming con adaptador
 Media y MediaMTX. Java/Core, Rust/Streaming, Go/Chat y TypeScript/Web tienen responsabilidades reales.
 PostgreSQL conserva dominios, estado y outboxes; Redis conserva mensajes, secuencia, dedupe y cuota,
@@ -13,7 +13,7 @@ académica de RNF-006 requiere confirmación del evaluador.
 
 ## Preparación y arranque
 
-macOS/Linux o WSL, Python 3.12+, OpenSSL, Docker con Compose >=2.24.4, Node >=22.12 y pnpm 11.17.
+macOS/Linux o WSL, Python 3.12+, OpenSSL, Docker con Compose >=2.24.4, Node >=24 y pnpm 11.17.
 Reservar espacio suficiente en el disco **de Docker**, además del host, para compilación, ambos SQL
 y AOF. El build Rust requiere tiempo y memoria; las fuentes de prueba necesitan FFmpeg con libx264,
 AAC, RTMPS y HTTPS. Las pruebas no comparten proyectos/volúmenes con desarrollo o producción.
@@ -65,7 +65,8 @@ Las pruebas de selección y protección se ejecutan con `python3 infra/p1/test_p
 ## TLS, secretos y almacenamiento
 
 `init` genera una CA local (30 días), certificados SAN por servicio (14 días), un PKCS12 Core y tokens
-distintos por consumidor; es idempotente y preserva secretos existentes. Cada listener usa TLS nativo.
+distintos por consumidor; es idempotente y preserva secretos existentes. Cada listener usa TLS nativo. Web SSR reutiliza el certificado `web`; Caddy verifica su nombre
+`web` y la CA también cuando el DNS del servicio es `web-ssr`.
 PostgreSQL usa verify-full, Redis rediss, Caddy verifica upstream y MediaMTX fija el fingerprint del
 listener de autorización. Los probes y FFmpeg reciben la CA explícitamente, incluido OpenSSL para
 playlists/segmentos HLS. No usar `curl -k`, ignoreHTTPSErrors ni deshabilitar verificación.
@@ -103,7 +104,7 @@ python3 infra/p1/manage.py down
 python3 infra/p1/manage.py up --replicas 1
 ```
 
-Con dos réplicas Core/Chat hay diez contenedores en el sistema completo; Streaming sigue teniendo tres.
+Con dos réplicas Core/Chat hay once contenedores en el sistema completo; Streaming sigue teniendo tres.
 Core comparte SQL, HMAC de cuotas, cookies/sesiones y almacenamiento de imágenes. Chat comparte Redis
 para orden, cuota, dedupe, AOF y fan-out; el socket WS sigue en su réplica mientras vive. Caddy resuelve
 los servicios por DNS de Compose; un cliente se reconecta tras perder su socket. No cambiar frontend.

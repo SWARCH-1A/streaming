@@ -92,6 +92,13 @@ un contenedor o tecnología concretos. Este checkout entrega el lado de Cuentas 
 
 ## 10. Verificación
 
+Recuperación y suspensión son decisiones independientes: una cuenta SUSPENDED puede
+restablecer su contraseña, pero conserva rol, estado y versión. No recibe sesión durante
+la recuperación y no puede iniciar sesión hasta una reactivación administrativa explícita.
+Login, confirmación y suspensión serializan sus escrituras mediante el bloqueo de la cuenta.
+Al crear una sesión se revalidan contraseña vigente y estado ACTIVE; reactivar no restaura
+sesiones previamente revocadas. Ver [SPEC-23](spec_23_admin.md).
+
 Cubrir tokens usados/expirados, concurrencia, reintento y fallos entre commit/encolado. Probar
 revocación cruzada web/móvil y sesión suspendida; inspeccionar respuestas y logs sin secretos.
 La forma de schemas se valida con `contracts/check_p2.py`; ejecución Core requiere sus pruebas.

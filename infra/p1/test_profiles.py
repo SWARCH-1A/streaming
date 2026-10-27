@@ -88,6 +88,15 @@ class Profiles(unittest.TestCase):
         self.assertNotIn("file_server", proxy)
         self.assertNotIn("https://streaming:", proxy)
         self.assertNotIn("tls_insecure_skip_verify", proxy)
+        self.assertIn("@core path /api/admin/*", proxy)
+        self.assertIn("@web method GET HEAD POST", proxy)
+        for profile in ("default", "load", "local"):
+            web_proxy = module(profile).render_proxy().split("    reverse_proxy @web ", 1)[1]
+            self.assertIn("tls_server_name web", web_proxy)
+            self.assertIn("tls_trust_pool file /run/secrets/ca.crt", web_proxy)
+        self.assertIn("/api/me/*", proxy)
+        routes = (local.ROOT / "apps/web/src/app/routes.ts").read_text()
+        self.assertIn("route('admin', 'routes/admin.tsx')", routes)
         with self.assertRaisesRegex(RuntimeError, "filesystem"):
             local.command({"P1_STATE": str(local.STATE)}, "up", s3=True)
 

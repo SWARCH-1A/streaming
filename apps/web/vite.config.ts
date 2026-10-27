@@ -60,6 +60,9 @@ export default defineConfig({
               ws: true,
             },
             '/hls/': { target: process.env.HLS_DEV_UPSTREAM ?? 'http://127.0.0.1:8888' },
+            '/api/notifications': {
+              target: process.env.NOTIFICATIONS_DEV_UPSTREAM ?? 'http://127.0.0.1:8095',
+            },
             '/api/': { target: process.env.CORE_DEV_UPSTREAM ?? 'http://127.0.0.1:8081' },
           },
         }

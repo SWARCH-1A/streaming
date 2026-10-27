@@ -73,6 +73,7 @@ class RecoveryIT {
 
     @Autowired IdentityApplicationService accounts;
     @Autowired RecoveryApplicationService recovery;
+    @Autowired streaming.core.accounts.administration.application.AdministrationService administration;
     @Autowired RecoveryStore store;
     @Autowired TransactionTemplate transactions;
     @Autowired JdbcClient jdbc;
@@ -135,6 +136,55 @@ class RecoveryIT {
         error(() -> recovery.confirm(UUID.randomUUID(), token, NEW, "confirm-ip"), 422);
         error(() -> recovery.confirm(key, token, OLD, "confirm-ip"), 409);
         assertThat(jdbc.sql("SELECT encrypted_material FROM identity.credential_recoveries").query(String.class).optional()).isEmpty();
+    }
+
+    @Test void suspendedAccountCanResetWithoutReactivationAndOldSessionsStayRevoked() {
+        var account = register();
+        var session = accounts.login(EMAIL, OLD, "viewer-ip");
+        String administrator = administrator();
+        var suspended = administration.change(administrator, account.userId(), "SUSPENDED", 0, "Fixture", UUID.randomUUID());
+        String token = token(issue());
+        recovery.confirm(UUID.randomUUID(), token, NEW, "confirm-ip");
+        assertThat(jdbc.sql("SELECT account_role||':'||account_status||':'||account_version FROM identity.accounts WHERE user_id=:user")
+                .param("user", account.userId()).query(String.class).single()).isEqualTo("USER:SUSPENDED:1");
+        error(() -> accounts.login(EMAIL, NEW, "suspended-login"), 401);
+        assertThat(accounts.introspect(session.credential())).isEmpty();
+        administration.change(administrator, account.userId(), "ACTIVE", suspended.accountVersion(), "Fixture", UUID.randomUUID());
+        error(() -> accounts.login(EMAIL, OLD, "reactivated-login"), 401);
+        assertThat(accounts.login(EMAIL, NEW, "reactivated-login").userId()).isEqualTo(account.userId());
+        assertThat(accounts.introspect(session.credential())).isEmpty();
+        assertThat(count("identity.account_status_outbox")).isEqualTo(2);
+        assertThat(count("identity.recovery_outbox")).isEqualTo(1);
+    }
+
+    @Test void loginVerifiedBeforeSuspensionCannotCreateASessionAfterSuspension() throws Exception {
+        var account = register();
+        String administrator = administrator();
+        var verified = new CountDownLatch(1);
+        var resume = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            verified.countDown();
+            if (!resume.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("fixture timeout");
+            return invocation.callRealMethod();
+        }).when(identityStore).accountForUpdate(account.userId());
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var login = executor.submit(() -> {
+                try { accounts.login(EMAIL, OLD, "race-login"); return 200; }
+                catch (IdentityException error) { return error.status().value(); }
+            });
+            try {
+                assertThat(verified.await(10, TimeUnit.SECONDS)).isTrue();
+                administration.change(administrator, account.userId(), "SUSPENDED", 0, "Fixture", UUID.randomUUID());
+            } finally { resume.countDown(); }
+            assertThat(login.get(10, TimeUnit.SECONDS)).isEqualTo(401);
+        }
+        assertThat(jdbc.sql("SELECT count(*) FROM identity.sessions WHERE user_id=:user").param("user", account.userId()).query(Long.class).single()).isZero();
+    }
+
+    private String administrator() {
+        var admin = accounts.register(UUID.randomUUID(), "admin@example.test", "admin_fixture", OLD, "admin-registration");
+        jdbc.sql("UPDATE identity.accounts SET account_role='ADMIN' WHERE user_id=:user").param("user", admin.userId()).update();
+        return accounts.login("admin_fixture", OLD, "admin-login").credential();
     }
 
     @Test void concurrentConfirmationsOnlyConsumeOnce() throws Exception {
