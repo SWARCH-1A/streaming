@@ -63,7 +63,7 @@
       import proxy_headers
       # Media owns availability, byte ranges, MIME types and playlist/segment cache policy.
     }
-    @core path /api/identity/* /api/profile/* /api/channels/* /api/taxonomy /api/discovery/graphql
+    @core path /api/admin/* /api/identity/* /api/profile/* /api/channels/* /api/taxonomy /api/discovery/graphql
     reverse_proxy @core {$CORE_UPSTREAM:http://core:8081} {
       import proxy_headers
       transport http {
@@ -78,7 +78,7 @@
     file_server @assets
     @spa {
       method GET HEAD
-      path / /search /login /register /profile /studio /studio/channel /channels/* /watch/* /design-system /design-system/* /prototype
+      path / /admin /search /login /register /forgot-password /reset-password /profile /studio /studio/channel /channels/* /watch/* /design-system /design-system/* /prototype
       header Accept *text/html*
     }
     handle @spa {

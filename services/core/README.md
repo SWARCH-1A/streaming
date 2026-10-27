@@ -277,3 +277,35 @@ LIFECYCLE_CONFLICT, conservando los de P1. Se aplica sobre V7 sin modificar migr
 la prueba de actualización verifica conservación del inbox, ciclo y checksums existentes.
 
 Ver [perfil compartido](../../infra/broker/README.md) y [ADR-016](../../docs/adr/ADR-016-rabbitmq-eventos-p2.md).
+
+## Administración P2
+
+Crear primero una cuenta normal desde Web. El operador ejecuta el script sobre PostgreSQL Core
+con el ID de esa cuenta ACTIVE (nunca una contraseña). Desde la raíz del repositorio, en WSL:
+
+```sh
+docker compose --env-file infra/p1/.state-local/environment.env -f compose.yaml -f infra/broker/compose.yaml exec -T core-db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v target_user="$1"' sh usr_ejemplo < services/core/scripts/provision-admin.sql
+```
+
+Sustituir `usr_ejemplo` por el ID de la cuenta destinada a operar. El script requiere acceso de
+operador a la base; no se expone por HTTP. Valida la cuenta, provisiona ADMIN, audita y revoca
+sesiones anteriores. Volver a iniciar sesión y abrir `/admin` desde el origen público.
+Si se repite no duplica la auditoría de provisión; vuelve a revocar sesiones existentes.
+
+V10 preserva identidades/perfiles/canales y asigna USER/ACTIVE/version 0 a cuentas previas.
+V9 corresponde exclusivamente a recuperación de credenciales (ADR-017); Administración
+usa V10 y ADR-019. Antes de actualizar una base de una revisión experimental de este PR,
+consultar `SELECT version,description,checksum FROM flyway_schema_history ORDER BY installed_rank;`.
+Si V9 indica `account administration`, detener la actualización y conservar el volumen:
+su historial no corresponde a develop. No ejecutar `repair`, borrar volúmenes ni sustituir
+checksums para ocultar esa colisión; acordar una transición respaldada de esa base aparte.
+Las pruebas cubren actualización desde V8 y desde V9 de recuperación, además de instalación limpia.
+No modifica migraciones aplicadas. El cambio de estado usa cookie, CSRF, versión e idempotencia.
+Los datos administrativos solo se obtienen con rol válido. `CORE_EVENTS_TRANSPORT=amqp` activa
+el outbox mediante el broker existente; el perfil HTTP P1 conserva pendientes los eventos.
+No borrar registros pendientes para recuperar una caída. La retirada de contenido, consumidores
+de suspensión y revocación de URLs/cachés de imágenes siguen pendientes de P2-17.
+
+Pruebas: `./mvnw -P integration verify` (Java 25 y Docker); las clases AdministrationIT y
+AdministrationInfrastructureIT usan proveedores desechables. Un resultado Core no acredita
+corte de emisiones ni acceso revocable integrado en otros servicios.

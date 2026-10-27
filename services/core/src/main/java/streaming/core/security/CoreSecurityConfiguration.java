@@ -36,6 +36,9 @@ public class CoreSecurityConfiguration {
             .sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .requestCache(c->c.disable())
             .authorizeHttpRequests(a->a
+                    // Role and current opaque session are checked by AdministrationService, as with other Core APIs.
+                    .requestMatchers(HttpMethod.GET,"/api/admin/users","/api/admin/channels").permitAll()
+                    .requestMatchers(HttpMethod.PUT,"/api/admin/users/*/status").permitAll()
                     .requestMatchers(HttpMethod.GET,"/api/identity/registrations/**","/api/identity/public/**",
                             "/api/identity/csrf","/api/profile/csrf","/api/profile/me","/api/profile/users/**",
                             "/api/profile/avatars/**","/api/channels/by-handle/*","/api/channels/by-owner/*","/api/channels/*",
@@ -64,7 +67,7 @@ public class CoreSecurityConfiguration {
 
     @Bean CorsConfigurationSource corsConfigurationSource(@Value("${core.public-origin}") String origin) {
         CorsConfiguration c=new CorsConfiguration();
-        c.setAllowedOrigins(List.of(origin)); c.setAllowedMethods(List.of("GET","POST","PATCH","DELETE","OPTIONS"));
+        c.setAllowedOrigins(List.of(origin)); c.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
         c.setAllowedHeaders(List.of("Content-Type","Idempotency-Key","X-XSRF-TOKEN","X-Request-Id"));
         c.setExposedHeaders(List.of("X-Request-Id","Retry-After")); c.setAllowCredentials(true); c.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source=new UrlBasedCorsConfigurationSource(); source.registerCorsConfiguration("/**",c); return source;

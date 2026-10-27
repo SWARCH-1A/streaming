@@ -44,6 +44,9 @@ es offline, comprueba referencias, ejemplos válidos/negativos, identidad/versio
 permisos, idempotencia y trazabilidad de las operaciones, además de detectar drift.
 El arranque RabbitMQ y los SDK de cada lenguaje se documentan en infra/broker/README.md y ADR-016.
 
+Administración añade listados y cambios de estado en `p2.admin.*`, y el evento
+`account.status.changed.v1`. Su aceptación transversal sigue pendiente de P2-17.
+
 ## Perfil de subtítulos VOD
 
 [SPEC-22](../docs/spec-p2/spec_22_subtitles.md) define el perfil p2-webvtt-text-v1 y su alcance.
@@ -58,7 +61,7 @@ python -m unittest discover -s tests/contracts -p 'test_*.py'
 La duración usada en pruebas es ficticia; el futuro proveedor debe consultar la duración/mapping
 de VOD y aplicar permisos. No se acredita VOD funcional ni se decide su runtime mediante Python.
 
-Las cuatro operaciones `p2.subtitles.*` son `contract-only`. El mismo generador conserva Recuperación.
+Las cuatro operaciones `p2.subtitles.*` son `contract-only`. El mismo generador conserva Recuperación y Administración.
 Prueba adicional con Ajv (tras instalar las dependencias Web):
 
 ```sh

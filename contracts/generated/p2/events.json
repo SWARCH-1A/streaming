@@ -42,9 +42,9 @@
   {
     "eventType": "account.status.changed.v1",
     "producers": ["core"],
-    "schema": null,
+    "schema": "P2EventAccountStatusChanged",
     "spec": ["SPEC-17", "SPEC-10"],
-    "status": "pending-owner",
+    "status": "contract-ready",
     "subscriptions": ["streaming.account", "chat.account", "vod.account", "notifications.account"]
   },
   {

@@ -64,6 +64,10 @@ def validate_event_identity(value):
         if value["aggregateId"] != "recovery:" + payload["recoveryId"] or value["sequence"] != 1:
             raise ValueError("Recovery aggregate/sequence do not match payload")
         return
+    if kind == "account.status.changed.v1":
+        if value["aggregateId"] != "account:" + payload["userId"] or value["sequence"] != payload["accountVersion"]:
+            raise ValueError("Account aggregate/sequence do not match payload")
+        return
     lifecycle = kind == "stream.session.changed.v1"
     key, version, prefix = ("sessionId", "sessionVersion", "session:") if lifecycle else ("streamId", "projectionVersion", "stream:")
     if value["aggregateId"] != prefix + payload[key] or value["sequence"] != payload[version]:

@@ -122,7 +122,7 @@ propia; p2.redelivery devuelve solo a la suscripción original. Los filtros no i
 
 La integración conecta ciclo a Core/Chat, snapshots a Discovery y publica trabajos opacos de
 recuperación en `notifications.recovery.email`. Su consumidor y SMTP están pendientes de
-Notificaciones. Cuenta/suspensión, VOD y las demás funciones de Notificaciones requieren sus
+Notificaciones. Core también publica cambios de estado de cuenta; sus consumidores siguen pendientes. VOD y las demás funciones de Notificaciones requieren sus
 payloads y operaciones de dominio antes de activar productores. La recuperación incorpora sus
 operaciones HTTP; los contratos HTTP/WS/media P2 restantes siguen pendientes.
 
@@ -149,3 +149,13 @@ Un trabajo expirado o invalidado obtiene 410 y no permite emitir un enlace nuevo
 
 La publicación de Cuentas y el contrato están disponibles. El consumidor, su tecnología y la
 entrega de correo no forman parte de esta implementación y conservan aceptación pendiente.
+
+## Publicación de estado de cuenta
+
+Core publica `account.status.changed.v1` tras confirmar estado, revocación, auditoría y outbox
+en una transacción. `aggregateId=account:<userId>`; sequence coincide con accountVersion del
+payload `{userId, accountVersion, status}`. Status es ACTIVE o SUSPENDED. No contiene motivo,
+email, sesiones ni contraseñas. EventId y cuerpo son estables entre reintentos; correlationId
+es el Idempotency-Key de la operación. Los consumidores aplican únicamente versiones mayores,
+deduplican eventId y reconcilian su estado al recuperarse. El esquema está disponible;
+los consumidores de suspensión y P2-17 siguen pendientes. Confirmar publicación no los acredita.

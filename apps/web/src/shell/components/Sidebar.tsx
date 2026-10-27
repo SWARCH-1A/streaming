@@ -27,6 +27,9 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             <Icon name="screen" size={18} />
             Estudio de emisión
           </NavLink>
+          <NavLink to="/admin" onClick={onNavigate}>
+            Administración
+          </NavLink>
           <NavLink to="/profile" onClick={onNavigate}>
             <Icon name="user" size={18} />
             Mi perfil
