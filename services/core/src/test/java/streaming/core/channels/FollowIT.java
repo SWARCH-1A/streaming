@@ -276,7 +276,8 @@ class FollowIT {
         return send(method,path,account,key,csrf,null);
     }
     private HttpResponse<String> send(String method,String path,Account account,UUID key,boolean csrf,Object payload) throws Exception {
-        var builder=HttpRequest.newBuilder(URI.create("http://localhost:"+port+path));
+        // Browsers always send Origin on PUT/DELETE: CORS must accept the follow methods (SPEC-03).
+        var builder=HttpRequest.newBuilder(URI.create("http://localhost:"+port+path)).header("Origin","http://localhost:3000");
         var cookies=new ArrayList<String>();
         if(account!=null) cookies.add("stream_session="+account.credential());
         if(csrf) { cookies.add("XSRF-TOKEN=fixture-csrf"); builder.header("X-XSRF-TOKEN","fixture-csrf"); }

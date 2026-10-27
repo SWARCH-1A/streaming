@@ -66,7 +66,7 @@ public class CoreSecurityConfiguration {
 
     @Bean CorsConfigurationSource corsConfigurationSource(@Value("${core.public-origin}") String origin) {
         CorsConfiguration c=new CorsConfiguration();
-        c.setAllowedOrigins(List.of(origin)); c.setAllowedMethods(List.of("GET","POST","PATCH","DELETE","OPTIONS"));
+        c.setAllowedOrigins(List.of(origin)); c.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
         c.setAllowedHeaders(List.of("Content-Type","Idempotency-Key","X-XSRF-TOKEN","X-Request-Id"));
         c.setExposedHeaders(List.of("X-Request-Id","Retry-After")); c.setAllowCredentials(true); c.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source=new UrlBasedCorsConfigurationSource(); source.registerCorsConfiguration("/**",c); return source;
