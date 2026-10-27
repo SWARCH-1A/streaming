@@ -8,12 +8,22 @@ import globals from 'globals';
 import type { ConfigWithExtends } from 'typescript-eslint';
 import tseslint from 'typescript-eslint';
 
-const modules = ['accounts', 'channels', 'chat', 'discovery', 'streaming', 'taxonomy'];
+const modules = [
+  'accounts',
+  'channels',
+  'chat',
+  'discovery',
+  'notifications',
+  'streaming',
+  'taxonomy',
+];
 
 export default tseslint.config(
   {
     ignores: [
       'dist/**',
+      'build/**',
+      '.react-router/**',
       'coverage/**',
       'node_modules/**',
       'playwright-report/**',
@@ -23,7 +33,7 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
-    files: ['scripts/**/*.mjs'],
+    files: ['scripts/**/*.mjs', 'server.mjs'],
     extends: [tseslint.configs.disableTypeChecked],
     languageOptions: { globals: globals.node },
   },
@@ -108,6 +118,8 @@ export default tseslint.config(
     },
   },
   { files: ['src/modules/*/entry.tsx'], rules: { 'react-refresh/only-export-components': 'off' } },
+  // Route modules export loader/meta/headers next to their component (React Router framework mode).
+  { files: ['src/app/**/*.tsx'], rules: { 'react-refresh/only-export-components': 'off' } },
   {
     files: ['src/**/*.tsx'],
     ignores: ['src/components/atoms/**'],

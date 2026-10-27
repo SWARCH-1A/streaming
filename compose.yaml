@@ -48,6 +48,8 @@ services:
       CORE_STREAMING_BASE_URL: https://live:8091
       CORE_STREAMING_DEVELOPMENT_HTTP: "false"
       CHAT_CORE_SERVICE_TOKEN: ${CHAT_CORE_SERVICE_TOKEN:?Run init}
+      CORE_NOTIFICATIONS_SERVICE_TOKEN: ${CORE_NOTIFICATIONS_SERVICE_TOKEN:?Run python3 infra/local/dev.py init}
+      CORE_RECORDING_SETTINGS_SERVICE_TOKEN: ${CORE_RECORDING_SETTINGS_SERVICE_TOKEN:?Run python3 infra/local/dev.py init}
       WEB_ORIGIN: ${WEB_ORIGIN:?Run init}
       CORE_IMAGE_STORAGE_PROVIDER: filesystem
       PROFILE_AVATAR_STORAGE: /data/avatars
@@ -224,14 +226,93 @@ services:
     security_opt: [no-new-privileges:true]
     restart: unless-stopped
 
+  notifications-db:
+    image: postgres:18-alpine
+    entrypoint: ["/bin/sh", "/postgres-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tmp/p1-tls/server.crt", "-c", "ssl_key_file=/tmp/p1-tls/server.key"]
+    environment:
+      POSTGRES_DB: notifications
+      POSTGRES_USER: notifications
+      POSTGRES_PASSWORD: ${NOTIFICATIONS_DB_PASSWORD:?Run python3 infra/local/dev.py init}
+    volumes:
+      - notifications-db:/var/lib/postgresql
+      - ./infra/p1/postgres-tls.sh:/postgres-tls.sh:ro
+      - ${P1_STATE}/notifications-db.crt:/run/secrets/server.crt:ro
+      - ${P1_STATE}/notifications-db.key:/run/secrets/server.key:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notifications -d notifications"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  # Local SMTP test provider: catches every email (UI on 127.0.0.1:8025) and never delivers outside.
+  mailpit:
+    image: axllent/mailpit:v1.27.0
+    environment:
+      MP_SMTP_TLS_CERT: /run/secrets/mailpit.crt
+      MP_SMTP_TLS_KEY: /run/secrets/mailpit.key
+      MP_SMTP_REQUIRE_STARTTLS: "true"
+      MP_MAX_MESSAGES: "1000"
+    ports:
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
+    volumes:
+      - ${P1_STATE}/mailpit.crt:/run/secrets/mailpit.crt:ro
+      - ${P1_STATE}/mailpit.key:/run/secrets/mailpit.key:ro
+    restart: unless-stopped
+
+  notifications:
+    image: streaming-local-notifications
+    build: ./services/notifications
+    environment:
+      NOTIFICATIONS_PORT: "8095"
+      NOTIFICATIONS_TLS_CERT_FILE: /run/secrets/notifications.crt
+      NOTIFICATIONS_TLS_KEY_FILE: /run/secrets/notifications.key
+      NOTIFICATIONS_CA_FILE: /run/secrets/ca.crt
+      NODE_EXTRA_CA_CERTS: /run/secrets/ca.crt
+      NOTIFICATIONS_DB_URL: postgres://notifications:${NOTIFICATIONS_DB_PASSWORD:?Run python3 infra/local/dev.py init}@notifications-db:5432/notifications?sslmode=verify-full
+      NOTIFICATIONS_CORE_INTERNAL_URL: https://core:8082
+      NOTIFICATIONS_CORE_PUBLIC_URL: https://core:8081
+      NOTIFICATIONS_CORE_SERVICE_TOKEN: ${CORE_NOTIFICATIONS_SERVICE_TOKEN:?Run python3 infra/local/dev.py init}
+      NOTIFICATIONS_CURSOR_SECRET: ${NOTIFICATIONS_CURSOR_SECRET:?Run python3 infra/local/dev.py init}
+      NOTIFICATIONS_SMTP_HOST: mailpit
+      NOTIFICATIONS_SMTP_PORT: "1025"
+      NOTIFICATIONS_SMTP_REQUIRE_TLS: "true"
+      WEB_ORIGIN: ${WEB_ORIGIN:?Run init}
+    volumes:
+      - ${P1_STATE}/notifications.crt:/run/secrets/notifications.crt:ro
+      - ${P1_STATE}/notifications.key:/run/secrets/notifications.key:ro
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('https://localhost:8095/health/ready').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 6
+    depends_on:
+      notifications-db:
+        condition: service_healthy
+      core:
+        condition: service_started
+    restart: unless-stopped
+
   web:
     image: streaming-local-web
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+    environment:
+      PORT: "3443"
+      WEB_TLS_CERT_FILE: /run/secrets/web.crt
+      WEB_TLS_KEY_FILE: /run/secrets/web.key
+      # SSR loaders read through this trusted upstream (the Gateway once SPEC-16 is deployed).
+      WEB_API_UPSTREAM: https://core:8081
+      NODE_EXTRA_CA_CERTS: /run/secrets/ca.crt
     volumes:
       - ${P1_STATE}/web.crt:/run/secrets/web.crt:ro
       - ${P1_STATE}/web.key:/run/secrets/web.key:ro
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    depends_on: [core]
     restart: unless-stopped
 
   proxy:
@@ -246,7 +327,7 @@ services:
     networks:
       default:
         ipv4_address: ${LOCAL_PROXY_IP:?Run init}
-    depends_on: [core, chat, live, media-server, web]
+    depends_on: [core, chat, live, media-server, notifications, web]
     restart: unless-stopped
 
 networks:
@@ -262,3 +343,4 @@ volumes:
   core-banners:
   chat-db:
   live-db:
+  notifications-db:

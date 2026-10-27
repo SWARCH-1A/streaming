@@ -36,16 +36,21 @@ public class CoreSecurityConfiguration {
             .sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .requestCache(c->c.disable())
             .authorizeHttpRequests(a->a
+                    // Role and current opaque session are checked by AdministrationService, as with other Core APIs.
+                    .requestMatchers(HttpMethod.GET,"/api/admin/users","/api/admin/channels").permitAll()
+                    .requestMatchers(HttpMethod.PUT,"/api/admin/users/*/status").permitAll()
                     .requestMatchers(HttpMethod.GET,"/api/identity/registrations/**","/api/identity/public/**",
                             "/api/identity/csrf","/api/profile/csrf","/api/profile/me","/api/profile/users/**",
                             "/api/profile/avatars/**","/api/channels/by-handle/*","/api/channels/by-owner/*","/api/channels/*",
                             "/api/channels/csrf","/api/channels/banners/*","/api/taxonomy",
+                            "/api/channels/*/followers/me","/api/me/followed-channels","/api/channels/*/vod-settings",
                             "/actuator/health","/actuator/health/**","/actuator/info").permitAll()
                     .requestMatchers(HttpMethod.POST,"/api/identity/registrations","/api/identity/sessions",
                             "/api/identity/recovery-requests","/api/identity/recoveries/confirm",
                             "/api/profile/me/avatar-uploads","/api/channels/*/banner-uploads","/api/discovery/graphql").permitAll()
                     .requestMatchers(HttpMethod.PATCH,"/api/profile/me","/api/channels/*").permitAll()
-                    .requestMatchers(HttpMethod.DELETE,"/api/identity/sessions/current").permitAll()
+                    .requestMatchers(HttpMethod.PUT,"/api/channels/*/followers/me","/api/channels/*/vod-settings").permitAll()
+                    .requestMatchers(HttpMethod.DELETE,"/api/identity/sessions/current","/api/channels/*/followers/me").permitAll()
                     .anyRequest().denyAll())
             .exceptionHandling(e->e.accessDeniedHandler((request,response,error)-> {
                 response.setStatus(403); response.setCharacterEncoding(java.nio.charset.StandardCharsets.UTF_8);
@@ -64,7 +69,7 @@ public class CoreSecurityConfiguration {
 
     @Bean CorsConfigurationSource corsConfigurationSource(@Value("${core.public-origin}") String origin) {
         CorsConfiguration c=new CorsConfiguration();
-        c.setAllowedOrigins(List.of(origin)); c.setAllowedMethods(List.of("GET","POST","PATCH","DELETE","OPTIONS"));
+        c.setAllowedOrigins(List.of(origin)); c.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
         c.setAllowedHeaders(List.of("Content-Type","Idempotency-Key","X-XSRF-TOKEN","X-Request-Id"));
         c.setExposedHeaders(List.of("X-Request-Id","Retry-After")); c.setAllowCredentials(true); c.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source=new UrlBasedCorsConfigurationSource(); source.registerCorsConfiguration("/**",c); return source;

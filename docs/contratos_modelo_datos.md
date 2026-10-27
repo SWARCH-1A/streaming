@@ -655,8 +655,9 @@ Las supresiones se aplican a live/replay. P2-11 concreta selección, alcance y l
 Notificaciones conserva bandeja, leído, preferencias, dispositivos e intentos. Un inicio LIVE
 genera un aviso lógico por destinatario/sesión; una reconexión de la misma sesión no crea otro.
 Correo y push requieren activación, combinando preferencias por canal e interruptor por medio.
-Los intentos se deduplican y reintentan independientemente. La entrega SMTP, su proveedor y el
-registro de dispositivos push están pendientes de implementación y pruebas en Notificaciones.
+Los intentos se deduplican y reintentan independientemente. La entrega SMTP y el
+registro de dispositivos se implementan en `services/notifications` según ADR-020; el proveedor
+push y su prueba real siguen pendientes.
 Las APIs `p2.notifications.*` están definidas; P2-12…13 cierran políticas de entrega y provisión.
 
 La suspensión revoca sesiones, impide acceso autenticado y emisión, detiene la fuente activa y

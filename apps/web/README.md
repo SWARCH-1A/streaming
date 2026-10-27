@@ -1,7 +1,23 @@
 # Web · Vault tv
 
-Vault tv es la interfaz Web de STREAMING. Es una SPA con React, TypeScript y SWC, gestionada
-con pnpm. Usa el diseño Dark Cinema Broadcast y organiza sus funciones en módulos internos.
+Vault tv es la interfaz Web de STREAMING: React y TypeScript con **React Router en modo framework y
+SSR** ([SPEC-18](../../docs/spec-p2/spec_18_ssr.md)), gestionada con pnpm. Usa el diseño Dark Cinema
+Broadcast y organiza sus funciones en módulos internos.
+
+## SSR (prototipo 2)
+
+- `src/app/root.tsx` arma el documento HTML y resuelve la sesión **de esa petición** en el servidor
+  (`loader`); el navegador hidrata con ese dato y no repite la consulta.
+- `src/app/routes.ts` declara las mismas URL del P1; cada archivo de `src/app/routes/` envuelve una
+  página existente. `/channels/:handle` tiene `loader`: el HTML ya trae el canal y, con sesión, el
+  estado de seguimiento (CA-01). La revalidación cada 4 s sigue en el navegador.
+- `src/server/api.server.ts` (solo servidor) reenvía únicamente las cookies `stream_session` y
+  `XSRF-TOKEN` a `WEB_API_UPSTREAM` (Core hoy; el Gateway cuando exista). Nunca a una URL de usuario.
+- El reproductor HLS y el WebSocket del chat se montan en efectos, después de hidratar.
+- HTML dependiente de identidad: `Cache-Control: no-store, private`; rutas inexistentes: 404 real.
+- `server.mjs` es el runtime de producción (HTTPS, assets con hash cacheados un año, resto por SSR).
+- Nuevas vistas: botón Seguir y aviso por correo en `/channels/:handle`, y `/notifications`
+  (bandeja, leído y medios de aviso).
 
 Para levantar el sistema completo, sigue el [Compose raíz y la guía local](../../README.md).
 [ADR-007](../../docs/adr/ADR-007-web-react-typescript.md) define la base;
@@ -17,19 +33,26 @@ pnpm check
 pnpm dev
 ```
 
+`pnpm check` incluye una prueba HTTP del build de producción (`pnpm test:ssr`) con API ficticia:
+HTML inicial, rutas de administración/notificaciones, cookies permitidas, aislamiento y 404.
+
 Las vistas funcionales necesitan los servicios. Si no están disponibles, muestran el error.
 Los datos de muestra se usan en pruebas y en la biblioteca de desarrollo.
 
 Para desarrollar por HTTP con Core:8081, Streaming:8080, Chat:8085 y HLS:8888 ya iniciados:
 
 ```sh
-VITE_P1_PROXY=1 pnpm dev
+VITE_P1_PROXY=1 WEB_API_UPSTREAM=http://127.0.0.1:8081 pnpm dev
 ```
+
+`pnpm check` incluye una prueba HTTP del build de producción (`pnpm test:ssr`) con API ficticia:
+HTML inicial, rutas de administración/notificaciones, cookies permitidas, aislamiento y 404.
 
 Abrir http://localhost:3000, el mismo WEB_ORIGIN de los proveedores. En PowerShell, primero
 `$env:VITE_P1_PROXY='1'`. Opcionalmente configurar CORE_DEV_UPSTREAM, STREAMING_DEV_UPSTREAM,
-CHAT_DEV_UPSTREAM y HLS_DEV_UPSTREAM; son variables del servidor Vite, no credenciales del browser.
-Vite solo sirve desarrollo. `pnpm build` genera dist; Caddy es la entrada integrada documentada
+CHAT_DEV_UPSTREAM, NOTIFICATIONS_DEV_UPSTREAM y HLS_DEV_UPSTREAM; son variables del servidor Vite, no credenciales del browser.
+`pnpm dev` ejecuta `react-router dev` (SSR con recarga). `pnpm build` genera `build/client` y
+`build/server`; `pnpm start` los sirve con `server.mjs`. Caddy es la entrada integrada documentada
 [con sus rutas](../../infra/reverse-proxy/README.md).
 
 El navegador integrado requiere los proveedores reales y no los inicia por sí mismo:
@@ -43,8 +66,8 @@ python tests/integration/p1-domains/run.py --web
 El runner construye servicios actuales, crea secretos ficticios efímeros, inicia Caddy y ejecuta
 `pnpm test:e2e` para escritorio/móvil; elimina únicamente su proyecto al finalizar.
 Fuera del runner, la suite E2E omite explícitamente los recorridos reales: un skip no es aceptación.
-`pnpm test:watch` y `pnpm test:coverage` sirven para pruebas locales; `pnpm preview` solo inspecciona
-el build y no sustituye el proxy. Axe/teclado complementan la revisión con lector de pantalla SPEC-08.
+`pnpm test:watch` y `pnpm test:coverage` sirven para pruebas locales; `pnpm start` sirve el build
+SSR y no sustituye el proxy. Axe/teclado complementan la revisión con lector de pantalla SPEC-08.
 
 ## Rutas y comportamiento
 

@@ -75,6 +75,19 @@ def validate_event_identity(value):
         if value["aggregateId"] != "recovery:" + payload["recoveryId"] or value["sequence"] != 1:
             raise ValueError("Recovery aggregate/sequence do not match payload")
         return
+    if kind == "notification.delivery.requested.v1":
+        if value["aggregateId"] != "delivery:" + payload["deliveryId"] or value["sequence"] != 1:
+            raise ValueError("Delivery aggregate/sequence do not match payload")
+        return
+    if kind == "channel.follow.changed.v1":
+        if (value["aggregateId"] != f"follow:{payload['channelId']}:{payload['followerUserId']}"
+                or value["sequence"] != payload["followVersion"]):
+            raise ValueError("Follow aggregate/sequence do not match payload")
+        return
+    if kind == "account.status.changed.v1":
+        if value["aggregateId"] != "account:" + payload["userId"] or value["sequence"] != payload["accountVersion"]:
+            raise ValueError("Account aggregate/sequence do not match payload")
+        return
     lifecycle = kind == "stream.session.changed.v1"
     key, version, prefix = ("sessionId", "sessionVersion", "session:") if lifecycle else ("streamId", "projectionVersion", "stream:")
     if value["aggregateId"] != prefix + payload[key] or value["sequence"] != payload[version]:
@@ -151,7 +164,9 @@ def verify(base, additions, merged, sdl):
         routes.add(identity)
         if not (ROOT / op["traceability"]).is_file() or op["timeoutMs"] <= 0:
             raise ValueError("Missing P2 traceability or timeout")
-        if op["method"] in {"POST", "PUT", "PATCH", "DELETE"} and "Idempotency-Key" not in op["requiredHeaders"]:
+        # contratos_p2_http.md: POST context/recipient queries are reads, not commands.
+        is_read = op.get("semantics") == "read" and op["method"] == "POST"
+        if op["method"] in {"POST", "PUT", "PATCH", "DELETE"} and not is_read and "Idempotency-Key" not in op["requiredHeaders"]:
             raise ValueError("P2 mutation lacks idempotency")
         for name in [op.get("query"), *(part.get("schema") for part in op.get("parts", {}).values())]:
             if name is not None:

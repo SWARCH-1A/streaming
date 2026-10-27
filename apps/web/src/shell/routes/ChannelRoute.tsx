@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import type { ChannelBootstrap } from '@contracts/p1';
+import type { P2Follow } from '@contracts/p2';
 
 import artwork from '@/public/images/signal-grid.svg';
 
@@ -9,12 +10,19 @@ import { Avatar } from '@/src/components/atoms/Avatar';
 import { Badge } from '@/src/components/atoms/Badge';
 import { Notice } from '@/src/components/molecules/Notice';
 import { Panel } from '@/src/components/molecules/Panel';
+import { FollowButton } from '@/src/modules/channels/entry';
 import { request } from '@/src/shared/api/http';
 import { useResource } from '@/src/shared/api/useResource';
 
 import styles from './ChannelRoute.module.css';
 
-export function ChannelRoute() {
+interface ChannelRouteProps {
+  /** Bootstrap rendered by the SSR loader; the browser only revalidates it every 4 s. */
+  initial?: ChannelBootstrap;
+  initialFollow?: P2Follow | null;
+}
+
+export function ChannelRoute({ initial, initialFollow = null }: ChannelRouteProps = {}) {
   const { handle = '' } = useParams();
   const resource = useResource(
     `channel:${handle}`,
@@ -23,6 +31,7 @@ export function ChannelRoute() {
         signal,
       }),
     4000,
+    initial,
   );
   const navigate = useNavigate();
   const canonical = resource.data?.handle;
@@ -48,6 +57,11 @@ export function ChannelRoute() {
             <h1>{profile.displayName}</h1>
             <p>@{canonical}</p>
           </div>
+          <FollowButton
+            channelId={channel.channelId}
+            ownerUserId={channel.ownerUserId}
+            initial={initialFollow}
+          />
           <Badge tone={availability === 'PLAYABLE' ? 'live' : 'neutral'}>
             {availability === 'PLAYABLE'
               ? 'En vivo'

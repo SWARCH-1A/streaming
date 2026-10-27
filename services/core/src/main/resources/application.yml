@@ -49,6 +49,8 @@ core:
     streaming-catalog-service-token: ${CORE_STREAMING_CATALOG_SERVICE_TOKEN:}
     chat-service-token: ${CHAT_CORE_SERVICE_TOKEN:}
     recovery-service-token: ${CORE_RECOVERY_SERVICE_TOKEN:}
+    notifications-service-token: ${CORE_NOTIFICATIONS_SERVICE_TOKEN:}
+    recording-settings-service-token: ${CORE_RECORDING_SETTINGS_SERVICE_TOKEN:}
     tls-keystore: ${CORE_INTERNAL_TLS_KEYSTORE:}
     tls-keystore-password: ${CORE_INTERNAL_TLS_KEYSTORE_PASSWORD:}
   streaming:

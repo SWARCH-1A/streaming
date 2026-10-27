@@ -34,17 +34,17 @@
   {
     "eventType": "channel.follow.changed.v1",
     "producers": ["core"],
-    "schema": null,
-    "spec": ["SPEC-17", "SPEC-10"],
-    "status": "pending-owner",
+    "schema": "P2EventChannelFollowChanged",
+    "spec": ["SPEC-03", "SPEC-17", "SPEC-20", "SPEC-10"],
+    "status": "contract-ready",
     "subscriptions": ["notifications.follow"]
   },
   {
     "eventType": "account.status.changed.v1",
     "producers": ["core"],
-    "schema": null,
+    "schema": "P2EventAccountStatusChanged",
     "spec": ["SPEC-17", "SPEC-10"],
-    "status": "pending-owner",
+    "status": "contract-ready",
     "subscriptions": ["streaming.account", "chat.account", "vod.account", "notifications.account"]
   },
   {
@@ -58,9 +58,9 @@
   {
     "eventType": "notification.delivery.requested.v1",
     "producers": ["notifications"],
-    "schema": null,
-    "spec": ["SPEC-17", "SPEC-10"],
-    "status": "pending-owner",
+    "schema": "P2EventNotificationDeliveryRequested",
+    "spec": ["SPEC-20", "SPEC-17", "SPEC-10"],
+    "status": "contract-ready",
     "subscriptions": ["notifications.delivery.inbox", "notifications.delivery.email", "notifications.delivery.push"]
   },
   {

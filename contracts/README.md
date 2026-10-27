@@ -52,6 +52,8 @@ uno a cuatro IDs distintos y metadatos realmente anunciados por Media. El checke
 relaciones además de la forma; se generan con el mismo comando `check_p2.py --write` que los
 contratos del broker, Recuperación y Subtítulos. No se añaden eventos ni suscripciones de calidad:
 la consulta es HTTP y las variantes comparten el ciclo, la sesión y el cupo existentes.
+Administración añade listados y cambios de estado en `p2.admin.*`, y el evento
+`account.status.changed.v1`. Su aceptación transversal sigue pendiente de P2-17.
 
 ## Perfil de subtítulos VOD
 
@@ -67,7 +69,7 @@ python -m unittest discover -s tests/contracts -p 'test_*.py'
 La duración usada en pruebas es ficticia; el futuro proveedor debe consultar la duración/mapping
 de VOD y aplicar permisos. No se acredita VOD funcional ni se decide su runtime mediante Python.
 
-Las cuatro operaciones `p2.subtitles.*` son `contract-only`. El mismo generador conserva Recuperación.
+Las cuatro operaciones `p2.subtitles.*` son `contract-only`. El mismo generador conserva Recuperación y Administración.
 Prueba adicional con Ajv (tras instalar las dependencias Web):
 
 ```sh

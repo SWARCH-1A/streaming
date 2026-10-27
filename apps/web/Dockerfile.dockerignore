@@ -12,3 +12,5 @@ apps/web/playwright-report
 apps/web/.cache
 **/*.tsbuildinfo
 **/.env*
+apps/web/build
+apps/web/.react-router
