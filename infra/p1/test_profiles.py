@@ -143,7 +143,8 @@ class Profiles(unittest.TestCase):
                     with patch("sys.argv", ["dev.py", action]):
                         local.main()
                 initialize.assert_called_once_with()
-                self.assertEqual(bootstrap.call_count, 2)
+                # Broker, Cuentas recovery and Notifications initializers (each keeps existing state).
+                self.assertEqual(bootstrap.call_count, 3)
                 bootstrap.assert_called_with(env, local.STATE, local.run)
                 ready.assert_called_once_with(env)
                 command.assert_any_call(env, "--profile", "tools", "build", s3=False, broker=True, timeout=1800)
