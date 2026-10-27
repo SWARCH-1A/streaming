@@ -1,6 +1,6 @@
 """Disposable Core/PostgreSQL/Caddy + real Web/Chromium administration check.
 
-Build services/core/target/core.jar and apps/web/dist from the current checkout first.
+Build services/core/target/core.jar first. Web SSR is built from the current checkout by this runner.
 HTTP is confined to a private fixture network and a random loopback port. No demo volumes.
 """
 from pathlib import Path
@@ -24,13 +24,12 @@ def run(*args, env=None, check=True):
 
 def main():
     jar = ROOT / "services/core/target/core.jar"
-    web = ROOT / "apps/web/dist"
-    for output, sources in ((jar, ROOT / "services/core/src"), (web / "index.html", ROOT / "apps/web/src")):
+    for output, sources in ((jar, ROOT / "services/core/src/main"),):
         if not output.exists() or any(p.stat().st_mtime > output.stat().st_mtime for p in sources.rglob("*") if p.is_file()):
             raise RuntimeError(f"Build the current checkout first: {output.relative_to(ROOT)}")
     prefix = "streaming-admin-test-" + uuid.uuid4().hex[:10]
-    names = [prefix + suffix for suffix in ("-db", "-core", "-proxy")]
-    db, core, proxy = names
+    names = [prefix + suffix for suffix in ("-db", "-core", "-web", "-proxy")]
+    db, core, web, proxy = names
     env = {**os.environ, "POSTGRES_PASSWORD": secrets.token_urlsafe(32),
            "CORE_RATE_LIMIT_HMAC_SECRET": secrets.token_urlsafe(48)}
     env.update(CORE_DB_PASSWORD=env["POSTGRES_PASSWORD"], CORE_DB_USER="fixture",
@@ -39,12 +38,16 @@ def main():
                PROFILE_AVATAR_STORAGE="/tmp/avatars", CHANNELS_BANNER_STORAGE="/tmp/banners")
     run("docker", "network", "create", prefix)
     try:
-        run("docker", "run", "--rm", "-d", "--name", db, "--network", prefix,
+        run("docker", "build", "-t", web, "-f", "apps/web/Dockerfile", ".")
+        run("docker", "run", "--rm", "-d", "--name", db, "--network", prefix, "--tmpfs", "/var/lib/postgresql",
             "-e", "POSTGRES_USER=fixture", "-e", "POSTGRES_DB=core", "-e", "POSTGRES_PASSWORD", "postgres:18-alpine", env=env)
+        run("docker", "run", "--rm", "-d", "--name", web, "--network", prefix,
+            "-e", "PORT=3000", "-e", "WEB_API_UPSTREAM=http://" + core + ":8081", web)
         run("docker", "run", "--rm", "-d", "--name", proxy, "--network", prefix,
             "-p", "127.0.0.1::3000", "-e", "CORE_UPSTREAM=http://" + core + ":8081",
+            "-e", "WEB_UPSTREAM=http://" + web + ":3000",
             "--mount", f"type=bind,source={ROOT / 'infra/reverse-proxy/Caddyfile'},target=/etc/caddy/Caddyfile,readonly",
-            "--mount", f"type=bind,source={web},target=/srv,readonly", "caddy:2-alpine")
+            "caddy:2-alpine")
         port = run("docker", "port", proxy, "3000/tcp").rsplit(":", 1)[1]
         origin = "http://127.0.0.1:" + port
         env["WEB_ORIGIN"] = origin
@@ -71,8 +74,9 @@ def main():
         subprocess.run(["node", str(Path(__file__).with_name("browser.mjs"))], cwd=ROOT, env=env, check=True)
     finally:
         for name in reversed(names):
-            run("docker", "rm", "-f", name, check=False)
+            run("docker", "rm", "-fv", name, check=False)
         run("docker", "network", "rm", prefix, check=False)
+        run("docker", "image", "rm", web, check=False)
 
 
 if __name__ == "__main__":

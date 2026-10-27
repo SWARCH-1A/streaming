@@ -13,7 +13,7 @@ python tests/integration/administration/run.py
 ```
 
 El runner rechaza artefactos más antiguos que sus fuentes. Levanta PostgreSQL, el jar Core
-y Caddy con el build real de Web. Usa nombres aleatorios, ningún volumen de la aplicación,
+y Caddy con el runtime SSR real de Web, construido por el runner desde este checkout. Usa nombres aleatorios, ningún volumen de la aplicación,
 puerto público aleatorio en loopback y HTTP exclusivamente en esta fixture aislada.
 Genera secretos efímeros; elimina sus contenedores/red al terminar, incluso ante error.
 

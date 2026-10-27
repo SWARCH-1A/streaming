@@ -1158,6 +1158,27 @@
       "required": ["userId", "accountVersion", "status"],
       "type": "object"
     },
+    "P2Autopublish": {
+      "additionalProperties": false,
+      "examples": [{"channelId": "chn_fixture", "enabled": true, "version": 1}],
+      "properties": {
+        "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "enabled": {"type": "boolean"},
+        "version": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": ["channelId", "enabled", "version"],
+      "type": "object"
+    },
+    "P2AutopublishUpdate": {
+      "additionalProperties": false,
+      "examples": [{"enabled": false, "expectedVersion": 1}],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "expectedVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": ["enabled", "expectedVersion"],
+      "type": "object"
+    },
     "P2ChannelAdmin": {
       "additionalProperties": false,
       "examples": [{"channelId": "chn_fixture", "channelVersion": 0, "ownerUserId": "usr_fixture"}],
@@ -1179,6 +1200,30 @@
       "required": ["items", "nextCursor"],
       "type": "object"
     },
+    "P2ChannelPreference": {
+      "additionalProperties": false,
+      "description": "A medium is used for a channel only when both the general switch and this channel switch are on.",
+      "examples": [{"channelId": "chn_fixture", "emailEnabled": true, "pushEnabled": false, "version": 2}],
+      "properties": {
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "emailEnabled": {"type": "boolean"},
+        "pushEnabled": {"type": "boolean"},
+        "version": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": ["channelId", "emailEnabled", "pushEnabled", "version"],
+      "type": "object"
+    },
+    "P2ChannelPreferences": {
+      "additionalProperties": false,
+      "examples": [{"emailEnabled": true, "expectedVersion": 1, "pushEnabled": false}],
+      "properties": {
+        "emailEnabled": {"type": "boolean"},
+        "expectedVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "pushEnabled": {"type": "boolean"}
+      },
+      "required": ["emailEnabled", "pushEnabled", "expectedVersion"],
+      "type": "object"
+    },
     "P2DeliveryResult": {
       "additionalProperties": false,
       "examples": [{"attempt": 1, "deliveryId": "del_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "status": "DELIVERED"}],
@@ -1188,6 +1233,47 @@
         "status": {"enum": ["DELIVERED", "RETRYABLE_FAILURE", "PERMANENT_FAILURE", "UNKNOWN"]}
       },
       "required": ["deliveryId", "attempt", "status"],
+      "type": "object"
+    },
+    "P2Device": {
+      "additionalProperties": false,
+      "examples": [{"enabled": true, "installationId": "ins_fixture", "platform": "ANDROID", "version": 1}],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "installationId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "platform": {"enum": ["ANDROID", "IOS", "WEB"]},
+        "version": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": ["installationId", "platform", "enabled", "version"],
+      "type": "object"
+    },
+    "P2DeviceRegister": {
+      "additionalProperties": false,
+      "examples": [{"installationId": "ins_fixture", "platform": "ANDROID", "providerToken": "fixture-provider-value"}],
+      "properties": {
+        "installationId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "platform": {"enum": ["ANDROID", "IOS", "WEB"]},
+        "providerToken": {"maxLength": 4096, "minLength": 1, "type": "string"}
+      },
+      "required": ["installationId", "platform", "providerToken"],
+      "type": "object"
+    },
+    "P2EmailTarget": {
+      "additionalProperties": false,
+      "description": "Private; read only at delivery time and never stored by Notifications.",
+      "examples": [{"email": "fixture@example.test", "userId": "usr_fixture"}],
+      "properties": {
+        "email": {"format": "email", "maxLength": 320, "type": "string"},
+        "userId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["userId", "email"],
+      "type": "object"
+    },
+    "P2EmailTargetRequest": {
+      "additionalProperties": false,
+      "examples": [{"userId": "usr_fixture"}],
+      "properties": {"userId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}},
+      "required": ["userId"],
       "type": "object"
     },
     "P2EventAccountStatusChanged": {
@@ -1229,6 +1315,63 @@
       ],
       "type": "object"
     },
+    "P2EventChannelFollowChanged": {
+      "additionalProperties": false,
+      "description": "Consumers keep the highest followVersion per aggregate and discard older or equal versions.",
+      "examples": [
+        {
+          "aggregateId": "follow:chn_fixture:usr_fixture",
+          "correlationId": "req_fixture",
+          "eventId": "22222222-2222-4222-8222-222222222222",
+          "eventType": "channel.follow.changed.v1",
+          "occurredAtUtc": "2026-10-26T18:00:00Z",
+          "payload": {
+            "changedAtUtc": "2026-10-26T18:00:00Z",
+            "channelId": "chn_fixture",
+            "followVersion": 2,
+            "followerUserId": "usr_fixture",
+            "following": false
+          },
+          "producer": "core",
+          "schemaVersion": 1,
+          "sequence": 2
+        }
+      ],
+      "properties": {
+        "aggregateId": {"pattern": "^follow:[A-Za-z0-9_-]{1,64}:[A-Za-z0-9_-]{1,64}$", "type": "string"},
+        "correlationId": {"pattern": "^[A-Za-z0-9_-]{1,128}$", "type": "string"},
+        "eventId": {"format": "uuid", "type": "string"},
+        "eventType": {"const": "channel.follow.changed.v1"},
+        "occurredAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "changedAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+            "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+            "followVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+            "followerUserId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+            "following": {"type": "boolean"}
+          },
+          "required": ["channelId", "followerUserId", "following", "followVersion", "changedAtUtc"],
+          "type": "object"
+        },
+        "producer": {"const": "core"},
+        "schemaVersion": {"const": 1},
+        "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "producer",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "correlationId",
+        "payload"
+      ],
+      "type": "object"
+    },
     "P2EventCredentialRecoveryDeliveryRequested": {
       "additionalProperties": false,
       "examples": [
@@ -1263,6 +1406,56 @@
         "producer": {"const": "core"},
         "schemaVersion": {"const": 1},
         "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "producer",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "correlationId",
+        "payload"
+      ],
+      "type": "object"
+    },
+    "P2EventNotificationDeliveryRequested": {
+      "additionalProperties": false,
+      "description": "A pointer to one delivery row; the worker reads the address or device at send time. Routing key suffix = lower-case medium.",
+      "examples": [
+        {
+          "aggregateId": "delivery:dlv_fixture",
+          "correlationId": "req_fixture",
+          "eventId": "44444444-4444-4444-8444-444444444444",
+          "eventType": "notification.delivery.requested.v1",
+          "occurredAtUtc": "2026-10-26T18:00:00Z",
+          "payload": {"deliveryId": "dlv_fixture", "medium": "EMAIL", "notificationId": "ntf_fixture", "targetId": "usr_fixture"},
+          "producer": "notifications",
+          "schemaVersion": 1,
+          "sequence": 1
+        }
+      ],
+      "properties": {
+        "aggregateId": {"pattern": "^delivery:[A-Za-z0-9_-]{1,128}$", "type": "string"},
+        "correlationId": {"pattern": "^[A-Za-z0-9_-]{1,128}$", "type": "string"},
+        "eventId": {"format": "uuid", "type": "string"},
+        "eventType": {"const": "notification.delivery.requested.v1"},
+        "occurredAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "deliveryId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+            "medium": {"enum": ["INBOX", "EMAIL", "PUSH"]},
+            "notificationId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+            "targetId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+          },
+          "required": ["deliveryId", "notificationId", "medium", "targetId"],
+          "type": "object"
+        },
+        "producer": {"const": "notifications"},
+        "schemaVersion": {"const": 1},
+        "sequence": {"const": 1}
       },
       "required": [
         "eventId",
@@ -1468,13 +1661,199 @@
       ],
       "type": "object"
     },
+    "P2Follow": {
+      "additionalProperties": false,
+      "description": "followVersion 0 means the relation never existed; unfollow keeps and increments the version.",
+      "examples": [
+        {"channelId": "chn_fixture", "followVersion": 1, "followedAtUtc": "2026-10-26T18:00:00Z", "following": true},
+        {"channelId": "chn_fixture", "followVersion": 2, "followedAtUtc": null, "following": false}
+      ],
+      "properties": {
+        "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "followVersion": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "followedAtUtc": {"format": "date-time", "pattern": "Z$", "type": ["string", "null"]},
+        "following": {"type": "boolean"}
+      },
+      "required": ["channelId", "following", "followVersion", "followedAtUtc"],
+      "type": "object"
+    },
+    "P2FollowPage": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "items": [{"channelId": "chn_fixture", "followVersion": 1, "followedAtUtc": "2026-10-26T18:00:00Z"}],
+          "nextCursor": null
+        }
+      ],
+      "properties": {
+        "items": {"items": {"$ref": "#/$defs/P2FollowedChannel"}, "maxItems": 50, "type": "array"},
+        "nextCursor": {"maxLength": 512, "type": ["string", "null"]}
+      },
+      "required": ["items", "nextCursor"],
+      "type": "object"
+    },
+    "P2FollowedChannel": {
+      "additionalProperties": false,
+      "examples": [{"channelId": "chn_fixture", "followVersion": 1, "followedAtUtc": "2026-10-26T18:00:00Z"}],
+      "properties": {
+        "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "followVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "followedAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"}
+      },
+      "required": ["channelId", "followedAtUtc", "followVersion"],
+      "type": "object"
+    },
+    "P2MediumPreferences": {
+      "additionalProperties": false,
+      "examples": [{"emailEnabled": true, "expectedVersion": 1, "pushEnabled": false}],
+      "properties": {
+        "emailEnabled": {"type": "boolean"},
+        "expectedVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "pushEnabled": {"type": "boolean"}
+      },
+      "required": ["emailEnabled", "pushEnabled", "expectedVersion"],
+      "type": "object"
+    },
+    "P2Notification": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "channelId": "chn_fixture",
+          "createdAtUtc": "2026-10-26T18:00:00Z",
+          "kind": "LIVE_STARTED",
+          "linkPath": "/channels/canal_laura",
+          "notificationId": "ntf_fixture",
+          "readAtUtc": null,
+          "sessionId": "ses_fixture",
+          "title": "Canal de Laura está en vivo"
+        }
+      ],
+      "properties": {
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "createdAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "kind": {"enum": ["LIVE_STARTED"]},
+        "linkPath": {"maxLength": 512, "pattern": "^/[^\\s]*$", "type": "string"},
+        "notificationId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "readAtUtc": {"format": "date-time", "pattern": "Z$", "type": ["string", "null"]},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "title": {"maxLength": 200, "minLength": 1, "type": "string"}
+      },
+      "required": ["notificationId", "kind", "channelId", "sessionId", "title", "linkPath", "createdAtUtc", "readAtUtc"],
+      "type": "object"
+    },
+    "P2NotificationPage": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "items": [
+            {
+              "channelId": "chn_fixture",
+              "createdAtUtc": "2026-10-26T18:00:00Z",
+              "kind": "LIVE_STARTED",
+              "linkPath": "/channels/canal_laura",
+              "notificationId": "ntf_fixture",
+              "readAtUtc": null,
+              "sessionId": "ses_fixture",
+              "title": "Canal de Laura está en vivo"
+            }
+          ],
+          "nextCursor": null
+        }
+      ],
+      "properties": {
+        "items": {"items": {"$ref": "#/$defs/P2Notification"}, "maxItems": 50, "type": "array"},
+        "nextCursor": {"maxLength": 512, "type": ["string", "null"]}
+      },
+      "required": ["items", "nextCursor"],
+      "type": "object"
+    },
+    "P2NotificationSession": {
+      "additionalProperties": false,
+      "examples": [{"expiresAtUtc": "2026-10-27T18:00:00Z", "userId": "usr_fixture"}],
+      "properties": {
+        "expiresAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "userId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["userId", "expiresAtUtc"],
+      "type": "object"
+    },
     "P2PageQuery": {
       "additionalProperties": false,
-      "examples": [{"limit": 50}],
+      "examples": [{}, {"limit": 20}, {"limit": 50}],
       "properties": {
-        "cursor": {"maxLength": 512, "type": "string"},
+        "cursor": {"maxLength": 512, "minLength": 1, "type": "string"},
         "limit": {"default": 20, "maximum": 50, "minimum": 1, "type": "integer"}
       },
+      "type": "object"
+    },
+    "P2Preferences": {
+      "additionalProperties": false,
+      "description": "Email and push are off by default (version 1); the inbox is always on.",
+      "examples": [{"emailEnabled": false, "pushEnabled": false, "version": 1}],
+      "properties": {
+        "emailEnabled": {"type": "boolean"},
+        "pushEnabled": {"type": "boolean"},
+        "version": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": ["emailEnabled", "pushEnabled", "version"],
+      "type": "object"
+    },
+    "P2Recipients": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "capturedAtUtc": "2026-10-26T18:00:00Z",
+          "channelId": "chn_fixture",
+          "expiresAtUtc": "2026-10-26T19:00:00Z",
+          "items": [{"userId": "usr_fixture"}],
+          "nextCursor": null,
+          "sessionId": "ses_fixture",
+          "snapshotId": "rsn_fixture",
+          "totalRecipients": 1
+        }
+      ],
+      "properties": {
+        "capturedAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "expiresAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {"userId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}},
+            "required": ["userId"],
+            "type": "object"
+          },
+          "maxItems": 50,
+          "type": "array"
+        },
+        "nextCursor": {"maxLength": 512, "type": ["string", "null"]},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "snapshotId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "totalRecipients": {"minimum": 0, "type": "integer"}
+      },
+      "required": [
+        "snapshotId",
+        "channelId",
+        "sessionId",
+        "capturedAtUtc",
+        "expiresAtUtc",
+        "totalRecipients",
+        "items",
+        "nextCursor"
+      ],
+      "type": "object"
+    },
+    "P2RecipientsRequest": {
+      "additionalProperties": false,
+      "description": "First page (no cursor) captures or reuses one cut per channelId/sessionId; later pages read only that cut.",
+      "examples": [{"channelId": "chn_fixture", "limit": 50, "sessionId": "ses_fixture"}],
+      "properties": {
+        "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "cursor": {"maxLength": 512, "minLength": 1, "type": "string"},
+        "limit": {"default": 20, "maximum": 50, "minimum": 1, "type": "integer"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["channelId", "sessionId"],
       "type": "object"
     },
     "P2RecoveryAccepted": {

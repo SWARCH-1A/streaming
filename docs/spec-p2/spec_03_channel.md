@@ -1,6 +1,6 @@
 # SPEC-03 — Canales y seguimiento
 
-**Prioridad:** P2. **Responsable:** Core / Canales. **Estado:** diseño para desarrollo.
+**Prioridad:** P2. **Responsable:** Core / Canales. **Estado:** implementado parcialmente: CA-07 depende de P2-17 y la copia de CA-08 requiere integración con Streaming.
 **RF:** RF-008…016, 077, 080. **RNF:** RNF-014, 022…032, 038…042, 046…050.
 
 ## 1. Contexto y problema
@@ -32,14 +32,17 @@ se propone como configuración del canal y debe ratificarse con VOD antes de fij
 
 ## 6. Criterios de aceptación
 
-- [ ] CA-01: registro sigue creando exactamente un canal; edición/portada conservan permisos y validación base.
-- [ ] CA-02: dos PUT follow concurrentes producen una sola relación; repetir PUT/DELETE no duplica el cambio ni versión.
-- [ ] CA-03: visitante no modifica follow; el userId se obtiene del principal y no del cuerpo.
-- [ ] CA-04: lista seguida y estado por canal concuerdan tras commit y se paginan sin repetir ni omitir dentro del snapshot.
-- [ ] CA-05: relación y outbox confirman juntos; reiniciar o perder ACK no pierde el aviso de cambio.
-- [ ] CA-06: destinatarios solo son accesibles por credencial privada limitada, sin devolver email ni tokens.
+- [x] CA-01: registro sigue creando exactamente un canal; edición/portada conservan permisos y validación base.
+- [x] CA-02: dos PUT follow concurrentes producen una sola relación; repetir PUT/DELETE no duplica el cambio ni versión.
+- [x] CA-03: visitante no modifica follow; el userId se obtiene del principal y no del cuerpo.
+- [x] CA-04: lista seguida y estado por canal concuerdan tras commit y se paginan sin repetir ni omitir dentro del snapshot.
+- [x] CA-05: relación y outbox confirman juntos; reiniciar o perder ACK no pierde el aviso de cambio.
+- [x] CA-06: destinatarios solo son accesibles por credencial privada limitada, sin devolver email ni tokens.
 - [ ] CA-07: canal suspendido aparece indisponible y no permite eludir acceso a su live/VOD.
 - [ ] CA-08: autopublicación por defecto es true, update concurrente usa versión y una sesión iniciada conserva su copia.
+
+La API de autopublicación conserva el valor y su versión; este checkout todavía no implementa
+la copia al iniciar sesión en Streaming. CA-08 permanece abierta hasta verificarla.
 
 ## 7. Diseño técnico y datos
 
@@ -62,8 +65,8 @@ Gateway compone VOD/seguimiento en [SPEC-16](spec_16_gateway.md).
 
 ## 9. Decisiones y preguntas abiertas
 
-P2-16: política y vencimiento del snapshot de destinatarios, cuotas y seguimiento de canal
-indisponible. P2-09: ratificar Core como dueño de la preferencia de canal. El contrato CRUD y
+P2-16 (propuesta implementada): un corte de destinatarios por canal/sesión, reutilizado y válido
+1 h; cursores HMAC de 1 h; 410 al vencer. Falta ratificar cuotas y el trato de canal indisponible. P2-09: ratificar Core como dueño de la preferencia de canal. El contrato CRUD y
 sus formas están en P2; no requiere decidir un nuevo lenguaje o motor.
 
 ## 10. Verificación

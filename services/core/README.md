@@ -292,6 +292,11 @@ operador a la base; no se expone por HTTP. Valida la cuenta, provisiona ADMIN, a
 sesiones anteriores. Volver a iniciar sesión y abrir `/admin` desde el origen público.
 Si se repite no duplica la auditoría de provisión; vuelve a revocar sesiones existentes.
 
+V11 incorpora seguimiento y autopublicación de canal; V10 queda reservada a Administración.
+Si una instalación experimental aplicó `V10__channel_follows.sql`, detener la actualización y
+conservar el volumen y un respaldo: ese historial necesita una transición explícita antes de
+aplicar V10 de develop y V11. No usar `repair` para ocultar la colisión ni borrar datos.
+
 V10 preserva identidades/perfiles/canales y asigna USER/ACTIVE/version 0 a cuentas previas.
 V9 corresponde exclusivamente a recuperación de credenciales (ADR-017); Administración
 usa V10 y ADR-019. Antes de actualizar una base de una revisión experimental de este PR,

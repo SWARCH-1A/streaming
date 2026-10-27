@@ -7,9 +7,22 @@ import { errorMessage, HttpError, request } from '@/src/shared/api/http';
 import type { SessionUser } from './Session.types';
 import { SessionContext } from './SessionContext';
 
-export function SessionProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<SessionUser | null>(null);
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+/**
+ * `initial` is the session resolved by the SSR loader for this request. When present the browser
+ * hydrates with it and skips the first probe; without it (tests, SPA fallback) the probe runs as before.
+ */
+export function SessionProvider({
+  children,
+  initial,
+}: {
+  children: ReactNode;
+  initial?: SessionUser | null;
+}) {
+  const [user, setUser] = useState<SessionUser | null>(initial ?? null);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>(
+    initial === undefined ? 'loading' : 'ready',
+  );
+  const resolvedOnServer = useRef(initial !== undefined);
   const [error, setError] = useState<string | null>(null);
   const generation = useRef({ version: 0 });
   const refresh = useCallback(async (signal?: AbortSignal, requireSession = false) => {
@@ -51,6 +64,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const lifecycle = generation.current;
     const abort = new AbortController();
     queueMicrotask(() => {
+      if (resolvedOnServer.current) {
+        resolvedOnServer.current = false;
+        return;
+      }
       if (!abort.signal.aborted) void refresh(abort.signal);
     });
     function expire() {

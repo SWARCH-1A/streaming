@@ -8,21 +8,26 @@ export interface Resource<T> {
   loading: boolean;
 }
 // A key change hides the old result immediately; cleanup prevents late writes across routes/users.
+/**
+ * `initial` is data already rendered by the server for this key: the hook starts with it and only
+ * revalidates after `interval`, so hydration does not repeat the first request.
+ */
 export function useResource<T>(
   key: string,
   load: (signal: AbortSignal) => Promise<T>,
   interval = 0,
+  initial?: T,
 ): Resource<T> {
   const loader = useRef(load);
   useEffect(() => {
     loader.current = load;
   });
-  const [state, setState] = useState<Resource<T> & { key: string }>({
-    key: '',
-    data: null,
-    error: null,
-    loading: true,
-  });
+  const [state, setState] = useState<Resource<T> & { key: string }>(
+    initial === undefined
+      ? { key: '', data: null, error: null, loading: true }
+      : { key, data: initial, error: null, loading: false },
+  );
+  const seeded = useRef(initial === undefined ? null : key);
   useEffect(() => {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
@@ -40,7 +45,15 @@ export function useResource<T>(
           }, interval);
       }
     }
-    void read();
+    if (seeded.current === key && interval) {
+      seeded.current = null;
+      timer = setTimeout(() => {
+        void read();
+      }, interval);
+    } else {
+      seeded.current = null;
+      void read();
+    }
     return () => {
       controller.abort();
       clearTimeout(timer);

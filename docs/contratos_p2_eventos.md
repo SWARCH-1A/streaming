@@ -1,7 +1,7 @@
 # Contratos de eventos y trabajos P2
 
 [contracts/p2.json](../contracts/p2.json) registra tipos, productores y suscripciones. Los envelopes/payloads ejecutables
-de ciclo, Discovery y recuperación están definidos; las otras seis familias siguen como pending-owner,
+de ciclo, Discovery, recuperación, seguimiento y entregas de Notificaciones están definidos; las otras cuatro familias siguen como pending-owner,
 sin schemas vacíos que simulen disponibilidad. [SPEC-17](spec-p2/spec_17_broker.md) define entrega y operación.
 Los nombres son lógicos; su mapeo a exchanges/topics/streams/queues depende del broker elegido.
 
@@ -121,10 +121,10 @@ añaden .inbox/.email/.push. El eventType del envelope no cambia. Cada suscripci
 propia; p2.redelivery devuelve solo a la suscripción original. Los filtros no inspeccionan JSON.
 
 La integración conecta ciclo a Core/Chat, snapshots a Discovery y publica trabajos opacos de
-recuperación en `notifications.recovery.email`. Su consumidor y SMTP están pendientes de
-Notificaciones. Core también publica cambios de estado de cuenta; sus consumidores siguen pendientes. VOD y las demás funciones de Notificaciones requieren sus
-payloads y operaciones de dominio antes de activar productores. La recuperación incorpora sus
-operaciones HTTP; los contratos HTTP/WS/media P2 restantes siguen pendientes.
+recuperación en `notifications.recovery.email`, consumida por `services/notifications` con SMTP
+según ADR-020. Notificaciones también consume follows y el primer LIVE, y publica entregas por
+medio. Core publica cambios de estado de cuenta; sus consumidores siguen pendientes de P2-17.
+VOD y las demás familias aún pendientes requieren contratos antes de activar productores.
 
 ## Integración de recuperación entre Cuentas y Notificaciones
 
@@ -138,7 +138,7 @@ El broker conserva el usuario y permisos `recovery-email` para esta suscripción
 lógica de consumo y no selecciona el runtime de Notificaciones. Su credencial se provisiona de
 forma privada por Integración, separada del token HTTP de Core.
 
-El responsable de Notificaciones implementará validación/deduplicación, persistencia durable,
+Notificaciones implementa validación/deduplicación, persistencia durable,
 envío SMTP y reintentos/DLQ conforme a ADR-016. Antes de enviar debe obtener destinatario, enlace
 y vencimiento mediante `p2.recovery.delivery-claim`, y después registrar el resultado mediante
 `p2.recovery.delivery-result`, con la identidad privada `recovery-email` y claves idempotentes.
@@ -147,8 +147,10 @@ No consulta tablas Core ni incluye dirección/token/enlace en eventos, logs o re
 No reenvía una entrega confirmada ni interpreta UNKNOWN como autorización para repetir SMTP.
 Un trabajo expirado o invalidado obtiene 410 y no permite emitir un enlace nuevo.
 
-La publicación de Cuentas y el contrato están disponibles. El consumidor, su tecnología y la
-entrega de correo no forman parte de esta implementación y conservan aceptación pendiente.
+La publicación de Cuentas, el consumidor y el adaptador SMTP están implementados;
+[ADR-020](adr/ADR-020-notificaciones-typescript-postgresql-smtp.md) registra la tecnología. Las pruebas
+del consumidor con PostgreSQL y del adaptador con Mailpit STARTTLS no sustituyen la aceptación
+integrada completa de solicitud, broker, claim, entrega y confirmación de RF-004.
 
 ## Publicación de estado de cuenta
 

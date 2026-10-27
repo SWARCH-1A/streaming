@@ -43,6 +43,14 @@ services:
       CHAT_EVENTS_TRANSPORT: amqp
       CHAT_BROKER_URL: amqps://chat:${BROKER_CHAT_PASSWORD:?Run python3 infra/local/dev.py init}@broker:5671/streaming-p2?heartbeat=30
       CHAT_BROKER_CA_FILE: /run/secrets/ca.crt
+  notifications:
+    environment:
+      NOTIFICATIONS_BROKER_URL: amqps://notifications:${BROKER_NOTIFICATIONS_PASSWORD:?Run python3 infra/local/dev.py init}@broker:5671/streaming-p2?heartbeat=30
+      NOTIFICATIONS_RECOVERY_BROKER_URL: amqps://recovery-email:${BROKER_RECOVERY_EMAIL_PASSWORD:?Run python3 infra/local/dev.py init}@broker:5671/streaming-p2?heartbeat=30
+      NOTIFICATIONS_RECOVERY_SERVICE_TOKEN: ${CORE_RECOVERY_SERVICE_TOKEN:?Run python3 infra/local/dev.py init}
+    depends_on:
+      broker:
+        condition: service_healthy
   broker-ops:
     profiles: [tools]
     build:
