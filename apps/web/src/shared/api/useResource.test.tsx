@@ -33,7 +33,12 @@ describe('resource lifecycle', () => {
   it('hydrates with server data without repeating the first request', async () => {
     const load = vi.fn(() => Promise.resolve('fresh'));
     const { result, unmount } = renderHook(() => useResource('ssr', load, 20, 'from-server'));
-    expect(result.current).toEqual({ key: 'ssr', data: 'from-server', error: null, loading: false });
+    expect(result.current).toEqual({
+      key: 'ssr',
+      data: 'from-server',
+      error: null,
+      loading: false,
+    });
     expect(load).not.toHaveBeenCalled();
     // Revalidation keeps running on its interval after hydration.
     await waitFor(() => expect(result.current.data).toBe('fresh'));
