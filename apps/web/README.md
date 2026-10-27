@@ -79,6 +79,14 @@ y usa HLS nativo si MediaSource/hls.js no está disponible. Solo carga el medio 
 Un frame decodificado inicia el lease, que se renueva cada 10 s y se cierra al pausar, salir,
 fallar o cambiar de sesión. La expiración de 30 s del servidor limita las creaciones o cierres
 cuyo resultado se desconoce.
+
+Como inicio de RF-028…030 (P2), el selector Calidad ofrece únicamente las variantes del maestro
+HLS y comienza en Automática. La selección manual cambia nuevas cargas sin recrear el motor,
+alterar la posición ni abrir otro lease. La calidad reproducida se informa aparte de la elegida;
+retirar una variante seleccionada vuelve a automático. HLS nativo conserva la adaptación del
+navegador y lo indica sin selector manual. El MediaMTX del perfil actual entrega una sola pista
+de vídeo; probar cuatro calidades reales depende de P2-08 en [SPEC-04](../../docs/spec-p2/spec_04_stream.md).
+
 Chat abre WS antes del historial, fusiona secuencias, avisa de huecos no recuperables y permite
 reintentar el mismo clientMessageId. No se anuncia éxito sin ACK. Pausar autoscroll conserva foco.
 

@@ -254,5 +254,35 @@
     "timeoutMs": 10000,
     "traceability": "docs/spec-p2/spec_22_subtitles.md",
     "visibility": "private"
+  },
+  {
+    "auth": "public",
+    "consumer": "Gateway / Web SSR / Móvil",
+    "id": "p2.streaming.renditions",
+    "idempotency": "Read-only; retry within caller deadline.",
+    "limits": "JSON <=16 KiB; paginated lists 1..50; exact schema and owner permissions; no-store for private data.",
+    "method": "GET",
+    "owner": "Streaming",
+    "path": "/api/streams/sessions/{sessionId}/renditions",
+    "provider": "Streaming",
+    "recovery": "Retry reads with bounded backoff; recover commands by stable idempotency key; never treat failure as empty.",
+    "request": null,
+    "requiredHeaders": [],
+    "responses": {
+      "200": "P2Renditions",
+      "400": "Error",
+      "404": "Error",
+      "409": "Error",
+      "422": "Error",
+      "429": "Error",
+      "503": "Error",
+      "504": "Error"
+    },
+    "spec": "SPEC-04",
+    "status": "implemented",
+    "timeoutMs": 2000,
+    "timeoutScope": "Ordinary JSON request deadline; media is connection/first-byte only, then separate inactivity/cancellation policy.",
+    "traceability": "docs/spec-p2/spec_04_stream.md",
+    "visibility": "public"
   }
 ]

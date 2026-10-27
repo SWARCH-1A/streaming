@@ -115,6 +115,49 @@ where
             playback_url,
         })
     }
+
+    pub async fn renditions<M: crate::application::ports::renditions::RenditionsGateway>(
+        &self,
+        session_id: String,
+        media: &M,
+    ) -> Result<PublicRenditionsView, GetPublicStreamSessionError> {
+        let before = self.execute(session_id.clone()).await?;
+        let path = before
+            .snapshot
+            .playback_path
+            .ok_or(GetPublicStreamSessionError::Unavailable)?;
+        let renditions = media
+            .available_renditions(path.clone())
+            .await
+            .map_err(|_| GetPublicStreamSessionError::Unavailable)?;
+        // Do not publish a response observed before stop/reconnect or a source replacement.
+        let after = self.execute(session_id).await?;
+        if before.snapshot.session_version != after.snapshot.session_version
+            || after.snapshot.playback_path.as_deref() != Some(path.as_str())
+            || renditions.is_empty()
+            || renditions.len() > crate::domain::rendition::MAX_RENDITIONS
+            || renditions
+                .iter()
+                .map(|r| &r.rendition_id)
+                .collect::<std::collections::HashSet<_>>()
+                .len()
+                != renditions.len()
+        {
+            return Err(GetPublicStreamSessionError::Unavailable);
+        }
+        Ok(PublicRenditionsView {
+            session_id: after.snapshot.session_id,
+            renditions,
+            master_playlist_uri: path,
+        })
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct PublicRenditionsView {
+    pub session_id: SessionId,
+    pub renditions: Vec<crate::domain::rendition::Rendition>,
+    pub master_playlist_uri: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -432,5 +475,222 @@ mod tests {
             result.ok().map(|view| view.snapshot.timeline_position_ms),
             Some(42_000)
         );
+    }
+
+    struct MediaRenditions {
+        result: Result<
+            Vec<crate::domain::rendition::Rendition>,
+            crate::application::ports::media_server::MediaServerError,
+        >,
+        calls: std::sync::atomic::AtomicUsize,
+        delay: std::time::Duration,
+    }
+
+    impl crate::application::ports::renditions::RenditionsGateway for MediaRenditions {
+        async fn available_renditions(
+            &self,
+            _: String,
+        ) -> Result<
+            Vec<crate::domain::rendition::Rendition>,
+            crate::application::ports::media_server::MediaServerError,
+        > {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if !self.delay.is_zero() {
+                tokio::time::sleep(self.delay).await;
+            }
+            self.result.clone()
+        }
+    }
+
+    fn media_renditions() -> MediaRenditions {
+        MediaRenditions {
+            result: Ok(vec![crate::domain::rendition::Rendition {
+                rendition_id: "rend_720".into(),
+                width: 1280,
+                height: 720,
+                bitrate_bps: 2_500_000,
+                video_codec: "avc1.64001f".into(),
+                audio_codec: Some("mp4a.40.2".into()),
+            }]),
+            calls: std::sync::atomic::AtomicUsize::new(0),
+            delay: std::time::Duration::ZERO,
+        }
+    }
+
+    fn rendition_session(
+        session_id: &SessionId,
+        status: SessionStatus,
+        availability: Availability,
+    ) -> GetPublicStreamSession<SessionRepository> {
+        GetPublicStreamSession::new(
+            Arc::new(SessionRepository {
+                snapshot: Some(snapshot(
+                    session_id.clone(),
+                    status,
+                    availability,
+                    (availability == Availability::Playable)
+                        .then(|| format!("/hls/{}/index.m3u8", session_id.as_str())),
+                )),
+            }),
+            Some("https://media.test".into()),
+            clock_for(session_id),
+        )
+    }
+
+    #[tokio::test]
+    async fn renditions_do_not_query_media_for_offline_or_reconnecting_sessions() {
+        let id = SessionId::new();
+        let media = media_renditions();
+        for (status, availability) in [
+            (SessionStatus::Preparing, Availability::Offline),
+            (SessionStatus::ReconnectGrace, Availability::Reconnecting),
+            (SessionStatus::Ended, Availability::Offline),
+        ] {
+            let session = rendition_session(&id, status, availability);
+            assert!(matches!(
+                session.renditions(id.as_str().into(), &media).await,
+                Err(GetPublicStreamSessionError::Unavailable)
+            ));
+        }
+        assert_eq!(media.calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn rendition_errors_never_become_a_successful_empty_or_truncated_list() {
+        let id = SessionId::new();
+        let session = rendition_session(&id, SessionStatus::Live, Availability::Playable);
+        let mut media = media_renditions();
+        let original = media.result.clone().unwrap_or_default();
+        for result in [
+            Ok(vec![]),
+            Ok(original.iter().cycle().take(2).cloned().collect()),
+            Ok(original.iter().cycle().take(5).cloned().collect()),
+            Err(crate::application::ports::media_server::MediaServerError::ManifestUnavailable),
+        ] {
+            media.result = result;
+            assert!(matches!(
+                session.renditions(id.as_str().into(), &media).await,
+                Err(GetPublicStreamSessionError::Unavailable)
+            ));
+        }
+        assert!(matches!(
+            session.renditions("invalid".into(), &media).await,
+            Err(GetPublicStreamSessionError::NotFound)
+        ));
+    }
+
+    #[tokio::test]
+    async fn renditions_discard_media_read_when_session_control_is_lost() {
+        use crate::adapters::outbound::monotonic_clock::MonotonicSessionClock;
+
+        struct LostSource {
+            clock: Arc<dyn SessionMonotonicClock>,
+            session_id: SessionId,
+        }
+        impl crate::application::ports::renditions::RenditionsGateway for LostSource {
+            async fn available_renditions(
+                &self,
+                _: String,
+            ) -> Result<
+                Vec<crate::domain::rendition::Rendition>,
+                crate::application::ports::media_server::MediaServerError,
+            > {
+                self.clock.forget(&self.session_id);
+                media_renditions().result
+            }
+        }
+
+        let id = SessionId::new();
+        let clock: Arc<dyn SessionMonotonicClock> = Arc::new(MonotonicSessionClock::default());
+        clock.start_preparing(&id);
+        assert!(clock.mark_live(&id));
+        let mut session = rendition_session(&id, SessionStatus::Live, Availability::Playable);
+        session.session_clock = Arc::clone(&clock);
+        let media = LostSource {
+            clock,
+            session_id: id.clone(),
+        };
+        assert!(matches!(
+            session.renditions(id.as_str().into(), &media).await,
+            Err(GetPublicStreamSessionError::Unavailable)
+        ));
+    }
+
+    #[tokio::test]
+    async fn renditions_http_returns_p2_shape_no_store_and_bounded_errors()
+    -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        use axum::http::StatusCode;
+        let id = SessionId::new();
+        for (status, delay, expected) in [
+            (
+                SessionStatus::Live,
+                std::time::Duration::ZERO,
+                StatusCode::OK,
+            ),
+            (
+                SessionStatus::Ended,
+                std::time::Duration::ZERO,
+                StatusCode::SERVICE_UNAVAILABLE,
+            ),
+            (
+                SessionStatus::Live,
+                std::time::Duration::from_secs(3),
+                StatusCode::GATEWAY_TIMEOUT,
+            ),
+        ] {
+            let availability = if status == SessionStatus::Live {
+                Availability::Playable
+            } else {
+                Availability::Offline
+            };
+            let session = Arc::new(rendition_session(&id, status, availability));
+            let mut media = media_renditions();
+            media.delay = delay;
+            let router =
+                crate::adapters::inbound::http::renditions::router(session, Arc::new(media));
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+            let address = listener.local_addr()?;
+            let server = tokio::spawn(async move { axum::serve(listener, router).await });
+            let client = reqwest::Client::builder().no_proxy().build()?;
+            let response = client
+                .get(format!(
+                    "http://{address}/api/streams/sessions/{}/renditions",
+                    id.as_str()
+                ))
+                .header("x-request-id", "req_renditions_test")
+                .send()
+                .await?;
+            assert_eq!(response.status(), expected);
+            assert_eq!(
+                response
+                    .headers()
+                    .get("cache-control")
+                    .and_then(|v| v.to_str().ok()),
+                Some("no-store")
+            );
+            let body: serde_json::Value = response.json().await?;
+            if expected == StatusCode::OK {
+                assert_eq!(body["sessionId"], id.as_str());
+                assert_eq!(body["renditions"][0]["height"], 720);
+                assert_eq!(body["renditions"][0]["bitrateBps"], 2_500_000);
+                assert_eq!(
+                    body["masterPlaylistUri"],
+                    format!("/hls/{}/index.m3u8", id.as_str())
+                );
+                assert_eq!(body["renditions"].as_array().map(Vec::len), Some(1));
+            } else {
+                assert_eq!(body["requestId"], "req_renditions_test");
+                assert!(body.get("renditions").is_none());
+            }
+            let missing = client
+                .get(format!(
+                    "http://{address}/api/streams/sessions/invalid/renditions"
+                ))
+                .send()
+                .await?;
+            assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+            server.abort();
+        }
+        Ok(())
     }
 }

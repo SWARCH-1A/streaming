@@ -1,6 +1,6 @@
 # SPEC-04 — Multicalidad, grabación y eventos de Streaming
 
-**Prioridad:** P2. **Responsable:** Streaming / Media. **Estado:** diseño para desarrollo.
+**Prioridad:** P2. **Responsable:** Streaming / Media. **Estado:** implementación parcial de consulta y selección Web; ingesta multicalidad pendiente de P2-08.
 **RF:** RF-017…030, 052, 056…057, 079…080. **RNF:** RNF-012…018, 021…025, 038, 041…047, 050…051.
 
 ## 1. Contexto y problema
@@ -72,6 +72,23 @@ se ratifica en P2-09. Fallar captura no fabrica un objeto ni un cierre completo.
 `recording.closed.v1`; [S3 y timeline](../contratos_p2_media.md). Core valida owner/estado actual;
 VOD consume referencia e índice; Chat conserva contexto temporal actual por HTTP.
 
+La consulta `GET /api/streams/sessions/{sessionId}/renditions` lee el maestro público de la
+sesión LIVE/PLAYABLE mediante el adaptador Media. Devuelve `P2Renditions` con uno a cuatro IDs
+estables derivados del path público de variante, resolución, BANDWIDTH y códecs declarados por
+HLS. Comprueba que cada playlist tenga segmentos anunciados; no genera una escalera ni deduce
+metadatos ausentes. Paths de variante y segmento permanecen dentro del directorio de la sesión.
+Una sesión inexistente devuelve 404; una sesión no reproducible, medio no disponible, metadatos
+insuficientes, variantes duplicadas o más de cuatro devuelve 503; agotar el plazo total de dos
+segundos devuelve 504. Todas las respuestas llevan `Cache-Control: no-store`. Al terminar la
+lectura se revalida la sesión para descartar cambios de estado/fuente durante la consulta.
+
+El reproductor Web carga las opciones del maestro mediante hls.js y comienza en modo automático.
+La selección manual conserva el búfer, posición y lease; cambia la calidad de nuevas cargas.
+La UI distingue la calidad solicitada de la variante que ya se reproduce. Si desaparece la
+variante seleccionada, vuelve a automático; reordenar las variantes conserva la selección por
+URI. Con HLS nativo, el navegador administra la adaptación y la UI informa esa limitación sin
+ofrecer selección manual. No hay todavía reproductor VOD ni implementación móvil.
+
 ## 9. Decisiones y preguntas abiertas
 
 P2-08: prueba real de ingestión/empaquetado multicalidad, alineación y soporte MediaMTX.
@@ -83,6 +100,15 @@ Las representaciones de segmentos e inventario están definidas sin imponer runt
 Usar fuente de una y cuatro calidades, verificar maestro/variantes y guardar todas. Inyectar
 corte entre PUT/confirmación/evento, pérdida de evento de segmento, cierre adelantado, duplicado
 y reconexión. VOD debe detectar incompletitud y recuperar desde inventario, nunca por espera fija.
+
+Las pruebas locales cubren lectura de maestro con una/cuatro variantes, fuente 720 sin 1080
+inventado, IDs estables, entradas inválidas, límites, estados no reproducibles y respuestas HTTP.
+Las pruebas Web cubren selección manual/automática, actualización de variantes y conservación
+de posición/lease. `services/streaming/tests/smoke_stack.py` valida además una fuente RTMP real
+de 320×180: consulta de calidades sin caché, reproducción HLS con un frame decodificado y
+rechazo de la consulta tras finalizar la sesión. Los fixtures de cuatro variantes y el motor
+simulado no acreditan CA-01…03: falta la prueba audiovisual multicalidad real de P2-08,
+alineación de keyframes/audio y empaquetado multicalidad.
 
 ## 11. Esfuerzo, riesgos y consecuencias
 

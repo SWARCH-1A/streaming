@@ -7,6 +7,7 @@ pub mod media_dead_letters;
 pub mod media_node_assignment;
 pub mod media_server;
 pub mod readiness_probe;
+pub mod renditions;
 pub mod session_clock;
 pub mod session_deadlines;
 pub mod session_timeline;
