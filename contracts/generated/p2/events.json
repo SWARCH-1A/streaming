@@ -34,9 +34,9 @@
   {
     "eventType": "channel.follow.changed.v1",
     "producers": ["core"],
-    "schema": null,
-    "spec": ["SPEC-17", "SPEC-10"],
-    "status": "pending-owner",
+    "schema": "P2EventChannelFollowChanged",
+    "spec": ["SPEC-03", "SPEC-17", "SPEC-20", "SPEC-10"],
+    "status": "contract-ready",
     "subscriptions": ["notifications.follow"]
   },
   {

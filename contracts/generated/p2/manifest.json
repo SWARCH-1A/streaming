@@ -1,10 +1,10 @@
 {
   "base": "contracts/p1.json",
   "sha256": {
-    "events.json": "ae1503b4775e93fdc58f5be769df1d3ce1554a3dda84a3fd1b449bcb493e393e",
-    "index.d.ts": "eeb60cdbbec4a11a82780d459050390a451d4ab55e0ca9827c5f440612c9dd72",
-    "operations.json": "17ae857f2a21f75709181bab99857ffcbf9fa366b9a80c4f569f9e46ba60fa77",
-    "schema.json": "779aed9e2a8c1e3f714a617c9713795b5e498468debc517b6953a953bf9a6291"
+    "events.json": "a096695a2307e3c31514e975950df8ac413c8a7ceb7535c8e417c884e6e636d4",
+    "index.d.ts": "cf6d0d8a3f06536a1f03964ecdf857cc515f90730eebe05ba63888ac668f2808",
+    "operations.json": "1d7eba96ad8400cd6bdfb25653612b9456840a890679f863f1298f5174b2672b",
+    "schema.json": "76aacc214d71c670adaf24844580ea389eb7e21bbce53168ec0206dfcc49c203"
   },
   "source": "contracts/p2.json",
   "version": 2
