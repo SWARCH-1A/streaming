@@ -54,8 +54,11 @@ def main():
         page.get_by_label("Contraseña", exact=True).fill(password)
         page.get_by_role("button", name="Iniciar sesión", exact=True).click()
         expect(page.get_by_role("button", name="Salir")).to_be_visible(timeout=15000)
-        html = page.request.get(ORIGIN + "/channels/" + owner_handle, headers={"Accept": "text/html"}).text()
-        assert "Salir" in html and owner_handle in html, "SSR HTML lacks the session or the channel"
+        # The loader gives Core 3 s; when Core is busy the HTML degrades to anonymous and the browser probes
+        # again after hydrating (root loader user=undefined). Retry to observe the nominal server render.
+        html = v.eventually(lambda: page.request.get(ORIGIN + "/channels/" + owner_handle, headers={"Accept": "text/html"}).text(),
+                            lambda text: "Salir" in text and owner_handle in text, 30)
+        assert f"<title>{owner_handle} · Vault tv</title>" in html, "channel title missing from SSR head"
         page.reload()
         expect(page.get_by_role("button", name="Salir")).to_be_visible()
         page.get_by_role("button", name="Salir").click()
