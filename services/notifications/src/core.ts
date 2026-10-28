@@ -21,6 +21,7 @@ export interface RecipientsPage {
 }
 
 export interface ChannelSummary {
+  ownerUserId: string | null;
   handle: string | null;
   displayName: string | null;
 }
@@ -121,8 +122,13 @@ export function httpCore(options: CoreOptions): CorePort {
       const response = await call(`${options.publicUrl}/api/channels/${encodeURIComponent(channelId)}`, {
         headers: { Accept: 'application/json' },
       });
-      const body = (await response.json()) as { handle?: unknown; profile?: { displayName?: unknown } };
+      const body = (await response.json()) as {
+        handle?: unknown;
+        channel?: { ownerUserId?: unknown };
+        profile?: { displayName?: unknown };
+      };
       return {
+        ownerUserId: typeof body.channel?.ownerUserId === 'string' ? body.channel.ownerUserId : null,
         handle: typeof body.handle === 'string' ? body.handle : null,
         displayName: typeof body.profile?.displayName === 'string' ? body.profile.displayName : null,
       };

@@ -5,6 +5,7 @@ import { ID } from './ids.ts';
 import type { Mailer, SendOutcome } from './mail.ts';
 import { DELIVERY_EVENT } from './live.ts';
 import { withDeliveryLock } from './ownership.ts';
+import { suspensionCause } from './accounts.ts';
 
 export type Medium = 'INBOX' | 'EMAIL' | 'PUSH';
 
@@ -29,6 +30,7 @@ interface Claimed {
   user_id: string;
   title: string;
   link_path: string;
+  owner_user_id: string | null;
 }
 
 function parseJob(message: IncomingMessage, medium: Medium): Job {
@@ -71,7 +73,7 @@ export function deliveryHandler(medium: Medium, deps: DeliveryDeps) {
          FROM notifications n
          WHERE d.delivery_id=$1 AND d.notification_id=$2 AND d.medium=$3 AND d.target_id=$4
            AND n.notification_id=d.notification_id AND d.state IN ('PENDING','RETRYABLE_FAILURE')
-         RETURNING d.delivery_id, d.target_id, n.user_id, n.title, n.link_path`,
+         RETURNING d.delivery_id, d.target_id, n.user_id, n.title, n.link_path, n.owner_user_id`,
         [job.deliveryId, job.notificationId, medium, job.targetId]);
       if (!claimed.rowCount) {
         const current = await db.query<{ state: string }>(
@@ -88,8 +90,13 @@ export function deliveryHandler(medium: Medium, deps: DeliveryDeps) {
       const row = claimed.rows[0]!;
       let outcome: SendOutcome;
       let cause: string | null = null;
+      // The inbox keeps the record; external media are not sent for a suspended recipient or channel owner.
+      const blocked = medium === 'INBOX' ? null : await suspensionCause(db, row.user_id, row.owner_user_id);
       if (medium === 'INBOX') {
         outcome = 'DELIVERED';
+      } else if (blocked) {
+        outcome = 'PERMANENT_FAILURE';
+        cause = blocked;
       } else if (medium === 'EMAIL') {
         ({ outcome, cause } = await sendEmail(deps, row));
       } else {

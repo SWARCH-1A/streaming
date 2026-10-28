@@ -1718,6 +1718,7 @@
       "additionalProperties": false,
       "examples": [
         {
+          "available": true,
           "channelId": "chn_fixture",
           "createdAtUtc": "2026-10-26T18:00:00Z",
           "kind": "LIVE_STARTED",
@@ -1729,6 +1730,10 @@
         }
       ],
       "properties": {
+        "available": {
+          "description": "false while the channel owner is suspended (SPEC-20 CA-09); the record stays but its link must not be offered.",
+          "type": "boolean"
+        },
         "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
         "createdAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
         "kind": {"enum": ["LIVE_STARTED"]},
@@ -1738,7 +1743,17 @@
         "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
         "title": {"maxLength": 200, "minLength": 1, "type": "string"}
       },
-      "required": ["notificationId", "kind", "channelId", "sessionId", "title", "linkPath", "createdAtUtc", "readAtUtc"],
+      "required": [
+        "notificationId",
+        "kind",
+        "channelId",
+        "sessionId",
+        "title",
+        "linkPath",
+        "createdAtUtc",
+        "readAtUtc",
+        "available"
+      ],
       "type": "object"
     },
     "P2NotificationPage": {
@@ -1747,6 +1762,7 @@
         {
           "items": [
             {
+              "available": true,
               "channelId": "chn_fixture",
               "createdAtUtc": "2026-10-26T18:00:00Z",
               "kind": "LIVE_STARTED",

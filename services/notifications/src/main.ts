@@ -7,6 +7,7 @@ import { loadConfig } from './config.ts';
 import { httpCore } from './core.ts';
 import { createPool, migrate } from './db.ts';
 import { deliveryHandler, unconfiguredPush } from './deliveries.ts';
+import { accountHandler } from './accounts.ts';
 import { followHandler } from './follow.ts';
 import { apiHandler } from './http.ts';
 import { liveHandler } from './live.ts';
@@ -35,6 +36,7 @@ if (config.brokerUrl) {
   const broker = new BrokerConnection(config.brokerUrl, ca, log);
   broker.subscribe('notifications.live', liveHandler(db, core));
   broker.subscribe('notifications.follow', followHandler(db));
+  broker.subscribe('notifications.account', accountHandler(db));
   broker.subscribe('notifications.delivery.inbox', deliveryHandler('INBOX', deps));
   broker.subscribe('notifications.delivery.email', deliveryHandler('EMAIL', deps));
   broker.subscribe('notifications.delivery.push', deliveryHandler('PUSH', deps));
