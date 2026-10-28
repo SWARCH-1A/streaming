@@ -5,6 +5,7 @@ import type Hls from 'hls.js';
 import artwork from '@/public/images/signal-grid.svg';
 
 import { Button } from '@/src/components/atoms/Button';
+import { Select } from '@/src/components/atoms/Select';
 import { BroadcastPlaceholder } from '@/src/components/molecules/BroadcastPlaceholder';
 import { Notice } from '@/src/components/molecules/Notice';
 import { ViewerLeaseController } from '@/src/modules/streaming/ViewerLease';
@@ -30,6 +31,13 @@ export function HlsPlayer({
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const synchronize = useRef<(() => void) | null>(null);
+  const selectQuality = useRef<((uri: string) => void) | null>(null);
+  const [quality, setQuality] = useState({
+    levels: [] as { uri: string; label: string }[],
+    selected: '',
+    active: '',
+    native: false,
+  });
   const [failure, setFailure] = useState('');
   const [leaseError, setLeaseError] = useState('');
   const [attempt, setAttempt] = useState(0);
@@ -53,6 +61,43 @@ export function HlsPlayer({
       needsRestart = false,
       deliveryEnded = false;
     const sessionId = currentSession().sessionId;
+    let selectedUri = '';
+    setQuality({ levels: [], selected: '', active: '', native: false });
+    function updateQualities() {
+      if (disposed || !engine) return;
+      const levels = engine.levels.map((level) => ({
+        uri: level.uri,
+        label: [
+          level.height > 0 ? `${level.height}p` : 'Original',
+          level.bitrate > 0
+            ? `${(level.bitrate / 1_000_000).toLocaleString('es-CO', { maximumFractionDigits: 2 })} Mb/s`
+            : '',
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      }));
+      selectedUri = levels.some((level) => level.uri === selectedUri) ? selectedUri : '';
+      // A removed/reordered level must never pin the player to a different variant.
+      engine.loadLevel = selectedUri ? levels.findIndex((level) => level.uri === selectedUri) : -1;
+      setQuality({
+        levels,
+        selected: selectedUri,
+        active: engine.levels[engine.currentLevel]?.uri ?? '',
+        native: false,
+      });
+    }
+    function nativeQuality() {
+      setQuality({ levels: [], selected: '', active: '', native: true });
+    }
+    selectQuality.current = (uri) => {
+      if (!engine || disposed) return;
+      const index = uri ? engine.levels.findIndex((level) => level.uri === uri) : -1;
+      if (uri && index < 0) return;
+      // Conservative switching preserves already buffered audio/video and the viewer lease.
+      engine.loadLevel = index;
+      selectedUri = uri;
+      setQuality((previous) => ({ ...previous, selected: uri }));
+    };
     function stopLease() {
       lease?.stop();
       lease = null;
@@ -184,16 +229,26 @@ export function HlsPlayer({
         fail();
         return;
       }
-      if (!window.MediaSource && element!.canPlayType('application/vnd.apple.mpegurl'))
+      if (!window.MediaSource && element!.canPlayType('application/vnd.apple.mpegurl')) {
         element!.src = url.pathname;
-      else {
+        nativeQuality();
+      } else {
         const { default: Hls } = await import('hls.js');
         if (disposed) return;
         if (!Hls.isSupported()) {
-          if (element!.canPlayType('application/vnd.apple.mpegurl')) element!.src = url.pathname;
-          else fail();
+          if (element!.canPlayType('application/vnd.apple.mpegurl')) {
+            element!.src = url.pathname;
+            nativeQuality();
+          } else fail();
         } else {
           engine = new Hls({ enableWorker: true, backBufferLength: 30 });
+          engine.on(Hls.Events.MANIFEST_PARSED, updateQualities);
+          engine.on(Hls.Events.LEVELS_UPDATED, updateQualities);
+          engine.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
+            if (disposed) return;
+            const level = engine?.levels[data.level];
+            setQuality((previous) => ({ ...previous, active: level?.uri ?? '' }));
+          });
           engine.on(Hls.Events.ERROR, (_event, data) => {
             if (!data.fatal || disposed) return;
             // Preserve MediaSource and its queued frames when delivery ends.
@@ -220,6 +275,7 @@ export function HlsPlayer({
     return () => {
       disposed = true;
       synchronize.current = null;
+      selectQuality.current = null;
       clearTimeout(retry);
       stopLease();
       if (frame !== undefined) element.cancelVideoFrameCallback(frame);
@@ -265,6 +321,32 @@ export function HlsPlayer({
           </div>
         ) : null}
       </div>
+      {quality.levels.length > 0 ? (
+        <div className={styles.qualityPicker}>
+          <label>
+            Calidad
+            <Select
+              value={quality.selected}
+              disabled={!playable}
+              onChange={(event) => selectQuality.current?.(event.target.value)}
+            >
+              <option value="">Automática</option>
+              {quality.levels.map((level) => (
+                <option key={level.uri} value={level.uri}>
+                  {level.label}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <span role="status">
+            {quality.active
+              ? `Reproduciendo ${quality.levels.find((level) => level.uri === quality.active)?.label ?? 'señal'}`
+              : 'Esperando calidad de reproducción…'}
+          </span>
+        </div>
+      ) : quality.native ? (
+        <p className={styles.nativeQuality}>Calidad automática gestionada por el navegador.</p>
+      ) : null}
       {!playable && session.status !== 'ENDED' ? (
         <Notice>
           {session.availability === 'RECONNECTING'

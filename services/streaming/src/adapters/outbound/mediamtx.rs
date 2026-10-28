@@ -1,5 +1,7 @@
 use reqwest::{Client, StatusCode, Url};
 
+mod renditions;
+
 use crate::application::ports::media_server::{
     MediaServerError, MediaServerGateway, PlaybackEvidence,
 };

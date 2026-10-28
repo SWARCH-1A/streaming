@@ -130,6 +130,19 @@ def main():
             assert manifest.startswith(b'#EXTM3U') and key.encode() not in manifest
             public = http(http_url + '/api/streams/' + stream_id)
             assert key.encode() not in public
+            rendition_path = '/api/streams/sessions/' + session + '/renditions'
+            with urllib.request.urlopen(http_url + rendition_path, timeout=5) as response:
+                assert response.headers.get('Cache-Control') == 'no-store'
+                renditions = json.loads(response.read())
+            assert renditions['sessionId'] == session
+            assert renditions['masterPlaylistUri'] == '/hls/' + session + '/index.m3u8'
+            assert len(renditions['renditions']) == 1
+            rendition = renditions['renditions'][0]
+            assert (rendition['width'], rendition['height']) == (320, 180)
+            assert rendition['bitrateBps'] > 0 and rendition['videoCodec'].startswith('avc1')
+            assert rendition['audioCodec'].startswith('mp4a')
+            assert key not in json.dumps(renditions)
+            print('PASS: rendition API reports only the actual encoded source with no-store', flush=True)
             assert sql("SELECT count(*) FROM media_sources WHERE position('" + key + "' in ingest_path)>0;", 'streaming_media') == '0'
             assert sql("SELECT count(*) FROM media_callback_outbox WHERE position('" + key + "' in payload::text)>0;", 'streaming_media') == '0'
             run('exec', '-T', 'streaming', 'ffmpeg', '-hide_banner', '-loglevel', 'error',
@@ -160,6 +173,13 @@ def main():
             up()
             assert sql('SELECT stream_id FROM stream_configs;') == stream_id
             assert sql('SELECT status FROM stream_sessions;') == 'ENDED'
+            try:
+                http(http_url + rendition_path)
+            except urllib.error.HTTPError as error:
+                assert error.code == 503
+                assert error.headers.get('Cache-Control') == 'no-store'
+            else:
+                raise AssertionError('Ended session still advertises renditions')
             rotated = hashlib.sha256(('sk_' + 'c' * 64).encode()).hexdigest()
             sql("UPDATE stream_configs SET ingest_key_hash=decode('" + rotated + "','hex'), ingest_key_version=ingest_key_version+1;")
             reject_publication(key)

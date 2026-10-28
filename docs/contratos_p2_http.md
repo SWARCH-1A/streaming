@@ -1,11 +1,18 @@
 # Contratos HTTP y WebSocket de P2
 
 La fuente estructural [contracts/p2.json](../contracts/p2.json) hereda schemas de
-[p1.json](../contracts/p1.json) y concreta las cuatro operaciones de recuperación de RF-004.
+[p1.json](../contracts/p1.json) y concreta Recuperación (RF-004), Subtítulos VOD y consulta de
+calidades live (RF-028). Los tres contratos usan el generador P2 compartido.
 Las demás familias del inventario conservan su diseño documental hasta incorporar sus schemas.
 [SPEC-10](spec-p2/spec_10_contracts.md) define mantenimiento y validación. El inventario de rutas
 describe interfaces; la implementación y las pruebas de cada proveedor se acreditan por separado.
 Cada operación tiene auth, timeout, idempotencia, consumidor, errores y SPEC en la fuente.
+
+La consulta `p2.streaming.renditions` tiene una implementación inicial documentada en
+[SPEC-04](spec-p2/spec_04_stream.md): 200 con las variantes anunciadas por el medio y sus
+playlists con segmentos; 404 para sesión inexistente; 503 si no es reproducible o el medio no
+permite obtener metadatos completos; 504 al agotar dos segundos. Éxito y error usan `no-store`.
+Esto no acredita la ingesta ni sincronización real de cuatro calidades (P2-08).
 
 ## Reglas comunes
 

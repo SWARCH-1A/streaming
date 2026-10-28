@@ -35,6 +35,17 @@ def load(source=SOURCE):
 def validate_payload(bundle, name, value, public=False, event=False):
     generate.validator(bundle, name).validate(value)
     validate_subtitle_identity(name, value)
+    if name == "P2Renditions":
+        ids = [rendition["renditionId"] for rendition in value["renditions"]]
+        prefix = f"/hls/{value['sessionId']}/"
+        path = value["masterPlaylistUri"]
+        relative = path.removeprefix(prefix)
+        if len(ids) != len(set(ids)) or not path.startswith(prefix) or not relative.endswith(".m3u8"):
+            raise ValueError("Renditions must have distinct IDs and a master for their session")
+        if any(part in {"", ".", ".."} for part in relative.split("/")) or any(
+            char in path for char in "?#%\\:"
+        ) or any(ord(char) < 32 for char in path):
+            raise ValueError("Rendition master must be a public session-local playlist")
     event = event or name.startswith("P2Event")
     if public or event:
         for node in generate.walk(value):

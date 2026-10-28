@@ -55,7 +55,9 @@ def publish():
             else:
                 raise AssertionError("VOD was allowed to access another domain's messages")
         finally:
-            connection.close()
+            # Permission checks may leave the connection closed by the broker already.
+            if connection.is_open:
+                connection.close()
     connection = connect("streaming")
     try:
         channel = connection.channel()

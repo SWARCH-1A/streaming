@@ -1,6 +1,6 @@
 # SPEC-18 — Web React Router SSR
 
-**Prioridad:** P2. **Responsable:** Web. **Estado:** implementado en [apps/web](../../apps/web/README.md); loaders leen Core mientras no exista el Gateway (SPEC-16).
+**Prioridad:** P2. **Responsable:** Web. **Estado:** implementado en [apps/web](../../apps/web/README.md); loaders leen las APIs públicas de Core y Streaming mientras no exista el Gateway (SPEC-16).
 **RF:** Todos los RF web salvo RF-038…045. **RNF:** RNF-002, 011…014, 019…020, 023, 025…039, 046.
 
 ## 1. Contexto y problema
@@ -55,6 +55,17 @@ historial y se fusiona por secuencia. Replay consulta ventanas temporales al see
 supresiones. La revalidación cancela respuestas obsoletas y mantiene datos con frescura explícita.
 El HTML dependiente de identidad usa no-store; redirects y códigos HTTP conservan su significado.
 
+`/watch/{streamId}` entrega emisión, sesión y canal en el HTML inicial. El loader tiene un
+plazo total de tres segundos y obtiene sesión/canal concurrentemente tras resolver la emisión.
+Verifica identidad de stream, sesión, canal y generación; una sesión incoherente o no disponible
+da 503, y una emisión inexistente da 404. Un fallo del canal conserva la emisión y el player.
+Las lecturas públicas usan `WEB_STREAMING_UPSTREAM` sin cookies; Core usa `WEB_API_UPSTREAM`
+con las cookies permitidas de esa petición. Ambos destinos son configuración de servidor.
+Si hay una entrada común de API, omitir `WEB_STREAMING_UPSTREAM` usa `WEB_API_UPSTREAM`.
+Hidratación reutiliza los datos de la emisión y el canal; el polling de emisión/conteo arranca
+a los cuatro segundos. El maestro HLS y las opciones de calidad se descubren en el navegador,
+sin inicializar motores, conexiones WS ni leases durante SSR.
+
 El build debe producir entrada de servidor, assets y comandos de arranque reproducibles.
 La migración se acepta cuando las rutas existentes funcionan mediante SSR; un servidor que solo
 sirve el dist estático anterior no cumple RNF-002.
@@ -79,6 +90,11 @@ CA-04/05/07/08 conservan el comportamiento P1 y quedan por verificar con el Gate
 Inspeccionar HTML sin JS, hidratar con consola limpia, navegar con y sin sesión y verificar
 conexiones/solicitudes reales. Ejecutar dos usuarios en paralelo, dependencias caídas y pruebas
 de teclado. Medir estado visible desde el commit, incluyendo intervalo de revalidación.
+`pnpm check` verifica el HTML de producción de canal/live/offline con APIs ficticias, 404/503,
+destinos separados, ausencia de cookies en Streaming y conservación del player si falla canal.
+Las pruebas de React verifican hidratación del player sin errores recuperables, un único motor,
+selección de calidad después del maestro y ausencia de leases antes de un frame. Esta evidencia
+no sustituye las verificaciones pendientes de Gateway ni la ingesta multicalidad real de P2-08.
 
 Evidencia en navegador real: `tests/integration/p2-ssr-browser/run.py` (Chromium por el proxy HTTPS
 local) acredita CA-04 (login con CSRF, sesión en el HTML SSR tras recargar, logout y redirección
