@@ -75,12 +75,12 @@ def main():
         page.get_by_role("button", name="Iniciar sesión", exact=True).click()
         expect(page.get_by_role("button", name="Salir")).to_be_visible(timeout=15000)
 
-        # CA-08: skip link first, then reach and press "Seguir" with the keyboard only.
+        # CA-08: focus lands on the route heading, then "Seguir" is reached and pressed with the keyboard only.
         page.goto(ORIGIN + "/channels/" + owner_handle)
         expect(page.get_by_role("heading", level=1)).to_be_visible()
-        page.keyboard.press("Tab")
-        assert page.evaluate("document.activeElement.textContent.trim()") == "Saltar al contenido"
-        page.keyboard.press("Enter")
+        # RouteFocus (SPEC-08) moves focus to the page heading so screen readers announce the new route.
+        expect(page.get_by_role("heading", level=1)).to_be_focused(timeout=5000)
+        assert page.evaluate("document.querySelector('a[href=\"#main-content\"]').textContent.trim()") == "Saltar al contenido"
         for _ in range(40):
             page.keyboard.press("Tab")
             if page.evaluate("document.activeElement.textContent.trim()") == "Seguir":
@@ -91,7 +91,7 @@ def main():
         follow = page.get_by_role("button", name="Siguiendo")
         expect(follow).to_be_visible(timeout=10000)
         expect(follow).to_have_attribute("aria-pressed", "true")
-        print("PASS CA-08 keyboard: skip link, Tab to Seguir, Enter follows (aria-pressed)", flush=True)
+        print("PASS CA-08 keyboard: route focus on h1, skip link present, Tab to Seguir, Enter follows (aria-pressed)", flush=True)
 
         # CA-07: the open channel page changes offline -> live -> ended without reload.
         badge = page.locator("header").get_by_text("Offline", exact=True)
