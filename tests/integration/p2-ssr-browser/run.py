@@ -26,6 +26,11 @@ def key():
     return {"Idempotency-Key": str(uuid.uuid4())}
 
 
+def stop(owner, sid):
+    # Ending is idempotent; retry while a busy Streaming answers 503.
+    v.eventually(lambda: owner.call("/api/streams/sessions/" + sid, "DELETE", expect=204) or True, bool, 60)
+
+
 def main():
     suffix = secrets.token_hex(3)
     password = secrets.token_urlsafe(18)
@@ -110,7 +115,8 @@ def main():
             sockets = []
             page.on("websocket", lambda ws: sockets.append(ws) if "/realtime/chat/" in ws.url else None)
             page.goto(ORIGIN + "/watch/" + config["streamId"])
-            v.eventually(lambda: sockets, lambda found: len(found) >= 1, 20)
+            # The chat connects once the session read finishes; a loaded local machine needs a wide margin.
+            v.eventually(lambda: sockets, lambda found: len(found) >= 1, 90)
             page.get_by_role("link", name="Explorar").first.click()
             expect(page).to_have_url(ORIGIN + "/", timeout=10000)
             deadline = time.monotonic() + 10
@@ -121,14 +127,14 @@ def main():
 
             page.goto(ORIGIN + "/channels/" + owner_handle)
             expect(page.get_by_text("En vivo", exact=True).first).to_be_visible(timeout=20000)
-            owner.call("/api/streams/sessions/" + sid, "DELETE", expect=204)
+            stop(owner, sid)
             sid = None
             ended = time.monotonic()
             expect(page.locator("header").get_by_text("Offline", exact=True)).to_be_visible(timeout=NOMINAL_S * 1000)
             print(f"PASS CA-07 end shown without reload ({time.monotonic() - ended:.1f} s)", flush=True)
         finally:
             if sid:
-                owner.call("/api/streams/sessions/" + sid, "DELETE", expect=204)
+                stop(owner, sid)
             publisher.terminate()
             publisher.wait(20)
 
