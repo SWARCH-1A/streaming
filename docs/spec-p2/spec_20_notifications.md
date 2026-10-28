@@ -43,7 +43,7 @@ muy atrasados quedan abiertas; la selección y concurrencia de preferencias se f
 - [ ] CA-06: token push rotado actualiza la instalación; logout/cambio de cuenta elimina asociación anterior y un token inválido se deshabilita.
 - [x] CA-07: reiniciar tras crear aviso y antes de encolar conserva trabajos; ACK perdido no duplica lógicamente el aviso.
 - [x] CA-08: recuperación entrega un enlace de Core sin introducir token de restablecimiento en eventos/logs.
-- [ ] CA-09: un aviso antiguo puede permanecer como registro, pero abrirlo no permite acceder a contenido suspendido/retirado.
+- [x] CA-09: un aviso antiguo puede permanecer como registro, pero abrirlo no permite acceder a contenido suspendido/retirado. (`notifications.account` por versión; `available=false` y sin enlace en la web; correo/push pendientes cancelados para destinatario o dueño suspendido.)
 
 ## 7. Diseño técnico y datos
 
