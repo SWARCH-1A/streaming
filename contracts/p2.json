@@ -2108,6 +2108,113 @@
           }
         }
       ]
+    },
+    "P2Rendition": {
+      "type": "object",
+      "properties": {
+        "renditionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "bitrateBps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "videoCodec": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "audioCodec": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "renditionId",
+        "width",
+        "height",
+        "bitrateBps",
+        "videoCodec",
+        "audioCodec"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "renditionId": "rend_720",
+          "width": 1280,
+          "height": 720,
+          "bitrateBps": 2500000,
+          "videoCodec": "avc1",
+          "audioCodec": "mp4a"
+        }
+      ]
+    },
+    "P2Renditions": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "renditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/P2Rendition"
+          },
+          "minItems": 1,
+          "maxItems": 4
+        },
+        "masterPlaylistUri": {
+          "type": "string",
+          "pattern": "^/hls/"
+        }
+      },
+      "required": [
+        "sessionId",
+        "renditions",
+        "masterPlaylistUri"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "sessionId": "ses_fixture",
+          "renditions": [
+            {
+              "renditionId": "rend_720",
+              "width": 1280,
+              "height": 720,
+              "bitrateBps": 2500000,
+              "videoCodec": "avc1",
+              "audioCodec": "mp4a"
+            }
+          ],
+          "masterPlaylistUri": "/hls/ses_fixture/master.m3u8"
+        }
+      ]
     }
   },
   "events": [
@@ -2710,6 +2817,118 @@
           "accountVersion": 1,
           "status": "SUSPENDED"
         }
+      }
+    },
+    {
+      "name": "more-than-four-renditions",
+      "schema": "P2Renditions",
+      "value": {
+        "sessionId": "ses_fixture",
+        "renditions": [
+          {
+            "renditionId": "rend_720",
+            "width": 1280,
+            "height": 720,
+            "bitrateBps": 2500000,
+            "videoCodec": "avc1",
+            "audioCodec": "mp4a"
+          },
+          {
+            "renditionId": "rend_720",
+            "width": 1280,
+            "height": 720,
+            "bitrateBps": 2500000,
+            "videoCodec": "avc1",
+            "audioCodec": "mp4a"
+          },
+          {
+            "renditionId": "rend_720",
+            "width": 1280,
+            "height": 720,
+            "bitrateBps": 2500000,
+            "videoCodec": "avc1",
+            "audioCodec": "mp4a"
+          },
+          {
+            "renditionId": "rend_720",
+            "width": 1280,
+            "height": 720,
+            "bitrateBps": 2500000,
+            "videoCodec": "avc1",
+            "audioCodec": "mp4a"
+          },
+          {
+            "renditionId": "rend_720",
+            "width": 1280,
+            "height": 720,
+            "bitrateBps": 2500000,
+            "videoCodec": "avc1",
+            "audioCodec": "mp4a"
+          }
+        ],
+        "masterPlaylistUri": "/hls/ses_fixture/master.m3u8"
+      }
+    },
+    {
+      "name": "rendition-master-session-mismatch",
+      "schema": "P2Renditions",
+      "value": {
+        "sessionId": "ses_fixture",
+        "renditions": [
+          {
+            "renditionId": "rend_720",
+            "width": 1280,
+            "height": 720,
+            "bitrateBps": 2500000,
+            "videoCodec": "avc1",
+            "audioCodec": "mp4a"
+          }
+        ],
+        "masterPlaylistUri": "/hls/ses_other/master.m3u8"
+      }
+    },
+    {
+      "name": "rendition-master-traversal",
+      "schema": "P2Renditions",
+      "value": {
+        "sessionId": "ses_fixture",
+        "renditions": [
+          {
+            "renditionId": "rend_720",
+            "width": 1280,
+            "height": 720,
+            "bitrateBps": 2500000,
+            "videoCodec": "avc1",
+            "audioCodec": "mp4a"
+          }
+        ],
+        "masterPlaylistUri": "/hls/ses_fixture/../master.m3u8"
+      }
+    },
+    {
+      "name": "duplicate-rendition-ids",
+      "schema": "P2Renditions",
+      "value": {
+        "sessionId": "ses_fixture",
+        "renditions": [
+          {
+            "renditionId": "rend_720",
+            "width": 1280,
+            "height": 720,
+            "bitrateBps": 2500000,
+            "videoCodec": "avc1",
+            "audioCodec": "mp4a"
+          },
+          {
+            "renditionId": "rend_720",
+            "width": 1280,
+            "height": 720,
+            "bitrateBps": 2500000,
+            "videoCodec": "avc1",
+            "audioCodec": "mp4a"
+          }
+        ],
+        "masterPlaylistUri": "/hls/ses_fixture/master.m3u8"
       }
     }
   ],
@@ -3650,6 +3869,36 @@
         "X-XSRF-TOKEN"
       ],
       "idempotency": "Actor and UUID; same payload replays the recorded result, different payload returns 409"
+    },
+    {
+      "id": "p2.streaming.renditions",
+      "method": "GET",
+      "path": "/api/streams/sessions/{sessionId}/renditions",
+      "provider": "Streaming",
+      "consumer": "Gateway / Web SSR / Móvil",
+      "owner": "Streaming",
+      "auth": "public",
+      "request": null,
+      "responses": {
+        "200": "P2Renditions",
+        "400": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "Read-only; retry within caller deadline.",
+      "recovery": "Retry reads with bounded backoff; recover commands by stable idempotency key; never treat failure as empty.",
+      "spec": "SPEC-04",
+      "traceability": "docs/spec-p2/spec_04_stream.md",
+      "visibility": "public",
+      "limits": "JSON <=16 KiB; paginated lists 1..50; exact schema and owner permissions; no-store for private data.",
+      "status": "implemented",
+      "timeoutScope": "Ordinary JSON request deadline; media is connection/first-byte only, then separate inactivity/cancellation policy.",
+      "requiredHeaders": []
     }
   ],
   "retiredP1Operations": [],

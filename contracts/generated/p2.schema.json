@@ -1913,6 +1913,55 @@
       "required": ["email"],
       "type": "object"
     },
+    "P2Rendition": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "audioCodec": "mp4a",
+          "bitrateBps": 2500000,
+          "height": 720,
+          "renditionId": "rend_720",
+          "videoCodec": "avc1",
+          "width": 1280
+        }
+      ],
+      "properties": {
+        "audioCodec": {"anyOf": [{"maxLength": 128, "minLength": 1, "type": "string"}, {"type": "null"}]},
+        "bitrateBps": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "height": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "renditionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "videoCodec": {"maxLength": 128, "minLength": 1, "type": "string"},
+        "width": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": ["renditionId", "width", "height", "bitrateBps", "videoCodec", "audioCodec"],
+      "type": "object"
+    },
+    "P2Renditions": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "masterPlaylistUri": "/hls/ses_fixture/master.m3u8",
+          "renditions": [
+            {
+              "audioCodec": "mp4a",
+              "bitrateBps": 2500000,
+              "height": 720,
+              "renditionId": "rend_720",
+              "videoCodec": "avc1",
+              "width": 1280
+            }
+          ],
+          "sessionId": "ses_fixture"
+        }
+      ],
+      "properties": {
+        "masterPlaylistUri": {"pattern": "^/hls/", "type": "string"},
+        "renditions": {"items": {"$ref": "#/$defs/P2Rendition"}, "maxItems": 4, "minItems": 1, "type": "array"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["sessionId", "renditions", "masterPlaylistUri"],
+      "type": "object"
+    },
     "P2StreamSessionChangedPayload": {
       "additionalProperties": false,
       "allOf": [

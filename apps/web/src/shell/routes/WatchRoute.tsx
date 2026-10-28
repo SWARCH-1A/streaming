@@ -15,7 +15,18 @@ import { useSession } from '@/src/shell/session/useSession';
 
 import styles from './WatchRoute.module.css';
 
-export function WatchRoute() {
+export interface WatchSnapshot {
+  stream: PublicStream;
+  session: PublicSession | null;
+}
+
+export function WatchRoute({
+  initial,
+  initialChannel,
+}: {
+  initial?: WatchSnapshot;
+  initialChannel?: ChannelBootstrap | null;
+} = {}) {
   const { streamId = '' } = useParams();
   const [chatVisible, setChatVisible] = useState(true);
   const { user } = useSession();
@@ -30,12 +41,16 @@ export function WatchRoute() {
         : null;
       if (
         session &&
-        (session.streamId !== stream.streamId || session.sessionId !== stream.sessionId)
+        (session.streamId !== stream.streamId ||
+          session.sessionId !== stream.sessionId ||
+          session.channelId !== stream.channelId ||
+          session.streamGeneration !== stream.streamGeneration)
       )
         throw new Error('La sesión de reproducción cambió. Reintentando…');
       return { stream, session };
     },
     4000,
+    initial,
   );
   const channel = useResource(
     `watch-channel:${resource.data?.stream.channelId ?? ''}`,
@@ -44,6 +59,8 @@ export function WatchRoute() {
       if (!channelId) return null;
       return request<ChannelBootstrap>(`/api/channels/${channelId}`, { signal });
     },
+    0,
+    initialChannel ?? undefined,
   );
   if (resource.loading) return <p role="status">Cargando transmisión…</p>;
   if (!resource.data) return <Notice tone="error">{resource.error}</Notice>;

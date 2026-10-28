@@ -1,3 +1,5 @@
+import { hydrateRoot } from 'react-dom/client';
+import { renderToString } from 'react-dom/server';
 import type { PublicSession } from '@contracts/p1';
 import schema from '@contracts/p1.schema.json';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -29,16 +31,34 @@ const hls = vi.hoisted(() => ({
   stopLoad: vi.fn(),
   destroy: vi.fn(),
   attachMedia: vi.fn(),
+  levels: [] as { uri: string; height: number; bitrate: number }[],
+  selectedLevel: -1,
+  setLoadLevel: vi.fn(),
+  parsed: undefined as (() => void) | undefined,
+  updated: undefined as (() => void) | undefined,
+  switched: undefined as ((event: string, data: { level: number }) => void) | undefined,
 }));
 vi.mock('hls.js', () => ({
   default: class {
     static isSupported() {
       return true;
     }
-    static Events = { ERROR: 'error' };
+    static Events = {
+      ERROR: 'error',
+      MANIFEST_PARSED: 'parsed',
+      LEVELS_UPDATED: 'updated',
+      LEVEL_SWITCHED: 'switched',
+    };
     static ErrorTypes = { NETWORK_ERROR: 'networkError' };
     liveSyncPosition = 40;
-    levels = [{}];
+    get levels() {
+      return hls.levels;
+    }
+    currentLevel = -1;
+    set loadLevel(index: number) {
+      hls.selectedLevel = index;
+      hls.setLoadLevel(index);
+    }
     pauseBuffering = hls.pauseBuffering;
     resumeBuffering = hls.resumeBuffering;
     startLoad = hls.startLoad;
@@ -46,8 +66,11 @@ vi.mock('hls.js', () => ({
     destroy = hls.destroy;
     attachMedia = hls.attachMedia;
     loadSource = vi.fn();
-    on(_event: string, handler: typeof hls.error) {
-      hls.error = handler;
+    on(event: string, handler: typeof hls.error | typeof hls.parsed | typeof hls.switched) {
+      if (event === 'error') hls.error = handler as typeof hls.error;
+      if (event === 'parsed') hls.parsed = handler as typeof hls.parsed;
+      if (event === 'updated') hls.updated = handler as typeof hls.updated;
+      if (event === 'switched') hls.switched = handler as typeof hls.switched;
     }
   },
 }));
@@ -67,10 +90,156 @@ const session = schema.$defs.PublicSession.examples[0] as PublicSession;
 const failure = 'No se pudo reproducir la señal. Puedes reintentar.';
 
 beforeEach(() => {
+  hls.levels = [{ uri: '720p.m3u8', height: 720, bitrate: 2_500_000 }];
+  hls.selectedLevel = -1;
+  hls.parsed = undefined;
+  hls.updated = undefined;
+  hls.switched = undefined;
   vi.spyOn(HTMLMediaElement.prototype, 'canPlayType').mockReturnValue('probably');
   vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
   vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
   vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
+});
+
+describe('calidades reales de la emisión', () => {
+  it('hidrata el HTML SSR sin abrir leases ni montar dos motores HLS', async () => {
+    vi.stubGlobal('MediaSource', class {});
+    const view = <HlsPlayer session={session} title="Directo SSR" />;
+    const container = document.createElement('div');
+    container.innerHTML = renderToString(view);
+    document.body.append(container);
+    expect(container.querySelector('video')?.hasAttribute('src')).toBe(false);
+    expect(container.querySelector('select')).toBeNull();
+    expect(hls.attachMedia).not.toHaveBeenCalled();
+    expect(ViewerLeaseController).not.toHaveBeenCalled();
+    const recover = vi.fn();
+    const root = hydrateRoot(container, view, { onRecoverableError: recover });
+    try {
+      await waitFor(() => expect(hls.attachMedia).toHaveBeenCalledOnce());
+      expect(recover).not.toHaveBeenCalled();
+      expect(ViewerLeaseController).not.toHaveBeenCalled();
+      act(() => hls.parsed?.());
+      const selector = screen.getByRole('combobox', { name: 'Calidad' });
+      expect(selector).toHaveValue('');
+      fireEvent.change(selector, { target: { value: '720p.m3u8' } });
+      expect(hls.selectedLevel).toBe(0);
+      expect(hls.attachMedia).toHaveBeenCalledOnce();
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+    }
+    expect(hls.destroy).toHaveBeenCalledOnce();
+  });
+
+  async function start() {
+    vi.stubGlobal('MediaSource', class {});
+    render(<HlsPlayer session={session} title="Directo" />);
+    await waitFor(() => expect(hls.attachMedia).toHaveBeenCalled());
+    act(() => hls.parsed?.());
+    return screen.getByRole('combobox', { name: 'Calidad' });
+  }
+
+  it('solo ofrece la fuente 720p recibida y arranca en automático', async () => {
+    expect(screen.queryByRole('combobox', { name: 'Calidad' })).not.toBeInTheDocument();
+    const selector = await start();
+    expect(selector).toHaveValue('');
+    expect(screen.getAllByRole('option')).toHaveLength(2);
+    expect(screen.getByRole('option', { name: /720p/ })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /1080p/ })).not.toBeInTheDocument();
+    expect(hls.selectedLevel).toBe(-1);
+  });
+
+  it('conmuta entre cuatro calidades y automático sin reiniciar medio, posición ni lease', async () => {
+    hls.levels = [360, 480, 720, 1080].map((height) => ({
+      uri: `${height}p.m3u8`,
+      height,
+      bitrate: height * 4000,
+    }));
+    const selector = await start();
+    const video = screen.getByLabelText<HTMLVideoElement>('Reproductor de Directo');
+    Object.defineProperties(video, {
+      paused: { configurable: true, value: false },
+      readyState: { configurable: true, value: 2 },
+      videoWidth: { configurable: true, value: 1280 },
+      requestVideoFrameCallback: { configurable: true, value: undefined },
+    });
+    video.currentTime = 25;
+    fireEvent.playing(video);
+    expect(ViewerLeaseController).toHaveBeenCalledOnce();
+    const lease = vi.mocked(ViewerLeaseController).mock.results[0]?.value as {
+      stop: ReturnType<typeof vi.fn>;
+    };
+    const load = vi.spyOn(HTMLMediaElement.prototype, 'load');
+    const loads = load.mock.calls.length;
+    fireEvent.change(selector, { target: { value: '1080p.m3u8' } });
+    expect(hls.selectedLevel).toBe(3);
+    act(() => hls.switched?.('switched', { level: 3 }));
+    expect(screen.getByRole('status')).toHaveTextContent('Reproduciendo 1080p');
+    fireEvent.change(selector, { target: { value: '' } });
+    expect(hls.selectedLevel).toBe(-1);
+    expect(video.currentTime).toBe(25);
+    expect(hls.destroy).not.toHaveBeenCalled();
+    expect(hls.attachMedia).toHaveBeenCalledOnce();
+    expect(load).toHaveBeenCalledTimes(loads);
+    expect(ViewerLeaseController).toHaveBeenCalledOnce();
+    expect(lease.stop).not.toHaveBeenCalled();
+  });
+
+  it('conserva la variante al reordenar y vuelve a automático si desaparece', async () => {
+    hls.levels.push({ uri: '360p.m3u8', height: 360, bitrate: 800_000 });
+    const selector = await start();
+    fireEvent.change(selector, { target: { value: '720p.m3u8' } });
+    hls.levels.reverse();
+    act(() => hls.updated?.());
+    expect(selector).toHaveValue('720p.m3u8');
+    expect(hls.selectedLevel).toBe(1);
+    hls.levels.pop();
+    act(() => hls.updated?.());
+    expect(selector).toHaveValue('');
+    expect(hls.selectedLevel).toBe(-1);
+    expect(screen.queryByRole('option', { name: /720p/ })).not.toBeInTheDocument();
+  });
+
+  it('delega selección automática al navegador con HLS nativo', async () => {
+    render(<HlsPlayer session={session} title="Directo" />);
+    expect(
+      await screen.findByText('Calidad automática gestionada por el navegador.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Calidad' })).not.toBeInTheDocument();
+  });
+
+  it('descarta eventos del motor anterior y reinicia selección al cambiar de sesión', async () => {
+    vi.stubGlobal('MediaSource', class {});
+    const { rerender } = render(<HlsPlayer session={session} title="Directo" />);
+    await waitFor(() => expect(hls.attachMedia).toHaveBeenCalledOnce());
+    act(() => hls.parsed?.());
+    fireEvent.change(screen.getByRole('combobox', { name: 'Calidad' }), {
+      target: { value: '720p.m3u8' },
+    });
+    const previousParsed = hls.parsed;
+    const previousSwitched = hls.switched;
+    const sessionId = 'ses_550e8400-e29b-41d4-a716-446655440001';
+    rerender(
+      <HlsPlayer
+        session={{
+          ...session,
+          sessionId,
+          playbackUrl: `/hls/${sessionId}/index.m3u8`,
+        }}
+        title="Otro directo"
+      />,
+    );
+    await waitFor(() => expect(hls.attachMedia).toHaveBeenCalledTimes(2));
+    expect(hls.destroy).toHaveBeenCalledOnce();
+    act(() => {
+      previousParsed?.();
+      previousSwitched?.('switched', { level: 0 });
+    });
+    expect(screen.queryByRole('combobox', { name: 'Calidad' })).not.toBeInTheDocument();
+    act(() => hls.parsed?.());
+    expect(screen.getByRole('combobox', { name: 'Calidad' })).toHaveValue('');
+    expect(hls.selectedLevel).toBe(-1);
+  });
 });
 
 afterEach(() => {

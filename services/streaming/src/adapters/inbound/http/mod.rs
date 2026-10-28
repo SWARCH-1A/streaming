@@ -2,6 +2,7 @@ mod health;
 mod ingest_authorization;
 mod internal_auth;
 mod media_callbacks;
+pub(crate) mod renditions;
 mod request_id;
 mod stream_config;
 mod viewer_leases;

@@ -8,12 +8,16 @@ import { createServer } from 'node:http';
 const source = JSON.parse(await readFile(new URL('../../../contracts/p1.json', import.meta.url)));
 const channel = source.schemas.ChannelBootstrap.examples[0];
 const profile = { ...source.schemas.Profile.examples[0], userId: 'usr_fan' };
+const stream = { ...source.schemas.PublicStream.examples[0], title: 'Directo SSR fixture' };
+let session = source.schemas.PublicSession.examples[0];
+let channelUnavailable = false;
 const requests = [];
 const upstream = createServer((req, res) => {
   requests.push({ path: req.url, cookie: req.headers.cookie ?? '' });
   res.setHeader('Content-Type', 'application/json');
   const replies = {
     '/api/channels/by-handle/fixture_01': channel,
+    '/api/channels/chn_fixture': channel,
     '/api/profile/me': profile,
     '/api/identity/public/users/usr_fan': { userId: 'usr_fan', handle: 'fan_fixture' },
     '/api/channels/chn_fixture/followers/me': {
@@ -23,11 +27,36 @@ const upstream = createServer((req, res) => {
       followedAtUtc: '2026-10-08T20:00:00Z',
     },
   };
+  if (channelUnavailable && req.url === '/api/channels/chn_fixture') {
+    res.statusCode = 503;
+    res.end('{}');
+    return;
+  }
   if (!replies[req.url]) res.statusCode = 404;
   res.end(JSON.stringify(replies[req.url] ?? { code: 'NOT_FOUND' }));
 });
 upstream.listen(0, '127.0.0.1');
 await once(upstream, 'listening');
+const streamingRequests = [];
+const streaming = createServer((req, res) => {
+  streamingRequests.push({ path: req.url, cookie: req.headers.cookie ?? '' });
+  res.setHeader('Content-Type', 'application/json');
+  const replies = {
+    '/api/streams/str_fixture': stream,
+    '/api/streams/sessions/ses_fixture': session,
+    '/api/streams/str_offline': {
+      ...stream,
+      streamId: 'str_offline',
+      sessionId: null,
+      status: 'ENDED',
+      availability: 'OFFLINE',
+    },
+  };
+  if (!replies[req.url]) res.statusCode = req.url === '/api/streams/unavailable' ? 503 : 404;
+  res.end(JSON.stringify(replies[req.url] ?? { code: 'NOT_FOUND' }));
+});
+streaming.listen(0, '127.0.0.1');
+await once(streaming, 'listening');
 const reservation = createServer();
 reservation.listen(0, '127.0.0.1');
 await once(reservation, 'listening');
@@ -40,6 +69,7 @@ const server = spawn(process.execPath, ['server.mjs'], {
     PORT: String(port),
     NODE_ENV: 'production',
     WEB_API_UPSTREAM: `http://127.0.0.1:${upstream.address().port}`,
+    WEB_STREAMING_UPSTREAM: `http://127.0.0.1:${streaming.address().port}`,
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -82,6 +112,35 @@ try {
   assert.match(await authenticated.text(), />Siguiendo</);
   assert.ok(requests.some((r) => r.cookie.includes('stream_session=fixture-credential')));
   assert.ok(requests.every((r) => !r.cookie.includes('unrelated')));
+  const live = await fetch(base + '/watch/str_fixture', { headers });
+  assert.equal(live.status, 200);
+  assert.equal(live.headers.get('cache-control'), 'no-store, private');
+  const liveHtml = await live.text();
+  assert.match(liveHtml, /<h1>Directo SSR fixture<\/h1>/);
+  assert.match(liveHtml, /<video[^>]*aria-label="Reproductor de Directo SSR fixture"/);
+  assert.doesNotMatch(liveHtml, /<video[^>]*\ssrc=|<select[^>]*>[^]*720p/);
+  assert.doesNotMatch(liveHtml, /fixture-credential|127\.0\.0\.1/);
+  assert.deepEqual(
+    streamingRequests.map((r) => r.path),
+    ['/api/streams/str_fixture', '/api/streams/sessions/ses_fixture'],
+  );
+  assert.ok(streamingRequests.every((r) => !r.cookie));
+  assert.ok(requests.every((r) => !r.path.startsWith('/api/streams/')));
+  const offline = await fetch(base + '/watch/str_offline');
+  assert.equal(offline.status, 200);
+  const offlineHtml = await offline.text();
+  assert.match(offlineHtml, /El canal está offline/);
+  assert.doesNotMatch(offlineHtml, /<video/);
+  channelUnavailable = true;
+  const partial = await fetch(base + '/watch/str_fixture');
+  assert.equal(partial.status, 200);
+  assert.match(await partial.text(), /Reproductor de Directo SSR fixture/);
+  channelUnavailable = false;
+  session = { ...session, streamId: 'str_other' };
+  assert.equal((await fetch(base + '/watch/str_fixture')).status, 503);
+  session = source.schemas.PublicSession.examples[0];
+  assert.equal((await fetch(base + '/watch/unavailable')).status, 503);
+  assert.equal((await fetch(base + '/watch/missing')).status, 404);
   for (const path of ['/admin', '/notifications']) {
     const page = await fetch(base + path, { headers });
     assert.equal(page.status, 200);
@@ -96,11 +155,12 @@ try {
   const again = await (await fetch(base + '/channels/fixture_01')).text();
   assert.doesNotMatch(again, /usr_fan|fixture-credential|>Siguiendo</);
   console.log(
-    'PASS SSR: HTML, session isolation, cookie filtering, administration/notifications and 404',
+    'PASS SSR: channel/watch HTML, public Streaming isolation, partial failure, session consistency, administration/notifications and 404',
   );
 } finally {
   const closed = once(server, 'exit');
   server.kill('SIGTERM');
   if (server.exitCode === null) await closed;
   await new Promise((resolve) => upstream.close(resolve));
+  await new Promise((resolve) => streaming.close(resolve));
 }
