@@ -116,8 +116,9 @@ export function liveHandler(db: Db, core: CorePort) {
 }
 
 /**
- * Best effort: a Core read failure keeps a generic title instead of blocking the notices. Returns false
- * only when Core confirms the channel is unavailable (missing or its owner suspended).
+ * Resolves title, link and channel owner before any notice exists. Returns false when Core confirms the
+ * channel is unavailable (missing or its owner suspended); a transient Core failure retries the event,
+ * so no notice is ever created without a known owner (suspension checks depend on it).
  */
 async function describe(db: Db | Tx, core: CorePort, event: LiveEvent): Promise<boolean> {
   let title = 'Un canal que sigues está en vivo';
@@ -131,7 +132,9 @@ async function describe(db: Db | Tx, core: CorePort, event: LiveEvent): Promise<
     if (name) title = `${name} está en vivo`;
   } catch (error) {
     if (error instanceof CoreError && error.status === 404) return false;
+    throw new HandlerError('CORE_UNAVAILABLE', false);
   }
+  if (!owner) throw new HandlerError('CHANNEL_OWNER_UNKNOWN', false);
   await db.query('UPDATE live_sessions SET title=$2, link_path=$3, owner_user_id=$4 WHERE session_id=$1 AND title IS NULL',
     [event.sessionId, title, link, owner]);
   return true;

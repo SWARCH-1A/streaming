@@ -7,7 +7,7 @@ import { loadConfig } from './config.ts';
 import { httpCore } from './core.ts';
 import { createPool, migrate } from './db.ts';
 import { deliveryHandler, unconfiguredPush } from './deliveries.ts';
-import { accountHandler } from './accounts.ts';
+import { accountHandler, resolveOwners } from './accounts.ts';
 import { followHandler } from './follow.ts';
 import { apiHandler } from './http.ts';
 import { liveHandler } from './live.ts';
@@ -50,6 +50,10 @@ if (config.recoveryBrokerUrl && config.recoveryServiceToken) {
   void recovery.run();
   stops.push(() => recovery.stop());
 }
+
+// Backfill owners of notices stored before migration 002 (suspension checks need them).
+const owners = setInterval(() => void resolveOwners(db, core).catch(() => log.warn('owner backfill unavailable', {})), 60_000);
+stops.push(() => clearInterval(owners));
 
 const cleanup = setInterval(() => {
   db.query("DELETE FROM idempotency WHERE retain_until_utc<=now()").catch(() => undefined);

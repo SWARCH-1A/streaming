@@ -114,9 +114,10 @@ def main():
             # CA-05: /watch opens the chat WebSocket; leaving the route closes it.
             sockets = []
             page.on("websocket", lambda ws: sockets.append(ws) if "/realtime/chat/" in ws.url else None)
-            page.goto(ORIGIN + "/watch/" + config["streamId"])
-            # The chat connects once the session read finishes; a loaded local machine needs a wide margin.
-            v.eventually(lambda: sockets, lambda found: len(found) >= 1, 90)
+            # expect_websocket keeps Playwright dispatching events while it waits (a time.sleep loop would
+            # block the callback). The chat connects once the session read finishes: wide local margin.
+            with page.expect_websocket(lambda ws: "/realtime/chat/" in ws.url, timeout=90000):
+                page.goto(ORIGIN + "/watch/" + config["streamId"])
             page.get_by_role("link", name="Explorar").first.click()
             expect(page).to_have_url(ORIGIN + "/", timeout=10000)
             deadline = time.monotonic() + 10

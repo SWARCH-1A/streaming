@@ -1,4 +1,5 @@
 import { HandlerError, type IncomingMessage } from './broker.ts';
+import { CoreError, type CorePort } from './core.ts';
 import { type Db, transaction } from './db.ts';
 import { ID, sha256 } from './ids.ts';
 import { inboxState, remember } from './live.ts';
@@ -59,4 +60,33 @@ export async function suspensionCause(db: { query: Db['query'] }, recipient: str
     "SELECT user_id FROM account_status WHERE status='SUSPENDED' AND user_id = ANY($1::text[])", [[recipient, owner].filter(Boolean)]);
   if (rows.rows.some((row) => row.user_id === recipient)) return 'ACCOUNT_SUSPENDED';
   return rows.rowCount ? 'CHANNEL_UNAVAILABLE' : null;
+}
+
+/**
+ * Backfills the channel owner of notices stored before migration 002. Until resolved they are shown as
+ * unavailable and their external media are not sent. A 404 (missing or suspended channel) keeps them
+ * unresolved; a later run resolves them if the owner is reactivated.
+ */
+export async function resolveOwners(db: Db, core: CorePort, limit = 20): Promise<number> {
+  const pending = await db.query<{ channel_id: string }>(
+    'SELECT DISTINCT channel_id FROM notifications WHERE owner_user_id IS NULL LIMIT $1', [limit]);
+  let resolved = 0;
+  for (const { channel_id: channelId } of pending.rows) {
+    const owner = await channelOwner(core, channelId);
+    if (!owner) continue;
+    await db.query('UPDATE notifications SET owner_user_id=$2 WHERE channel_id=$1 AND owner_user_id IS NULL', [channelId, owner]);
+    await db.query('UPDATE live_sessions SET owner_user_id=$2 WHERE channel_id=$1 AND owner_user_id IS NULL', [channelId, owner]);
+    resolved++;
+  }
+  return resolved;
+}
+
+/** Owner of a channel, null when Core answers 404; transient failures propagate. */
+export async function channelOwner(core: CorePort, channelId: string): Promise<string | null> {
+  try {
+    return (await core.channel(channelId)).ownerUserId;
+  } catch (error) {
+    if (error instanceof CoreError && error.status === 404) return null;
+    throw error;
+  }
 }

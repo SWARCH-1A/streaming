@@ -10,7 +10,7 @@ import { CoreError, type CorePort, type RecipientsPage } from '../src/core.ts';
 import { createPool, type Db, migrate } from '../src/db.ts';
 import { deliveryHandler, type PushProvider } from '../src/deliveries.ts';
 import { followHandler } from '../src/follow.ts';
-import { accountHandler } from '../src/accounts.ts';
+import { accountHandler, resolveOwners } from '../src/accounts.ts';
 import { apiHandler } from '../src/http.ts';
 import { liveHandler } from '../src/live.ts';
 import { silentLog } from '../src/log.ts';
@@ -46,8 +46,10 @@ class FakeCore implements CorePort {
     return email;
   }
   channelUnavailable = false;
+  channelDown = false;
   async channel() {
     if (this.channelUnavailable) throw new CoreError(404, 'CHANNEL_NOT_FOUND');
+    if (this.channelDown) throw new CoreError(503, 'DOWN');
     return { ownerUserId: 'usr_owner', handle: 'canal_laura', displayName: 'Canal de Laura' };
   }
   async claimRecovery(recoveryId: string, deliveryId: string, attempt: number, key: string) {
@@ -313,6 +315,34 @@ describe('notifications', { skip: !url }, () => {
     }
     await account(status('33333333-3333-4333-8333-333333333334', 'usr_owner', 5, 'ACTIVE'));
     assert.equal((await db.query("SELECT status FROM account_status WHERE user_id='usr_owner'")).rows[0].status, 'ACTIVE');
+  });
+
+  it('never creates a notice without a known channel owner and backfills legacy notices', async () => {
+    core.channelDown = true;
+    await assert.rejects(liveHandler(db, core)(liveEvent('evt_1')), (e: unknown) => e instanceof HandlerError && !e.permanent);
+    assert.equal(await count('SELECT count(*) n FROM notifications'), 0);
+    core.channelDown = false;
+    assert.equal(await liveHandler(db, core)(liveEvent('evt_1')), 'SELECTED');
+    assert.equal(await count("SELECT count(*) n FROM notifications WHERE owner_user_id='usr_owner'"), 3);
+
+    // A notice stored before migration 002 has no owner: unavailable and no external send until resolved.
+    await db.query("UPDATE notifications SET owner_user_id=NULL");
+    for (const message of await jobs('inbox')) await deliveryHandler('INBOX', deps)(message);
+    core.sessions.set('cred_a', 'usr_a');
+    const server = createServer((req, res) => void apiHandler({ db, core, cursorSecret: SECRET, log: silentLog })(req, res));
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const read = async () => (await (await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/api/notifications`,
+      { headers: { Cookie: 'stream_session=cred_a' } })).json() as { items: { available: boolean }[] }).items.map((i) => i.available);
+    try {
+      assert.deepEqual(await read(), [false]);
+      core.channelUnavailable = true;
+      assert.equal(await resolveOwners(db, core), 0); // suspended/missing channel stays unresolved
+      core.channelUnavailable = false;
+      assert.equal(await resolveOwners(db, core), 1);
+      assert.deepEqual(await read(), [true]);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 
   it('closes the session of an unavailable channel without notices', async () => {
