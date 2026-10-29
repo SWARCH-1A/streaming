@@ -75,3 +75,12 @@ Prueba adicional con Ajv (tras instalar las dependencias Web):
 ```sh
 node tests/contracts/test_subtitle_schemas.mjs
 ```
+
+## Consumidor Kotlin móvil
+
+`python contracts/generate_mobile.py --write` genera DTO serializables y consultas GraphQL desde
+los schemas canónicos P1/P2 en `generated/mobile/MobileContracts.kt`. Sin argumentos comprueba
+drift y CI ejecuta ese check. `apps/mobile/shared` incluye directamente esa carpeta. Los DTO
+con secretos redactan `toString`; sus valores solo se serializan para el transporte autorizado.
+`P2NativeLogin` y las operaciones de login/logout móvil están implementados en Core; no requieren
+Idempotency-Key, igual que la sesión base. Las operaciones de registro/recuperación sí lo conservan.

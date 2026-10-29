@@ -342,5 +342,3 @@ async function deleteDevice(db: Db | Tx, user: string, installationId: string): 
   await db.query('DELETE FROM devices WHERE installation_id=$1 AND user_id=$2', [installationId, user]);
   return { status: 204 };
 }
-
-

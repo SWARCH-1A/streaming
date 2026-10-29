@@ -1,7 +1,7 @@
 {
   "version": 2,
   "extends": "p1.json",
-  "coverage": "Lifecycle, Discovery, password recovery, channel follow/recipients/autopublication and notification inbox/preferences/devices/delivery contracts; other P2 families remain pending their owners.",
+  "coverage": "Lifecycle, Discovery, recovery, administration, subtitles, native sessions, channel follow/recipients/autopublication, streaming renditions and notification inbox/preferences/devices/delivery contracts; other P2 families remain pending their owners.",
   "schemas": {
     "P2StreamSessionChangedPayload": {
       "type": "object",
@@ -2222,6 +2222,44 @@
           "masterPlaylistUri": "/hls/ses_fixture/master.m3u8"
         }
       ]
+    },
+    "P2NativeLogin": {
+      "type": "object",
+      "properties": {
+        "accessToken": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "tokenType": {
+          "const": "Bearer"
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "expiresAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(Z|\\+00:00)$"
+        }
+      },
+      "required": [
+        "accessToken",
+        "tokenType",
+        "userId",
+        "expiresAtUtc"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "accessToken": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "tokenType": "Bearer",
+          "userId": "usr_fixture",
+          "expiresAtUtc": "2026-10-28T12:00:00Z"
+        }
+      ]
     }
   },
   "events": [
@@ -3256,7 +3294,7 @@
       "provider": "Core",
       "consumer": "Gateway, Web, Mobile",
       "owner": "Core / Canales",
-      "auth": "session cookie; browser CSRF on mutations",
+      "auth": "opaque session via cookie or Bearer; browser CSRF on mutations",
       "request": null,
       "responses": {
         "200": "P2Follow",
@@ -3274,10 +3312,9 @@
       "spec": "SPEC-03 P2",
       "traceability": "docs/spec-p2/spec_03_channel.md",
       "visibility": "public",
-      "limits": "No body. Follower comes from the session; self-follow 422.",
+      "limits": "No body. Follower comes from the session; self-follow 422. X-XSRF-TOKEN is required for browser requests; native Bearer without Cookie or Origin is exempt.",
       "requiredHeaders": [
-        "Idempotency-Key",
-        "X-XSRF-TOKEN"
+        "Idempotency-Key"
       ]
     },
     {
@@ -3287,7 +3324,7 @@
       "provider": "Core",
       "consumer": "Gateway, Web, Mobile",
       "owner": "Core / Canales",
-      "auth": "session cookie; browser CSRF on mutations",
+      "auth": "opaque session via cookie or Bearer; browser CSRF on mutations",
       "request": null,
       "responses": {
         "200": "P2Follow",
@@ -3305,10 +3342,9 @@
       "spec": "SPEC-03 P2",
       "traceability": "docs/spec-p2/spec_03_channel.md",
       "visibility": "public",
-      "limits": "No body.",
+      "limits": "No body. X-XSRF-TOKEN is required for browser requests; native Bearer without Cookie or Origin is exempt.",
       "requiredHeaders": [
-        "Idempotency-Key",
-        "X-XSRF-TOKEN"
+        "Idempotency-Key"
       ]
     },
     {
@@ -3318,7 +3354,7 @@
       "provider": "Core",
       "consumer": "Gateway, Web, Mobile",
       "owner": "Core / Canales",
-      "auth": "session cookie",
+      "auth": "opaque session via cookie or Bearer",
       "request": null,
       "responses": {
         "200": "P2Follow",
@@ -3342,7 +3378,7 @@
       "provider": "Core",
       "consumer": "Gateway, Web, Mobile",
       "owner": "Core / Canales",
-      "auth": "session cookie",
+      "auth": "opaque session via cookie or Bearer",
       "request": null,
       "responses": {
         "200": "P2FollowPage",
@@ -3398,7 +3434,7 @@
       "provider": "Core",
       "consumer": "Gateway, Web, Mobile",
       "owner": "Core / Canales",
-      "auth": "session cookie; channel owner",
+      "auth": "opaque session via cookie or Bearer; channel owner",
       "request": null,
       "responses": {
         "200": "P2Autopublish",
@@ -3423,7 +3459,7 @@
       "provider": "Core",
       "consumer": "Gateway, Web, Mobile",
       "owner": "Core / Canales",
-      "auth": "session cookie; browser CSRF on mutations; channel owner",
+      "auth": "opaque session via cookie or Bearer; browser CSRF on mutations; channel owner",
       "request": "P2AutopublishUpdate",
       "responses": {
         "200": "P2Autopublish",
@@ -3440,10 +3476,9 @@
       "spec": "SPEC-03 P2",
       "traceability": "docs/spec-p2/spec_03_channel.md",
       "visibility": "public",
-      "limits": "Same value keeps the version; a different value increments it.",
+      "limits": "Same value keeps the version; a different value increments it. X-XSRF-TOKEN is required for browser requests; native Bearer without Cookie or Origin is exempt.",
       "requiredHeaders": [
-        "Idempotency-Key",
-        "X-XSRF-TOKEN"
+        "Idempotency-Key"
       ]
     },
     {
@@ -3906,6 +3941,56 @@
       "status": "implemented",
       "timeoutScope": "Ordinary JSON request deadline; media is connection/first-byte only, then separate inactivity/cancellation policy.",
       "requiredHeaders": []
+    },
+    {
+      "id": "p2.identity.mobile-login",
+      "method": "POST",
+      "path": "/api/identity/mobile-sessions",
+      "provider": "Core",
+      "consumer": "Mobile",
+      "owner": "Core / Cuentas",
+      "auth": "public; native without cookie or Origin",
+      "request": "LoginRequest",
+      "responses": {
+        "200": "P2NativeLogin",
+        "400": "Error",
+        "401": "Error",
+        "429": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 8000,
+      "idempotency": "Login is not retried automatically; optional Idempotency-Key is not a login dedupe guarantee",
+      "recovery": "Never log credentials; reauthenticate on expiry; fixed 24 h lifetime with no refresh token.",
+      "spec": "SPEC-01 P2 / SPEC-19",
+      "traceability": "docs/spec-p2/spec_19_mobile.md",
+      "visibility": "credential",
+      "limits": "Cookie and Bearer together are rejected. Browser requests retain CSRF. No credential in query strings.",
+      "requiredHeaders": [],
+      "status": "implemented"
+    },
+    {
+      "id": "p2.identity.mobile-logout",
+      "method": "DELETE",
+      "path": "/api/identity/mobile-sessions/current",
+      "provider": "Core",
+      "consumer": "Mobile",
+      "owner": "Core / Cuentas",
+      "auth": "opaque-session-if-present; Bearer",
+      "request": null,
+      "responses": {
+        "204": null,
+        "401": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 8000,
+      "idempotency": "Revocation is idempotent, including an absent or already revoked session",
+      "recovery": "Never log credentials; reauthenticate on expiry; fixed 24 h lifetime with no refresh token.",
+      "spec": "SPEC-01 P2 / SPEC-19",
+      "traceability": "docs/spec-p2/spec_19_mobile.md",
+      "visibility": "public",
+      "limits": "Cookie and Bearer together are rejected. Browser requests retain CSRF. No credential in query strings.",
+      "requiredHeaders": [],
+      "status": "implemented"
     }
   ],
   "retiredP1Operations": [],

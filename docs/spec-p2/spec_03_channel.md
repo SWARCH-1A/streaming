@@ -57,6 +57,10 @@ Gateway. Configuración VOD: `enabled` y `version`, default true, copiados al ab
 lugar de almacenamiento debe ratificarse; Streaming la consulta al abrir sesión mediante
 `p2.recording.preference-internal`, sin requerir la cookie de un navegador; no hay dos preferencias autoritativas Core/VOD.
 
+Las rutas públicas de seguimiento, listado de seguidos y configuración VOD aceptan la sesión
+opaca por cookie web o Bearer móvil según SPEC-01. Web conserva CSRF; los comandos nativos
+sin Cookie ni Origin usan Bearer validado y mantienen Idempotency-Key y autorización de dominio.
+
 ## 8. Dependencias y contratos de integración
 
 `p2.channels.*`, `p2.recording.preference-*` y evento `channel.follow.changed.v1`.

@@ -256,18 +256,18 @@
     "visibility": "private"
   },
   {
-    "auth": "session cookie; browser CSRF on mutations",
+    "auth": "opaque session via cookie or Bearer; browser CSRF on mutations",
     "consumer": "Gateway, Web, Mobile",
     "id": "p2.channels.follow",
     "idempotency": "Idempotency-Key UUID bound to principal, operation and fingerprint; replay same result for 24 h; different payload 409",
-    "limits": "No body. Follower comes from the session; self-follow 422.",
+    "limits": "No body. Follower comes from the session; self-follow 422. X-XSRF-TOKEN is required for browser requests; native Bearer without Cookie or Origin is exempt.",
     "method": "PUT",
     "owner": "Core / Canales",
     "path": "/api/channels/{channelId}/followers/me",
     "provider": "Core",
     "recovery": "Repeat with the same key; a new key on an active follow returns it unchanged without a new version or event.",
     "request": null,
-    "requiredHeaders": ["Idempotency-Key", "X-XSRF-TOKEN"],
+    "requiredHeaders": ["Idempotency-Key"],
     "responses": {
       "200": "P2Follow",
       "400": "Error",
@@ -284,18 +284,18 @@
     "visibility": "public"
   },
   {
-    "auth": "session cookie; browser CSRF on mutations",
+    "auth": "opaque session via cookie or Bearer; browser CSRF on mutations",
     "consumer": "Gateway, Web, Mobile",
     "id": "p2.channels.unfollow",
     "idempotency": "Idempotency-Key UUID bound to principal, operation and fingerprint; replay same result for 24 h; different payload 409",
-    "limits": "No body.",
+    "limits": "No body. X-XSRF-TOKEN is required for browser requests; native Bearer without Cookie or Origin is exempt.",
     "method": "DELETE",
     "owner": "Core / Canales",
     "path": "/api/channels/{channelId}/followers/me",
     "provider": "Core",
     "recovery": "Repeat with the same key; the row and its version are kept after unfollow.",
     "request": null,
-    "requiredHeaders": ["Idempotency-Key", "X-XSRF-TOKEN"],
+    "requiredHeaders": ["Idempotency-Key"],
     "responses": {
       "200": "P2Follow",
       "400": "Error",
@@ -312,7 +312,7 @@
     "visibility": "public"
   },
   {
-    "auth": "session cookie",
+    "auth": "opaque session via cookie or Bearer",
     "consumer": "Gateway, Web, Mobile",
     "id": "p2.channels.follow-state",
     "idempotency": "Safe read",
@@ -331,7 +331,7 @@
     "visibility": "public"
   },
   {
-    "auth": "session cookie",
+    "auth": "opaque session via cookie or Bearer",
     "consumer": "Gateway, Web, Mobile",
     "id": "p2.channels.followed",
     "idempotency": "Safe read",
@@ -371,7 +371,7 @@
     "visibility": "private"
   },
   {
-    "auth": "session cookie; channel owner",
+    "auth": "opaque session via cookie or Bearer; channel owner",
     "consumer": "Gateway, Web, Mobile",
     "id": "p2.recording.preference-get",
     "idempotency": "Safe read",
@@ -390,18 +390,18 @@
     "visibility": "public"
   },
   {
-    "auth": "session cookie; browser CSRF on mutations; channel owner",
+    "auth": "opaque session via cookie or Bearer; browser CSRF on mutations; channel owner",
     "consumer": "Gateway, Web, Mobile",
     "id": "p2.recording.preference-put",
     "idempotency": "Idempotency-Key UUID bound to principal, operation and fingerprint; replay same result for 24 h; different payload 409",
-    "limits": "Same value keeps the version; a different value increments it.",
+    "limits": "Same value keeps the version; a different value increments it. X-XSRF-TOKEN is required for browser requests; native Bearer without Cookie or Origin is exempt.",
     "method": "PUT",
     "owner": "Core / Canales",
     "path": "/api/channels/{channelId}/vod-settings",
     "provider": "Core",
     "recovery": "On 409 VERSION_CONFLICT read again and resend with the current version.",
     "request": "P2AutopublishUpdate",
-    "requiredHeaders": ["Idempotency-Key", "X-XSRF-TOKEN"],
+    "requiredHeaders": ["Idempotency-Key"],
     "responses": {
       "200": "P2Autopublish",
       "400": "Error",
@@ -738,6 +738,46 @@
     "timeoutMs": 2000,
     "timeoutScope": "Ordinary JSON request deadline; media is connection/first-byte only, then separate inactivity/cancellation policy.",
     "traceability": "docs/spec-p2/spec_04_stream.md",
+    "visibility": "public"
+  },
+  {
+    "auth": "public; native without cookie or Origin",
+    "consumer": "Mobile",
+    "id": "p2.identity.mobile-login",
+    "idempotency": "Login is not retried automatically; optional Idempotency-Key is not a login dedupe guarantee",
+    "limits": "Cookie and Bearer together are rejected. Browser requests retain CSRF. No credential in query strings.",
+    "method": "POST",
+    "owner": "Core / Cuentas",
+    "path": "/api/identity/mobile-sessions",
+    "provider": "Core",
+    "recovery": "Never log credentials; reauthenticate on expiry; fixed 24 h lifetime with no refresh token.",
+    "request": "LoginRequest",
+    "requiredHeaders": [],
+    "responses": {"200": "P2NativeLogin", "400": "Error", "401": "Error", "429": "Error", "503": "Error"},
+    "spec": "SPEC-01 P2 / SPEC-19",
+    "status": "implemented",
+    "timeoutMs": 8000,
+    "traceability": "docs/spec-p2/spec_19_mobile.md",
+    "visibility": "credential"
+  },
+  {
+    "auth": "opaque-session-if-present; Bearer",
+    "consumer": "Mobile",
+    "id": "p2.identity.mobile-logout",
+    "idempotency": "Revocation is idempotent, including an absent or already revoked session",
+    "limits": "Cookie and Bearer together are rejected. Browser requests retain CSRF. No credential in query strings.",
+    "method": "DELETE",
+    "owner": "Core / Cuentas",
+    "path": "/api/identity/mobile-sessions/current",
+    "provider": "Core",
+    "recovery": "Never log credentials; reauthenticate on expiry; fixed 24 h lifetime with no refresh token.",
+    "request": null,
+    "requiredHeaders": [],
+    "responses": {"204": null, "401": "Error", "503": "Error"},
+    "spec": "SPEC-01 P2 / SPEC-19",
+    "status": "implemented",
+    "timeoutMs": 8000,
+    "traceability": "docs/spec-p2/spec_19_mobile.md",
     "visibility": "public"
   }
 ]

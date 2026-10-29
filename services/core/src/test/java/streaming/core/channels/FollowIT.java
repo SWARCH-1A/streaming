@@ -116,6 +116,25 @@ class FollowIT {
         assertThat(outbox()).isZero();
     }
 
+    @Test void nativeSessionsSupportFollowsAndVodSettingsAndHonorRevocation() throws Exception {
+        var owner=account(); var fan=account();
+        assertThat(body(nativeCall("GET",follow(owner),fan,null)).get("following").asBoolean()).isFalse();
+        assertThat(body(nativeCall("PUT",follow(owner),fan,null)).get("following").asBoolean()).isTrue();
+        var page=body(nativeCall("GET","/api/me/followed-channels",fan,null));
+        assertThat(page.get("items").get(0).get("channelId").asText()).isEqualTo(owner.channelId());
+        assertThat(body(nativeCall("DELETE",follow(owner),fan,null)).get("following").asBoolean()).isFalse();
+
+        String settings="/api/channels/"+owner.channelId()+"/vod-settings";
+        assertThat(body(nativeCall("GET",settings,owner,null)).get("enabled").asBoolean()).isTrue();
+        assertThat(body(nativeCall("PUT",settings,owner,Map.of("enabled",false,"expectedVersion",1)))
+                .get("enabled").asBoolean()).isFalse();
+        assertThat(nativeCall("PUT",settings,fan,Map.of("enabled",true,"expectedVersion",2)).statusCode()).isEqualTo(403);
+
+        accounts.logout(fan.credential());
+        assertThat(nativeCall("GET",follow(owner),fan,null).statusCode()).isEqualTo(401);
+        assertThat(nativeCall("PUT",follow(owner),fan,null).statusCode()).isEqualTo(401);
+    }
+
     @Test void concurrentFollowsProduceOneRelationAndOneEvent() throws Exception {
         var owner=account(); var fan=account();
         var barrier=new CyclicBarrier(4);
@@ -314,6 +333,14 @@ class FollowIT {
         if(csrf) { cookies.add("XSRF-TOKEN=fixture-csrf"); builder.header("X-XSRF-TOKEN","fixture-csrf"); }
         if(!cookies.isEmpty()) builder.header("Cookie",String.join("; ",cookies));
         if(key!=null) builder.header("Idempotency-Key",key.toString());
+        var body=payload==null?HttpRequest.BodyPublishers.noBody():HttpRequest.BodyPublishers.ofString(json.writeValueAsString(payload));
+        if(payload!=null) builder.header("Content-Type","application/json");
+        return HttpClient.newHttpClient().send(builder.method(method,body).build(),HttpResponse.BodyHandlers.ofString());
+    }
+    private HttpResponse<String> nativeCall(String method,String path,Account account,Object payload) throws Exception {
+        var builder=HttpRequest.newBuilder(URI.create("http://localhost:"+port+path))
+                .header("Authorization","Bearer "+account.credential());
+        if(!method.equals("GET")) builder.header("Idempotency-Key",UUID.randomUUID().toString());
         var body=payload==null?HttpRequest.BodyPublishers.noBody():HttpRequest.BodyPublishers.ofString(json.writeValueAsString(payload));
         if(payload!=null) builder.header("Content-Type","application/json");
         return HttpClient.newHttpClient().send(builder.method(method,body).build(),HttpResponse.BodyHandlers.ofString());

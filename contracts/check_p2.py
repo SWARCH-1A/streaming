@@ -166,7 +166,10 @@ def verify(base, additions, merged, sdl):
             raise ValueError("Missing P2 traceability or timeout")
         # contratos_p2_http.md: POST context/recipient queries are reads, not commands.
         is_read = op.get("semantics") == "read" and op["method"] == "POST"
-        if op["method"] in {"POST", "PUT", "PATCH", "DELETE"} and not is_read and "Idempotency-Key" not in op["requiredHeaders"]:
+        if (op["method"] in {"POST", "PUT", "PATCH", "DELETE"}
+                and not is_read
+                and op["id"] not in {"p2.identity.mobile-login", "p2.identity.mobile-logout"}
+                and "Idempotency-Key" not in op["requiredHeaders"]):
             raise ValueError("P2 mutation lacks idempotency")
         for name in [op.get("query"), *(part.get("schema") for part in op.get("parts", {}).values())]:
             if name is not None:

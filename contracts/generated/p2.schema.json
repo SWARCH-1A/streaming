@@ -1714,6 +1714,25 @@
       "required": ["emailEnabled", "pushEnabled", "expectedVersion"],
       "type": "object"
     },
+    "P2NativeLogin": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "accessToken": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "expiresAtUtc": "2026-10-28T12:00:00Z",
+          "tokenType": "Bearer",
+          "userId": "usr_fixture"
+        }
+      ],
+      "properties": {
+        "accessToken": {"pattern": "^[A-Za-z0-9_-]{43}$", "type": "string"},
+        "expiresAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "tokenType": {"const": "Bearer"},
+        "userId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["accessToken", "tokenType", "userId", "expiresAtUtc"],
+      "type": "object"
+    },
     "P2Notification": {
       "additionalProperties": false,
       "examples": [

@@ -7,7 +7,6 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.web.csrf.CsrfToken;
-import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -26,18 +25,18 @@ public class ProfileController {
     @GetMapping(path="/api/profile/users/{userId}",produces=MediaType.APPLICATION_JSON_VALUE)
     public ProfileResponse publicProfile(@PathVariable String userId) { return response(profiles.getPublic(userId)); }
     @GetMapping(path="/api/profile/me",produces=MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ProfileResponse> me(@CookieValue(name="${core.cookie-name:stream_session}",required=false) String credential) {
+    public ResponseEntity<ProfileResponse> me(@org.springframework.web.bind.annotation.RequestAttribute(name=streaming.core.security.SessionCredentialFilter.CREDENTIAL,required=false) String credential) {
         Principal principal=profiles.requirePrincipal(credential); return ResponseEntity.ok().header("Cache-Control","no-store, private").body(response(profiles.getMe(principal)));
     }
     @PostMapping(path="/api/profile/me/avatar-uploads",consumes=MediaType.MULTIPART_FORM_DATA_VALUE,produces=MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ProfileApplicationService.UploadResponse> upload(@CookieValue(name="${core.cookie-name:stream_session}",required=false) String credential,
+    public ResponseEntity<ProfileApplicationService.UploadResponse> upload(@org.springframework.web.bind.annotation.RequestAttribute(name=streaming.core.security.SessionCredentialFilter.CREDENTIAL,required=false) String credential,
             @org.springframework.web.bind.annotation.RequestPart("file") MultipartFile file) throws java.io.IOException {
         Principal principal=profiles.requirePrincipal(credential);
         var uploaded=profiles.upload(principal,file.getBytes());
         return ResponseEntity.status(201).header("Cache-Control","no-store, private").body(uploaded);
     }
     @PatchMapping(path="/api/profile/me",consumes=MediaType.APPLICATION_JSON_VALUE,produces=MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ProfileResponse> patch(@CookieValue(name="${core.cookie-name:stream_session}",required=false) String credential,@RequestBody JsonNode request) {
+    public ResponseEntity<ProfileResponse> patch(@org.springframework.web.bind.annotation.RequestAttribute(name=streaming.core.security.SessionCredentialFilter.CREDENTIAL,required=false) String credential,@RequestBody JsonNode request) {
         Principal principal=profiles.requirePrincipal(credential); return ResponseEntity.ok().header("Cache-Control","no-store, private").body(response(profiles.patch(principal,request)));
     }
     @GetMapping(path="/api/profile/csrf",produces=MediaType.APPLICATION_JSON_VALUE)

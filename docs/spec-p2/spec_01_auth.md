@@ -1,6 +1,6 @@
 # SPEC-01 — Cuentas, recuperación y sesión web/móvil
 
-**Prioridad:** P2. **Responsable:** Core / Cuentas. **Estado:** recuperación implementada en Core/Web y publicación RabbitMQ; consumidor y entrega de correo pendientes de Notificaciones. Las demás ampliaciones conservan su diseño para desarrollo.
+**Prioridad:** P2. **Responsable:** Core / Cuentas. **Estado:** recuperación implementada en Core/Web y publicación RabbitMQ; consumidor y SMTP implementados en Notificaciones según ADR-020; aceptación integrada de entrega por separado. Login/logout móvil y resolución Bearer implementados; integración transversal restante pendiente.
 **RF:** RF-001…007, 076, 079. **RNF:** RNF-022…032, 038, 041…050.
 
 ## 1. Contexto y problema
@@ -34,7 +34,7 @@ No se añade JWT, refresh token, verificación de email o cambio de handle por e
 ## 6. Criterios de aceptación
 
 - [x] CA-01: las pruebas base de unicidad, normalización, registro/rollback, perfil, cookie y cuotas siguen pasando.
-- [ ] CA-02: login móvil válido devuelve `P2NativeLogin` por HTTPS/no-store, sin cookie obligatoria ni secreto de servicio.
+- [x] CA-02: login móvil válido devuelve `P2NativeLogin` por HTTPS/no-store, sin cookie obligatoria ni secreto de servicio.
 - [ ] CA-03: logout, expiración y suspensión invalidan web/móvil y el siguiente contexto de Chat/Streaming.
 - [x] CA-04: solicitudes de recuperación para cuenta existente/inexistente devuelven el mismo status/cuerpo y no filtran existencia mediante errores.
 - [x] CA-05: token vencido, usado o manipulado no cambia contraseña; dos confirmaciones concurrentes solo permiten un uso.
@@ -54,7 +54,11 @@ El hash del token es SHA-256; el material temporal de correo usa AES-256-GCM con
 nonce aleatorio y recoveryId/deliveryId autenticados. Se elimina al usar, invalidar o vencer.
 La contraseña mantiene el contrato de 12–128 puntos de código sin normalización de P1.
 
-La sesión nativa es del mismo tipo y autoridad que la web. Sus tokens no entran en URLs.
+La sesión nativa es del mismo tipo y autoridad que la web. POST mobile-sessions no emite cookie;
+DELETE current devuelve 204 incluso si ya se revocó. Core rechaza Authorization malformado o
+combinado con cookie de sesión. Sin Cookie ni Origin, el Bearer válido y las rutas anónimas nativas
+explícitas quedan exentas de CSRF. Cualquier Cookie u Origin conserva la protección de navegador.
+La excepción de registro/recuperación sin esos headers no acepta identidad ambiental. Sus tokens no entran en URLs.
 `X-Session-Credential` privado lleva la credencial opaca al contexto Core únicamente dentro de
 una llamada autenticada de servicio. Chat valida el Bearer nativo al Upgrade y cada mensaje
 nuevo usa el contexto actual; el primer handshake no concede permisos indefinidos.
@@ -80,15 +84,16 @@ no recibe autoridad para cambiar contraseña. Los contratos base de registro/per
 
 ## 9. Decisiones y preguntas abiertas
 
-P2-14: adaptación de clientes y WS a Bearer; su transporte HTTP ya está especificado.
+P2-14: login/logout, resolución Bearer Core y Upgrade Chat implementados con pruebas propias.
+El cliente nativo y sus adaptadores se definen en SPEC-19/ADR-021; la aceptación multimedia sigue separada.
 P2-15 resuelta por ADR-017. Los contratos de recuperación se concretan en `contracts/p2.json`;
 claim/result exigen la credencial exclusiva `recovery-email`, listener privado, pareja
 recoveryId/deliveryId e Idempotency-Key. Los permisos no permiten consultar perfiles ni sesiones.
-El outbox usa RabbitMQ (ADR-016). El responsable de Notificaciones implementará el consumidor
-de `notifications.recovery.email`, su persistencia y SMTP. Runtime, almacén y proveedor se
-deciden en ese módulo. Una respuesta externa perdida queda UNKNOWN sin reenvío automático.
+El outbox usa RabbitMQ (ADR-016). Notificaciones implementa el consumidor de
+`notifications.recovery.email`, su persistencia y SMTP según ADR-020. Una respuesta externa perdida queda UNKNOWN sin reenvío automático.
 El nombre `recovery-email` identifica la credencial limitada del contrato privado, sin exigir
-un contenedor o tecnología concretos. Este checkout entrega el lado de Cuentas y Web.
+un contenedor o tecnología concretos. Cuentas y Web conservan su responsabilidad;
+la entrega pertenece a Notificaciones.
 
 ## 10. Verificación
 

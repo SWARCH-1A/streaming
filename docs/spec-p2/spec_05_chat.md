@@ -1,6 +1,6 @@
 # SPEC-05 — Chat, moderación y replay
 
-**Prioridad:** P2. **Responsable:** Chat. **Estado:** diseño para desarrollo.
+**Prioridad:** P2. **Responsable:** Chat. **Estado:** chat live y Upgrade Bearer nativo implementados; moderación y replay durable pendientes.
 **RF:** RF-031…037, RF-082…083. **RNF:** RNF-013, 018…019, 022…032, 041…050.
 
 ## 1. Contexto y problema
@@ -69,6 +69,11 @@ Los schemas y operaciones `p2.chat.*` están en [contracts/p2.json](../../contra
 e invalidación impiden restaurar contenido desde respuestas/eventos viejos. La selección del
 borrado por usuario está marcada en revisión P2-11. Replay exige acceso VOD y cursor ligado a
 ventana/mapping/moderación. Se consultan trabajos asíncronos por statusUri del dueño.
+
+El Upgrade nativo acepta Authorization Bearer sin Cookie ni Origin ficticio y verifica el contexto
+Core antes de 101. Cada envío vuelve a autorizar con la misma credencial. Un origen de navegador
+fuera de la lista sigue devolviendo 403; Cookie más Bearer devuelve 401. Un cliente nativo anónimo
+puede leer, sin permiso de envío. `native_test.go` verifica handshake, rechazo y revocación posterior.
 
 ## 8. Dependencias y contratos de integración
 
