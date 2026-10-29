@@ -84,6 +84,12 @@ El consumidor inicial usa exclusivamente las APIs públicas P1 del proxy HTTPS m
 implementa Gateway; todavía no acredita el criterio de agregados P2. No se llama a listeners
 internos. Los DTO derivan de contratos canónicos con `contracts/generate_mobile.py`.
 
+Si un heartbeat devuelve `401 INVALID_VIEWER_LEASE_TOKEN`, el cliente descarta el lease y
+lo solicita de nuevo con otra clave de idempotencia, conservando la sesión del usuario.
+El timeout local de 8 s esperando `chat.ready` cierra el socket e inicia la reconexión con
+backoff; cancelar la pantalla o pasar a segundo plano detiene ese ciclo. Cambiar entre
+Explorar y Buscar reinicia las consultas periódicas con el modo de la pestaña activa.
+
 | Proveedor | Entrega requerida para cerrar el recorrido | Estado del consumidor móvil |
 | --- | --- | --- |
 | Cuentas / SPEC-01 | `P2NativeLogin`, logout y Bearer con revocación común | Implementado en Core y cliente; pruebas de transporte/revocación |

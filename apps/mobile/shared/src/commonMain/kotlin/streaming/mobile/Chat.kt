@@ -39,7 +39,8 @@ class Chat(private val api: Api, private val sessionId: String) {
                     socket = connection
                     stage = "chat-ready"
                     try {
-                        val first = withTimeout(8_000) { connection.incoming.receive() }
+                        val first = withTimeoutOrNull(8_000) { connection.incoming.receive() }
+                            ?: error("Timed out waiting for chat.ready")
                         val ready = frame(first)
                         require(ready.string("type") == "chat.ready" && ready.string("sessionId") == sessionId)
                         stage = "chat-history"

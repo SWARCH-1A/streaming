@@ -31,7 +31,7 @@ fun ExploreScreen(api: Api, search: Boolean, foreground: Boolean, navigate: (Str
         recoverable { api.get<Taxonomy>("/api/taxonomy") }.onSuccess { taxonomy = it; catalogError = null }
             .onFailure { catalogError = it.userMessage() }
     }
-    LaunchedEffect(query, category, tag, cursor, channelCursor, foreground, retry) {
+    LaunchedEffect(query, category, tag, cursor, channelCursor, search, foreground, retry) {
         if (!foreground) return@LaunchedEffect
         result = null; channels = null; failure = null; channelError = null
         delay(250)

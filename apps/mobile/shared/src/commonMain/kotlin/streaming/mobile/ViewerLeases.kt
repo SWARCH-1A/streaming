@@ -29,7 +29,8 @@ class ViewerLeases(private val api: Api, private val sessionId: String) {
                     report(null)
                 } catch (cancelled: CancellationException) { throw cancelled }
                 catch (failure: ApiFailure) {
-                    if (failure.status in listOf(404, 409, 410)) {
+                    val expiredToken = failure.status == 401 && failure.code == "INVALID_VIEWER_LEASE_TOKEN"
+                    if (failure.status in listOf(404, 409, 410) || (lease != null && expiredToken)) {
                         if (lease == null) { report("La sesión ya no acepta espectadores."); return@withLock }
                         lease = null; key = randomId()
                     }

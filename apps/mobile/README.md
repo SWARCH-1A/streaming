@@ -106,7 +106,9 @@ Estos resultados no acreditan VOD/replay, follow, bandeja, push ni entrega compl
 Las pruebas compartidas corren con `./gradlew :shared:desktopTest`; cubren generación de sesión,
 401 antiguos, persistencia, serialización canónica, ausencia de Cookie/Origin, restricciones de URLs,
 normalización Unicode, orden, huecos y supresiones del chat. Core y Chat tienen suites propias para
-Bearer/revocación/CSRF/Upgrade. Ningún mock acredita HLS, push ni operación offline en dispositivo.
+Bearer/revocación/CSRF/Upgrade. También se prueban la recuperación del lease expirado sin perder
+el login, la reconexión tras timeout de `chat.ready` y la cancelación sin reintentos.
+Ningún mock acredita HLS, push ni operación offline en dispositivo.
 
 Para aceptación con backend real: registro/login → buscar canal → live → reproducir → calidad →
 chat; pausar/reanudar, rotar, cambiar pantalla y perder red; cerrar sesión y comprobar que la misma
