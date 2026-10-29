@@ -1,7 +1,7 @@
 {
   "version": 2,
   "extends": "p1.json",
-  "coverage": "Lifecycle, Discovery, recovery, administration, subtitles and native sessions; other P2 families remain pending their owners.",
+  "coverage": "Lifecycle, Discovery, recovery, administration, subtitles, native sessions, channel follow/recipients/autopublication, streaming renditions and notification inbox/preferences/devices/delivery contracts; other P2 families remain pending their owners.",
   "schemas": {
     "P2StreamSessionChangedPayload": {
       "type": "object",
@@ -878,6 +878,946 @@
         }
       ]
     },
+    "P2PageQuery": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 20
+        },
+        "cursor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {},
+        {
+          "limit": 20
+        },
+        {
+          "limit": 50
+        }
+      ]
+    },
+    "P2Follow": {
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "following": {
+          "type": "boolean"
+        },
+        "followVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "followedAtUtc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "pattern": "Z$"
+        }
+      },
+      "required": [
+        "channelId",
+        "following",
+        "followVersion",
+        "followedAtUtc"
+      ],
+      "additionalProperties": false,
+      "description": "followVersion 0 means the relation never existed; unfollow keeps and increments the version.",
+      "examples": [
+        {
+          "channelId": "chn_fixture",
+          "following": true,
+          "followVersion": 1,
+          "followedAtUtc": "2026-10-26T18:00:00Z"
+        },
+        {
+          "channelId": "chn_fixture",
+          "following": false,
+          "followVersion": 2,
+          "followedAtUtc": null
+        }
+      ]
+    },
+    "P2FollowedChannel": {
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "followedAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "followVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "channelId",
+        "followedAtUtc",
+        "followVersion"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "channelId": "chn_fixture",
+          "followedAtUtc": "2026-10-26T18:00:00Z",
+          "followVersion": 1
+        }
+      ]
+    },
+    "P2FollowPage": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/P2FollowedChannel"
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "items": [
+            {
+              "channelId": "chn_fixture",
+              "followedAtUtc": "2026-10-26T18:00:00Z",
+              "followVersion": 1
+            }
+          ],
+          "nextCursor": null
+        }
+      ]
+    },
+    "P2RecipientsRequest": {
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 20
+        },
+        "cursor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        }
+      },
+      "required": [
+        "channelId",
+        "sessionId"
+      ],
+      "additionalProperties": false,
+      "description": "First page (no cursor) captures or reuses one cut per channelId/sessionId; later pages read only that cut.",
+      "examples": [
+        {
+          "channelId": "chn_fixture",
+          "sessionId": "ses_fixture",
+          "limit": 50
+        }
+      ]
+    },
+    "P2Recipients": {
+      "type": "object",
+      "properties": {
+        "snapshotId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "channelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "capturedAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "expiresAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "totalRecipients": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              }
+            },
+            "required": [
+              "userId"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        }
+      },
+      "required": [
+        "snapshotId",
+        "channelId",
+        "sessionId",
+        "capturedAtUtc",
+        "expiresAtUtc",
+        "totalRecipients",
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "snapshotId": "rsn_fixture",
+          "channelId": "chn_fixture",
+          "sessionId": "ses_fixture",
+          "capturedAtUtc": "2026-10-26T18:00:00Z",
+          "expiresAtUtc": "2026-10-26T19:00:00Z",
+          "totalRecipients": 1,
+          "items": [
+            {
+              "userId": "usr_fixture"
+            }
+          ],
+          "nextCursor": null
+        }
+      ]
+    },
+    "P2Autopublish": {
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "channelId",
+        "enabled",
+        "version"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "channelId": "chn_fixture",
+          "enabled": true,
+          "version": 1
+        }
+      ]
+    },
+    "P2AutopublishUpdate": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "enabled",
+        "expectedVersion"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "enabled": false,
+          "expectedVersion": 1
+        }
+      ]
+    },
+    "P2EventChannelFollowChanged": {
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "eventType": {
+          "const": "channel.follow.changed.v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "producer": {
+          "const": "core"
+        },
+        "aggregateId": {
+          "type": "string",
+          "pattern": "^follow:[A-Za-z0-9_-]{1,64}:[A-Za-z0-9_-]{1,64}$"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "occurredAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "correlationId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,128}$"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "channelId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "followerUserId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "following": {
+              "type": "boolean"
+            },
+            "followVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "changedAtUtc": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            }
+          },
+          "required": [
+            "channelId",
+            "followerUserId",
+            "following",
+            "followVersion",
+            "changedAtUtc"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "producer",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "correlationId",
+        "payload"
+      ],
+      "additionalProperties": false,
+      "description": "Consumers keep the highest followVersion per aggregate and discard older or equal versions.",
+      "examples": [
+        {
+          "eventId": "22222222-2222-4222-8222-222222222222",
+          "eventType": "channel.follow.changed.v1",
+          "schemaVersion": 1,
+          "producer": "core",
+          "aggregateId": "follow:chn_fixture:usr_fixture",
+          "sequence": 2,
+          "occurredAtUtc": "2026-10-26T18:00:00Z",
+          "correlationId": "req_fixture",
+          "payload": {
+            "channelId": "chn_fixture",
+            "followerUserId": "usr_fixture",
+            "following": false,
+            "followVersion": 2,
+            "changedAtUtc": "2026-10-26T18:00:00Z"
+          }
+        }
+      ]
+    },
+    "P2Notification": {
+      "type": "object",
+      "properties": {
+        "notificationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "kind": {
+          "enum": [
+            "LIVE_STARTED"
+          ]
+        },
+        "channelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "linkPath": {
+          "type": "string",
+          "pattern": "^/[^\\s]*$",
+          "maxLength": 512
+        },
+        "createdAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "readAtUtc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "available": {
+          "type": "boolean",
+          "description": "false while the channel owner is suspended (SPEC-20 CA-09); the record stays but its link must not be offered."
+        }
+      },
+      "required": [
+        "notificationId",
+        "kind",
+        "channelId",
+        "sessionId",
+        "title",
+        "linkPath",
+        "createdAtUtc",
+        "readAtUtc",
+        "available"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "notificationId": "ntf_fixture",
+          "kind": "LIVE_STARTED",
+          "channelId": "chn_fixture",
+          "sessionId": "ses_fixture",
+          "title": "Canal de Laura está en vivo",
+          "linkPath": "/channels/canal_laura",
+          "createdAtUtc": "2026-10-26T18:00:00Z",
+          "readAtUtc": null,
+          "available": true
+        }
+      ]
+    },
+    "P2NotificationPage": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/P2Notification"
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "items": [
+            {
+              "notificationId": "ntf_fixture",
+              "kind": "LIVE_STARTED",
+              "channelId": "chn_fixture",
+              "sessionId": "ses_fixture",
+              "title": "Canal de Laura está en vivo",
+              "linkPath": "/channels/canal_laura",
+              "createdAtUtc": "2026-10-26T18:00:00Z",
+              "readAtUtc": null,
+              "available": true
+            }
+          ],
+          "nextCursor": null
+        }
+      ]
+    },
+    "P2Preferences": {
+      "type": "object",
+      "properties": {
+        "emailEnabled": {
+          "type": "boolean"
+        },
+        "pushEnabled": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "emailEnabled",
+        "pushEnabled",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "Email and push are off by default (version 1); the inbox is always on.",
+      "examples": [
+        {
+          "emailEnabled": false,
+          "pushEnabled": false,
+          "version": 1
+        }
+      ]
+    },
+    "P2MediumPreferences": {
+      "type": "object",
+      "properties": {
+        "emailEnabled": {
+          "type": "boolean"
+        },
+        "pushEnabled": {
+          "type": "boolean"
+        },
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "emailEnabled",
+        "pushEnabled",
+        "expectedVersion"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "emailEnabled": true,
+          "pushEnabled": false,
+          "expectedVersion": 1
+        }
+      ]
+    },
+    "P2ChannelPreference": {
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "emailEnabled": {
+          "type": "boolean"
+        },
+        "pushEnabled": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "channelId",
+        "emailEnabled",
+        "pushEnabled",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "A medium is used for a channel only when both the general switch and this channel switch are on.",
+      "examples": [
+        {
+          "channelId": "chn_fixture",
+          "emailEnabled": true,
+          "pushEnabled": false,
+          "version": 2
+        }
+      ]
+    },
+    "P2ChannelPreferences": {
+      "type": "object",
+      "properties": {
+        "emailEnabled": {
+          "type": "boolean"
+        },
+        "pushEnabled": {
+          "type": "boolean"
+        },
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "emailEnabled",
+        "pushEnabled",
+        "expectedVersion"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "emailEnabled": true,
+          "pushEnabled": false,
+          "expectedVersion": 1
+        }
+      ]
+    },
+    "P2DeviceRegister": {
+      "type": "object",
+      "properties": {
+        "installationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "platform": {
+          "enum": [
+            "ANDROID",
+            "IOS",
+            "WEB"
+          ]
+        },
+        "providerToken": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "installationId",
+        "platform",
+        "providerToken"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "installationId": "ins_fixture",
+          "platform": "ANDROID",
+          "providerToken": "fixture-provider-value"
+        }
+      ]
+    },
+    "P2Device": {
+      "type": "object",
+      "properties": {
+        "installationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "platform": {
+          "enum": [
+            "ANDROID",
+            "IOS",
+            "WEB"
+          ]
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "installationId",
+        "platform",
+        "enabled",
+        "version"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "installationId": "ins_fixture",
+          "platform": "ANDROID",
+          "enabled": true,
+          "version": 1
+        }
+      ]
+    },
+    "P2EventNotificationDeliveryRequested": {
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "eventType": {
+          "const": "notification.delivery.requested.v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "producer": {
+          "const": "notifications"
+        },
+        "aggregateId": {
+          "type": "string",
+          "pattern": "^delivery:[A-Za-z0-9_-]{1,128}$"
+        },
+        "sequence": {
+          "const": 1
+        },
+        "occurredAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "correlationId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,128}$"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "deliveryId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "notificationId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "medium": {
+              "enum": [
+                "INBOX",
+                "EMAIL",
+                "PUSH"
+              ]
+            },
+            "targetId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          "required": [
+            "deliveryId",
+            "notificationId",
+            "medium",
+            "targetId"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "producer",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "correlationId",
+        "payload"
+      ],
+      "additionalProperties": false,
+      "description": "A pointer to one delivery row; the worker reads the address or device at send time. Routing key suffix = lower-case medium.",
+      "examples": [
+        {
+          "eventId": "44444444-4444-4444-8444-444444444444",
+          "eventType": "notification.delivery.requested.v1",
+          "schemaVersion": 1,
+          "producer": "notifications",
+          "aggregateId": "delivery:dlv_fixture",
+          "sequence": 1,
+          "occurredAtUtc": "2026-10-26T18:00:00Z",
+          "correlationId": "req_fixture",
+          "payload": {
+            "deliveryId": "dlv_fixture",
+            "notificationId": "ntf_fixture",
+            "medium": "EMAIL",
+            "targetId": "usr_fixture"
+          }
+        }
+      ]
+    },
+    "P2NotificationSession": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "expiresAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        }
+      },
+      "required": [
+        "userId",
+        "expiresAtUtc"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "userId": "usr_fixture",
+          "expiresAtUtc": "2026-10-27T18:00:00Z"
+        }
+      ]
+    },
+    "P2EmailTargetRequest": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      },
+      "required": [
+        "userId"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "userId": "usr_fixture"
+        }
+      ]
+    },
+    "P2EmailTarget": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 320
+        }
+      },
+      "required": [
+        "userId",
+        "email"
+      ],
+      "additionalProperties": false,
+      "description": "Private; read only at delivery time and never stored by Notifications.",
+      "examples": [
+        {
+          "userId": "usr_fixture",
+          "email": "fixture@example.test"
+        }
+      ]
+    },
     "P2AccountAdmin": {
       "type": "object",
       "properties": {
@@ -1176,24 +2116,110 @@
         }
       ]
     },
-    "P2PageQuery": {
+    "P2Rendition": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
-        "limit": {
+        "renditionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "width": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 50,
-          "default": 20
+          "maximum": 9007199254740991
         },
-        "cursor": {
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "bitrateBps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "videoCodec": {
           "type": "string",
-          "maxLength": 512
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "audioCodec": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
+      "required": [
+        "renditionId",
+        "width",
+        "height",
+        "bitrateBps",
+        "videoCodec",
+        "audioCodec"
+      ],
+      "additionalProperties": false,
       "examples": [
         {
-          "limit": 50
+          "renditionId": "rend_720",
+          "width": 1280,
+          "height": 720,
+          "bitrateBps": 2500000,
+          "videoCodec": "avc1",
+          "audioCodec": "mp4a"
+        }
+      ]
+    },
+    "P2Renditions": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "renditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/P2Rendition"
+          },
+          "minItems": 1,
+          "maxItems": 4
+        },
+        "masterPlaylistUri": {
+          "type": "string",
+          "pattern": "^/hls/"
+        }
+      },
+      "required": [
+        "sessionId",
+        "renditions",
+        "masterPlaylistUri"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "sessionId": "ses_fixture",
+          "renditions": [
+            {
+              "renditionId": "rend_720",
+              "width": 1280,
+              "height": 720,
+              "bitrateBps": 2500000,
+              "videoCodec": "avc1",
+              "audioCodec": "mp4a"
+            }
+          ],
+          "masterPlaylistUri": "/hls/ses_fixture/master.m3u8"
         }
       ]
     },
@@ -1310,10 +2336,12 @@
       "subscriptions": [
         "notifications.follow"
       ],
-      "schema": null,
-      "status": "pending-owner",
+      "schema": "P2EventChannelFollowChanged",
+      "status": "contract-ready",
       "spec": [
+        "SPEC-03",
         "SPEC-17",
+        "SPEC-20",
         "SPEC-10"
       ]
     },
@@ -1361,9 +2389,10 @@
         "notifications.delivery.email",
         "notifications.delivery.push"
       ],
-      "schema": null,
-      "status": "pending-owner",
+      "schema": "P2EventNotificationDeliveryRequested",
+      "status": "contract-ready",
       "spec": [
+        "SPEC-20",
         "SPEC-17",
         "SPEC-10"
       ]
@@ -1759,6 +2788,65 @@
       }
     },
     {
+      "schema": "P2EventChannelFollowChanged",
+      "value": {
+        "eventId": "22222222-2222-4222-8222-222222222222",
+        "eventType": "channel.follow.changed.v1",
+        "schemaVersion": 1,
+        "producer": "core",
+        "aggregateId": "follow:chn_fixture:usr_fixture",
+        "sequence": 1,
+        "occurredAtUtc": "2026-10-26T18:00:00Z",
+        "correlationId": "req_fixture",
+        "payload": {
+          "channelId": "chn_fixture",
+          "followerUserId": "usr_fixture",
+          "following": false,
+          "followVersion": 2,
+          "changedAtUtc": "2026-10-26T18:00:00Z"
+        }
+      }
+    },
+    {
+      "schema": "P2Recipients",
+      "public": true,
+      "value": {
+        "snapshotId": "rsn_fixture",
+        "channelId": "chn_fixture",
+        "sessionId": "ses_fixture",
+        "capturedAtUtc": "2026-10-26T18:00:00Z",
+        "expiresAtUtc": "2026-10-26T19:00:00Z",
+        "totalRecipients": 1,
+        "items": [
+          {
+            "userId": "usr_fixture",
+            "email": "fan@example.test"
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "schema": "P2EventNotificationDeliveryRequested",
+      "value": {
+        "eventId": "44444444-4444-4444-8444-444444444444",
+        "eventType": "notification.delivery.requested.v1",
+        "schemaVersion": 1,
+        "producer": "notifications",
+        "aggregateId": "delivery:dlv_fixture",
+        "sequence": 1,
+        "occurredAtUtc": "2026-10-26T18:00:00Z",
+        "correlationId": "req_fixture",
+        "payload": {
+          "deliveryId": "dlv_fixture",
+          "notificationId": "ntf_fixture",
+          "medium": "EMAIL",
+          "targetId": "usr_fixture",
+          "email": "fan@example.test"
+        }
+      }
+    },
+    {
       "schema": "P2EventAccountStatusChanged",
       "value": {
         "eventId": "a38a5088-2178-444f-9ebd-a3a1dfbe7d01",
@@ -1774,6 +2862,118 @@
           "accountVersion": 1,
           "status": "SUSPENDED"
         }
+      }
+    },
+    {
+      "name": "more-than-four-renditions",
+      "schema": "P2Renditions",
+      "value": {
+        "sessionId": "ses_fixture",
+        "renditions": [
+          {
+            "renditionId": "rend_720",
+            "width": 1280,
+            "height": 720,
+            "bitrateBps": 2500000,
+            "videoCodec": "avc1",
+            "audioCodec": "mp4a"
+          },
+          {
+            "renditionId": "rend_720",
+            "width": 1280,
+            "height": 720,
+            "bitrateBps": 2500000,
+            "videoCodec": "avc1",
+            "audioCodec": "mp4a"
+          },
+          {
+            "renditionId": "rend_720",
+            "width": 1280,
+            "height": 720,
+            "bitrateBps": 2500000,
+            "videoCodec": "avc1",
+            "audioCodec": "mp4a"
+          },
+          {
+            "renditionId": "rend_720",
+            "width": 1280,
+            "height": 720,
+            "bitrateBps": 2500000,
+            "videoCodec": "avc1",
+            "audioCodec": "mp4a"
+          },
+          {
+            "renditionId": "rend_720",
+            "width": 1280,
+            "height": 720,
+            "bitrateBps": 2500000,
+            "videoCodec": "avc1",
+            "audioCodec": "mp4a"
+          }
+        ],
+        "masterPlaylistUri": "/hls/ses_fixture/master.m3u8"
+      }
+    },
+    {
+      "name": "rendition-master-session-mismatch",
+      "schema": "P2Renditions",
+      "value": {
+        "sessionId": "ses_fixture",
+        "renditions": [
+          {
+            "renditionId": "rend_720",
+            "width": 1280,
+            "height": 720,
+            "bitrateBps": 2500000,
+            "videoCodec": "avc1",
+            "audioCodec": "mp4a"
+          }
+        ],
+        "masterPlaylistUri": "/hls/ses_other/master.m3u8"
+      }
+    },
+    {
+      "name": "rendition-master-traversal",
+      "schema": "P2Renditions",
+      "value": {
+        "sessionId": "ses_fixture",
+        "renditions": [
+          {
+            "renditionId": "rend_720",
+            "width": 1280,
+            "height": 720,
+            "bitrateBps": 2500000,
+            "videoCodec": "avc1",
+            "audioCodec": "mp4a"
+          }
+        ],
+        "masterPlaylistUri": "/hls/ses_fixture/../master.m3u8"
+      }
+    },
+    {
+      "name": "duplicate-rendition-ids",
+      "schema": "P2Renditions",
+      "value": {
+        "sessionId": "ses_fixture",
+        "renditions": [
+          {
+            "renditionId": "rend_720",
+            "width": 1280,
+            "height": 720,
+            "bitrateBps": 2500000,
+            "videoCodec": "avc1",
+            "audioCodec": "mp4a"
+          },
+          {
+            "renditionId": "rend_720",
+            "width": 1280,
+            "height": 720,
+            "bitrateBps": 2500000,
+            "videoCodec": "avc1",
+            "audioCodec": "mp4a"
+          }
+        ],
+        "masterPlaylistUri": "/hls/ses_fixture/master.m3u8"
       }
     }
   ],
@@ -2088,6 +3288,502 @@
       }
     },
     {
+      "id": "p2.channels.follow",
+      "method": "PUT",
+      "path": "/api/channels/{channelId}/followers/me",
+      "provider": "Core",
+      "consumer": "Gateway, Web, Mobile",
+      "owner": "Core / Canales",
+      "auth": "opaque session via cookie or Bearer; browser CSRF on mutations",
+      "request": null,
+      "responses": {
+        "200": "P2Follow",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Idempotency-Key UUID bound to principal, operation and fingerprint; replay same result for 24 h; different payload 409",
+      "recovery": "Repeat with the same key; a new key on an active follow returns it unchanged without a new version or event.",
+      "spec": "SPEC-03 P2",
+      "traceability": "docs/spec-p2/spec_03_channel.md",
+      "visibility": "public",
+      "limits": "No body. Follower comes from the session; self-follow 422. X-XSRF-TOKEN is required for browser requests; native Bearer without Cookie or Origin is exempt.",
+      "requiredHeaders": [
+        "Idempotency-Key"
+      ]
+    },
+    {
+      "id": "p2.channels.unfollow",
+      "method": "DELETE",
+      "path": "/api/channels/{channelId}/followers/me",
+      "provider": "Core",
+      "consumer": "Gateway, Web, Mobile",
+      "owner": "Core / Canales",
+      "auth": "opaque session via cookie or Bearer; browser CSRF on mutations",
+      "request": null,
+      "responses": {
+        "200": "P2Follow",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Idempotency-Key UUID bound to principal, operation and fingerprint; replay same result for 24 h; different payload 409",
+      "recovery": "Repeat with the same key; the row and its version are kept after unfollow.",
+      "spec": "SPEC-03 P2",
+      "traceability": "docs/spec-p2/spec_03_channel.md",
+      "visibility": "public",
+      "limits": "No body. X-XSRF-TOKEN is required for browser requests; native Bearer without Cookie or Origin is exempt.",
+      "requiredHeaders": [
+        "Idempotency-Key"
+      ]
+    },
+    {
+      "id": "p2.channels.follow-state",
+      "method": "GET",
+      "path": "/api/channels/{channelId}/followers/me",
+      "provider": "Core",
+      "consumer": "Gateway, Web, Mobile",
+      "owner": "Core / Canales",
+      "auth": "opaque session via cookie or Bearer",
+      "request": null,
+      "responses": {
+        "200": "P2Follow",
+        "401": "Error",
+        "404": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Safe read",
+      "recovery": "Retry freely.",
+      "spec": "SPEC-03 P2",
+      "traceability": "docs/spec-p2/spec_03_channel.md",
+      "visibility": "public",
+      "limits": "Cache-Control: no-store",
+      "requiredHeaders": []
+    },
+    {
+      "id": "p2.channels.followed",
+      "method": "GET",
+      "path": "/api/me/followed-channels",
+      "provider": "Core",
+      "consumer": "Gateway, Web, Mobile",
+      "owner": "Core / Canales",
+      "auth": "opaque session via cookie or Bearer",
+      "request": null,
+      "responses": {
+        "200": "P2FollowPage",
+        "400": "Error",
+        "401": "Error",
+        "410": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Safe read",
+      "recovery": "On 410 restart without cursor.",
+      "spec": "SPEC-03 P2",
+      "traceability": "docs/spec-p2/spec_03_channel.md",
+      "visibility": "public",
+      "limits": "limit 1..50 (default 20); HMAC cursor bound to the user, valid 1 h; unknown query keys 400.",
+      "requiredHeaders": [],
+      "query": "P2PageQuery"
+    },
+    {
+      "id": "p2.channels.recipients",
+      "method": "POST",
+      "path": "/internal/core/notification-recipients",
+      "provider": "Core",
+      "consumer": "Notifications",
+      "owner": "Core / Canales",
+      "auth": "private-listener; service:notifications",
+      "request": "P2RecipientsRequest",
+      "responses": {
+        "200": "P2Recipients",
+        "400": "Error",
+        "401": "Error",
+        "404": "Error",
+        "410": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Read with POST body: one cut per channelId/sessionId reused for 1 h; no Idempotency-Key required.",
+      "recovery": "On 410 restart without cursor; the session cut is captured again only after expiry.",
+      "spec": "SPEC-03 P2",
+      "traceability": "docs/spec-p2/spec_03_channel.md",
+      "visibility": "private",
+      "limits": "JSON <=16 KiB; limit 1..50; snapshot and cursor expire after 1 h; returns userId only.",
+      "requiredHeaders": [
+        "X-Service-Name",
+        "X-Service-Token"
+      ],
+      "semantics": "read"
+    },
+    {
+      "id": "p2.recording.preference-get",
+      "method": "GET",
+      "path": "/api/channels/{channelId}/vod-settings",
+      "provider": "Core",
+      "consumer": "Gateway, Web, Mobile",
+      "owner": "Core / Canales",
+      "auth": "opaque session via cookie or Bearer; channel owner",
+      "request": null,
+      "responses": {
+        "200": "P2Autopublish",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Safe read",
+      "recovery": "Retry freely.",
+      "spec": "SPEC-03 P2",
+      "traceability": "docs/spec-p2/spec_03_channel.md",
+      "visibility": "public",
+      "limits": "Cache-Control: no-store",
+      "requiredHeaders": []
+    },
+    {
+      "id": "p2.recording.preference-put",
+      "method": "PUT",
+      "path": "/api/channels/{channelId}/vod-settings",
+      "provider": "Core",
+      "consumer": "Gateway, Web, Mobile",
+      "owner": "Core / Canales",
+      "auth": "opaque session via cookie or Bearer; browser CSRF on mutations; channel owner",
+      "request": "P2AutopublishUpdate",
+      "responses": {
+        "200": "P2Autopublish",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Idempotency-Key UUID bound to principal, operation and fingerprint; replay same result for 24 h; different payload 409",
+      "recovery": "On 409 VERSION_CONFLICT read again and resend with the current version.",
+      "spec": "SPEC-03 P2",
+      "traceability": "docs/spec-p2/spec_03_channel.md",
+      "visibility": "public",
+      "limits": "Same value keeps the version; a different value increments it. X-XSRF-TOKEN is required for browser requests; native Bearer without Cookie or Origin is exempt.",
+      "requiredHeaders": [
+        "Idempotency-Key"
+      ]
+    },
+    {
+      "id": "p2.recording.preference-internal",
+      "method": "GET",
+      "path": "/internal/core/channels/{channelId}/vod-settings",
+      "provider": "Core",
+      "consumer": "Streaming",
+      "owner": "Core / Canales",
+      "auth": "private-listener; service:streaming-recording-settings",
+      "request": null,
+      "responses": {
+        "200": "P2Autopublish",
+        "401": "Error",
+        "404": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Safe read",
+      "recovery": "Streaming copies the value when a session opens; later changes do not alter that session.",
+      "spec": "SPEC-03 P2",
+      "traceability": "docs/spec-p2/spec_03_channel.md",
+      "visibility": "private",
+      "limits": "No user cookie.",
+      "requiredHeaders": [
+        "X-Service-Name",
+        "X-Service-Token"
+      ]
+    },
+    {
+      "id": "p2.notifications.list",
+      "method": "GET",
+      "path": "/api/notifications",
+      "provider": "Notifications",
+      "consumer": "Gateway, Web, Mobile",
+      "owner": "Notificaciones",
+      "auth": "session cookie (browser CSRF on mutations) or Bearer",
+      "request": null,
+      "responses": {
+        "200": "P2NotificationPage",
+        "400": "Error",
+        "401": "Error",
+        "410": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Safe read",
+      "recovery": "On 410 restart without cursor.",
+      "spec": "SPEC-20 P2",
+      "traceability": "docs/spec-p2/spec_20_notifications.md",
+      "visibility": "public",
+      "limits": "limit 1..50 (default 20); HMAC cursor bound to the user, valid 1 h.",
+      "requiredHeaders": [],
+      "query": "P2PageQuery"
+    },
+    {
+      "id": "p2.notifications.read",
+      "method": "PUT",
+      "path": "/api/notifications/{notificationId}/read",
+      "provider": "Notifications",
+      "consumer": "Gateway, Web, Mobile",
+      "owner": "Notificaciones",
+      "auth": "session cookie (browser CSRF on mutations) or Bearer",
+      "request": null,
+      "responses": {
+        "200": "P2Notification",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Idempotency-Key UUID bound to principal, operation and body; replay same result for 24 h; different payload 409",
+      "recovery": "Repeat with the same key; reading again keeps the first readAtUtc.",
+      "spec": "SPEC-20 P2",
+      "traceability": "docs/spec-p2/spec_20_notifications.md",
+      "visibility": "public",
+      "limits": "Another account's notice is 404.",
+      "requiredHeaders": [
+        "Idempotency-Key",
+        "X-XSRF-TOKEN"
+      ]
+    },
+    {
+      "id": "p2.notifications.preferences-get",
+      "method": "GET",
+      "path": "/api/notifications/preferences",
+      "provider": "Notifications",
+      "consumer": "Gateway, Web, Mobile",
+      "owner": "Notificaciones",
+      "auth": "session cookie (browser CSRF on mutations) or Bearer",
+      "request": null,
+      "responses": {
+        "200": "P2Preferences",
+        "401": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Safe read",
+      "recovery": "Retry freely.",
+      "spec": "SPEC-20 P2",
+      "traceability": "docs/spec-p2/spec_20_notifications.md",
+      "visibility": "public",
+      "limits": "Cache-Control: no-store",
+      "requiredHeaders": []
+    },
+    {
+      "id": "p2.notifications.preferences-put",
+      "method": "PUT",
+      "path": "/api/notifications/preferences",
+      "provider": "Notifications",
+      "consumer": "Gateway, Web, Mobile",
+      "owner": "Notificaciones",
+      "auth": "session cookie (browser CSRF on mutations) or Bearer",
+      "request": "P2MediumPreferences",
+      "responses": {
+        "200": "P2Preferences",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "409": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Idempotency-Key UUID bound to principal, operation and body; replay same result for 24 h; different payload 409",
+      "recovery": "On 409 VERSION_CONFLICT read again and resend.",
+      "spec": "SPEC-20 P2",
+      "traceability": "docs/spec-p2/spec_20_notifications.md",
+      "visibility": "public",
+      "limits": "Version grows only when a value changes.",
+      "requiredHeaders": [
+        "Idempotency-Key",
+        "X-XSRF-TOKEN"
+      ]
+    },
+    {
+      "id": "p2.notifications.channel-get",
+      "method": "GET",
+      "path": "/api/notifications/channels/{channelId}/preference",
+      "provider": "Notifications",
+      "consumer": "Gateway, Web, Mobile",
+      "owner": "Notificaciones",
+      "auth": "session cookie (browser CSRF on mutations) or Bearer",
+      "request": null,
+      "responses": {
+        "200": "P2ChannelPreference",
+        "401": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Safe read",
+      "recovery": "Retry freely.",
+      "spec": "SPEC-20 P2",
+      "traceability": "docs/spec-p2/spec_20_notifications.md",
+      "visibility": "public",
+      "limits": "Missing preference = both off, version 1.",
+      "requiredHeaders": []
+    },
+    {
+      "id": "p2.notifications.channel-put",
+      "method": "PUT",
+      "path": "/api/notifications/channels/{channelId}/preference",
+      "provider": "Notifications",
+      "consumer": "Gateway, Web, Mobile",
+      "owner": "Notificaciones",
+      "auth": "session cookie (browser CSRF on mutations) or Bearer",
+      "request": "P2ChannelPreferences",
+      "responses": {
+        "200": "P2ChannelPreference",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "409": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Idempotency-Key UUID bound to principal, operation and body; replay same result for 24 h; different payload 409",
+      "recovery": "On 409 VERSION_CONFLICT read again and resend.",
+      "spec": "SPEC-20 P2",
+      "traceability": "docs/spec-p2/spec_20_notifications.md",
+      "visibility": "public",
+      "limits": "Unfollowing the channel resets this preference.",
+      "requiredHeaders": [
+        "Idempotency-Key",
+        "X-XSRF-TOKEN"
+      ]
+    },
+    {
+      "id": "p2.notifications.device-put",
+      "method": "PUT",
+      "path": "/api/notifications/devices/{installationId}",
+      "provider": "Notifications",
+      "consumer": "Gateway, Web, Mobile",
+      "owner": "Notificaciones",
+      "auth": "session cookie (browser CSRF on mutations) or Bearer",
+      "request": "P2DeviceRegister",
+      "responses": {
+        "200": "P2Device",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "409": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Idempotency-Key UUID bound to principal, operation and body; replay same result for 24 h; different payload 409",
+      "recovery": "Repeat with the same key; a rotated token re-enables the installation.",
+      "spec": "SPEC-20 P2",
+      "traceability": "docs/spec-p2/spec_20_notifications.md",
+      "visibility": "public",
+      "limits": "installationId in path and body must match; the provider token is never returned.",
+      "requiredHeaders": [
+        "Idempotency-Key",
+        "X-XSRF-TOKEN"
+      ]
+    },
+    {
+      "id": "p2.notifications.device-delete",
+      "method": "DELETE",
+      "path": "/api/notifications/devices/{installationId}",
+      "provider": "Notifications",
+      "consumer": "Gateway, Web, Mobile",
+      "owner": "Notificaciones",
+      "auth": "session cookie (browser CSRF on mutations) or Bearer",
+      "request": null,
+      "responses": {
+        "204": null,
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "409": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Idempotency-Key UUID bound to principal, operation and body; replay same result for 24 h; different payload 409",
+      "recovery": "Repeat freely; deleting twice is 204.",
+      "spec": "SPEC-20 P2",
+      "traceability": "docs/spec-p2/spec_20_notifications.md",
+      "visibility": "public",
+      "limits": "Removes only the caller's association (logout).",
+      "requiredHeaders": [
+        "Idempotency-Key",
+        "X-XSRF-TOKEN"
+      ]
+    },
+    {
+      "id": "p2.notifications.session",
+      "method": "POST",
+      "path": "/internal/core/notifications/session",
+      "provider": "Core",
+      "consumer": "Notifications",
+      "owner": "Core / Cuentas",
+      "auth": "private-listener; service:notifications",
+      "request": null,
+      "responses": {
+        "200": "P2NotificationSession",
+        "401": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Read with POST: resolves X-Session-Credential to its principal; no Idempotency-Key.",
+      "recovery": "Retry freely.",
+      "spec": "SPEC-20 P2",
+      "traceability": "docs/spec-p2/spec_20_notifications.md",
+      "visibility": "private",
+      "limits": "No body.",
+      "requiredHeaders": [
+        "X-Service-Name",
+        "X-Service-Token",
+        "X-Session-Credential"
+      ],
+      "semantics": "read"
+    },
+    {
+      "id": "p2.notifications.email-target",
+      "method": "POST",
+      "path": "/internal/core/notifications/email-target",
+      "provider": "Core",
+      "consumer": "Notifications",
+      "owner": "Core / Cuentas",
+      "auth": "private-listener; service:notifications",
+      "request": "P2EmailTargetRequest",
+      "responses": {
+        "200": "P2EmailTarget",
+        "400": "Error",
+        "401": "Error",
+        "404": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Read with POST body; no Idempotency-Key.",
+      "recovery": "Retry freely; never log the address.",
+      "spec": "SPEC-20 P2",
+      "traceability": "docs/spec-p2/spec_20_notifications.md",
+      "visibility": "private",
+      "limits": "JSON <=16 KiB.",
+      "requiredHeaders": [
+        "X-Service-Name",
+        "X-Service-Token"
+      ],
+      "semantics": "read"
+    },
+    {
       "id": "p2.admin.users",
       "method": "GET",
       "path": "/api/admin/users",
@@ -2215,6 +3911,36 @@
         "X-XSRF-TOKEN"
       ],
       "idempotency": "Actor and UUID; same payload replays the recorded result, different payload returns 409"
+    },
+    {
+      "id": "p2.streaming.renditions",
+      "method": "GET",
+      "path": "/api/streams/sessions/{sessionId}/renditions",
+      "provider": "Streaming",
+      "consumer": "Gateway / Web SSR / Móvil",
+      "owner": "Streaming",
+      "auth": "public",
+      "request": null,
+      "responses": {
+        "200": "P2Renditions",
+        "400": "Error",
+        "404": "Error",
+        "409": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "timeoutMs": 2000,
+      "idempotency": "Read-only; retry within caller deadline.",
+      "recovery": "Retry reads with bounded backoff; recover commands by stable idempotency key; never treat failure as empty.",
+      "spec": "SPEC-04",
+      "traceability": "docs/spec-p2/spec_04_stream.md",
+      "visibility": "public",
+      "limits": "JSON <=16 KiB; paginated lists 1..50; exact schema and owner permissions; no-store for private data.",
+      "status": "implemented",
+      "timeoutScope": "Ordinary JSON request deadline; media is connection/first-byte only, then separate inactivity/cancellation policy.",
+      "requiredHeaders": []
     },
     {
       "id": "p2.identity.mobile-login",

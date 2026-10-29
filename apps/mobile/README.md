@@ -12,9 +12,11 @@ búsqueda de canales/live, filtros, paginación, canal, reproducción live, cali
 APIs públicas. La recuperación acepta el token manualmente: la entrega SMTP y los enlaces
 universales de la instalación aún requieren integración. No se transmite el token en una URL API.
 
-La navegación incluye Siguiendo y Bandeja con indisponibilidad explícita. VOD/replay, seguimiento,
-preferencias, registro push y destinos de notificación requieren los proveedores y schemas de
-SPEC-03/05/14/16/20/22. No están aceptados ni simulados. No hay Firebase/APNs configurado.
+La navegación incluye Siguiendo y Bandeja con indisponibilidad explícita. Los proveedores de
+seguimiento y bandeja/preferencias llegaron desde develop; su consumo móvil aún requiere integración.
+Core acepta Bearer para seguimiento y configuración VOD. VOD/replay, agregados Gateway,
+registro push y destinos de notificación siguen sujetos a SPEC-03/05/14/16/20/22.
+Estas funciones móviles no están aceptadas ni simuladas. No hay Firebase/APNs configurado.
 Ver la matriz de dependencias en SPEC-19 antes de interpretar una compilación como entrega completa P2.
 
 ## Preparar

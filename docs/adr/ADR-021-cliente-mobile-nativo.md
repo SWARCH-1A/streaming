@@ -1,4 +1,4 @@
-# ADR-020 — Cliente móvil compartido y adaptadores nativos
+# ADR-021 — Cliente móvil compartido y adaptadores nativos
 
 **Fecha:** 2026-10-27. **Estado:** Aceptada para la implementación inicial de SPEC-19.
 **Responsabilidad:** Integración / Móvil, con adaptación autorizada de Cuentas y Chat.

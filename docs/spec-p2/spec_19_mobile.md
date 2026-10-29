@@ -60,7 +60,7 @@ usan alineación, márgenes y radios coherentes, sin tarjetas anidadas.
 
 ## 7. Diseño técnico y datos
 
-[ADR-020](../adr/ADR-020-cliente-mobile-nativo.md) fija módulos, versiones y adaptadores.
+[ADR-021](../adr/ADR-021-cliente-mobile-nativo.md) fija módulos, versiones y adaptadores.
 Módulos compartidos: DTO/validación de contratos, cliente Gateway, estado de sesión, navegación,
 modelos de pantalla y reconciliación de chat. Adaptadores: player/HLS, almacén seguro, ciclo de
 vida, WebSocket si lo exige la librería, permisos y proveedor push.
@@ -88,11 +88,11 @@ internos. Los DTO derivan de contratos canónicos con `contracts/generate_mobile
 | --- | --- | --- |
 | Cuentas / SPEC-01 | `P2NativeLogin`, logout y Bearer con revocación común | Implementado en Core y cliente; pruebas de transporte/revocación |
 | Gateway / SPEC-16, STREAMING-26 | Agregados por pantalla, schemas, errores parciales y proxy WS/HLS | Adaptación a agregados pendiente; APIs públicas base operativas |
-| Canales / SPEC-03, STREAMING-2 | Follow/unfollow, estado personal, listado paginado y acceso suspendido | Pantallas muestran dependencia pendiente; no hay follow simulado |
+| Canales / SPEC-03, STREAMING-2 | Follow/unfollow, estado personal, listado paginado y acceso suspendido | Proveedor Core integrado desde develop con soporte Bearer; consumo en pantallas móvil pendiente |
 | VOD / SPEC-14, STREAMING-25 | Biblioteca/detalle/disponibilidad, manifiestos y mapping autorizados | Biblioteca y playback VOD pendientes |
 | Chat / SPEC-05, STREAMING-5 | Replay durable, ventanas/cursores, supresiones versionadas | Chat live implementado; replay pendiente |
 | Streaming / SPEC-04, STREAMING-4 | Maestro multicalidad, hasta cuatro rendiciones, continuidad y disponibilidad | Adaptadores Media3/AVPlayer y leases; aceptación multicalidad pendiente de fuente real |
-| Notificaciones / SPEC-20, STREAMING-30 | Bandeja/preferencias, instalación/token, destino validado, FCM/APNs y SMTP | Sin proyecto Firebase ni certificados APNs; sin registro o entrega push |
+| Notificaciones / SPEC-20, STREAMING-30 | Bandeja/preferencias, instalación/token, destino validado, FCM/APNs y SMTP | Bandeja/preferencias y SMTP disponibles en el proveedor; integración móvil pendiente. Sin proyecto Firebase ni certificados APNs; sin registro o entrega push |
 | Subtítulos / SPEC-22, STREAMING-32 | VOD autorizado y pistas WebVTT ratificadas | Pendiente de VOD y reproducción integrada |
 
 Los IDs STREAMING identifican las dependencias existentes en Plane; esta matriz no cambia
@@ -100,7 +100,7 @@ asignaciones ni declara terminadas esas SPEC. No se eligen tecnologías de los p
 
 ## 9. Decisiones y preguntas abiertas
 
-KMP + Compose, librerías, módulos y adaptadores quedan definidos en ADR-020. P2-13 requiere proveedor/certificados/dispositivos push; P2-14 exige
+KMP + Compose, librerías, módulos y adaptadores quedan definidos en ADR-021. P2-13 requiere proveedor/certificados/dispositivos push; P2-14 exige
 verificar Core y Chat con Bearer. iOS requiere Mac arm64/Xcode y pruebas separadas; compartir Kotlin no acredita esa plataforma.
 
 ## 10. Verificación

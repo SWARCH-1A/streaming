@@ -27,6 +27,10 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             <Icon name="screen" size={18} />
             Estudio de emisión
           </NavLink>
+          <NavLink to="/notifications" onClick={onNavigate}>
+            <Icon name="bell" size={18} />
+            Notificaciones
+          </NavLink>
           <NavLink to="/admin" onClick={onNavigate}>
             Administración
           </NavLink>
@@ -54,7 +58,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       ) : null}
       <div className={styles.footer}>
         <Badge tone="primary" dot>
-          PROTOTIPO 1
+          PROTOTIPO 2
         </Badge>
         <p>Descubre, crea y conecta.</p>
       </div>

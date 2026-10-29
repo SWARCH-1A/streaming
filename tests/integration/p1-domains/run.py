@@ -154,7 +154,7 @@ def main():
                 # Remove only this fixed test project's disposable stores, also after a previous interrupted run.
                 compose("down", "--volumes", "--remove-orphans")
                 if not args.skip_build:
-                    compose("build", "core", "chat", *([] if args.streaming_image else ["streaming"]))
+                    compose("build", "core", "chat", *([] if args.streaming_image else ["streaming"]), *(["web-ssr"] if args.web else []))
                 if args.build_only:
                     return
                 compose("up", "-d", "--no-build", "--wait", "--wait-timeout", "120")

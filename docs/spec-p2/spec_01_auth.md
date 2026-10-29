@@ -1,6 +1,6 @@
 # SPEC-01 — Cuentas, recuperación y sesión web/móvil
 
-**Prioridad:** P2. **Responsable:** Core / Cuentas. **Estado:** recuperación implementada en Core/Web y publicación RabbitMQ; consumidor y entrega de correo pendientes de Notificaciones. Login/logout móvil y resolución Bearer implementados; integración transversal restante pendiente.
+**Prioridad:** P2. **Responsable:** Core / Cuentas. **Estado:** recuperación implementada en Core/Web y publicación RabbitMQ; consumidor y SMTP implementados en Notificaciones según ADR-020; aceptación integrada de entrega por separado. Login/logout móvil y resolución Bearer implementados; integración transversal restante pendiente.
 **RF:** RF-001…007, 076, 079. **RNF:** RNF-022…032, 038, 041…050.
 
 ## 1. Contexto y problema
@@ -85,15 +85,15 @@ no recibe autoridad para cambiar contraseña. Los contratos base de registro/per
 ## 9. Decisiones y preguntas abiertas
 
 P2-14: login/logout, resolución Bearer Core y Upgrade Chat implementados con pruebas propias.
-El cliente nativo y sus adaptadores se definen en SPEC-19/ADR-020; la aceptación multimedia sigue separada.
+El cliente nativo y sus adaptadores se definen en SPEC-19/ADR-021; la aceptación multimedia sigue separada.
 P2-15 resuelta por ADR-017. Los contratos de recuperación se concretan en `contracts/p2.json`;
 claim/result exigen la credencial exclusiva `recovery-email`, listener privado, pareja
 recoveryId/deliveryId e Idempotency-Key. Los permisos no permiten consultar perfiles ni sesiones.
-El outbox usa RabbitMQ (ADR-016). El responsable de Notificaciones implementará el consumidor
-de `notifications.recovery.email`, su persistencia y SMTP. Runtime, almacén y proveedor se
-deciden en ese módulo. Una respuesta externa perdida queda UNKNOWN sin reenvío automático.
+El outbox usa RabbitMQ (ADR-016). Notificaciones implementa el consumidor de
+`notifications.recovery.email`, su persistencia y SMTP según ADR-020. Una respuesta externa perdida queda UNKNOWN sin reenvío automático.
 El nombre `recovery-email` identifica la credencial limitada del contrato privado, sin exigir
-un contenedor o tecnología concretos. Este checkout entrega el lado de Cuentas y Web.
+un contenedor o tecnología concretos. Cuentas y Web conservan su responsabilidad;
+la entrega pertenece a Notificaciones.
 
 ## 10. Verificación
 

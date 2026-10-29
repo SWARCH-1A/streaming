@@ -547,7 +547,7 @@ pub async fn build_app(config: &AppConfig) -> Result<StreamingApp, BootstrapErro
     )));
     let process_media_callbacks = Arc::new(ProcessMediaCallbacks::new(
         Arc::clone(&media_callback_repository),
-        media_server,
+        Arc::clone(&media_server),
         Arc::clone(&session_clock),
     ));
 
@@ -792,7 +792,7 @@ pub async fn build_app(config: &AppConfig) -> Result<StreamingApp, BootstrapErro
         create_stream_config,
         get_stream_config,
         get_public_stream,
-        get_public_stream_session,
+        get_public_stream_session: Arc::clone(&get_public_stream_session),
         patch_stream_metadata,
         rotate_ingest_key,
         stop_stream_session,
@@ -815,7 +815,13 @@ pub async fn build_app(config: &AppConfig) -> Result<StreamingApp, BootstrapErro
             }
         },
     );
-    let router = http_endpoints.public.layer(owner_gate.clone());
+    let router = http_endpoints
+        .public
+        .merge(http::renditions::router(
+            get_public_stream_session,
+            media_server,
+        ))
+        .layer(owner_gate.clone());
     let private_router = http_endpoints
         .private
         .merge(private_router)

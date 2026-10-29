@@ -32,7 +32,7 @@ credenciales y topología del broker, y las claves de recuperación de Cuentas. 
 los servicios y la herramienta de operación.
 `up` espera los servicios con healthcheck, incluido RabbitMQ, y respuestas HTTPS de Web y la API.
 El gestor combina el [Compose raíz](compose.yaml) y [RabbitMQ](infra/broker/compose.yaml)
-para levantar **diez contenedores**:
+para levantar **trece contenedores**:
 
 | Servicio | Función |
 | --- | --- |
@@ -43,7 +43,10 @@ para levantar **diez contenedores**:
 | `live` | Rust: control de emisiones y adaptador Media |
 | `live-db` | PostgreSQL: bases separadas de Live y del adaptador |
 | `media-server` | MediaMTX: ingesta RTMPS y entrega HLS |
-| `web` | Build estático de la SPA React, servido por HTTPS |
+| `web` | React Router SSR, servido por HTTPS |
+| `notifications` | API y workers de bandeja, correo y recuperación |
+| `notifications-db` | PostgreSQL propio de Notificaciones |
+| `mailpit` | Buzón SMTP STARTTLS local de pruebas |
 | `proxy` | Entrada pública HTTPS y rutas Web/API/WebSocket/HLS |
 | `broker` | RabbitMQ: ciclo de sesión, Discovery y trabajos de recuperación |
 
@@ -65,11 +68,11 @@ curl --fail --cacert infra/p1/.state-local/ca.crt https://localhost:3445/api/tax
 
 Registrarse en `/register` e iniciar sesión en `/login`. «¿Olvidaste tu contraseña?», debajo del
 botón de inicio de sesión, abre `/forgot-password`. Cuentas registra la recuperación y publica
-la solicitud de envío en RabbitMQ. **La entrega del correo está pendiente del responsable de
-Notificaciones**; este checkout no incluye consumidor SMTP, buzón ni base de datos de ese módulo.
-Cuentas ya permite confirmar un token válido, cambiar la contraseña y revocar sesiones anteriores.
-La integración está definida en los [contratos de recuperación](docs/contratos_p2_http.md#sesión-nativa-y-recuperación)
-y [eventos](docs/contratos_p2_eventos.md#integración-de-recuperación-entre-cuentas-y-notificaciones).
+la solicitud de envío en RabbitMQ. Notificaciones entrega el correo por SMTP STARTTLS a Mailpit;
+abrir [el buzón local](http://127.0.0.1:8025) para obtener el enlace de prueba. Cuentas confirma
+el token, cambia la contraseña y revoca sesiones anteriores. `/notifications` muestra bandeja y
+preferencias; el canal ofrece seguimiento y avisos por correo. Push real sigue pendiente de P2-13.
+La integración está definida en [ADR-020](docs/adr/ADR-020-notificaciones-typescript-postgresql-smtp.md).
 
 En `/profile` se edita el perfil y avatar;
 `/studio/channel` permite editar el canal y su portada. `/studio` crea una emisión, muestra la URL y
@@ -95,9 +98,9 @@ python3 infra/local/dev.py build      # recompila el checkout después de actual
 python3 infra/local/dev.py up
 ```
 
-Al actualizar una instalación que tenía worker SMTP, `up` retira los contenedores anteriores
-de recuperación y buzón sin borrar volúmenes ni los datos de cuentas. No se requiere configurar
-un proveedor de correo para levantar la parte de Cuentas y el broker.
+Al actualizar, repetir `init` para añadir certificados y secretos de Notificaciones conservando
+los existentes. `up` retira contenedores obsoletos sin borrar volúmenes. Una base experimental
+con V10 de seguimiento requiere la transición indicada en [Core](services/core/README.md).
 
 También se puede usar Compose directamente, incluyendo los dos manifests:
 
@@ -125,7 +128,7 @@ La recuperación de contraseña incorpora APIs Core, tokens de un uso, revocaci�
 las vistas `/forgot-password` y `/reset-password`. Su [configuración](services/core/README.md#recuperación-de-contraseña)
 se habilita automáticamente en el arranque local con RabbitMQ. La publicación del trabajo y los
 contratos privados de entrega pertenecen a Cuentas; el consumidor, almacenamiento de intentos y
-proveedor SMTP corresponden a Notificaciones y están pendientes. Core aislado conserva default
+adaptador SMTP están en [Notificaciones](services/notifications/README.md) según ADR-020. Core aislado conserva default
 deshabilitado hasta configurar su publicador.
 La política y los contratos se documentan en [SPEC-01 P2](docs/spec-p2/spec_01_auth.md) y
 [ADR-017](docs/adr/ADR-017-recuperacion-de-credenciales.md).
@@ -148,7 +151,7 @@ La política y los contratos se documentan en [SPEC-01 P2](docs/spec-p2/spec_01_
 RabbitMQ transporta ciclo de sesión a Core/Chat y snapshots a Discovery y forma parte del arranque
 local anterior. Sus métricas, DLQ y recuperación están en el [runbook](infra/broker/README.md).
 La selección está en [ADR-016](docs/adr/ADR-016-rabbitmq-eventos-p2.md); quedan pendientes las
-funciones VOD, bandeja de notificaciones, push y las demás ampliaciones P2. La recuperación
+funciones VOD, proveedor push y las demás ampliaciones P2. La recuperación
 RF-004 usa el mismo broker y el worker de [ADR-017](docs/adr/ADR-017-recuperacion-de-credenciales.md).
 
 Al actualizar una instalación que usaba entrega HTTP P1, detener las emisiones antes del cambio

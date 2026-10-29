@@ -89,7 +89,14 @@ class Profiles(unittest.TestCase):
         self.assertNotIn("https://streaming:", proxy)
         self.assertNotIn("tls_insecure_skip_verify", proxy)
         self.assertIn("@core path /api/admin/*", proxy)
-        self.assertIn("path / /admin /search", proxy)
+        self.assertIn("@web method GET HEAD POST", proxy)
+        for profile in ("default", "load", "local"):
+            web_proxy = module(profile).render_proxy().split("    reverse_proxy @web ", 1)[1]
+            self.assertIn("tls_server_name web", web_proxy)
+            self.assertIn("tls_trust_pool file /run/secrets/ca.crt", web_proxy)
+        self.assertIn("/api/me/*", proxy)
+        routes = (local.ROOT / "apps/web/src/app/routes.ts").read_text()
+        self.assertIn("route('admin', 'routes/admin.tsx')", routes)
         with self.assertRaisesRegex(RuntimeError, "filesystem"):
             local.command({"P1_STATE": str(local.STATE)}, "up", s3=True)
 
@@ -145,7 +152,8 @@ class Profiles(unittest.TestCase):
                     with patch("sys.argv", ["dev.py", action]):
                         local.main()
                 initialize.assert_called_once_with()
-                self.assertEqual(bootstrap.call_count, 2)
+                # Broker, Cuentas recovery and Notifications initializers (each keeps existing state).
+                self.assertEqual(bootstrap.call_count, 3)
                 bootstrap.assert_called_with(env, local.STATE, local.run)
                 ready.assert_called_once_with(env)
                 command.assert_any_call(env, "--profile", "tools", "build", s3=False, broker=True, timeout=1800)

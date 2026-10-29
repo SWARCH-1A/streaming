@@ -53,7 +53,7 @@ solo el contexto autorizado de la solicitud actual, nunca mediante un cliente gl
 compartidas. No cachear HTML privado como contenido público.
 
 Móvil usa la misma sesión opaca mediante Bearer en almacenamiento seguro. Login/logout Core y
-Upgrade Chat están implementados bajo los contratos de SPEC-01/19 y ADR-020; el mecanismo actual de credenciales
+Upgrade Chat están implementados bajo los contratos de SPEC-01/19 y ADR-021; el mecanismo actual de credenciales
 entre servicios no es una sesión móvil. La ausencia de Origin de un cliente nativo debe tratarse
 por ese contrato, sin debilitar las verificaciones web. No enviar tokens en query strings ni logs.
 

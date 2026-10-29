@@ -143,14 +143,23 @@ class AdministrationIT {
     }
     private long count(String table) { return jdbc.sql("SELECT count(*) FROM "+table).query(Long.class).single(); }
     @Test void publicProxyRoutesAdministrationAndPreservesAuthorization() throws Exception {
-        org.testcontainers.Testcontainers.exposeHostPorts(port);
         Path config=Path.of("../../infra/reverse-proxy/Caddyfile").toAbsolutePath().normalize();
-        Path index=images.resolve("index.html");java.nio.file.Files.writeString(index,"<!doctype html><title>Vault tv fixture</title>");
+        // Pages now belong to the SSR upstream; Core's proxy test supplies that separate boundary.
+        var web=com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress(0),0);
+        web.createContext("/admin",exchange->{
+            byte[] html="<!doctype html><title>Vault tv fixture</title>".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type","text/html");
+            exchange.sendResponseHeaders(200,html.length);
+            try(var out=exchange.getResponseBody()) { out.write(html); }
+        });
+        web.start();
+        org.testcontainers.Testcontainers.exposeHostPorts(port,web.getAddress().getPort());
         try(var proxy=new org.testcontainers.containers.GenericContainer<>("caddy:2-alpine")
             .withExposedPorts(3000).withAccessToHost(true)
             .withEnv("CORE_UPSTREAM","http://host.testcontainers.internal:"+port)
+            .withEnv("WEB_UPSTREAM","http://host.testcontainers.internal:"+web.getAddress().getPort())
             .withCopyFileToContainer(org.testcontainers.utility.MountableFile.forHostPath(config),"/etc/caddy/Caddyfile")
-            .withCopyFileToContainer(org.testcontainers.utility.MountableFile.forHostPath(index),"/srv/index.html")) {
+            ) {
             proxy.start();String base="http://"+proxy.getHost()+":"+proxy.getMappedPort(3000);
             var client=HttpClient.newHttpClient();
             var page=client.send(HttpRequest.newBuilder(URI.create(base+"/admin")).header("Accept","text/html").GET().build(),HttpResponse.BodyHandlers.ofString());
@@ -160,7 +169,7 @@ class AdministrationIT {
             var allowed=client.send(HttpRequest.newBuilder(URI.create(base+"/api/admin/users")).header("Cookie","stream_session="+session).GET().build(),HttpResponse.BodyHandlers.ofString());
             assertThat(allowed.statusCode()).isEqualTo(200);assertThat(json.readTree(allowed.body()).get("items").size()).isEqualTo(2);
             assertThat(client.send(HttpRequest.newBuilder(URI.create(base+"/internal/core/access-context")).GET().build(),HttpResponse.BodyHandlers.ofString()).statusCode()).isEqualTo(404);
-        }
+        } finally { web.stop(0); }
     }
     private HttpResponse<String> http(String method,String path,Object body,String credential,boolean csrf,UUID key) throws Exception {
         var client=HttpClient.newHttpClient();var builder=HttpRequest.newBuilder(URI.create("http://localhost:"+port+path));

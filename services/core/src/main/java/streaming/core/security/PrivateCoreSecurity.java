@@ -34,6 +34,11 @@ public class PrivateCoreSecurity {
                         .access((authentication,context)->new AuthorizationDecision(listener.permits(context.getRequest(),PrivateCoreListener.Permission.RECOVERY_DELIVERY)))
                         .requestMatchers(HttpMethod.PUT,"/internal/core/recovery-deliveries/*/result")
                         .access((authentication,context)->new AuthorizationDecision(listener.permits(context.getRequest(),PrivateCoreListener.Permission.RECOVERY_DELIVERY)))
+                        .requestMatchers(HttpMethod.POST,"/internal/core/notification-recipients",
+                                "/internal/core/notifications/session","/internal/core/notifications/email-target")
+                        .access((authentication,context)->new AuthorizationDecision(listener.permits(context.getRequest(),PrivateCoreListener.Permission.NOTIFICATIONS)))
+                        .requestMatchers(HttpMethod.GET,"/internal/core/channels/*/vod-settings")
+                        .access((authentication,context)->new AuthorizationDecision(listener.permits(context.getRequest(),PrivateCoreListener.Permission.RECORDING_SETTINGS)))
                         .anyRequest().denyAll())
                 .exceptionHandling(e->e
                         .authenticationEntryPoint((request,response,error)->deny(request,response,listener,json))

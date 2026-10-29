@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 
 // Verify the emitted product, not just the DEV condition in source code.
-const assets = new URL('../dist/assets/', import.meta.url);
+const assets = new URL('../build/client/assets/', import.meta.url);
 for (const name of await readdir(assets)) {
   if (!name.endsWith('.js')) continue;
   const source = await readFile(new URL(name, assets), 'utf8');

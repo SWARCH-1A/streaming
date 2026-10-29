@@ -72,6 +72,19 @@ MediaMTX [1.21.1](https://github.com/bluenviron/mediamtx/releases/tag/v1.21.1) e
 
 El adaptador verifica publisher y estado vigente antes de servir `/hls/{sessionId}/...`; la pérdida/fin de sesión invalida el alias. Streaming confirma manifiesto, segmento y frame decodificado antes de LIVE. Reconexión preserva sesión/generación dentro de gracia y asigna sourceGeneration nueva.
 
+## Consulta de calidades (inicio de P2)
+
+`GET /api/streams/sessions/{sessionId}/renditions` devuelve `P2Renditions`: de una a cuatro
+variantes del maestro HLS actual, con IDs estables, resolución, bitrate y códecs declarados.
+Usa el endpoint interno HLS y token del adaptador ya configurados; no requiere migración SQL
+ni otra configuración. Verifica playlists con segmentos anunciados y revalida la sesión antes
+de responder. No consulta ni cambia cupos, publishers o leases. Respuestas sin caché; 404 para
+sesión inexistente, 503 para sesión no reproducible/medio inválido y 504 tras dos segundos.
+
+La ingesta del perfil actual sigue ofreciendo una sola pista de vídeo HLS. Esta consulta y el
+selector Web preparan RF-028…030; no acreditan recepción de cuatro calidades ni sincronización
+audiovisual. La solución de empaquetado queda en P2-08 de [SPEC-04](../../docs/spec-p2/spec_04_stream.md).
+
 ## Configuración
 
 `STREAMING_HTTP_PORT`, `STREAMING_HLS_PORT`, `STREAMING_RTMP_PORT` y `STREAMING_DB_PORT` permiten cambiar los puertos del host (8080, 8888, 1935 y 5438 por defecto), sin cambiar listeners internos. Las variables `MEDIA_*` se entregan ahora al contenedor Streaming; `MEDIA_STREAMING_URL=http://127.0.0.1:8091`, `MEDIA_STREAMING_PUBLIC_URL=http://127.0.0.1:8080` y `STREAMING_MEDIAMTX_HLS_INTERNAL_BASE_URL=http://127.0.0.1:8888`. MediaMTX autoriza contra `http://streaming:8090/internal/media/auth` en desarrollo.

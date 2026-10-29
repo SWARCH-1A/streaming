@@ -35,6 +35,17 @@ def load(source=SOURCE):
 def validate_payload(bundle, name, value, public=False, event=False):
     generate.validator(bundle, name).validate(value)
     validate_subtitle_identity(name, value)
+    if name == "P2Renditions":
+        ids = [rendition["renditionId"] for rendition in value["renditions"]]
+        prefix = f"/hls/{value['sessionId']}/"
+        path = value["masterPlaylistUri"]
+        relative = path.removeprefix(prefix)
+        if len(ids) != len(set(ids)) or not path.startswith(prefix) or not relative.endswith(".m3u8"):
+            raise ValueError("Renditions must have distinct IDs and a master for their session")
+        if any(part in {"", ".", ".."} for part in relative.split("/")) or any(
+            char in path for char in "?#%\\:"
+        ) or any(ord(char) < 32 for char in path):
+            raise ValueError("Rendition master must be a public session-local playlist")
     event = event or name.startswith("P2Event")
     if public or event:
         for node in generate.walk(value):
@@ -63,6 +74,15 @@ def validate_event_identity(value):
     if kind == "credential.recovery.delivery.requested.v1":
         if value["aggregateId"] != "recovery:" + payload["recoveryId"] or value["sequence"] != 1:
             raise ValueError("Recovery aggregate/sequence do not match payload")
+        return
+    if kind == "notification.delivery.requested.v1":
+        if value["aggregateId"] != "delivery:" + payload["deliveryId"] or value["sequence"] != 1:
+            raise ValueError("Delivery aggregate/sequence do not match payload")
+        return
+    if kind == "channel.follow.changed.v1":
+        if (value["aggregateId"] != f"follow:{payload['channelId']}:{payload['followerUserId']}"
+                or value["sequence"] != payload["followVersion"]):
+            raise ValueError("Follow aggregate/sequence do not match payload")
         return
     if kind == "account.status.changed.v1":
         if value["aggregateId"] != "account:" + payload["userId"] or value["sequence"] != payload["accountVersion"]:
@@ -144,7 +164,10 @@ def verify(base, additions, merged, sdl):
         routes.add(identity)
         if not (ROOT / op["traceability"]).is_file() or op["timeoutMs"] <= 0:
             raise ValueError("Missing P2 traceability or timeout")
+        # contratos_p2_http.md: POST context/recipient queries are reads, not commands.
+        is_read = op.get("semantics") == "read" and op["method"] == "POST"
         if (op["method"] in {"POST", "PUT", "PATCH", "DELETE"}
+                and not is_read
                 and op["id"] not in {"p2.identity.mobile-login", "p2.identity.mobile-logout"}
                 and "Idempotency-Key" not in op["requiredHeaders"]):
             raise ValueError("P2 mutation lacks idempotency")

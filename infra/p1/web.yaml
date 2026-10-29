@@ -3,8 +3,22 @@ services:
     ports: !override
       - "127.0.0.1:${P1_HTTPS_PORT:-3443}:3443"
     volumes: !override
-      - ../../apps/web/dist:/srv:ro
       - ${P1_STATE}/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${P1_STATE}/web.crt:/run/secrets/web.crt:ro
+      - ${P1_STATE}/web.key:/run/secrets/web.key:ro
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    environment:
+      WEB_UPSTREAM: https://web-ssr:3443
+    restart: unless-stopped
+  web-ssr:
+    environment:
+      PORT: "3443"
+      WEB_API_UPSTREAM: https://core:8081
+      WEB_STREAMING_UPSTREAM: https://streaming:8080
+      WEB_TLS_CERT_FILE: /run/secrets/web.crt
+      WEB_TLS_KEY_FILE: /run/secrets/web.key
+      NODE_EXTRA_CA_CERTS: /run/secrets/ca.crt
+    volumes:
       - ${P1_STATE}/web.crt:/run/secrets/web.crt:ro
       - ${P1_STATE}/web.key:/run/secrets/web.key:ro
       - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
