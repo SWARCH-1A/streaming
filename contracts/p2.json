@@ -1,7 +1,7 @@
 {
   "version": 2,
   "extends": "p1.json",
-  "coverage": "Lifecycle, Discovery and password recovery contracts; other P2 families remain pending their owners.",
+  "coverage": "Lifecycle, Discovery, recovery, administration, subtitles and native sessions; other P2 families remain pending their owners.",
   "schemas": {
     "P2StreamSessionChangedPayload": {
       "type": "object",
@@ -1196,6 +1196,44 @@
           "limit": 50
         }
       ]
+    },
+    "P2NativeLogin": {
+      "type": "object",
+      "properties": {
+        "accessToken": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "tokenType": {
+          "const": "Bearer"
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "expiresAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(Z|\\+00:00)$"
+        }
+      },
+      "required": [
+        "accessToken",
+        "tokenType",
+        "userId",
+        "expiresAtUtc"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "accessToken": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "tokenType": "Bearer",
+          "userId": "usr_fixture",
+          "expiresAtUtc": "2026-10-28T12:00:00Z"
+        }
+      ]
     }
   },
   "events": [
@@ -2177,6 +2215,56 @@
         "X-XSRF-TOKEN"
       ],
       "idempotency": "Actor and UUID; same payload replays the recorded result, different payload returns 409"
+    },
+    {
+      "id": "p2.identity.mobile-login",
+      "method": "POST",
+      "path": "/api/identity/mobile-sessions",
+      "provider": "Core",
+      "consumer": "Mobile",
+      "owner": "Core / Cuentas",
+      "auth": "public; native without cookie or Origin",
+      "request": "LoginRequest",
+      "responses": {
+        "200": "P2NativeLogin",
+        "400": "Error",
+        "401": "Error",
+        "429": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 8000,
+      "idempotency": "Login is not retried automatically; optional Idempotency-Key is not a login dedupe guarantee",
+      "recovery": "Never log credentials; reauthenticate on expiry; fixed 24 h lifetime with no refresh token.",
+      "spec": "SPEC-01 P2 / SPEC-19",
+      "traceability": "docs/spec-p2/spec_19_mobile.md",
+      "visibility": "credential",
+      "limits": "Cookie and Bearer together are rejected. Browser requests retain CSRF. No credential in query strings.",
+      "requiredHeaders": [],
+      "status": "implemented"
+    },
+    {
+      "id": "p2.identity.mobile-logout",
+      "method": "DELETE",
+      "path": "/api/identity/mobile-sessions/current",
+      "provider": "Core",
+      "consumer": "Mobile",
+      "owner": "Core / Cuentas",
+      "auth": "opaque-session-if-present; Bearer",
+      "request": null,
+      "responses": {
+        "204": null,
+        "401": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 8000,
+      "idempotency": "Revocation is idempotent, including an absent or already revoked session",
+      "recovery": "Never log credentials; reauthenticate on expiry; fixed 24 h lifetime with no refresh token.",
+      "spec": "SPEC-01 P2 / SPEC-19",
+      "traceability": "docs/spec-p2/spec_19_mobile.md",
+      "visibility": "public",
+      "limits": "Cookie and Bearer together are rejected. Browser requests retain CSRF. No credential in query strings.",
+      "requiredHeaders": [],
+      "status": "implemented"
     }
   ],
   "retiredP1Operations": [],

@@ -27,6 +27,8 @@ y cuáles fueron sustituidos. Las fechas conservan el momento de cada decisión.
 | [ADR-018](ADR-018-subtitulos-vod-webvtt.md) | Propuesta; contratos comprobables | WebVTT aportado por propietario, dentro de VOD; perfil limitado y reproducción integrada pendiente. |
 | [ADR-019](ADR-019-administracion-core.md) | Propuesta implementada | Administración Core, revocación transaccional y outbox de estado; aceptación transversal pendiente. |
 
+| [ADR-020](ADR-020-cliente-mobile-nativo.md) | Aceptada para implementación inicial | Cliente KMP/Compose Android/iOS, Ktor, reproductores y credenciales nativas; integración por APIs públicas. |
+
 Chat conserva Go; ADR-010 describe su perfil efímero P1. La retención durable P2 rige por ADR-015; las herramientas pendientes de operación y despliegue se registran conforme
 a la [política ADR](../politica_ADR.md). Las alternativas candidatas requieren decisión del responsable.
 

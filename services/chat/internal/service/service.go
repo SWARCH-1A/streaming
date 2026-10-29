@@ -32,6 +32,13 @@ func New(c CoreAPI, s *store.Store, log *slog.Logger, authBudget time.Duration) 
 	return &Service{core: c, store: s, log: log, budget: authBudget, now: time.Now}
 }
 
+// AuthenticateNative validates the opaque principal before accepting a Bearer Upgrade.
+// Send still obtains a new authorization for every logical message.
+func (s *Service) AuthenticateNative(ctx context.Context, sid, credential, requestID string) *chat.Error {
+	_, err := s.core.MessageContext(ctx, credential, sid, requestID)
+	return err
+}
+
 // ResolveRoom devuelve el estado de la sala. Con reconcile=true consulta el snapshot y cae al estado
 // local si Core no responde; una sala desconocida sin snapshot falla (nunca “sala vacía”).
 func (s *Service) ResolveRoom(ctx context.Context, sid string, reconcile bool) (chat.RoomStatus, *chat.Error) {

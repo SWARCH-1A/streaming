@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+    <key>CFBundleURLTypes</key><array><dict>
+        <key>CFBundleURLName</key><string>dev.swarch.vault.content</string>
+        <key>CFBundleURLSchemes</key><array><string>vault</string></array>
+    </dict></array>
+    <key>CFBundleDisplayName</key><string>Vault tv</string>
+    <key>CFBundleIdentifier</key><string>dev.swarch.vault</string>
+    <key>CFBundleExecutable</key><string>VaultTV</string>
+    <key>CFBundleName</key><string>VaultTV</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleShortVersionString</key><string>0.1.0</string>
+    <key>CFBundleVersion</key><string>1</string>
+    <key>LSRequiresIPhoneOS</key><true/>
+    <key>MinimumOSVersion</key><string>17.2</string>
+    <key>UIApplicationSceneManifest</key><dict>
+        <key>UIApplicationSupportsMultipleScenes</key><false/>
+        <key>UISceneConfigurations</key><dict>
+            <key>UIWindowSceneSessionRoleApplication</key><array><dict>
+                <key>UISceneConfigurationName</key><string>Vault</string>
+                <key>UISceneClassName</key><string>UIWindowScene</string>
+            </dict></array>
+        </dict>
+    </dict>
+    <key>CADisableMinimumFrameDurationOnPhone</key><true/>
+    <key>UILaunchScreen</key><dict/>
+    <key>UIRequiresFullScreen</key><true/>
+    <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>
+    <key>UIUserInterfaceStyle</key><string>Dark</string>
+    <key>VaultApiOrigin</key><string>https://localhost:3445</string>
+</dict></plist>

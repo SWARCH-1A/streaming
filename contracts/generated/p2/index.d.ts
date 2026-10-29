@@ -61,6 +61,7 @@ export type P2EventAccountStatusChanged = { "eventId": string; "eventType": "acc
 export type P2EventCredentialRecoveryDeliveryRequested = { "eventId": string; "eventType": "credential.recovery.delivery.requested.v1"; "schemaVersion": 1; "producer": "core"; "aggregateId": string; "sequence": number; "occurredAtUtc": string; "correlationId": string; "payload": { "recoveryId": string; "deliveryId": string } };
 export type P2EventStreamDiscoverySnapshot = { "eventId": string; "eventType": "stream.discovery.snapshot.v1"; "schemaVersion": 1; "aggregateId": string; "sequence": number; "occurredAtUtc": string; "producer": "streaming"; "payload": DiscoverySnapshot; "correlationId": string };
 export type P2EventStreamSessionChanged = { "eventId": string; "eventType": "stream.session.changed.v1"; "schemaVersion": 1; "aggregateId": string; "sequence": number; "occurredAtUtc": string; "producer": "streaming"; "payload": P2StreamSessionChangedPayload; "correlationId": string };
+export type P2NativeLogin = { "accessToken": string; "tokenType": "Bearer"; "userId": string; "expiresAtUtc": string };
 export type P2PageQuery = { "limit"?: number; "cursor"?: string };
 export type P2RecoveryAccepted = { "message": "Si existe una cuenta asociada, recibir\u00e1s un correo para restablecer la contrase\u00f1a." };
 export type P2RecoveryClaim = { "deliveryId": string; "attempt": number };

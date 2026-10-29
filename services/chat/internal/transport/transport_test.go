@@ -334,7 +334,7 @@ func TestCoreFailuresRejectWithoutPersisting(t *testing.T) {
 func TestOriginIsValidatedBeforeUpgradeEvenForAnonymous(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	url := "ws" + strings.TrimPrefix(h.public.URL, "http") + "/realtime/chat/sessions/ses_live"
-	for _, origin := range []string{"https://evil.example", ""} {
+	for _, origin := range []string{"https://evil.example", "null"} {
 		hdr := http.Header{}
 		if origin != "" {
 			hdr.Set("Origin", origin)

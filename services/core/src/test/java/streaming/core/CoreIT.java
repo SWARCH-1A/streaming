@@ -71,6 +71,40 @@ class CoreIT {
     private HttpClient browser;
     private String csrf;
 
+    @Test void nativeLoginSharesCoreAuthorityAndRevocationWithoutBrowserCookies() throws Exception {
+        var account=register(UUID.randomUUID(),"native@example.test","native_01");
+        HttpClient nativeClient=HttpClient.newHttpClient();
+        var response=nativeClient.send(HttpRequest.newBuilder(uri("/api/identity/mobile-sessions"))
+                .header("Content-Type","application/json").POST(HttpRequest.BodyPublishers.ofString(
+                        json.writeValueAsString(Map.of("login","native_01","password",PASSWORD)))).build(),HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");
+        assertThat(response.headers().allValues("Set-Cookie")).isEmpty();
+        var body=json.readTree(response.body());
+        String token=body.get("accessToken").asText();
+        assertThat(token).matches("[A-Za-z0-9_-]{43}");
+        assertThat(body.get("tokenType").asText()).isEqualTo("Bearer");
+        assertThat(body.get("userId").asText()).isEqualTo(account.userId());
+        assertThat(accounts.introspect(token)).isPresent();
+        var profile=nativeClient.send(HttpRequest.newBuilder(uri("/api/profile/me")).header("Authorization","Bearer "+token).GET().build(),HttpResponse.BodyHandlers.ofString());
+        assertThat(profile.statusCode()).isEqualTo(200);
+        var patched=nativeClient.send(HttpRequest.newBuilder(uri("/api/profile/me")).header("Authorization","Bearer "+token)
+                .header("Content-Type","application/json").method("PATCH",HttpRequest.BodyPublishers.ofString("{\"displayName\":\"Mobile fixture\"}")).build(),HttpResponse.BodyHandlers.ofString());
+        assertThat(patched.statusCode()).isEqualTo(200);
+        // A presented browser cookie never bypasses CSRF, even when the Bearer is otherwise valid.
+        var conflict=nativeClient.send(HttpRequest.newBuilder(uri("/api/profile/me")).header("Authorization","Bearer "+token)
+                .header("Cookie","stream_session="+token).GET().build(),HttpResponse.BodyHandlers.ofString());
+        assertThat(conflict.statusCode()).isEqualTo(401);
+        for(int i=0;i<2;i++) {
+            var logout=nativeClient.send(HttpRequest.newBuilder(uri("/api/identity/mobile-sessions/current"))
+                    .header("Authorization","Bearer "+token).DELETE().build(),HttpResponse.BodyHandlers.ofString());
+            assertThat(logout.statusCode()).isEqualTo(204);
+        }
+        assertThat(accounts.introspect(token)).isEmpty();
+        var denied=nativeClient.send(HttpRequest.newBuilder(uri("/api/profile/me")).header("Authorization","Bearer "+token).GET().build(),HttpResponse.BodyHandlers.ofString());
+        assertThat(denied.statusCode()).isEqualTo(401);
+    }
+
     @BeforeEach void reset() {
         // Only the disposable container owned by this class can be touched.
         jdbc.sql("TRUNCATE identity.accounts,identity.registrations,identity.sessions,identity.rate_limit_events,profile.profiles,profile.avatar_uploads,channels.channels CASCADE").update();
@@ -453,7 +487,7 @@ class CoreIT {
         assertThat(cookies.getCookieStore().getCookies()).anyMatch(c->c.getName().equals("XSRF-TOKEN") && c.getValue().equals(csrf));
     }
     private HttpResponse<String> request(String method,String path,Object body,boolean withCsrf) throws Exception {
-        var request=HttpRequest.newBuilder(uri(path)).header("X-Request-Id",UUID.randomUUID().toString());
+        var request=HttpRequest.newBuilder(uri(path)).header("X-Request-Id",UUID.randomUUID().toString()).header("Origin","http://localhost:3000");
         if(withCsrf) request.header("X-XSRF-TOKEN",csrf);
         if(path.equals("/api/identity/registrations")) request.header("Idempotency-Key",UUID.randomUUID().toString());
         if(body!=null) request.header("Content-Type","application/json");

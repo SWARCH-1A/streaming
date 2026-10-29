@@ -175,8 +175,9 @@ sesión posterior. Un login incorrecto no revoca una cookie válida existente. A
 Web descarta el principal y toda comprobación de sesión anterior.
 
 En móvil se reutiliza la sesión opaca de Core mediante Bearer, con almacenamiento seguro.
-Cuentas define el login y respuesta nativos, revocación común y manejo de dispositivos; Chat
-concreta su handshake WS. No se reutilizan las credenciales de servicios como tokens de usuario.
+Cuentas implementa login/logout nativos y revocación común; Chat verifica el Bearer en Upgrade
+y por envío. El registro de dispositivos pertenece a Notificaciones. ADR-020 describe adaptadores
+y la excepción CSRF limitada a llamadas sin Cookie ni Origin. No se reutilizan las credenciales de servicios como tokens de usuario.
 La verificación de Origin/CSRF de navegador se conserva. Suspender revoca todas las sesiones.
 
 Login: máximo cinco fallos por identificador normalizado y cincuenta por IP en ventana móvil de 15 min;

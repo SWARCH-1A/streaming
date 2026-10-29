@@ -154,3 +154,7 @@ RF-004 usa el mismo broker y el worker de [ADR-017](docs/adr/ADR-017-recuperacio
 Al actualizar una instalación que usaba entrega HTTP P1, detener las emisiones antes del cambio
 y repetir `init` para añadir la configuración privada del broker conservando los secretos y datos.
 Los perfiles de pruebas bajo `infra/p1` mantienen su transporte HTTP y su estado independiente.
+
+El cliente Android/iOS vive en [apps/mobile](apps/mobile/README.md): build, instalación, TLS y cobertura
+parcial de SPEC-19. Consume las APIs públicas actuales; VOD, seguimiento, bandeja y push conservan
+sus dependencias P2 pendientes.

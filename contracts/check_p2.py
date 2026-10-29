@@ -144,7 +144,9 @@ def verify(base, additions, merged, sdl):
         routes.add(identity)
         if not (ROOT / op["traceability"]).is_file() or op["timeoutMs"] <= 0:
             raise ValueError("Missing P2 traceability or timeout")
-        if op["method"] in {"POST", "PUT", "PATCH", "DELETE"} and "Idempotency-Key" not in op["requiredHeaders"]:
+        if (op["method"] in {"POST", "PUT", "PATCH", "DELETE"}
+                and op["id"] not in {"p2.identity.mobile-login", "p2.identity.mobile-logout"}
+                and "Idempotency-Key" not in op["requiredHeaders"]):
             raise ValueError("P2 mutation lacks idempotency")
         for name in [op.get("query"), *(part.get("schema") for part in op.get("parts", {}).values())]:
             if name is not None:

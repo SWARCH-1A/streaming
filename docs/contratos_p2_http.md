@@ -120,6 +120,14 @@ presenta como reproducible. Los agregados dependen del solicitante y usan Cache-
 Login móvil recibe LoginRequest y devuelve accessToken opaco, tokenType=Bearer, userId y expiresAtUtc.
 La credencial solo aparece en esa respuesta TLS/no-store y en su transporte autenticado posterior.
 Mantiene la misma vida fija de 24 h, expiración y revocación de Core; no hay refresh token nuevo.
+Core implementa ambas operaciones. Login no emite Set-Cookie; logout sin credencial o con una ya
+revocada devuelve 204. Ambas conservan las cuotas/autoridad de Cuentas y no exigen Idempotency-Key.
+Authorization acepta una sola credencial Bearer opaca de 43 caracteres base64url, sin padding;
+combinarla con la cookie de sesión o enviar un esquema inválido produce 401 AUTH_REQUIRED.
+
+La exención CSRF nativa exige ausencia de Cookie y Origin. Se aplica al Bearer válido y a POST
+mobile-sessions, registrations, recovery-requests, recoveries/confirm y DELETE mobile-sessions/current.
+Registro y recuperación conservan Idempotency-Key. Con Cookie u Origin se mantiene CSRF web.
 
 La solicitud recibe `{email}` y devuelve 202 con `P2RecoveryAccepted.message` uniforme.
 Confirmar recibe `{recoveryToken,newPassword}` y devuelve 204 sin cuerpo. El token opaco de

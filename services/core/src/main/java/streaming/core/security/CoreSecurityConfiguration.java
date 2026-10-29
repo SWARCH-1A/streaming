@@ -25,14 +25,18 @@ public class CoreSecurityConfiguration {
 
     @Bean @org.springframework.core.annotation.Order(2)
     SecurityFilterChain securityFilterChain(HttpSecurity http,ObjectMapper json,
-            @Value("${core.secure-cookie:false}") boolean secureCookie) throws Exception {
+            @Value("${core.secure-cookie:false}") boolean secureCookie,
+            @Value("${core.cookie-name:stream_session}") String cookieName,
+            streaming.core.accounts.identity.application.IdentityApplicationService identity) throws Exception {
         CookieCsrfTokenRepository csrf=CookieCsrfTokenRepository.withHttpOnlyFalse();
         csrf.setCookieCustomizer(cookie->cookie.sameSite("Lax").secure(secureCookie).path("/"));
-        http.cors(Customizer.withDefaults())
+        http.addFilterBefore(new SessionCredentialFilter(identity,json,cookieName),org.springframework.security.web.csrf.CsrfFilter.class)
+            .cors(Customizer.withDefaults())
             // The JSON endpoint and cookie expose the same token accepted by X-XSRF-TOKEN.
             .csrf(c->c.csrfTokenRepository(csrf).csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
                     // Public, anonymous, read-only query endpoint: it ignores the session cookie and requires application/json.
-                    .ignoringRequestMatchers("/api/discovery/graphql"))
+                    .ignoringRequestMatchers("/api/discovery/graphql")
+                    .ignoringRequestMatchers(SessionCredentialFilter::nativeRequest))
             .sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .requestCache(c->c.disable())
             .authorizeHttpRequests(a->a
@@ -44,11 +48,11 @@ public class CoreSecurityConfiguration {
                             "/api/profile/avatars/**","/api/channels/by-handle/*","/api/channels/by-owner/*","/api/channels/*",
                             "/api/channels/csrf","/api/channels/banners/*","/api/taxonomy",
                             "/actuator/health","/actuator/health/**","/actuator/info").permitAll()
-                    .requestMatchers(HttpMethod.POST,"/api/identity/registrations","/api/identity/sessions",
+                    .requestMatchers(HttpMethod.POST,"/api/identity/registrations","/api/identity/sessions","/api/identity/mobile-sessions",
                             "/api/identity/recovery-requests","/api/identity/recoveries/confirm",
                             "/api/profile/me/avatar-uploads","/api/channels/*/banner-uploads","/api/discovery/graphql").permitAll()
                     .requestMatchers(HttpMethod.PATCH,"/api/profile/me","/api/channels/*").permitAll()
-                    .requestMatchers(HttpMethod.DELETE,"/api/identity/sessions/current").permitAll()
+                    .requestMatchers(HttpMethod.DELETE,"/api/identity/sessions/current","/api/identity/mobile-sessions/current").permitAll()
                     .anyRequest().denyAll())
             .exceptionHandling(e->e.accessDeniedHandler((request,response,error)-> {
                 response.setStatus(403); response.setCharacterEncoding(java.nio.charset.StandardCharsets.UTF_8);
