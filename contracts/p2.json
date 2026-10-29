@@ -1364,6 +1364,10 @@
           ],
           "format": "date-time",
           "pattern": "Z$"
+        },
+        "available": {
+          "type": "boolean",
+          "description": "false while the channel owner is suspended (SPEC-20 CA-09); the record stays but its link must not be offered."
         }
       },
       "required": [
@@ -1374,7 +1378,8 @@
         "title",
         "linkPath",
         "createdAtUtc",
-        "readAtUtc"
+        "readAtUtc",
+        "available"
       ],
       "additionalProperties": false,
       "examples": [
@@ -1386,7 +1391,8 @@
           "title": "Canal de Laura está en vivo",
           "linkPath": "/channels/canal_laura",
           "createdAtUtc": "2026-10-26T18:00:00Z",
-          "readAtUtc": null
+          "readAtUtc": null,
+          "available": true
         }
       ]
     },
@@ -1424,7 +1430,8 @@
               "title": "Canal de Laura está en vivo",
               "linkPath": "/channels/canal_laura",
               "createdAtUtc": "2026-10-26T18:00:00Z",
-              "readAtUtc": null
+              "readAtUtc": null,
+              "available": true
             }
           ],
           "nextCursor": null

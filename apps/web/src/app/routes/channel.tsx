@@ -43,8 +43,9 @@ export function headers() {
   return { 'Cache-Control': 'no-store, private' };
 }
 
-export function meta({ data: value }: { data?: { channel: ChannelBootstrap | null } }) {
-  const name = value?.channel?.profile.displayName;
+// React Router 8 passes the loader result as loaderData (the old `data` key no longer exists).
+export function meta({ loaderData }: { loaderData?: { channel: ChannelBootstrap | null } }) {
+  const name = loaderData?.channel?.profile.displayName;
   return [{ title: name ? `${name} · Vault tv` : 'Canal · Vault tv' }];
 }
 

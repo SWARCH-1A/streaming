@@ -82,7 +82,9 @@ export function liveHandler(db: Db, core: CorePort) {
         return 'ALREADY_SELECTED';
       }
 
-      if (session.title === null) await describe(db, core, event);
+      if (session.title === null && !(await describe(db, core, event))) {
+        return unavailable(db, event, fingerprint);
+      }
       let cursor = session.recipients_cursor;
       for (;;) {
         let page;
@@ -93,7 +95,8 @@ export function liveHandler(db: Db, core: CorePort) {
             cursor = null; // Expired cut: start again; already created notices are kept by their unique keys.
             continue;
           }
-          if (error instanceof CoreError && error.status === 404) throw new HandlerError('CHANNEL_NOT_FOUND', true);
+          // Core answers 404 for a missing or suspended channel (SPEC-03 CA-07): nobody is notified.
+          if (error instanceof CoreError && error.status === 404) return unavailable(db, event, fingerprint);
           throw new HandlerError('CORE_UNAVAILABLE', false);
         }
         await transaction(db, async (tx) => {
@@ -112,29 +115,50 @@ export function liveHandler(db: Db, core: CorePort) {
   };
 }
 
-async function describe(db: Db | Tx, core: CorePort, event: LiveEvent): Promise<void> {
-  // Best effort: a Core read failure keeps a generic title instead of blocking the notices.
+/**
+ * Resolves title, link and channel owner before any notice exists. Returns false when Core confirms the
+ * channel is unavailable (missing or its owner suspended); a transient Core failure retries the event,
+ * so no notice is ever created without a known owner (suspension checks depend on it).
+ */
+async function describe(db: Db | Tx, core: CorePort, event: LiveEvent): Promise<boolean> {
   let title = 'Un canal que sigues está en vivo';
   let link = '/';
+  let owner: string | null = null;
   try {
     const channel = await core.channel(event.channelId);
+    owner = channel.ownerUserId;
     if (channel.handle) link = `/channels/${encodeURIComponent(channel.handle)}`;
     const name = channel.displayName || channel.handle;
     if (name) title = `${name} está en vivo`;
-  } catch {
-    /* keep generic text */
+  } catch (error) {
+    if (error instanceof CoreError && error.status === 404) return false;
+    throw new HandlerError('CORE_UNAVAILABLE', false);
   }
-  await db.query('UPDATE live_sessions SET title=$2, link_path=$3 WHERE session_id=$1 AND title IS NULL', [event.sessionId, title, link]);
+  if (!owner) throw new HandlerError('CHANNEL_OWNER_UNKNOWN', false);
+  await db.query('UPDATE live_sessions SET title=$2, link_path=$3, owner_user_id=$4 WHERE session_id=$1 AND title IS NULL',
+    [event.sessionId, title, link, owner]);
+  return true;
+}
+
+/** A session of an unavailable channel is closed without notices, so a redelivery does not retry it. */
+async function unavailable(db: Db | Tx, event: LiveEvent, fingerprint: string): Promise<string> {
+  await transaction(db, async (tx) => {
+    await tx.query("UPDATE live_sessions SET state='SELECTED', recipients_cursor=NULL, updated_at_utc=now() WHERE session_id=$1",
+      [event.sessionId]);
+    await remember(tx, CONSUMER, event.eventId, fingerprint, 'CHANNEL_UNAVAILABLE');
+  });
+  return 'CHANNEL_UNAVAILABLE';
 }
 
 /** Creates the notice and, from the preferences read in this same transaction, its deliveries and jobs. */
 async function notify(tx: Tx, event: LiveEvent, userId: string): Promise<void> {
-  const session = (await tx.query<{ title: string; link_path: string }>(
-    'SELECT title, link_path FROM live_sessions WHERE session_id=$1', [event.sessionId])).rows[0]!;
+  const session = (await tx.query<{ title: string; link_path: string; owner_user_id: string | null }>(
+    'SELECT title, link_path, owner_user_id FROM live_sessions WHERE session_id=$1', [event.sessionId])).rows[0]!;
   const insertedNotice = await tx.query<{ notification_id: string }>(
-    `INSERT INTO notifications (notification_id, kind, user_id, channel_id, session_id, title, link_path, created_at_utc)
-     VALUES ($1,'LIVE_STARTED',$2,$3,$4,$5,$6,$7) ON CONFLICT (kind, user_id, session_id) DO NOTHING RETURNING notification_id`,
-    [newId('ntf'), userId, event.channelId, event.sessionId, session.title, session.link_path, event.firstLiveAtUtc]);
+    `INSERT INTO notifications (notification_id, kind, user_id, channel_id, session_id, title, link_path, created_at_utc, owner_user_id)
+     VALUES ($1,'LIVE_STARTED',$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (kind, user_id, session_id) DO NOTHING RETURNING notification_id`,
+    [newId('ntf'), userId, event.channelId, event.sessionId, session.title, session.link_path, event.firstLiveAtUtc,
+      session.owner_user_id]);
   // A resumed page must keep the original selection, even if preferences/devices changed meanwhile.
   if (!insertedNotice.rowCount) return;
   const notificationId = insertedNotice.rows[0]!.notification_id;

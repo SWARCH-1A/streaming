@@ -257,6 +257,37 @@ class FollowIT {
         assertThat(publicPost("/internal/core/notifications/email-target",Map.of("userId",fan.userId())).statusCode()).isEqualTo(404);
     }
 
+    @Test void suspendedChannelsAndFollowersAreUnavailableButRelationsSurviveReactivation() throws Exception {
+        var owner=account(); var fan=account(); var late=account(); var suspendedFan=account();
+        follows.follow(new Principal(fan.userId()),owner.channelId(),UUID.randomUUID(),"req_suspend");
+        follows.follow(new Principal(suspendedFan.userId()),owner.channelId(),UUID.randomUUID(),"req_suspend");
+        status(suspendedFan,"SUSPENDED");
+        // A suspended follower is never selected as a recipient.
+        var cut=body(internal("/internal/core/notification-recipients",Map.of("channelId",owner.channelId(),"sessionId","ses_suspend"),
+                "notifications",NOTIFICATIONS));
+        assertThat(cut.get("totalRecipients").asInt()).isEqualTo(1);
+        assertThat(cut.get("items").get(0).get("userId").asText()).isEqualTo(fan.userId());
+
+        status(owner,"SUSPENDED");
+        assertThat(call("PUT",follow(owner),late,UUID.randomUUID(),true).statusCode()).isEqualTo(404);
+        assertThat(call("GET",follow(owner),fan,null,false).statusCode()).isEqualTo(404);
+        assertThat(body(call("GET","/api/me/followed-channels",fan,null,false)).get("items")).isEmpty();
+        assertThat(internal("/internal/core/notification-recipients",Map.of("channelId",owner.channelId(),"sessionId","ses_after"),
+                "notifications",NOTIFICATIONS).statusCode()).isEqualTo(404);
+        assertThat(internalGet("/internal/core/channels/"+owner.channelId()+"/vod-settings","streaming-recording-settings",RECORDING).statusCode())
+                .isEqualTo(404);
+
+        status(owner,"ACTIVE");
+        var page=body(call("GET","/api/me/followed-channels",fan,null,false));
+        assertThat(page.get("items").get(0).get("channelId").asText()).isEqualTo(owner.channelId());
+        assertThat(page.get("items").get(0).get("followVersion").asLong()).isEqualTo(1);
+    }
+
+    private void status(Account account,String status) {
+        // Test-only shortcut for the administrative command; the published view filters by this column.
+        jdbc.sql("UPDATE identity.accounts SET account_status=:status WHERE user_id=:id").param("status",status).param("id",account.userId()).update();
+    }
+
     private record Account(String userId,String channelId,String credential) { }
 
     private Account account() {

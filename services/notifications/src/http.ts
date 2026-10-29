@@ -199,10 +199,14 @@ interface NotificationRow {
   link_path: string;
   created_at_utc: Date;
   read_at_utc: Date | null;
+  available: boolean;
   micros: string;
 }
 
+// available=false while the channel owner is suspended or not yet known (legacy rows before 002 are
+// backfilled by resolveOwners): the notice stays as a record without a usable link.
 const NOTIFICATION_COLUMNS = `n.notification_id, n.kind, n.channel_id, n.session_id, n.title, n.link_path, n.created_at_utc, n.read_at_utc,
+  (n.owner_user_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM account_status s WHERE s.user_id=n.owner_user_id AND s.status='SUSPENDED')) AS available,
   (extract(epoch FROM n.created_at_utc) * 1000000)::bigint::text AS micros`;
 // The inbox shows a notice once its INBOX delivery was processed by its worker.
 const VISIBLE = `EXISTS (SELECT 1 FROM deliveries d WHERE d.notification_id=n.notification_id AND d.medium='INBOX' AND d.state='DELIVERED')`;
@@ -217,6 +221,7 @@ function notificationView(row: NotificationRow) {
     linkPath: row.link_path,
     createdAtUtc: row.created_at_utc.toISOString(),
     readAtUtc: row.read_at_utc ? row.read_at_utc.toISOString() : null,
+    available: row.available,
   };
 }
 

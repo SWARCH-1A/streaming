@@ -14,13 +14,18 @@ import streaming.core.channels.application.FollowStore;
 @Repository
 public class JdbcFollows implements FollowStore {
     private static final String FOLLOW_COLUMNS="follower_user_id,channel_id,following,follow_version,followed_at_utc,updated_at_utc";
+    private static final String FOLLOWED_COLUMNS="f.follower_user_id,f.channel_id,f.following,f.follow_version,f.followed_at_utc,f.updated_at_utc";
+    private static final String VISIBLE_FOLLOWS="channels.follows f JOIN channels.channels c ON c.channel_id=f.channel_id "
+            +"JOIN identity.public_accounts a ON a.user_id=c.owner_user_id";
     private static final String SNAPSHOT_COLUMNS="snapshot_id,channel_id,session_id,captured_at_utc,expires_at_utc,recipient_count";
     private final JdbcClient jdbc;
 
     public JdbcFollows(JdbcClient jdbc) { this.jdbc=jdbc; }
 
     @Override public Optional<String> channelOwner(String channelId) {
-        return jdbc.sql("SELECT owner_user_id FROM channels.channels WHERE channel_id=:id").param("id",channelId).query(String.class).optional();
+        // SPEC-03 CA-07: a channel whose owner is suspended is unavailable, exactly like the public bootstrap.
+        return jdbc.sql("SELECT c.owner_user_id FROM channels.channels c JOIN identity.public_accounts a ON a.user_id=c.owner_user_id "
+                +"WHERE c.channel_id=:id").param("id",channelId).query(String.class).optional();
     }
 
     @Override public void lockOperation(String userId,String keyHash) {
@@ -67,11 +72,12 @@ public class JdbcFollows implements FollowStore {
     }
 
     @Override public List<Follow> followed(String userId,Position after,int limit) {
-        if(after==null) return jdbc.sql("SELECT "+FOLLOW_COLUMNS+" FROM channels.follows WHERE follower_user_id=:user AND following "
-                +"ORDER BY followed_at_utc DESC,channel_id DESC LIMIT :limit")
+        // Suspended channels are hidden but their relation is kept: reactivation shows them again.
+        if(after==null) return jdbc.sql("SELECT "+FOLLOWED_COLUMNS+" FROM "+VISIBLE_FOLLOWS+" WHERE f.follower_user_id=:user AND f.following "
+                +"ORDER BY f.followed_at_utc DESC,f.channel_id DESC LIMIT :limit")
                 .param("user",userId).param("limit",limit).query(JdbcFollows::follow).list();
-        return jdbc.sql("SELECT "+FOLLOW_COLUMNS+" FROM channels.follows WHERE follower_user_id=:user AND following "
-                +"AND (followed_at_utc,channel_id)<(:at,:channel) ORDER BY followed_at_utc DESC,channel_id DESC LIMIT :limit")
+        return jdbc.sql("SELECT "+FOLLOWED_COLUMNS+" FROM "+VISIBLE_FOLLOWS+" WHERE f.follower_user_id=:user AND f.following "
+                +"AND (f.followed_at_utc,f.channel_id)<(:at,:channel) ORDER BY f.followed_at_utc DESC,f.channel_id DESC LIMIT :limit")
                 .param("user",userId).param("at",ts(after.followedAt())).param("channel",after.channelId()).param("limit",limit)
                 .query(JdbcFollows::follow).list();
     }
@@ -95,7 +101,9 @@ public class JdbcFollows implements FollowStore {
                 .param("id",snapshotId).param("channel",channelId).param("session",sessionId).param("now",ts(now)).param("expires",ts(expires)).update()==1;
         if(created) {
             int count=jdbc.sql("INSERT INTO channels.recipient_snapshot_members(snapshot_id,user_id) "
-                    +"SELECT :id,follower_user_id FROM channels.follows WHERE channel_id=:channel AND following")
+                    // Suspended followers are not recipients; the published view lists active accounts only.
+                    +"SELECT :id,f.follower_user_id FROM channels.follows f JOIN identity.public_accounts a ON a.user_id=f.follower_user_id "
+                    +"WHERE f.channel_id=:channel AND f.following")
                     .param("id",snapshotId).param("channel",channelId).update();
             jdbc.sql("UPDATE channels.recipient_snapshots SET recipient_count=:count WHERE snapshot_id=:id").param("count",count).param("id",snapshotId).update();
         }

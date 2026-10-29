@@ -10,6 +10,7 @@ import { CoreError, type CorePort, type RecipientsPage } from '../src/core.ts';
 import { createPool, type Db, migrate } from '../src/db.ts';
 import { deliveryHandler, type PushProvider } from '../src/deliveries.ts';
 import { followHandler } from '../src/follow.ts';
+import { accountHandler, resolveOwners } from '../src/accounts.ts';
 import { apiHandler } from '../src/http.ts';
 import { liveHandler } from '../src/live.ts';
 import { silentLog } from '../src/log.ts';
@@ -44,7 +45,13 @@ class FakeCore implements CorePort {
     if (!email) throw new CoreError(404, 'ACCOUNT_NOT_FOUND');
     return email;
   }
-  async channel() { return { handle: 'canal_laura', displayName: 'Canal de Laura' }; }
+  channelUnavailable = false;
+  channelDown = false;
+  async channel() {
+    if (this.channelUnavailable) throw new CoreError(404, 'CHANNEL_NOT_FOUND');
+    if (this.channelDown) throw new CoreError(503, 'DOWN');
+    return { ownerUserId: 'usr_owner', handle: 'canal_laura', displayName: 'Canal de Laura' };
+  }
   async claimRecovery(recoveryId: string, deliveryId: string, attempt: number, key: string) {
     this.claims.push({ attempt, key });
     if (this.claimError) throw this.claimError;
@@ -99,7 +106,7 @@ describe('notifications', { skip: !url }, () => {
   after(async () => db?.end());
   beforeEach(async () => {
     await db.query(`TRUNCATE inbox_events, live_sessions, notifications, deliveries, outbox, medium_preferences, channel_preferences,
-      devices, follow_projection, recovery_attempts, idempotency CASCADE`);
+      devices, follow_projection, recovery_attempts, idempotency, account_status CASCADE`);
     core = new FakeCore();
     core.followers.set('chn_1', ['usr_a', 'usr_b', 'usr_c']);
     core.emails.set('usr_a', 'a@example.test');
@@ -274,6 +281,76 @@ describe('notifications', { skip: !url }, () => {
     assert.equal(mailer.sent.length, 2);
     assert.equal(core.claims.length, 2);
     assert.equal(core.results.length, 2);
+  });
+
+  it('applies account status by version and stops external media for suspended recipients and owners', async () => {
+    await db.query("INSERT INTO medium_preferences VALUES ('usr_a', true, false, 2), ('usr_b', true, false, 2)");
+    await db.query("INSERT INTO channel_preferences VALUES ('usr_a', 'chn_1', true, false, 2), ('usr_b', 'chn_1', true, false, 2)");
+    core.emails.set('usr_b', 'b@example.test');
+    await liveHandler(db, core)(liveEvent('evt_1'));
+    const account = accountHandler(db);
+    const status = (id: string, userId: string, version: number, value: string) => json({ eventId: id, eventType: 'account.status.changed.v1',
+      schemaVersion: 1, producer: 'core', aggregateId: `account:${userId}`, sequence: version, occurredAtUtc: '2026-10-26T18:00:00Z',
+      correlationId: 'req', payload: { userId, accountVersion: version, status: value } });
+    assert.equal(await account(status('33333333-3333-4333-8333-333333333331', 'usr_a', 1, 'SUSPENDED')), 'APPLIED');
+    assert.equal(await account(status('33333333-3333-4333-8333-333333333331', 'usr_a', 1, 'SUSPENDED')), 'DUPLICATE');
+    assert.equal(await account(status('33333333-3333-4333-8333-333333333332', 'usr_a', 0, 'ACTIVE')), 'STALE');
+    // The suspended recipient's pending email is cancelled; the other follower still gets theirs.
+    for (const message of await jobs('email')) await deliveryHandler('EMAIL', deps)(message);
+    assert.deepEqual(mailer.sent.map((m) => m.to), ['b@example.test']);
+    assert.equal(await count("SELECT count(*) n FROM deliveries WHERE medium='EMAIL' AND last_cause='ACCOUNT_SUSPENDED'"), 1);
+
+    // Suspending the channel owner keeps the inbox record but marks it unavailable and blocks later sends.
+    for (const message of await jobs('inbox')) await deliveryHandler('INBOX', deps)(message);
+    await account(status('33333333-3333-4333-8333-333333333333', 'usr_owner', 4, 'SUSPENDED'));
+    core.sessions.set('cred_c', 'usr_c');
+    const server = createServer((req, res) => void apiHandler({ db, core, cursorSecret: SECRET, log: silentLog })(req, res));
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const inbox = await (await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/api/notifications`,
+        { headers: { Cookie: 'stream_session=cred_c' } })).json() as { items: { available: boolean }[] };
+      assert.deepEqual(inbox.items.map((item) => item.available), [false]);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+    await account(status('33333333-3333-4333-8333-333333333334', 'usr_owner', 5, 'ACTIVE'));
+    assert.equal((await db.query("SELECT status FROM account_status WHERE user_id='usr_owner'")).rows[0].status, 'ACTIVE');
+  });
+
+  it('never creates a notice without a known channel owner and backfills legacy notices', async () => {
+    core.channelDown = true;
+    await assert.rejects(liveHandler(db, core)(liveEvent('evt_1')), (e: unknown) => e instanceof HandlerError && !e.permanent);
+    assert.equal(await count('SELECT count(*) n FROM notifications'), 0);
+    core.channelDown = false;
+    assert.equal(await liveHandler(db, core)(liveEvent('evt_1')), 'SELECTED');
+    assert.equal(await count("SELECT count(*) n FROM notifications WHERE owner_user_id='usr_owner'"), 3);
+
+    // A notice stored before migration 002 has no owner: unavailable and no external send until resolved.
+    await db.query("UPDATE notifications SET owner_user_id=NULL");
+    for (const message of await jobs('inbox')) await deliveryHandler('INBOX', deps)(message);
+    core.sessions.set('cred_a', 'usr_a');
+    const server = createServer((req, res) => void apiHandler({ db, core, cursorSecret: SECRET, log: silentLog })(req, res));
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const read = async () => (await (await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/api/notifications`,
+      { headers: { Cookie: 'stream_session=cred_a' } })).json() as { items: { available: boolean }[] }).items.map((i) => i.available);
+    try {
+      assert.deepEqual(await read(), [false]);
+      core.channelUnavailable = true;
+      assert.equal(await resolveOwners(db, core), 0); // suspended/missing channel stays unresolved
+      core.channelUnavailable = false;
+      assert.equal(await resolveOwners(db, core), 1);
+      assert.deepEqual(await read(), [true]);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it('closes the session of an unavailable channel without notices', async () => {
+    core.channelUnavailable = true;
+    assert.equal(await liveHandler(db, core)(liveEvent('evt_1')), 'CHANNEL_UNAVAILABLE');
+    assert.equal(await liveHandler(db, core)(liveEvent('evt_1')), 'DUPLICATE');
+    assert.equal(await count('SELECT count(*) n FROM notifications'), 0);
+    assert.equal(core.recipientCalls, 0);
   });
 
   it('applies follow changes by version and turns off channel switches on unfollow', async () => {
