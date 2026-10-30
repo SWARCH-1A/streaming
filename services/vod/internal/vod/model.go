@@ -164,7 +164,7 @@ func BuildTimeline(r Recording, index Index) (Timeline, error) {
 	groups := map[string][]Segment{}
 	seen := map[string]bool{}
 	for _, s := range index.Segments {
-		if s.SessionID != r.SessionID || !s.Object.Valid() || s.SourceGeneration < 1 || s.Sequence < 0 || s.SessionStartMS < -120000 || (s.SessionStartMS < 0 && s.SourceGeneration != 1) || s.DurationMS <= 0 || s.DurationMS > 60000 || seen[s.Key()] {
+		if s.SessionID != r.SessionID || !s.Object.Valid() || s.SourceGeneration < 1 || s.Sequence < 0 || s.SessionStartMS < -120000 || (s.SessionStartMS < 0 && s.Discontinuity) || s.DurationMS <= 0 || s.DurationMS > 60000 || seen[s.Key()] {
 			return t, Fail(422, "SEGMENT_INVALID")
 		}
 		if s.Object.ContentType != "video/mp2t" && (s.Initialization == nil || !s.Initialization.Valid()) {
@@ -187,6 +187,9 @@ func BuildTimeline(r Recording, index Index) (Timeline, error) {
 		sort.Slice(ss, func(i, j int) bool { return ss[i].SessionStartMS < ss[j].SessionStartMS })
 		var end int64
 		for i, s := range ss {
+			if s.SessionStartMS < 0 && s.SourceGeneration != ss[0].SourceGeneration {
+				return t, Fail(422, "TIMELINE_INVALID")
+			}
 			if i > 0 && (s.SessionStartMS < end || s.SourceGeneration < ss[i-1].SourceGeneration || (s.SessionStartMS > end && (!s.Discontinuity || s.SourceGeneration == ss[i-1].SourceGeneration)) || (s.SourceGeneration != ss[i-1].SourceGeneration && !s.Discontinuity) || (s.SourceGeneration == ss[i-1].SourceGeneration && s.Sequence != ss[i-1].Sequence+1)) {
 				return t, Fail(422, "TIMELINE_INVALID")
 			}

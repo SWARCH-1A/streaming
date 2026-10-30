@@ -357,9 +357,10 @@ impl PostgresIngestAuthorizationRepository {
             let snapshot = json!({"sessionId":session_id,"streamId":stream_config.stream_id,"channelId":stream_config.channel_id,
                 "streamGeneration":stream_generation,"title":metadata.0,"description":"","categoryId":metadata.1,"tagIds":metadata.2,
                 "autopublish":autopublish,"preferenceVersion":version});
-            sqlx::query("INSERT INTO recording_sessions(session_id,start_snapshot) VALUES($1,$2)")
+            sqlx::query("INSERT INTO recording_sessions(session_id,start_snapshot,initial_source_generation) VALUES($1,$2,$3)")
                 .bind(session_id.as_str())
                 .bind(snapshot)
+                .bind(source_generation)
                 .execute(&mut *transaction)
                 .await
                 .map_err(persistence_error)?;

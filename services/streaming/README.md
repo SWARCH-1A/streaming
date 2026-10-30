@@ -190,6 +190,10 @@ reservar una sesión nueva. `STREAMING_RECORDING_CORE_URL` apunta al listener pr
 `STREAMING_RECORDING_SETTINGS_TOKEN` es la credencial limitada a vod-settings. La copia y su versión
 se conservan en `recording_sessions`; reconectar no consulta ni reemplaza la preferencia. Si Core
 no puede confirmarla, el inicio falla sin asumir autopublicación.
+`recording_sessions.initial_source_generation` conserva también la generación inicial asignada;
+los snapshots la entregan como `initialSourceGeneration`. La migración 0004 recupera el valor de
+las autorizaciones de ingesta confirmadas para sesiones existentes. Reconectar solo cambia la
+generación vigente: las generaciones son monotónicas por streamId, no comienzan en 1 por sesión.
 
 Media consulta snapshots/ACK por el listener privado con su Bearer técnico. La cola de captura y
 entrega está en el worker `media-recorder`, descrito en [VOD](../vod/README.md). El header privado

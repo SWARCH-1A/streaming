@@ -97,9 +97,9 @@ func TestNativeEngineRecordingClosesWithReconnectAndRejectsCrashTail(t *testing.
 	started := first.Segments[0].Started.Add(500 * time.Millisecond)
 	start := vod.Start{SessionID: session, StreamID: "str_fixture", ChannelID: "chn_fixture", StreamGeneration: 1, Title: "Native recording", CategoryID: "cat_fixture", TagIDs: []string{}, Autopublish: true, PreferenceVersion: 1}
 	ended := time.Now().UTC()
-	s := &state{Start: start, Renditions: map[string]vod.Rendition{}, Next: map[string]int64{}, Finalized: map[string]bool{}, Ended: true, EndObservedAt: &ended, LastSourceGeneration: 2, CloseID: uuid("close:" + session)}
+	s := &state{Start: start, Renditions: map[string]vod.Rendition{}, Next: map[string]int64{}, Finalized: map[string]bool{}, Ended: true, EndObservedAt: &ended, FirstSourceGeneration: 1, LastSourceGeneration: 2, CloseID: uuid("close:" + session)}
 	r.states[session] = s
-	src := source{Start: start, StartedAt: &started, SourceGeneration: 2, Status: "ENDED"}
+	src := source{Start: start, StartedAt: &started, InitialSourceGeneration: 1, SourceGeneration: 2, Status: "ENDED"}
 	if e = r.captureNative(src); e != nil {
 		t.Fatalf("native capture: %v, failure %s, native inventories %+v %+v", e, s.Failure, first, second)
 	}
@@ -206,7 +206,7 @@ func TestNativeEngineRecordingClosesWithReconnectAndRejectsCrashTail(t *testing.
 		t.Fatal("retired capture did not stop independently of live")
 	}
 	retiredSession := "ses_00000000-0000-4000-8000-000000000016"
-	r.states[retiredSession] = &state{Start: vod.Start{SessionID: retiredSession}, Closed: true, Retired: true, LastSourceGeneration: 1}
+	r.states[retiredSession] = &state{Start: vod.Start{SessionID: retiredSession}, Closed: true, Retired: true, FirstSourceGeneration: 1, LastSourceGeneration: 1}
 	if e = r.transfer(retiredSession); e != nil {
 		t.Fatal(e)
 	}
@@ -224,9 +224,9 @@ func TestNativeEngineRecordingClosesWithReconnectAndRejectsCrashTail(t *testing.
 	crashStart.SessionID = crashed
 	crashClock := crashIndex.Segments[0].Started
 	past := time.Now().Add(-31 * time.Second)
-	broken := &state{Start: crashStart, Renditions: map[string]vod.Rendition{}, Next: map[string]int64{}, Finalized: map[string]bool{}, Ended: true, EndObservedAt: &past, LastSourceGeneration: 1, CloseID: uuid("close:" + crashed)}
+	broken := &state{Start: crashStart, Renditions: map[string]vod.Rendition{}, Next: map[string]int64{}, Finalized: map[string]bool{}, Ended: true, EndObservedAt: &past, FirstSourceGeneration: 1, LastSourceGeneration: 1, CloseID: uuid("close:" + crashed)}
 	r.states[crashed] = broken
-	if e = r.captureNative(source{Start: crashStart, StartedAt: &crashClock, SourceGeneration: 1, Status: "ENDED"}); e != nil {
+	if e = r.captureNative(source{Start: crashStart, StartedAt: &crashClock, InitialSourceGeneration: 1, SourceGeneration: 1, Status: "ENDED"}); e != nil {
 		t.Fatal(e)
 	}
 	if e = r.transfer(crashed); e != nil {

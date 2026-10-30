@@ -671,7 +671,7 @@ func (s *Service) InternalHandler(token, chatToken, gatewayToken string) http.Ha
 			decoder := json.NewDecoder(strings.NewReader(string(raw)))
 			decoder.DisallowUnknownFields()
 			var tail any
-			if decoder.Decode(&segment) != nil || decoder.Decode(&tail) != io.EOF || segment.SessionID != r.PathValue("sessionId") || strings.TrimPrefix(segment.Key(), segment.SessionID+":") != strings.TrimPrefix(key, "segment:") || segment.SessionStartMS < -120000 || (segment.SessionStartMS < 0 && segment.SourceGeneration != 1) || segment.DurationMS < 1 || segment.DurationMS > 60000 || segment.Object.ObjectID != "" {
+			if decoder.Decode(&segment) != nil || decoder.Decode(&tail) != io.EOF || segment.SessionID != r.PathValue("sessionId") || strings.TrimPrefix(segment.Key(), segment.SessionID+":") != strings.TrimPrefix(key, "segment:") || segment.SessionStartMS < -120000 || (segment.SessionStartMS < 0 && segment.Discontinuity) || segment.DurationMS < 1 || segment.DurationMS > 60000 || segment.Object.ObjectID != "" {
 				return Fail(422, "SEGMENT_METADATA_INVALID")
 			}
 			metadata = &segment

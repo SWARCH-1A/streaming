@@ -122,6 +122,8 @@ El grabador mantiene buffer durable y exige cierre final por generación. La ent
 una calidad usa el inventario nativo de MediaMTX de ADR-022: confirma cada archivo y sella al
 drenar el último. ENDED/SIGKILL sin sello no publica; `CAPTURE_FINAL_INDEX_UNAVAILABLE` conserva
 el fallo. El prefijo PREPARING se conserva sin desplazar el reloj Chat del timeline público.
+La generación inicial se obtiene del snapshot autoritativo de Streaming y se conserva en el
+checkpoint: una nueva sesión puede empezar por encima de 1 y exige todas sus generaciones hasta el cierre.
 P2-08 debe entregar las cuatro calidades reales. CA-01…CA-09 permanecen abiertos
 hasta las verificaciones integradas; Chat debe acreditar replay, orden en la unión y limpieza.
 La selección Web, renovación programada y controles de pistas requieren además prueba audiovisual

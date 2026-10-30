@@ -38,6 +38,8 @@ Media entrega el binding sesión/generación en la autorización privada, ligado
 el motor lo consume antes de crear el grabador. No se persiste la clave
 de emisión. La entrada actual H264/AAC conserva una calidad real sin recodificar, incluido el
 tramo final. El prefijo PREPARING se conserva en video; el timeline coloca el cero de Chat en LIVE.
+El snapshot privado incluye `initialSourceGeneration`: la captura conserva ese límite y la última
+generación en el checkpoint, sin asumir que una nueva sesión empieza en 1 ni omitir generaciones faltantes.
 El buffer nativo tiene otra cota de 8 GiB (`MEDIA_RECORDING_MAX_BYTES`, MediaMTX); su error afecta
 la grabación, no el lector live. El capturador copia/fsync antes de retirar cada archivo nativo.
 

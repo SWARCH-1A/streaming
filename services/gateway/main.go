@@ -170,7 +170,8 @@ func (g gateway) serve(w http.ResponseWriter, r *http.Request) {
 		if fc == 200 {
 			result["follow"] = available(follow)
 		} else if fc == 401 {
-			if r.Header.Get("Cookie") != "" || r.Header.Get("Authorization") != "" {
+			_, sessionErr := r.Cookie("stream_session")
+			if sessionErr == nil || r.Header.Get("Authorization") != "" {
 				status = 401
 				break
 			}

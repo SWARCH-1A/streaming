@@ -39,7 +39,10 @@ func (r *recorder) captureNative(src source) error {
 	if src.StartedAt == nil {
 		return nil
 	}
-	for generation := int64(1); generation <= src.SourceGeneration; generation++ {
+	if src.InitialSourceGeneration < 1 || src.SourceGeneration < src.InitialSourceGeneration {
+		return r.nativeFailure(src.Start.SessionID, "CAPTURE_GENERATION_RANGE_INVALID")
+	}
+	for generation := src.InitialSourceGeneration; generation <= src.SourceGeneration; generation++ {
 		dir := filepath.Join(r.nativeDir, src.Start.SessionID, strconv.FormatInt(generation, 10), "rend_source")
 		raw, e := os.ReadFile(filepath.Join(dir, "index.json"))
 		if os.IsNotExist(e) {
@@ -126,7 +129,7 @@ func (r *recorder) captureNative(src source) error {
 			if e = atomicFile(copyFile, data); e != nil {
 				return e
 			}
-			segment := vod.Segment{SessionID: src.Start.SessionID, RenditionID: "rend_source", SourceGeneration: generation, Sequence: entry.Sequence, SessionStartMS: start, DurationMS: entry.DurationMS, Discontinuity: generation > 1 && i == 0, Object: vod.ObjectRef{ByteLength: entry.Size, SHA256: entry.Hash, ContentType: "video/mp2t"}}
+			segment := vod.Segment{SessionID: src.Start.SessionID, RenditionID: "rend_source", SourceGeneration: generation, Sequence: entry.Sequence, SessionStartMS: start, DurationMS: entry.DurationMS, Discontinuity: generation > src.InitialSourceGeneration && i == 0, Object: vod.ObjectRef{ByteLength: entry.Size, SHA256: entry.Hash, ContentType: "video/mp2t"}}
 			r.mu.Lock()
 			if s.Closed || s.Failure != "" {
 				r.mu.Unlock()
@@ -230,7 +233,8 @@ func (r *recorder) cleanupNative(s *state) error {
 	}
 	// A DELETE can precede native Close. Retain the directory while the producer
 	// writes it; later polls of the tombstone finish the cleanup after sealing.
-	for generation := int64(1); generation <= s.LastSourceGeneration; generation++ {
+	// Completed checkpoints from before initialSourceGeneration may still need cleanup.
+	for generation := max(int64(1), s.FirstSourceGeneration); generation <= s.LastSourceGeneration; generation++ {
 		dir := filepath.Join(r.nativeDir, s.Start.SessionID, strconv.FormatInt(generation, 10), "rend_source")
 		raw, e := os.ReadFile(filepath.Join(dir, "index.json"))
 		if os.IsNotExist(e) {

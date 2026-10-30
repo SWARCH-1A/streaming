@@ -416,7 +416,7 @@ func (s *Store) Apply(ctx context.Context, consumer string, e Envelope, raw []by
 		}
 	case "recording.segment.available.v1":
 		var p Segment
-		if decodePayload(e.Payload, &p) != nil || !p.Object.Valid() || !ValidID(p.SessionID) || !ValidID(p.RenditionID) || p.SourceGeneration < 1 || p.Sequence < 0 || p.DurationMS < 1 || p.DurationMS > 60000 || p.SessionStartMS < -120000 || (p.SessionStartMS < 0 && p.SourceGeneration != 1) || (e.AggregateID != "segment:"+p.Key() || e.Sequence != p.Sequence+1) {
+		if decodePayload(e.Payload, &p) != nil || !p.Object.Valid() || !ValidID(p.SessionID) || !ValidID(p.RenditionID) || p.SourceGeneration < 1 || p.Sequence < 0 || p.DurationMS < 1 || p.DurationMS > 60000 || p.SessionStartMS < -120000 || (p.SessionStartMS < 0 && p.Discontinuity) || (e.AggregateID != "segment:"+p.Key() || e.Sequence != p.Sequence+1) {
 			return Fail(422, "EVENT_INVALID")
 		}
 		r, er := scanRecording(tx.QueryRowContext(ctx, "SELECT data,owner_id,index_ref FROM vod_recordings WHERE session_id=$1 FOR UPDATE", p.SessionID))

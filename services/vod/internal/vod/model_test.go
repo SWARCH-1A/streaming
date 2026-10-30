@@ -52,7 +52,7 @@ func TestPreparingPrefixPreservesBytesWithoutMovingChatClock(t *testing.T) {
 	ref := ObjectRef{"obj_fixture", 100, strings.Repeat("a", 64), "video/mp2t"}
 	index := Index{SessionID: r.SessionID, StreamGeneration: 1, Renditions: []Rendition{{RenditionID: "rend_fixture", Width: 320, Height: 180, Bitrate: 100000, VideoCodec: "avc1"}}}
 	for n, offset := range []int64{-1500, -500, 500} {
-		index.Segments = append(index.Segments, Segment{SessionID: r.SessionID, RenditionID: "rend_fixture", SourceGeneration: 1, Sequence: int64(n), SessionStartMS: offset, DurationMS: 1000, Object: ref})
+		index.Segments = append(index.Segments, Segment{SessionID: r.SessionID, RenditionID: "rend_fixture", SourceGeneration: 7, Sequence: int64(n), SessionStartMS: offset, DurationMS: 1000, Object: ref})
 	}
 	timeline, e := BuildTimeline(r, index)
 	if e != nil {
@@ -61,7 +61,7 @@ func TestPreparingPrefixPreservesBytesWithoutMovingChatClock(t *testing.T) {
 	if timeline.DurationMS != 3000 || timeline.Intervals[0].SessionStartMS != 0 || timeline.Intervals[0].MediaStartMS != 1500 || timeline.MapOffset(0) != 1500 || timeline.MapOffset(1000) != 2500 {
 		t.Fatalf("preparing prefix shifted Chat: %+v", timeline)
 	}
-	index.Segments[0].SourceGeneration = 2
+	index.Segments[0].SourceGeneration = 8
 	if _, e = BuildTimeline(r, index); e == nil {
 		t.Fatal("negative reconnect clock accepted")
 	}

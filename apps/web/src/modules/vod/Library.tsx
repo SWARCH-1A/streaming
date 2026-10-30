@@ -53,9 +53,11 @@ export function Library({
     ...(tagId ? { tagId } : {}),
   });
   const path = `${base}?${query.toString()}`;
+  const initialPagePath = useRef(initial ? path : null);
 
   useEffect(() => {
-    if (initial && revision === 0 && !title && !categoryId && !tagId) return;
+    if (initialPagePath.current === path && revision === 0) return;
+    initialPagePath.current = null;
     const controller = new AbortController();
     const timer = setTimeout(() => {
       setPending(true);
@@ -77,7 +79,7 @@ export function Library({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [initial, path, revision, title, categoryId, tagId]);
+  }, [path, revision]);
 
   useEffect(() => {
     if (!operation) return;

@@ -2418,7 +2418,7 @@
           "type": "integer",
           "minimum": -120000,
           "maximum": 9007199254740991,
-          "description": "Offset from the authoritative first LIVE clock; only generation 1 may include up to 120000 ms of retained PREPARING media before zero. Public timeline intervals remain nonnegative."
+          "description": "Offset from the authoritative first LIVE clock; only the session's initial source generation may include up to 120000 ms of retained PREPARING media before zero, without a discontinuity. Source generations are monotonic per stream and need not start at 1. Public timeline intervals remain nonnegative."
         },
         "durationMs": {
           "type": "integer",
@@ -3556,6 +3556,11 @@
         "start": {
           "$ref": "#/$defs/P2RecordingStart"
         },
+        "initialSourceGeneration": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Immutable first source generation assigned to this session. It is preserved across reconnects and must not exceed sourceGeneration. Generations are monotonic per stream, not reset for each session."
+        },
         "sourceGeneration": {
           "type": "integer",
           "minimum": 1
@@ -3595,6 +3600,7 @@
       },
       "required": [
         "start",
+        "initialSourceGeneration",
         "sourceGeneration",
         "status",
         "availability",
@@ -4376,7 +4382,7 @@
           "type": "integer",
           "minimum": -120000,
           "maximum": 9007199254740991,
-          "description": "Offset from the authoritative first LIVE clock; only generation 1 may include up to 120000 ms of retained PREPARING media before zero. Public timeline intervals remain nonnegative."
+          "description": "Offset from the authoritative first LIVE clock; only the session's initial source generation may include up to 120000 ms of retained PREPARING media before zero, without a discontinuity. Source generations are monotonic per stream and need not start at 1. Public timeline intervals remain nonnegative."
         },
         "durationMs": {
           "type": "integer",

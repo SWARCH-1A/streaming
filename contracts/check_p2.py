@@ -58,7 +58,7 @@ def validate_payload(bundle, name, value, public=False, event=False):
 
 def validate_vod_identity(name, value):
     if name in {"P2Segment", "P2SegmentUploadMetadata"}:
-        if value["sessionStartMs"] < 0 and value["sourceGeneration"] != 1:
+        if value["sessionStartMs"] < 0 and value["discontinuity"]:
             raise ValueError("Only the initial PREPARING prefix can precede the LIVE clock")
         if name == "P2Segment" and value["object"]["contentType"] != "video/mp2t" and not value.get("initialization"):
             raise ValueError("Fragmented media requires initialization")
@@ -96,6 +96,8 @@ def validate_vod_identity(name, value):
             segments.sort(key=lambda segment: segment["sessionStartMs"])
             previous = None
             for segment in segments:
+                if segment["sessionStartMs"] < 0 and segment["sourceGeneration"] != segments[0]["sourceGeneration"]:
+                    raise ValueError("Only the session's initial source generation can precede the LIVE clock")
                 if previous:
                     gap = segment["sessionStartMs"] - previous["sessionStartMs"] - previous["durationMs"]
                     generation_changed = segment["sourceGeneration"] != previous["sourceGeneration"]
@@ -108,6 +110,12 @@ def validate_vod_identity(name, value):
             coverage = [(v["sourceGeneration"],v["sessionStartMs"],v["durationMs"]) for v in segments]
             if reference is not None and coverage != reference: raise ValueError("Renditions do not align")
             reference = coverage
+    elif name == "P2RecordingSnapshot":
+        if value["initialSourceGeneration"] > value["sourceGeneration"]:
+            raise ValueError("Initial source generation exceeds the current generation")
+    elif name == "P2RecordingSnapshots":
+        for snapshot in value["items"]:
+            validate_vod_identity("P2RecordingSnapshot", snapshot)
     elif name == "P2ReplayQuery" and value["fromMs"] >= value["toMs"]:
         raise ValueError("Replay window must be nonempty")
 

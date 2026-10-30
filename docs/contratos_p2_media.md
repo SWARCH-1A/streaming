@@ -17,8 +17,10 @@ segmentos dentro de su fuente/rendición; sourceGeneration evita colisiones al r
 sessionStartMs y durationMs describen su intervalo de sesión; discontinuity identifica ruptura
 que debe reflejar el empaquetado. Audio, keyframes y límites de segmento deben permitir cambiar
 de calidad sin saltos incoherentes. Esas propiedades requieren prueba audiovisual real.
-Solo la primera generación admite posiciones negativas hasta -120000 ms para conservar medios
+Solo la generación inicial de la sesión admite posiciones negativas hasta -120000 ms para conservar medios
 PREPARING anteriores al reloj LIVE; no se admiten tiempos negativos en los intervalos públicos.
+`sourceGeneration` es monotónica por streamId: una sesión nueva puede comenzar por encima de 1.
+El prefijo PREPARING no lleva discontinuidad; el índice comprueba que pertenece a la generación inicial.
 
 ## Objeto confirmado y escritor
 
@@ -51,6 +53,10 @@ respuesta200 posterior a PUT/verificación/confirmación habilita publicar su re
 identidad con otros bytes da409. El índice también se confirma por este protocolo.
 
 Streaming ofrece snapshots/ACK privados; Media mantiene checkpoint/bytes/outbox con fsync.
+El snapshot incluye `initialSourceGeneration`, copiada de la reserva original e inmutable al
+reconectar, y `sourceGeneration` vigente. Media conserva ambos límites en el checkpoint y exige
+el cierre de todas las generaciones de ese intervalo, incluso si empieza a capturar tras una
+reconexión. No exige generaciones de sesiones anteriores ni deduce el inicio de los archivos presentes.
 La extensión privada `media.recording-binding.v1` de la respuesta204 de `media.auth` devuelve
 `X-Media-Recording-Session` y `X-Media-Recording-Source-Generation` según `P2MediaRecordingBinding`.
 Solo se emite para publicación autorizada con grabación habilitada. El engine liga el binding al

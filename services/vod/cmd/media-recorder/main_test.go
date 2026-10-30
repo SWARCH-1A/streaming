@@ -33,7 +33,7 @@ func TestCapturePersistsBeforeUploadAndFencesGeneration(t *testing.T) {
 	}))
 	defer server.Close()
 	var src source
-	if e := json.Unmarshal([]byte(`{"start":{"sessionId":"ses_fixture","streamId":"str_fixture","channelId":"chn_fixture","streamGeneration":1},"sourceGeneration":1,"startedAtUtc":"2026-10-29T12:00:00Z"}`), &src); e != nil {
+	if e := json.Unmarshal([]byte(`{"start":{"sessionId":"ses_fixture","streamId":"str_fixture","channelId":"chn_fixture","streamGeneration":1},"initialSourceGeneration":1,"sourceGeneration":1,"startedAtUtc":"2026-10-29T12:00:00Z"}`), &src); e != nil {
 		t.Fatal(e)
 	}
 	s := &state{Start: src.Start, Renditions: map[string]vod.Rendition{}, Next: map[string]int64{}, Correction: map[int64]int64{}, Finalized: map[string]bool{}}

@@ -249,7 +249,7 @@ async fn migration_snapshots_timeline_and_metadata_remain_local_and_atomic() -> 
     let migrations: i64 = sqlx::query_scalar("SELECT count(*) FROM _sqlx_migrations")
         .fetch_one(&pool)
         .await?;
-    assert_eq!(migrations, 3);
+    assert_eq!(migrations, 4);
     pool.close().await;
     Ok(())
 }
@@ -911,9 +911,10 @@ async fn vod_snapshots_survive_metadata_changes_and_ack_requires_ended() -> Resu
     let clock = MonotonicSessionClock::default();
     let ingest = playable(&pool, &clock).await?;
     let start = json!({"sessionId":ingest.session_id.as_str(),"streamId":ingest.stream_id.as_str(),"channelId":"channel_1","streamGeneration":1,"title":"Título inicial","categoryId":"category_example","tagIds":[],"description":"","autopublish":false,"preferenceVersion":7});
-    sqlx::query("INSERT INTO recording_sessions(session_id,start_snapshot) VALUES($1,$2)")
+    sqlx::query("INSERT INTO recording_sessions(session_id,start_snapshot,initial_source_generation) VALUES($1,$2,$3)")
         .bind(ingest.session_id.as_str())
         .bind(start.clone())
+        .bind(ingest.source_generation)
         .execute(&pool)
         .await?;
     sqlx::query("UPDATE stream_configs SET title='Título posterior' WHERE stream_id=$1")

@@ -38,12 +38,13 @@ var errCaptureBytes = errors.New("capture bytes differ from durable inventory")
 func (e *upstreamError) Error() string { return fmt.Sprintf("upstream status %d", e.status) }
 
 type source struct {
-	Start              vod.Start  `json:"start"`
-	SourceGeneration   int64      `json:"sourceGeneration"`
-	Status             string     `json:"status"`
-	Availability       string     `json:"availability"`
-	StartedAt          *time.Time `json:"startedAtUtc"`
-	TimelinePositionMS int64      `json:"timelinePositionMs"`
+	Start                   vod.Start  `json:"start"`
+	InitialSourceGeneration int64      `json:"initialSourceGeneration"`
+	SourceGeneration        int64      `json:"sourceGeneration"`
+	Status                  string     `json:"status"`
+	Availability            string     `json:"availability"`
+	StartedAt               *time.Time `json:"startedAtUtc"`
+	TimelinePositionMS      int64      `json:"timelinePositionMs"`
 }
 type pending struct {
 	Segment                 vod.Segment
@@ -68,6 +69,7 @@ type state struct {
 	CloseID                                 string
 	EndObservedAt                           *time.Time
 	LastSourceGeneration                    int64
+	FirstSourceGeneration                   int64
 	Retired                                 bool
 }
 type recorder struct {
@@ -242,23 +244,40 @@ func (r *recorder) poll() {
 		return
 	}
 	for _, src := range response.Items {
+		if src.InitialSourceGeneration < 1 || src.SourceGeneration < src.InitialSourceGeneration {
+			continue
+		}
 		r.mu.Lock()
 		s := r.states[src.Start.SessionID]
+		changed := false
 		if s == nil {
 			s = &state{Start: src.Start, Renditions: map[string]vod.Rendition{}, Finalized: map[string]bool{}, Next: map[string]int64{}, Correction: map[int64]int64{}, Segments: []pending{}, CloseID: uuid("close:" + src.Start.SessionID)}
 			r.states[src.Start.SessionID] = s
+		}
+		if s.FirstSourceGeneration == 0 {
+			s.FirstSourceGeneration = src.InitialSourceGeneration
+			changed = true
+		} else if s.FirstSourceGeneration != src.InitialSourceGeneration && s.Failure == "" {
+			s.Failure = "CAPTURE_GENERATION_RANGE_CONFLICT"
+			changed = true
+		}
+		if src.SourceGeneration > s.LastSourceGeneration {
+			s.LastSourceGeneration = src.SourceGeneration
+			changed = true
 		}
 		if src.Status == "ENDED" {
 			s.Ended = true
 			if s.EndObservedAt == nil {
 				now := time.Now().UTC()
 				s.EndObservedAt = &now
+				changed = true
 			}
+		}
+		if changed {
 			if e = r.save(s); e != nil {
 				s.Failure = "CHECKPOINT_FAILED"
 			}
 		}
-		s.LastSourceGeneration = max(s.LastSourceGeneration, src.SourceGeneration)
 		if s.Closed || s.Failure != "" || r.running[src.Start.SessionID] || (r.nativeDir == "" && src.Availability != "PLAYABLE") {
 			r.mu.Unlock()
 			continue
@@ -407,7 +426,7 @@ func (r *recorder) capture(src source) error {
 	}
 	r.mu.Lock()
 	initial := r.states[src.Start.SessionID]
-	highest := int64(0)
+	highest := src.InitialSourceGeneration - 1
 	for generation := range initial.Correction {
 		highest = max(highest, generation)
 	}
@@ -474,7 +493,7 @@ func (r *recorder) capture(src source) error {
 				correction = max(0, src.StartedAt.Sub(m.Date).Milliseconds())
 				s.Correction[src.SourceGeneration] = correction
 			}
-			if !exists && src.SourceGeneration == 1 && m.Date.Sub(*src.StartedAt).Milliseconds()+correction > 1000 {
+			if !exists && src.SourceGeneration == src.InitialSourceGeneration && m.Date.Sub(*src.StartedAt).Milliseconds()+correction > 1000 {
 				s.Failure = "CAPTURE_INITIAL_SEGMENT_MISSING"
 				_ = r.save(s)
 				r.mu.Unlock()
@@ -742,8 +761,13 @@ func (r *recorder) transfer(id string) error {
 	// ENDED may arrive before the native reader has drained its final file. Give the
 	// producer time to seal, never manufacture a close from elapsed time.
 	if r.nativeDir != "" {
-		complete := len(s.Expected) > 0
-		for generation := int64(1); generation <= s.LastSourceGeneration; generation++ {
+		// Older checkpoints obtain this immutable boundary from the next Streaming
+		// snapshot. Never infer it from the first file that happens to be available.
+		if s.FirstSourceGeneration < 1 {
+			return nil
+		}
+		complete := len(s.Expected) > 0 && s.LastSourceGeneration >= s.FirstSourceGeneration
+		for generation := s.FirstSourceGeneration; generation <= s.LastSourceGeneration; generation++ {
 			key := fmt.Sprintf("rend_source:%d", generation)
 			if !s.Finalized[key] {
 				complete = false

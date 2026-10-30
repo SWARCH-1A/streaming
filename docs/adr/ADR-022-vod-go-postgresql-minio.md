@@ -37,8 +37,10 @@ asíncronos de [MediaMTX](https://github.com/bluenviron/mediamtx/blob/v1.21.1/in
 no certifican ese orden. Un fallo/reinicio interno del grabador conserva un fallo; SIGKILL no
 produce un cierre. La cola de captura copia con fsync antes de liberar los bytes nativos.
 
-Se conservan también los bytes de PREPARING. Solo los segmentos de generación 1 pueden tener
-`sessionStartMs` negativo, acotado a 120 segundos; el índice los valida como cobertura continua.
+Se conservan también los bytes de PREPARING. Solo los segmentos de la generación inicial de la
+sesión, sin discontinuidad, pueden tener `sessionStartMs` negativo, acotado a 120 segundos; el índice
+los valida como cobertura continua. Streaming conserva esa generación inicial en la reserva y la
+entrega como `initialSourceGeneration`; `sourceGeneration` crece por streamId y no se reinicia por sesión.
 Los intervalos públicos de sesión siguen siendo no negativos y empiezan en el instante LIVE,
 con `mediaStartMs` posterior al prefijo PREPARING. Chat no desplaza su reloj ni genera mensajes
 para ese prefijo. Esta decisión conserva todos los bytes sin confundir los orígenes temporales.

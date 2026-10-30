@@ -100,10 +100,10 @@ func TestCaptureCleanupRetainsInventoryUntilFilesAreRemoved(t *testing.T) {
 }
 func TestNativeCaptureSurvivesRestartAndRequiresProducerClose(t *testing.T) {
 	start := time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
-	src := source{Start: vod.Start{SessionID: "ses_fixture", StreamID: "str_fixture", StreamGeneration: 1}, SourceGeneration: 1, StartedAt: &start}
-	s := &state{Start: src.Start, Renditions: map[string]vod.Rendition{}, Next: map[string]int64{}, Finalized: map[string]bool{}}
+	src := source{Start: vod.Start{SessionID: "ses_fixture", StreamID: "str_fixture", StreamGeneration: 2}, InitialSourceGeneration: 7, SourceGeneration: 7, StartedAt: &start}
+	s := &state{Start: src.Start, FirstSourceGeneration: 7, LastSourceGeneration: 7, Renditions: map[string]vod.Rendition{}, Next: map[string]int64{}, Finalized: map[string]bool{}}
 	r := &recorder{ctx: context.Background(), dir: t.TempDir(), nativeDir: t.TempDir(), limit: 1 << 20, states: map[string]*state{src.Start.SessionID: s}}
-	dir := filepath.Join(r.nativeDir, src.Start.SessionID, "1", "rend_source")
+	dir := filepath.Join(r.nativeDir, src.Start.SessionID, "7", "rend_source")
 	if e := os.MkdirAll(dir, 0700); e != nil {
 		t.Fatal(e)
 	}
@@ -123,7 +123,7 @@ func TestNativeCaptureSurvivesRestartAndRequiresProducerClose(t *testing.T) {
 	if e := r.captureNative(src); e != nil {
 		t.Fatal(e)
 	}
-	if len(s.Segments) != 1 || s.Finalized["rend_source:1"] || s.Segments[0].Sent || s.Segments[0].Segment.SessionStartMS != -250 {
+	if len(s.Segments) != 1 || s.Finalized["rend_source:7"] || s.Segments[0].Sent || s.Segments[0].Segment.SessionStartMS != -250 {
 		t.Fatal("native capture or unsealed generation state invalid")
 	}
 	checkpoint, e := os.ReadFile(filepath.Join(r.dir, src.Start.SessionID+".json"))
@@ -140,10 +140,10 @@ func TestNativeCaptureSurvivesRestartAndRequiresProducerClose(t *testing.T) {
 	if e = r.captureNative(src); e != nil {
 		t.Fatal(e)
 	}
-	if len(restored.Segments) != 1 || !restored.Finalized["rend_source:1"] {
+	if len(restored.Segments) != 1 || !restored.Finalized["rend_source:7"] {
 		t.Fatal("restart lost sequence or close")
 	}
-	index := vod.Index{SessionID: src.Start.SessionID, StreamGeneration: 1, Renditions: []vod.Rendition{restored.Renditions["rend_source"]}, Segments: []vod.Segment{restored.Segments[0].Segment}}
+	index := vod.Index{SessionID: src.Start.SessionID, StreamGeneration: src.Start.StreamGeneration, Renditions: []vod.Rendition{restored.Renditions["rend_source"]}, Segments: []vod.Segment{restored.Segments[0].Segment}}
 	index.Segments[0].Object.ObjectID = "obj_fixture"
 	timeline, e := vod.BuildTimeline(vod.Recording{Start: src.Start}, index)
 	if e != nil || timeline.MapOffset(0) != 250 || timeline.DurationMS != 1000 {
