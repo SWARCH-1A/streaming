@@ -93,6 +93,14 @@ data class P2NativeLogin(
 ) { override fun toString(): String = "P2NativeLogin([redacted])" }
 
 @Serializable
+data class P2OperationStatus(
+    val operationId: String,
+    val status: String,
+    val errorCode: String,
+    val replayCleanup: String
+)
+
+@Serializable
 data class P2RecoveryAccepted(
     val message: String
 )
@@ -106,6 +114,84 @@ data class P2RecoveryConfirm(
 @Serializable
 data class P2RecoveryRequest(
     val email: String
+)
+
+@Serializable
+data class P2Rendition(
+    val renditionId: String,
+    val width: Long,
+    val height: Long,
+    val bitrateBps: Long,
+    val videoCodec: String,
+    val audioCodec: String?
+)
+
+@Serializable
+data class P2SubtitlePage(
+    val items: List<P2SubtitleTrack>,
+    val nextCursor: String?
+)
+
+@Serializable
+data class P2SubtitleTrack(
+    val trackId: String,
+    val vodId: String,
+    val language: String,
+    val label: String,
+    val kind: String,
+    val format: String,
+    val state: String,
+    val trackVersion: Long,
+    val mappingVersion: Long,
+    val mediaDurationMs: Long,
+    val contentPath: String
+)
+
+@Serializable
+data class P2Timeline(
+    val vodId: String,
+    val sessionId: String,
+    val mappingVersion: Long,
+    val durationMs: Long,
+    val gapPolicy: String,
+    val intervals: List<P2TimelineInterval>
+)
+
+@Serializable
+data class P2TimelineInterval(
+    val sourceGeneration: Long,
+    val sessionStartMs: Long,
+    val mediaStartMs: Long,
+    val durationMs: Long
+)
+
+@Serializable
+data class P2Vod(
+    val sessionId: String,
+    val streamId: String,
+    val channelId: String,
+    val streamGeneration: Long,
+    val title: String,
+    val description: String,
+    val categoryId: String,
+    val tagIds: List<String>,
+    val vodId: String,
+    val processingState: String,
+    val publicationState: String,
+    val restriction: String,
+    val version: Long,
+    val mappingVersion: Long,
+    val durationMs: Long,
+    val renditions: List<P2Rendition>,
+    val playbackPath: String,
+    val createdAtUtc: String,
+    val failureCode: String? = null
+)
+
+@Serializable
+data class P2VodPage(
+    val items: List<P2Vod>,
+    val nextCursor: String?
 )
 
 @Serializable

@@ -18,17 +18,17 @@
   {
     "eventType": "recording.segment.available.v1",
     "producers": ["streaming", "media"],
-    "schema": null,
+    "schema": "P2EventRecordingSegmentAvailable",
     "spec": ["SPEC-17", "SPEC-10"],
-    "status": "pending-owner",
+    "status": "contract-ready",
     "subscriptions": ["vod.segments"]
   },
   {
     "eventType": "recording.closed.v1",
     "producers": ["streaming", "media"],
-    "schema": null,
+    "schema": "P2EventRecordingClosed",
     "spec": ["SPEC-17", "SPEC-10"],
-    "status": "pending-owner",
+    "status": "contract-ready",
     "subscriptions": ["vod.recording"]
   },
   {
@@ -50,9 +50,9 @@
   {
     "eventType": "vod.availability.changed.v1",
     "producers": ["vod"],
-    "schema": null,
+    "schema": "P2EventVodAvailabilityChanged",
     "spec": ["SPEC-17", "SPEC-10"],
-    "status": "pending-owner",
+    "status": "contract-ready",
     "subscriptions": ["chat.vod", "core.vod"]
   },
   {

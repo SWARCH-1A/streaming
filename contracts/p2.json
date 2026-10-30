@@ -1,7 +1,7 @@
 {
   "version": 2,
   "extends": "p1.json",
-  "coverage": "Lifecycle, Discovery, recovery, administration, subtitles, native sessions, channel follow/recipients/autopublication, streaming renditions and notification inbox/preferences/devices/delivery contracts; other P2 families remain pending their owners.",
+  "coverage": "P2 lifecycle, Discovery, recovery, follow, notifications, mobile auth, administration, live renditions, VOD recording/library/timeline/private media and subtitles contracts.",
   "schemas": {
     "P2StreamSessionChangedPayload": {
       "type": "object",
@@ -2260,6 +2260,2188 @@
           "expiresAtUtc": "2026-10-28T12:00:00Z"
         }
       ]
+    },
+    "P2ObjectRef": {
+      "type": "object",
+      "properties": {
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "byteLength": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "contentType": {
+          "type": "string",
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "objectId",
+        "byteLength",
+        "sha256",
+        "contentType"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "objectId": "obj_fixture",
+          "byteLength": 1024,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "contentType": "video/mp2t"
+        }
+      ]
+    },
+    "P2RecordingStart": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "streamId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "channelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "streamGeneration": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 140,
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "categoryId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "tagIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "maxItems": 5,
+          "uniqueItems": true
+        },
+        "autopublish": {
+          "type": "boolean"
+        },
+        "preferenceVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "sessionId",
+        "streamId",
+        "channelId",
+        "streamGeneration",
+        "title",
+        "description",
+        "categoryId",
+        "tagIds",
+        "autopublish",
+        "preferenceVersion"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "sessionId": "ses_fixture",
+          "streamId": "str_fixture",
+          "channelId": "chn_fixture",
+          "streamGeneration": 1,
+          "title": "Clase grabada",
+          "description": "",
+          "categoryId": "cat_fixture",
+          "tagIds": [],
+          "autopublish": true,
+          "preferenceVersion": 0
+        }
+      ]
+    },
+    "P2Segment": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "renditionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "sourceGeneration": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "sessionStartMs": {
+          "type": "integer",
+          "minimum": -120000,
+          "maximum": 9007199254740991,
+          "description": "Offset from the authoritative first LIVE clock; only the session's initial source generation may include up to 120000 ms of retained PREPARING media before zero, without a discontinuity. Source generations are monotonic per stream and need not start at 1. Public timeline intervals remain nonnegative."
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60000
+        },
+        "discontinuity": {
+          "type": "boolean"
+        },
+        "object": {
+          "$ref": "#/$defs/P2ObjectRef"
+        },
+        "initialization": {
+          "$ref": "#/$defs/P2ObjectRef"
+        }
+      },
+      "required": [
+        "sessionId",
+        "renditionId",
+        "sourceGeneration",
+        "sequence",
+        "sessionStartMs",
+        "durationMs",
+        "discontinuity",
+        "object"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "sessionId": "ses_fixture",
+          "renditionId": "rend_720",
+          "sourceGeneration": 1,
+          "sequence": 0,
+          "sessionStartMs": 0,
+          "durationMs": 1000,
+          "discontinuity": false,
+          "object": {
+            "objectId": "obj_fixture",
+            "byteLength": 1024,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "contentType": "video/mp2t"
+          }
+        }
+      ]
+    },
+    "P2RecordingIndex": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "streamGeneration": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "renditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/P2Rendition"
+          },
+          "minItems": 1,
+          "maxItems": 4
+        },
+        "segments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/P2Segment"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "sessionId",
+        "streamGeneration",
+        "renditions",
+        "segments"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1,
+          "renditions": [
+            {
+              "renditionId": "rend_720",
+              "width": 1280,
+              "height": 720,
+              "bitrateBps": 2500000,
+              "videoCodec": "avc1",
+              "audioCodec": "mp4a"
+            }
+          ],
+          "segments": [
+            {
+              "sessionId": "ses_fixture",
+              "renditionId": "rend_720",
+              "sourceGeneration": 1,
+              "sequence": 0,
+              "sessionStartMs": 0,
+              "durationMs": 1000,
+              "discontinuity": false,
+              "object": {
+                "objectId": "obj_fixture",
+                "byteLength": 1024,
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "contentType": "video/mp2t"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "P2TimelineInterval": {
+      "type": "object",
+      "properties": {
+        "sourceGeneration": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "sessionStartMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "mediaStartMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "sourceGeneration",
+        "sessionStartMs",
+        "mediaStartMs",
+        "durationMs"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "sourceGeneration": 1,
+          "sessionStartMs": 0,
+          "mediaStartMs": 0,
+          "durationMs": 1000
+        }
+      ]
+    },
+    "P2Timeline": {
+      "type": "object",
+      "properties": {
+        "vodId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "mappingVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "gapPolicy": {
+          "const": "COMPACT_NEAREST_SEAM"
+        },
+        "intervals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/P2TimelineInterval"
+          }
+        }
+      },
+      "required": [
+        "vodId",
+        "sessionId",
+        "mappingVersion",
+        "durationMs",
+        "gapPolicy",
+        "intervals"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "vodId": "vod_fixture",
+          "sessionId": "ses_fixture",
+          "mappingVersion": 1,
+          "durationMs": 1000,
+          "gapPolicy": "COMPACT_NEAREST_SEAM",
+          "intervals": [
+            {
+              "sourceGeneration": 1,
+              "sessionStartMs": 0,
+              "mediaStartMs": 0,
+              "durationMs": 1000
+            }
+          ]
+        }
+      ],
+      "description": "Compacted VOD mapping. Media before the first interval is a retained PREPARING prefix without Chat messages; session offset zero maps to the first interval mediaStartMs. Subsequent intervals cover all remaining media through durationMs."
+    },
+    "P2Vod": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "streamId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "channelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "streamGeneration": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 140,
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "categoryId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "tagIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "maxItems": 5,
+          "uniqueItems": true
+        },
+        "vodId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "processingState": {
+          "enum": [
+            "RECORDING",
+            "VALIDATING",
+            "READY",
+            "FAILED"
+          ]
+        },
+        "publicationState": {
+          "enum": [
+            "DRAFT",
+            "PUBLISHED"
+          ]
+        },
+        "restriction": {
+          "enum": [
+            "NONE",
+            "RETIRED",
+            "DELETED"
+          ]
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "mappingVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "renditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/P2Rendition"
+          },
+          "maxItems": 4
+        },
+        "playbackPath": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "createdAtUtc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "failureCode": {
+          "type": "string",
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "sessionId",
+        "streamId",
+        "channelId",
+        "streamGeneration",
+        "title",
+        "description",
+        "categoryId",
+        "tagIds",
+        "vodId",
+        "processingState",
+        "publicationState",
+        "restriction",
+        "version",
+        "mappingVersion",
+        "durationMs",
+        "renditions",
+        "playbackPath",
+        "createdAtUtc"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "sessionId": "ses_fixture",
+          "streamId": "str_fixture",
+          "channelId": "chn_fixture",
+          "streamGeneration": 1,
+          "title": "Clase grabada",
+          "description": "",
+          "categoryId": "cat_fixture",
+          "tagIds": [],
+          "vodId": "vod_fixture",
+          "processingState": "READY",
+          "publicationState": "PUBLISHED",
+          "restriction": "NONE",
+          "version": 2,
+          "mappingVersion": 1,
+          "durationMs": 1000,
+          "renditions": [
+            {
+              "renditionId": "rend_720",
+              "width": 1280,
+              "height": 720,
+              "bitrateBps": 2500000,
+              "videoCodec": "avc1",
+              "audioCodec": "mp4a"
+            }
+          ],
+          "playbackPath": "/vod-media/vod_fixture/master.m3u8",
+          "createdAtUtc": "2026-10-29T12:00:00Z"
+        }
+      ]
+    },
+    "P2VodPage": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/P2Vod"
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 8192
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "items": [
+            {
+              "sessionId": "ses_fixture",
+              "streamId": "str_fixture",
+              "channelId": "chn_fixture",
+              "streamGeneration": 1,
+              "title": "Clase grabada",
+              "description": "",
+              "categoryId": "cat_fixture",
+              "tagIds": [],
+              "vodId": "vod_fixture",
+              "processingState": "READY",
+              "publicationState": "PUBLISHED",
+              "restriction": "NONE",
+              "version": 2,
+              "mappingVersion": 1,
+              "durationMs": 1000,
+              "renditions": [
+                {
+                  "renditionId": "rend_720",
+                  "width": 1280,
+                  "height": 720,
+                  "bitrateBps": 2500000,
+                  "videoCodec": "avc1",
+                  "audioCodec": "mp4a"
+                }
+              ],
+              "playbackPath": "/vod-media/vod_fixture/master.m3u8",
+              "createdAtUtc": "2026-10-29T12:00:00Z"
+            }
+          ],
+          "nextCursor": null
+        }
+      ]
+    },
+    "P2VodQuery": {
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 140
+        },
+        "categoryId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "tagId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 20
+        },
+        "cursor": {
+          "type": "string",
+          "maxLength": 8192
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "limit": 20
+        }
+      ]
+    },
+    "P2VersionCommand": {
+      "type": "object",
+      "properties": {
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "expectedVersion"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "expectedVersion": 2
+        }
+      ]
+    },
+    "P2VodPatch": {
+      "type": "object",
+      "properties": {
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 140,
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "categoryId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "tagIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "maxItems": 5,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "expectedVersion"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "expectedVersion": 2,
+          "title": "Clase editada"
+        }
+      ]
+    },
+    "P2Accepted": {
+      "type": "object",
+      "properties": {
+        "operationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "status": {
+          "const": "PENDING"
+        },
+        "statusUri": {
+          "type": "string",
+          "maxLength": 300
+        }
+      },
+      "required": [
+        "operationId",
+        "status",
+        "statusUri"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "operationId": "op_fixture",
+          "status": "PENDING",
+          "statusUri": "/api/vods/operations/op_fixture"
+        }
+      ]
+    },
+    "P2OperationStatus": {
+      "type": "object",
+      "properties": {
+        "operationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "status": {
+          "enum": [
+            "PENDING",
+            "RUNNING",
+            "FAILED",
+            "COMPLETED"
+          ]
+        },
+        "errorCode": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "replayCleanup": {
+          "const": "DELEGATED_TO_CHAT"
+        }
+      },
+      "required": [
+        "operationId",
+        "status",
+        "errorCode",
+        "replayCleanup"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "operationId": "op_fixture",
+          "status": "PENDING",
+          "errorCode": "",
+          "replayCleanup": "DELEGATED_TO_CHAT"
+        }
+      ]
+    },
+    "P2AccessRequest": {
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "operation": {
+          "enum": [
+            "READ",
+            "WRITE",
+            "SESSION",
+            "ADMIN"
+          ]
+        },
+        "categoryId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "tagIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "maxItems": 5
+        }
+      },
+      "required": [
+        "channelId",
+        "operation"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "channelId": "chn_fixture",
+          "operation": "READ"
+        }
+      ]
+    },
+    "P2AccessContext": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ownerUserId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "accountVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "administrator": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "userId",
+        "ownerUserId",
+        "accountVersion",
+        "active",
+        "administrator"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "userId": null,
+          "ownerUserId": "usr_fixture",
+          "accountVersion": 0,
+          "active": true,
+          "administrator": false
+        }
+      ]
+    },
+    "P2VodRemoval": {
+      "type": "object",
+      "properties": {
+        "vodId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 500,
+          "minLength": 1
+        }
+      },
+      "required": [
+        "vodId",
+        "expectedVersion",
+        "reason"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "vodId": "vod_fixture",
+          "expectedVersion": 2,
+          "reason": "Motivo de prueba"
+        }
+      ]
+    },
+    "P2MediaBody": {
+      "type": "object",
+      "properties": {
+        "bytes": {
+          "type": "string",
+          "maxLength": 1
+        }
+      },
+      "required": [
+        "bytes"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "bytes": ""
+        }
+      ]
+    },
+    "P2RecordingClosedPayload": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "streamGeneration": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "index": {
+          "$ref": "#/$defs/P2ObjectRef"
+        }
+      },
+      "required": [
+        "sessionId",
+        "streamGeneration",
+        "index"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1,
+          "index": {
+            "objectId": "obj_fixture",
+            "byteLength": 1024,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "contentType": "application/json"
+          }
+        }
+      ]
+    },
+    "P2VodAvailabilityPayload": {
+      "type": "object",
+      "properties": {
+        "vodId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "channelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "mappingVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "available": {
+          "type": "boolean"
+        },
+        "restriction": {
+          "enum": [
+            "NONE",
+            "RETIRED",
+            "DELETED"
+          ]
+        },
+        "publicationState": {
+          "enum": [
+            "DRAFT",
+            "PUBLISHED"
+          ]
+        }
+      },
+      "required": [
+        "vodId",
+        "sessionId",
+        "channelId",
+        "version",
+        "mappingVersion",
+        "available",
+        "restriction",
+        "publicationState"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "vodId": "vod_fixture",
+          "sessionId": "ses_fixture",
+          "channelId": "chn_fixture",
+          "version": 2,
+          "mappingVersion": 1,
+          "available": true,
+          "restriction": "NONE",
+          "publicationState": "PUBLISHED"
+        }
+      ]
+    },
+    "P2EventRecordingSegmentAvailable": {
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "eventType": {
+          "const": "recording.segment.available.v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "aggregateId": {
+          "type": "string",
+          "maxLength": 600,
+          "minLength": 1
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "occurredAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(Z|\\+00:00)$"
+        },
+        "producer": {
+          "enum": [
+            "streaming",
+            "media"
+          ]
+        },
+        "payload": {
+          "$ref": "#/$defs/P2Segment"
+        },
+        "correlationId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,128}$"
+        }
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "producer",
+        "payload",
+        "correlationId"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "eventId": "a38a5088-2178-444f-9ebd-a3a1dfbe7d01",
+          "eventType": "recording.segment.available.v1",
+          "schemaVersion": 1,
+          "producer": "streaming",
+          "aggregateId": "segment:ses_fixture:rend_720:1:0",
+          "sequence": 1,
+          "occurredAtUtc": "2026-10-24T12:00:00Z",
+          "correlationId": "62c083c5-4b90-4b34-969d-5698d4d64300",
+          "payload": {
+            "sessionId": "ses_fixture",
+            "renditionId": "rend_720",
+            "sourceGeneration": 1,
+            "sequence": 0,
+            "sessionStartMs": 0,
+            "durationMs": 1000,
+            "discontinuity": false,
+            "object": {
+              "objectId": "obj_fixture",
+              "byteLength": 1024,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "contentType": "video/mp2t"
+            }
+          }
+        }
+      ]
+    },
+    "P2EventRecordingClosed": {
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "eventType": {
+          "const": "recording.closed.v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "aggregateId": {
+          "type": "string",
+          "maxLength": 600,
+          "minLength": 1
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "occurredAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(Z|\\+00:00)$"
+        },
+        "producer": {
+          "enum": [
+            "streaming",
+            "media"
+          ]
+        },
+        "payload": {
+          "$ref": "#/$defs/P2RecordingClosedPayload"
+        },
+        "correlationId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,128}$"
+        }
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "producer",
+        "payload",
+        "correlationId"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "eventId": "a38a5088-2178-444f-9ebd-a3a1dfbe7d01",
+          "eventType": "recording.closed.v1",
+          "schemaVersion": 1,
+          "producer": "streaming",
+          "aggregateId": "recording:ses_fixture",
+          "sequence": 1,
+          "occurredAtUtc": "2026-10-24T12:00:00Z",
+          "correlationId": "62c083c5-4b90-4b34-969d-5698d4d64300",
+          "payload": {
+            "sessionId": "ses_fixture",
+            "streamGeneration": 1,
+            "index": {
+              "objectId": "obj_fixture",
+              "byteLength": 1024,
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "contentType": "application/json"
+            }
+          }
+        }
+      ]
+    },
+    "P2EventVodAvailabilityChanged": {
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "eventType": {
+          "const": "vod.availability.changed.v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "aggregateId": {
+          "type": "string",
+          "maxLength": 600,
+          "minLength": 1
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "occurredAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(Z|\\+00:00)$"
+        },
+        "producer": {
+          "enum": [
+            "vod"
+          ]
+        },
+        "payload": {
+          "$ref": "#/$defs/P2VodAvailabilityPayload"
+        },
+        "correlationId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,128}$"
+        }
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "producer",
+        "payload",
+        "correlationId"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "eventId": "a38a5088-2178-444f-9ebd-a3a1dfbe7d01",
+          "eventType": "vod.availability.changed.v1",
+          "schemaVersion": 1,
+          "producer": "vod",
+          "aggregateId": "vod:vod_fixture",
+          "sequence": 2,
+          "occurredAtUtc": "2026-10-24T12:00:00Z",
+          "correlationId": "62c083c5-4b90-4b34-969d-5698d4d64300",
+          "payload": {
+            "vodId": "vod_fixture",
+            "sessionId": "ses_fixture",
+            "channelId": "chn_fixture",
+            "version": 2,
+            "mappingVersion": 1,
+            "available": true,
+            "restriction": "NONE",
+            "publicationState": "PUBLISHED"
+          }
+        }
+      ]
+    },
+    "P2CaptureFailure": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "code": "CAPTURE_SEGMENT_MISSING"
+        }
+      ]
+    },
+    "P2RecordingSnapshot": {
+      "type": "object",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/P2RecordingStart"
+        },
+        "initialSourceGeneration": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Immutable first source generation assigned to this session. It is preserved across reconnects and must not exceed sourceGeneration. Generations are monotonic per stream, not reset for each session."
+        },
+        "sourceGeneration": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "status": {
+          "enum": [
+            "PREPARING",
+            "LIVE",
+            "RECONNECT_GRACE",
+            "ENDED"
+          ]
+        },
+        "availability": {
+          "enum": [
+            "PREPARING",
+            "PLAYABLE",
+            "RECONNECTING",
+            "OFFLINE"
+          ]
+        },
+        "startedAtUtc": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timelinePositionMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "start",
+        "initialSourceGeneration",
+        "sourceGeneration",
+        "status",
+        "availability",
+        "startedAtUtc",
+        "timelinePositionMs"
+      ],
+      "additionalProperties": false
+    },
+    "P2RecordingSnapshots": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/P2RecordingSnapshot"
+          },
+          "maxItems": 100
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "items": []
+        }
+      ]
+    },
+    "P2ScreenMeta": {
+      "type": "object",
+      "properties": {
+        "partial": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      },
+      "required": [
+        "partial",
+        "requestId"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "partial": false,
+          "requestId": "req_fixture"
+        }
+      ]
+    },
+    "P2SectionError": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      },
+      "required": [
+        "code",
+        "retryable",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "P2VodSection": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "AVAILABLE"
+            },
+            "data": {
+              "$ref": "#/$defs/P2VodPage"
+            }
+          },
+          "required": [
+            "status",
+            "data"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "EMPTY"
+            },
+            "data": {
+              "$ref": "#/$defs/P2VodPage"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "UNAVAILABLE",
+                "DENIED"
+              ]
+            },
+            "error": {
+              "$ref": "#/$defs/P2SectionError"
+            }
+          },
+          "required": [
+            "status",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "P2ChannelSection": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "AVAILABLE"
+            },
+            "data": {
+              "$ref": "#/$defs/ChannelBootstrap"
+            }
+          },
+          "required": [
+            "status",
+            "data"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "EMPTY"
+            },
+            "data": {
+              "$ref": "#/$defs/ChannelBootstrap"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "UNAVAILABLE",
+                "DENIED"
+              ]
+            },
+            "error": {
+              "$ref": "#/$defs/P2SectionError"
+            }
+          },
+          "required": [
+            "status",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "P2FollowSection": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "AVAILABLE"
+            },
+            "data": {
+              "$ref": "#/$defs/P2Follow"
+            }
+          },
+          "required": [
+            "status",
+            "data"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "EMPTY"
+            },
+            "data": {
+              "$ref": "#/$defs/P2Follow"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "UNAVAILABLE",
+                "DENIED"
+              ]
+            },
+            "error": {
+              "$ref": "#/$defs/P2SectionError"
+            }
+          },
+          "required": [
+            "status",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "P2LiveSection": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "AVAILABLE"
+            },
+            "data": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "required": [
+            "status",
+            "data"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "EMPTY"
+            },
+            "data": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "UNAVAILABLE",
+                "DENIED"
+              ]
+            },
+            "error": {
+              "$ref": "#/$defs/P2SectionError"
+            }
+          },
+          "required": [
+            "status",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "P2DiscoverySection": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "AVAILABLE"
+            },
+            "data": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "required": [
+            "status",
+            "data"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "EMPTY"
+            },
+            "data": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "UNAVAILABLE",
+                "DENIED"
+              ]
+            },
+            "error": {
+              "$ref": "#/$defs/P2SectionError"
+            }
+          },
+          "required": [
+            "status",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "P2VodScreen": {
+      "type": "object",
+      "properties": {
+        "vod": {
+          "$ref": "#/$defs/P2Vod"
+        },
+        "mapping": {
+          "$ref": "#/$defs/P2Timeline"
+        },
+        "channel": {
+          "$ref": "#/$defs/P2ChannelSection"
+        },
+        "meta": {
+          "$ref": "#/$defs/P2ScreenMeta"
+        }
+      },
+      "required": [
+        "vod",
+        "mapping",
+        "channel",
+        "meta"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "vod": {
+            "sessionId": "ses_fixture",
+            "streamId": "str_fixture",
+            "channelId": "chn_fixture",
+            "streamGeneration": 1,
+            "title": "Clase grabada",
+            "description": "",
+            "categoryId": "cat_fixture",
+            "tagIds": [],
+            "vodId": "vod_fixture",
+            "processingState": "READY",
+            "publicationState": "PUBLISHED",
+            "restriction": "NONE",
+            "version": 2,
+            "mappingVersion": 1,
+            "durationMs": 1000,
+            "renditions": [
+              {
+                "renditionId": "rend_720",
+                "width": 1280,
+                "height": 720,
+                "bitrateBps": 2500000,
+                "videoCodec": "avc1",
+                "audioCodec": "mp4a"
+              }
+            ],
+            "playbackPath": "/vod-media/vod_fixture/master.m3u8",
+            "createdAtUtc": "2026-10-29T12:00:00Z"
+          },
+          "mapping": {
+            "vodId": "vod_fixture",
+            "sessionId": "ses_fixture",
+            "mappingVersion": 1,
+            "durationMs": 1000,
+            "gapPolicy": "COMPACT_NEAREST_SEAM",
+            "intervals": [
+              {
+                "sourceGeneration": 1,
+                "sessionStartMs": 0,
+                "mediaStartMs": 0,
+                "durationMs": 1000
+              }
+            ]
+          },
+          "channel": {
+            "status": "UNAVAILABLE",
+            "error": {
+              "code": "CHANNEL_UNAVAILABLE",
+              "retryable": true,
+              "requestId": "req_fixture"
+            }
+          },
+          "meta": {
+            "partial": true,
+            "requestId": "req_fixture"
+          }
+        }
+      ]
+    },
+    "P2ChannelScreen": {
+      "type": "object",
+      "properties": {
+        "channel": {
+          "$ref": "#/$defs/ChannelBootstrap"
+        },
+        "vods": {
+          "$ref": "#/$defs/P2VodSection"
+        },
+        "live": {
+          "$ref": "#/$defs/P2LiveSection"
+        },
+        "follow": {
+          "$ref": "#/$defs/P2FollowSection"
+        },
+        "meta": {
+          "$ref": "#/$defs/P2ScreenMeta"
+        }
+      },
+      "required": [
+        "channel",
+        "vods",
+        "live",
+        "follow",
+        "meta"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "channel": {
+            "channel": {
+              "channelId": "chn_fixture",
+              "ownerUserId": "usr_fixture",
+              "description": "",
+              "bannerUri": null,
+              "channelVersion": 0
+            },
+            "handle": "fixture_01",
+            "profile": {
+              "userId": "usr_fixture",
+              "displayName": "Fixture",
+              "bio": "",
+              "avatarUri": null,
+              "updatedAtUtc": "2026-10-08T20:00:00Z",
+              "profileVersion": 0
+            },
+            "stream": null,
+            "streamStatusFresh": true,
+            "availability": "OFFLINE"
+          },
+          "vods": {
+            "status": "EMPTY",
+            "data": {
+              "items": [],
+              "nextCursor": null
+            }
+          },
+          "live": {
+            "status": "EMPTY"
+          },
+          "follow": {
+            "status": "DENIED",
+            "error": {
+              "code": "SESSION_REQUIRED",
+              "retryable": false,
+              "requestId": "req_fixture"
+            }
+          },
+          "meta": {
+            "partial": false,
+            "requestId": "req_fixture"
+          }
+        }
+      ]
+    },
+    "P2ExploreScreen": {
+      "type": "object",
+      "properties": {
+        "vods": {
+          "$ref": "#/$defs/P2VodSection"
+        },
+        "discovery": {
+          "$ref": "#/$defs/P2DiscoverySection"
+        },
+        "meta": {
+          "$ref": "#/$defs/P2ScreenMeta"
+        }
+      },
+      "required": [
+        "vods",
+        "discovery",
+        "meta"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "vods": {
+            "status": "EMPTY",
+            "data": {
+              "items": [],
+              "nextCursor": null
+            }
+          },
+          "discovery": {
+            "status": "AVAILABLE",
+            "data": {
+              "streams": {
+                "items": [],
+                "nextCursor": null
+              }
+            }
+          },
+          "meta": {
+            "partial": false,
+            "requestId": "req_fixture"
+          }
+        }
+      ]
+    },
+    "P2ContentRemoval": {
+      "type": "object",
+      "properties": {
+        "resourceType": {
+          "const": "VOD"
+        },
+        "resourceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "resourceType",
+        "resourceId",
+        "expectedVersion",
+        "reason"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "resourceType": "VOD",
+          "resourceId": "vod_fixture",
+          "expectedVersion": 2,
+          "reason": "Contenido retirado por administración"
+        }
+      ]
+    },
+    "P2ReplayQuery": {
+      "type": "object",
+      "properties": {
+        "fromMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "toMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 20
+        },
+        "cursor": {
+          "type": "string",
+          "maxLength": 8192
+        }
+      },
+      "required": [
+        "fromMs",
+        "toMs"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "fromMs": 0,
+          "toMs": 10000,
+          "limit": 20
+        }
+      ]
+    },
+    "P2ReplayMessage": {
+      "type": "object",
+      "properties": {
+        "messageId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "author": {
+          "$ref": "#/$defs/ChatAuthor"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "serverCreatedAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(Z|\\+00:00)$"
+        },
+        "streamOffsetMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "streamGeneration": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "mediaOffsetMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "moderationVersion": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "messageId",
+        "sessionId",
+        "sequence",
+        "author",
+        "text",
+        "serverCreatedAtUtc",
+        "streamOffsetMs",
+        "streamGeneration",
+        "mediaOffsetMs",
+        "moderationVersion"
+      ],
+      "additionalProperties": false
+    },
+    "P2ReplayPage": {
+      "type": "object",
+      "properties": {
+        "vodId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "mappingVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "moderationVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/P2ReplayMessage"
+          },
+          "maxItems": 50
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "vodId",
+        "mappingVersion",
+        "moderationVersion",
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "vodId": "vod_fixture",
+          "mappingVersion": 1,
+          "moderationVersion": 1,
+          "items": [],
+          "nextCursor": null
+        }
+      ]
+    },
+    "P2SegmentUploadMetadata": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "renditionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "sourceGeneration": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "sessionStartMs": {
+          "type": "integer",
+          "minimum": -120000,
+          "maximum": 9007199254740991,
+          "description": "Offset from the authoritative first LIVE clock; only the session's initial source generation may include up to 120000 ms of retained PREPARING media before zero, without a discontinuity. Source generations are monotonic per stream and need not start at 1. Public timeline intervals remain nonnegative."
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60000
+        },
+        "discontinuity": {
+          "type": "boolean"
+        },
+        "initialization": {
+          "$ref": "#/$defs/P2ObjectRef"
+        }
+      },
+      "required": [
+        "sessionId",
+        "renditionId",
+        "sourceGeneration",
+        "sequence",
+        "sessionStartMs",
+        "durationMs",
+        "discontinuity"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "sessionId": "ses_fixture",
+          "renditionId": "rend_720",
+          "sourceGeneration": 1,
+          "sequence": 0,
+          "sessionStartMs": 0,
+          "durationMs": 1000,
+          "discontinuity": false
+        }
+      ]
+    },
+    "P2MediaRecordingBinding": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^ses_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "sourceGeneration": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "sessionId",
+        "sourceGeneration"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "sessionId": "ses_00000000-0000-4000-8000-000000000014",
+          "sourceGeneration": 1
+        }
+      ]
     }
   },
   "events": [
@@ -2305,8 +4487,8 @@
       "subscriptions": [
         "vod.segments"
       ],
-      "schema": null,
-      "status": "pending-owner",
+      "schema": "P2EventRecordingSegmentAvailable",
+      "status": "contract-ready",
       "spec": [
         "SPEC-17",
         "SPEC-10"
@@ -2321,8 +4503,8 @@
       "subscriptions": [
         "vod.recording"
       ],
-      "schema": null,
-      "status": "pending-owner",
+      "schema": "P2EventRecordingClosed",
+      "status": "contract-ready",
       "spec": [
         "SPEC-17",
         "SPEC-10"
@@ -2372,8 +4554,8 @@
         "chat.vod",
         "core.vod"
       ],
-      "schema": null,
-      "status": "pending-owner",
+      "schema": "P2EventVodAvailabilityChanged",
+      "status": "contract-ready",
       "spec": [
         "SPEC-17",
         "SPEC-10"
@@ -3108,7 +5290,7 @@
       "path": "/api/vods/{vodId}/subtitles",
       "provider": "vod",
       "spec": "SPEC-22",
-      "status": "contract-only",
+      "status": "implemented",
       "auth": "active-owner-session",
       "timeoutMs": 10000,
       "cacheControl": "no-store",
@@ -3169,7 +5351,7 @@
       "path": "/api/vods/{vodId}/subtitles",
       "provider": "vod",
       "spec": "SPEC-22",
-      "status": "contract-only",
+      "status": "implemented",
       "auth": "public-if-vod-readable-or-active-owner-session",
       "timeoutMs": 10000,
       "cacheControl": "no-store",
@@ -3205,7 +5387,7 @@
       "path": "/vod-media/{vodId}/subtitles/{trackId}.vtt",
       "provider": "vod",
       "spec": "SPEC-22",
-      "status": "contract-only",
+      "status": "implemented",
       "auth": "public-if-vod-readable-or-active-owner-session",
       "timeoutMs": 10000,
       "cacheControl": "no-store",
@@ -3244,7 +5426,7 @@
       "path": "/api/vods/{vodId}/subtitles/{trackId}",
       "provider": "vod",
       "spec": "SPEC-22",
-      "status": "contract-only",
+      "status": "implemented",
       "auth": "active-owner-session",
       "timeoutMs": 10000,
       "cacheControl": "no-store",
@@ -3991,6 +6173,833 @@
       "limits": "Cookie and Bearer together are rejected. Browser requests retain CSRF. No credential in query strings.",
       "requiredHeaders": [],
       "status": "implemented"
+    },
+    {
+      "id": "p2.vod.list",
+      "method": "GET",
+      "path": "/api/vods",
+      "provider": "vod",
+      "consumer": "Gateway / Web / Mobile / integration",
+      "owner": "vod",
+      "auth": "public",
+      "request": null,
+      "responses": {
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "413": "Error",
+        "416": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error",
+        "200": "P2VodPage"
+      },
+      "timeoutMs": 10000,
+      "idempotency": "Safe read",
+      "recovery": "Retry reads within caller deadline; retry uncertain commands with the same key; query operation status.",
+      "spec": "SPEC-14",
+      "traceability": "docs/spec-p2/spec_14_vod.md",
+      "visibility": "public",
+      "limits": "JSON <=16 KiB; list 1..50; media streamed with Range; confirmed inventory only.",
+      "requiredHeaders": [],
+      "status": "implemented",
+      "query": "P2VodQuery"
+    },
+    {
+      "id": "p2.vod.mine",
+      "method": "GET",
+      "path": "/api/me/vods",
+      "provider": "vod",
+      "consumer": "Gateway / Web / Mobile / integration",
+      "owner": "vod",
+      "auth": "session",
+      "request": null,
+      "responses": {
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "413": "Error",
+        "416": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error",
+        "200": "P2VodPage"
+      },
+      "timeoutMs": 10000,
+      "idempotency": "Safe read",
+      "recovery": "Retry reads within caller deadline; retry uncertain commands with the same key; query operation status.",
+      "spec": "SPEC-14",
+      "traceability": "docs/spec-p2/spec_14_vod.md",
+      "visibility": "public",
+      "limits": "JSON <=16 KiB; list 1..50; media streamed with Range; confirmed inventory only.",
+      "requiredHeaders": [],
+      "status": "implemented",
+      "query": "P2VodQuery"
+    },
+    {
+      "id": "p2.vod.get",
+      "method": "GET",
+      "path": "/api/vods/{vodId}",
+      "provider": "vod",
+      "consumer": "Gateway / Web / Mobile / integration",
+      "owner": "vod",
+      "auth": "public-if-readable",
+      "request": null,
+      "responses": {
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "413": "Error",
+        "416": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error",
+        "200": "P2Vod"
+      },
+      "timeoutMs": 10000,
+      "idempotency": "Safe read",
+      "recovery": "Retry reads within caller deadline; retry uncertain commands with the same key; query operation status.",
+      "spec": "SPEC-14",
+      "traceability": "docs/spec-p2/spec_14_vod.md",
+      "visibility": "public",
+      "limits": "JSON <=16 KiB; list 1..50; media streamed with Range; confirmed inventory only.",
+      "requiredHeaders": [],
+      "status": "implemented"
+    },
+    {
+      "id": "p2.vod.owner-get",
+      "method": "GET",
+      "path": "/api/me/vods/{vodId}",
+      "provider": "vod",
+      "consumer": "Gateway / Web / Mobile / integration",
+      "owner": "vod",
+      "auth": "session-owner",
+      "request": null,
+      "responses": {
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "413": "Error",
+        "416": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error",
+        "200": "P2Vod"
+      },
+      "timeoutMs": 10000,
+      "idempotency": "Safe read",
+      "recovery": "Retry reads within caller deadline; retry uncertain commands with the same key; query operation status.",
+      "spec": "SPEC-14",
+      "traceability": "docs/spec-p2/spec_14_vod.md",
+      "visibility": "public",
+      "limits": "JSON <=16 KiB; list 1..50; media streamed with Range; confirmed inventory only.",
+      "requiredHeaders": [],
+      "status": "implemented"
+    },
+    {
+      "id": "p2.vod.patch",
+      "method": "PATCH",
+      "path": "/api/vods/{vodId}",
+      "provider": "vod",
+      "consumer": "Gateway / Web / Mobile / integration",
+      "owner": "vod",
+      "auth": "session-owner",
+      "request": "P2VodPatch",
+      "responses": {
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "413": "Error",
+        "416": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error",
+        "200": "P2Vod"
+      },
+      "timeoutMs": 10000,
+      "idempotency": "actor+operation+target+fingerprint; retained without automatic expiry (at least 24h)",
+      "recovery": "Retry reads within caller deadline; retry uncertain commands with the same key; query operation status.",
+      "spec": "SPEC-14",
+      "traceability": "docs/spec-p2/spec_14_vod.md",
+      "visibility": "public",
+      "limits": "JSON <=16 KiB; list 1..50; media streamed with Range; confirmed inventory only.",
+      "requiredHeaders": [
+        "Idempotency-Key"
+      ],
+      "status": "implemented"
+    },
+    {
+      "id": "p2.vod.publish",
+      "method": "POST",
+      "path": "/api/vods/{vodId}/publication",
+      "provider": "vod",
+      "consumer": "Gateway / Web / Mobile / integration",
+      "owner": "vod",
+      "auth": "session-owner",
+      "request": "P2VersionCommand",
+      "responses": {
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "413": "Error",
+        "416": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error",
+        "200": "P2Vod"
+      },
+      "timeoutMs": 10000,
+      "idempotency": "actor+operation+target+fingerprint; retained without automatic expiry (at least 24h)",
+      "recovery": "Retry reads within caller deadline; retry uncertain commands with the same key; query operation status.",
+      "spec": "SPEC-14",
+      "traceability": "docs/spec-p2/spec_14_vod.md",
+      "visibility": "public",
+      "limits": "JSON <=16 KiB; list 1..50; media streamed with Range; confirmed inventory only.",
+      "requiredHeaders": [
+        "Idempotency-Key"
+      ],
+      "status": "implemented"
+    },
+    {
+      "id": "p2.vod.delete",
+      "method": "DELETE",
+      "path": "/api/vods/{vodId}",
+      "provider": "vod",
+      "consumer": "Gateway / Web / Mobile / integration",
+      "owner": "vod",
+      "auth": "session-owner",
+      "request": null,
+      "responses": {
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "413": "Error",
+        "416": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error",
+        "202": "P2Accepted"
+      },
+      "timeoutMs": 10000,
+      "idempotency": "actor+operation+target+fingerprint; retained without automatic expiry (at least 24h)",
+      "recovery": "Retry reads within caller deadline; retry uncertain commands with the same key; query operation status.",
+      "spec": "SPEC-14",
+      "traceability": "docs/spec-p2/spec_14_vod.md",
+      "visibility": "public",
+      "limits": "JSON <=16 KiB; list 1..50; media streamed with Range; confirmed inventory only.",
+      "requiredHeaders": [
+        "Idempotency-Key"
+      ],
+      "status": "implemented",
+      "headers": {
+        "If-Match": "required recording version"
+      }
+    },
+    {
+      "id": "p2.vod.timeline",
+      "method": "GET",
+      "path": "/api/vods/{vodId}/timeline",
+      "provider": "vod",
+      "consumer": "Gateway / Web / Mobile / integration",
+      "owner": "vod",
+      "auth": "public-if-readable",
+      "request": null,
+      "responses": {
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "413": "Error",
+        "416": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error",
+        "200": "P2Timeline"
+      },
+      "timeoutMs": 10000,
+      "idempotency": "Safe read",
+      "recovery": "Retry reads within caller deadline; retry uncertain commands with the same key; query operation status.",
+      "spec": "SPEC-14",
+      "traceability": "docs/spec-p2/spec_14_vod.md",
+      "visibility": "public",
+      "limits": "JSON <=16 KiB; list 1..50; media streamed with Range; confirmed inventory only.",
+      "requiredHeaders": [],
+      "status": "implemented"
+    },
+    {
+      "id": "p2.vod.media",
+      "method": "GET",
+      "path": "/vod-media/{vodId}/{assetPath}",
+      "provider": "vod",
+      "consumer": "Gateway / Web / Mobile / integration",
+      "owner": "vod",
+      "auth": "Core per manifest; signed playback cookie/header for assets; current local restrictions always apply",
+      "request": null,
+      "responses": {
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "413": "Error",
+        "416": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error",
+        "200": "P2MediaBody",
+        "206": "P2MediaBody"
+      },
+      "timeoutMs": 90000,
+      "idempotency": "Safe read",
+      "recovery": "Retry reads within caller deadline; retry uncertain commands with the same key; query operation status.",
+      "spec": "SPEC-14",
+      "traceability": "docs/spec-p2/spec_14_vod.md",
+      "visibility": "public",
+      "limits": "JSON <=16 KiB; list 1..50; media streamed with Range; confirmed inventory only.",
+      "requiredHeaders": [],
+      "status": "implemented",
+      "responseContentType": "binary"
+    },
+    {
+      "id": "p2.vod.operation-status",
+      "method": "GET",
+      "path": "/api/vods/operations/{operationId}",
+      "provider": "vod",
+      "consumer": "Gateway / Web / Mobile / integration",
+      "owner": "vod",
+      "auth": "session-owner",
+      "request": null,
+      "responses": {
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "413": "Error",
+        "416": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error",
+        "200": "P2OperationStatus"
+      },
+      "timeoutMs": 10000,
+      "idempotency": "Safe read",
+      "recovery": "Retry reads within caller deadline; retry uncertain commands with the same key; query operation status.",
+      "spec": "SPEC-14",
+      "traceability": "docs/spec-p2/spec_14_vod.md",
+      "visibility": "public",
+      "limits": "JSON <=16 KiB; list 1..50; media streamed with Range; confirmed inventory only.",
+      "requiredHeaders": [],
+      "status": "implemented"
+    },
+    {
+      "id": "p2.access.context",
+      "method": "POST",
+      "path": "/internal/core/access-context",
+      "provider": "Core",
+      "consumer": "Gateway / Web / Mobile / integration",
+      "owner": "Core",
+      "auth": "service:vod",
+      "request": "P2AccessRequest",
+      "responses": {
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "413": "Error",
+        "416": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error",
+        "200": "P2AccessContext"
+      },
+      "timeoutMs": 10000,
+      "idempotency": "actor+operation+target+fingerprint; retained without automatic expiry (at least 24h)",
+      "recovery": "Retry reads within caller deadline; retry uncertain commands with the same key; query operation status.",
+      "spec": "SPEC-14",
+      "traceability": "docs/spec-p2/spec_14_vod.md",
+      "visibility": "private",
+      "limits": "JSON <=16 KiB; list 1..50; media streamed with Range; confirmed inventory only.",
+      "requiredHeaders": [],
+      "status": "implemented",
+      "semantics": "read"
+    },
+    {
+      "id": "p2.recording.start",
+      "method": "PUT",
+      "path": "/internal/vod/recordings/{sessionId}",
+      "provider": "vod",
+      "consumer": "Gateway / Web / Mobile / integration",
+      "owner": "vod",
+      "auth": "service:media-capture",
+      "request": "P2RecordingStart",
+      "responses": {
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "413": "Error",
+        "416": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error",
+        "200": "P2Vod"
+      },
+      "timeoutMs": 10000,
+      "idempotency": "actor+operation+target+fingerprint; retained without automatic expiry (at least 24h)",
+      "recovery": "Retry reads within caller deadline; retry uncertain commands with the same key; query operation status.",
+      "spec": "SPEC-14",
+      "traceability": "docs/spec-p2/spec_14_vod.md",
+      "visibility": "private",
+      "limits": "JSON <=16 KiB; list 1..50; media streamed with Range; confirmed inventory only.",
+      "requiredHeaders": [
+        "Idempotency-Key"
+      ],
+      "status": "implemented"
+    },
+    {
+      "id": "p2.recording.object-put",
+      "method": "PUT",
+      "path": "/internal/vod/recordings/{sessionId}/objects/{key}",
+      "provider": "vod",
+      "consumer": "Gateway / Web / Mobile / integration",
+      "owner": "vod",
+      "auth": "service:media-capture",
+      "request": null,
+      "responses": {
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "413": "Error",
+        "416": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error",
+        "200": "P2ObjectRef"
+      },
+      "timeoutMs": 10000,
+      "idempotency": "actor+operation+target+fingerprint; retained without automatic expiry (at least 24h)",
+      "recovery": "Retry reads within caller deadline; retry uncertain commands with the same key; query operation status.",
+      "spec": "SPEC-14",
+      "traceability": "docs/spec-p2/spec_14_vod.md",
+      "visibility": "private",
+      "limits": "JSON <=16 KiB; list 1..50; media streamed with Range; confirmed inventory only.",
+      "requiredHeaders": [
+        "Idempotency-Key"
+      ],
+      "status": "implemented",
+      "requestContentType": "application/octet-stream",
+      "maxBodyBytes": 67108864,
+      "headers": {
+        "X-Segment-Metadata": "For segment keys: base64url JSON P2SegmentUploadMetadata (session/rendition/generation/sequence/times/discontinuity/initialization); immutable with the logical segment identity.",
+        "X-Object-SHA256": "lowercase SHA-256 of bytes; Content-Length and Content-Type required"
+      }
+    },
+    {
+      "id": "p2.vod.replay-context",
+      "method": "GET",
+      "path": "/internal/vod/vods/{vodId}/replay-context",
+      "provider": "vod",
+      "consumer": "Gateway / Web / Mobile / integration",
+      "owner": "vod",
+      "auth": "service:chat and current VOD access",
+      "request": null,
+      "responses": {
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "413": "Error",
+        "416": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error",
+        "200": "P2Timeline"
+      },
+      "timeoutMs": 10000,
+      "idempotency": "Safe read",
+      "recovery": "Retry reads within caller deadline; retry uncertain commands with the same key; query operation status.",
+      "spec": "SPEC-14",
+      "traceability": "docs/spec-p2/spec_14_vod.md",
+      "visibility": "private",
+      "limits": "JSON <=16 KiB; list 1..50; media streamed with Range; confirmed inventory only.",
+      "requiredHeaders": [],
+      "status": "implemented"
+    },
+    {
+      "id": "p2.vod.removal",
+      "method": "POST",
+      "path": "/internal/vod/content-removals",
+      "provider": "vod",
+      "consumer": "Gateway / Web / Mobile / integration",
+      "owner": "vod",
+      "auth": "service:gateway plus administrator",
+      "request": "P2VodRemoval",
+      "responses": {
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "413": "Error",
+        "416": "Error",
+        "422": "Error",
+        "429": "Error",
+        "503": "Error",
+        "504": "Error",
+        "202": "P2Accepted"
+      },
+      "timeoutMs": 10000,
+      "idempotency": "actor+operation+target+fingerprint; retained without automatic expiry (at least 24h)",
+      "recovery": "Retry reads within caller deadline; retry uncertain commands with the same key; query operation status.",
+      "spec": "SPEC-14",
+      "traceability": "docs/spec-p2/spec_14_vod.md",
+      "visibility": "private",
+      "limits": "JSON <=16 KiB; list 1..50; media streamed with Range; confirmed inventory only.",
+      "requiredHeaders": [
+        "Idempotency-Key"
+      ],
+      "status": "implemented"
+    },
+    {
+      "id": "p2.recording.failure",
+      "method": "POST",
+      "path": "/internal/vod/recordings/{sessionId}/failure",
+      "provider": "vod",
+      "consumer": "Media",
+      "owner": "vod",
+      "auth": "service:media-capture",
+      "request": "P2CaptureFailure",
+      "responses": {
+        "204": null,
+        "400": "Error",
+        "401": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Stable resource identity and UUID key; same bytes return same reference; conflicting bytes return 409",
+      "recovery": "Retry within caller deadline; commands use the original key; failures remain observable.",
+      "spec": "SPEC-14",
+      "traceability": "docs/spec-p2/spec_14_vod.md",
+      "visibility": "private",
+      "limits": "Bounded JSON 16 KiB; pages 20 by default and 50 maximum; private streamed objects use their size/hash inventory.",
+      "requiredHeaders": [
+        "Idempotency-Key"
+      ],
+      "status": "implemented"
+    },
+    {
+      "id": "p2.recording.snapshots",
+      "method": "GET",
+      "path": "/internal/streaming/recordings",
+      "provider": "streaming",
+      "consumer": "Media",
+      "owner": "streaming",
+      "auth": "service:media",
+      "request": null,
+      "responses": {
+        "200": "P2RecordingSnapshots",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "413": "Error",
+        "422": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Read; no automatic command retry",
+      "recovery": "Retry within caller deadline; commands use the original key; failures remain observable.",
+      "spec": "SPEC-14",
+      "traceability": "docs/spec-p2/spec_14_vod.md",
+      "visibility": "private",
+      "limits": "Bounded JSON 16 KiB; pages 20 by default and 50 maximum; private streamed objects use their size/hash inventory.",
+      "requiredHeaders": [],
+      "status": "implemented"
+    },
+    {
+      "id": "p2.recording.acknowledge",
+      "method": "PUT",
+      "path": "/internal/streaming/recordings/{sessionId}/acknowledged",
+      "provider": "streaming",
+      "consumer": "Media",
+      "owner": "streaming",
+      "auth": "service:media",
+      "request": null,
+      "responses": {
+        "204": null,
+        "401": "Error",
+        "503": "Error",
+        "400": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Stable resource identity and UUID key; same bytes return same reference; conflicting bytes return 409",
+      "recovery": "Retry within caller deadline; commands use the original key; failures remain observable.",
+      "spec": "SPEC-14",
+      "traceability": "docs/spec-p2/spec_14_vod.md",
+      "visibility": "private",
+      "limits": "Bounded JSON 16 KiB; pages 20 by default and 50 maximum; private streamed objects use their size/hash inventory.",
+      "requiredHeaders": [
+        "Idempotency-Key"
+      ],
+      "status": "implemented"
+    },
+    {
+      "id": "p2.media.vod-object",
+      "method": "GET",
+      "path": "/internal/media/vod/objects/{objectId}",
+      "provider": "media",
+      "consumer": "VOD",
+      "owner": "media",
+      "auth": "service:vod",
+      "request": null,
+      "responses": {
+        "200": "P2MediaBody",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "413": "Error",
+        "422": "Error",
+        "503": "Error",
+        "504": "Error",
+        "206": "P2MediaBody",
+        "416": "Error"
+      },
+      "timeoutMs": 90000,
+      "idempotency": "Read; no automatic command retry",
+      "recovery": "Retry within caller deadline; commands use the original key; failures remain observable.",
+      "spec": "SPEC-14",
+      "traceability": "docs/spec-p2/spec_14_vod.md",
+      "visibility": "private",
+      "limits": "Bounded JSON 16 KiB; pages 20 by default and 50 maximum; private streamed objects use their size/hash inventory.",
+      "requiredHeaders": [
+        "X-Service-Name",
+        "X-Service-Token",
+        "X-Object-Size",
+        "X-Object-SHA256",
+        "X-Object-Type"
+      ],
+      "status": "implemented",
+      "responseContentType": "binary"
+    },
+    {
+      "id": "p2.gateway.vod",
+      "method": "GET",
+      "path": "/api/screens/vods/{vodId}",
+      "provider": "gateway",
+      "consumer": "Web / Mobile",
+      "owner": "gateway",
+      "auth": "public",
+      "request": null,
+      "responses": {
+        "200": "P2VodScreen",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "413": "Error",
+        "422": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Read; no automatic command retry",
+      "recovery": "Retry within caller deadline; commands use the original key; failures remain observable.",
+      "spec": "SPEC-16",
+      "traceability": "docs/spec-p2/spec_16_gateway.md",
+      "visibility": "public",
+      "limits": "Bounded JSON 16 KiB; pages 20 by default and 50 maximum; private streamed objects use their size/hash inventory.",
+      "requiredHeaders": [],
+      "status": "implemented"
+    },
+    {
+      "id": "p2.gateway.channel",
+      "method": "GET",
+      "path": "/api/screens/channels/{handle}",
+      "provider": "gateway",
+      "consumer": "Web / Mobile",
+      "owner": "gateway",
+      "auth": "public",
+      "request": null,
+      "responses": {
+        "200": "P2ChannelScreen",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "413": "Error",
+        "422": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Read; no automatic command retry",
+      "recovery": "Retry within caller deadline; commands use the original key; failures remain observable.",
+      "spec": "SPEC-16",
+      "traceability": "docs/spec-p2/spec_16_gateway.md",
+      "visibility": "public",
+      "limits": "Bounded JSON 16 KiB; pages 20 by default and 50 maximum; private streamed objects use their size/hash inventory.",
+      "requiredHeaders": [],
+      "status": "implemented"
+    },
+    {
+      "id": "p2.gateway.explore",
+      "method": "GET",
+      "path": "/api/screens/explore",
+      "provider": "gateway",
+      "consumer": "Web / Mobile",
+      "owner": "gateway",
+      "auth": "public",
+      "request": null,
+      "responses": {
+        "200": "P2ExploreScreen",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "413": "Error",
+        "422": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Read; no automatic command retry",
+      "recovery": "Retry within caller deadline; commands use the original key; failures remain observable.",
+      "spec": "SPEC-16",
+      "traceability": "docs/spec-p2/spec_16_gateway.md",
+      "visibility": "public",
+      "limits": "Bounded JSON 16 KiB; pages 20 by default and 50 maximum; private streamed objects use their size/hash inventory.",
+      "requiredHeaders": [],
+      "status": "implemented",
+      "query": "P2VodQuery"
+    },
+    {
+      "id": "p2.admin.content-removal",
+      "method": "POST",
+      "path": "/api/admin/content-removals",
+      "provider": "gateway",
+      "consumer": "Web / Mobile",
+      "owner": "gateway",
+      "auth": "session-administrator",
+      "request": "P2ContentRemoval",
+      "responses": {
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "413": "Error",
+        "422": "Error",
+        "503": "Error",
+        "504": "Error",
+        "202": "P2Accepted"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Stable resource identity and UUID key; same bytes return same reference; conflicting bytes return 409",
+      "recovery": "Retry within caller deadline; commands use the original key; failures remain observable.",
+      "spec": "SPEC-14",
+      "traceability": "docs/spec-p2/spec_14_vod.md",
+      "visibility": "public",
+      "limits": "Bounded JSON 16 KiB; pages 20 by default and 50 maximum; private streamed objects use their size/hash inventory.",
+      "requiredHeaders": [
+        "Idempotency-Key"
+      ],
+      "status": "implemented"
+    },
+    {
+      "id": "p2.chat.replay",
+      "method": "GET",
+      "path": "/api/chat/vods/{vodId}/messages",
+      "provider": "chat",
+      "consumer": "Web / Mobile",
+      "owner": "chat",
+      "auth": "public-if-readable",
+      "request": null,
+      "responses": {
+        "200": "P2ReplayPage",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "413": "Error",
+        "422": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Read; no automatic command retry",
+      "recovery": "Chat owns durable messages, moderation and cleanup; video playback continues when this dependency is unavailable.",
+      "spec": "SPEC-05",
+      "traceability": "docs/spec-p2/spec_05_chat.md",
+      "visibility": "public",
+      "limits": "Bounded JSON 16 KiB; pages 20 by default and 50 maximum; private streamed objects use their size/hash inventory.",
+      "requiredHeaders": [],
+      "status": "contract-only",
+      "query": "P2ReplayQuery"
     }
   ],
   "retiredP1Operations": [],
@@ -4005,14 +7014,13 @@
       "traceability": "docs/spec-p2/spec_21_watch_party.md"
     },
     {
-      "id": "subtitles",
+      "id": "chat-durable-replay",
       "blockedBy": [
-        "P2-09",
-        "P2-17"
+        "P2-10"
       ],
-      "traceability": "docs/spec-p2/spec_22_subtitles.md",
-      "status": "provider-and-players-pending",
-      "description": "Contracts available; VOD persistence/access and Web/mobile playback acceptance remain pending."
+      "traceability": "docs/spec-p2/spec_05_chat.md",
+      "status": "chat-provider-pending",
+      "description": "VOD mapping and availability contracts implemented; durable messages, replay and replay cleanup remain Chat-owned."
     }
   ],
   "subtitleProfile": {
@@ -4043,5 +7051,21 @@
       "live",
       "automatic transcription"
     ]
-  }
+  },
+  "protocolExtensions": [
+    {
+      "id": "media.recording-binding.v1",
+      "operation": "media.auth",
+      "visibility": "private",
+      "producer": "MediaAdapter",
+      "consumer": "MediaMTX",
+      "direction": "response",
+      "schema": "P2MediaRecordingBinding",
+      "headers": {
+        "X-Media-Recording-Session": "sessionId",
+        "X-Media-Recording-Source-Generation": "sourceGeneration"
+      },
+      "when": "204 publish authorization with native recording enabled; binds only the authenticated publisher ID; absent/invalid binding skips recording without affecting live."
+    }
+  ]
 }

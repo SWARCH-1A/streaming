@@ -41,7 +41,7 @@
     }
     @chat_history {
       method GET
-      path_regexp chat_history ^/api/chat/sessions/[A-Za-z0-9_-]+/messages$
+      path_regexp chat_history ^/api/chat/(?:sessions|vods)/[A-Za-z0-9_-]+/messages$
     }
     reverse_proxy @chat_history {$CHAT_UPSTREAM:http://chat:8085} {
       import proxy_headers
@@ -64,6 +64,14 @@
     }
     @notifications path /api/notifications /api/notifications/*
     reverse_proxy @notifications {$NOTIFICATIONS_UPSTREAM:http://notifications:8095} {
+      import proxy_headers
+    }
+    @vod path /api/vods /api/vods/* /api/me/vods /api/me/vods/* /vod-media/*
+    reverse_proxy @vod {$VOD_UPSTREAM:http://vod:8098} {
+      import proxy_headers
+    }
+    @screens path /api/screens/* /api/admin/content-removals
+    reverse_proxy @screens {$GATEWAY_UPSTREAM:http://gateway:8097} {
       import proxy_headers
     }
     @core path /api/admin/* /api/identity/* /api/profile/* /api/channels/* /api/me/* /api/taxonomy /api/discovery/graphql

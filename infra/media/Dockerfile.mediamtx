@@ -1,0 +1,21 @@
+# MediaMTX's own recorder certifies the tail synchronously. The checked adaptation
+# adds only its private disk inventory; stream routing/encoding remain upstream.
+FROM golang:1.26-alpine AS build
+RUN apk add --no-cache git python3
+RUN git clone --depth 1 --branch v1.21.1 https://github.com/bluenviron/mediamtx.git /src && test "$(git -C /src rev-parse HEAD)" = 048255986f7e04b859b4c4efe651448ec785ecd4
+WORKDIR /src
+COPY infra/media/patch_recording.py /tmp/patch_recording.py
+COPY infra/media/journal/native_journal.go internal/recorder/native_journal.go
+COPY infra/media/journal/native_journal_test.go internal/recorder/native_journal_test.go
+COPY infra/media/binding/ internal/recordbinding/
+RUN python3 /tmp/patch_recording.py /src
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build go generate ./internal/core ./internal/servers/hls && CGO_ENABLED=0 go build -trimpath -o /out/mediamtx .
+FROM build AS test
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 go test -v -run '^TestNative' ./internal/recorder ./internal/recordbinding
+FROM alpine:3.23
+ENV MEDIA_NATIVE_RECORDING=true
+RUN apk add --no-cache ca-certificates && adduser -D -u 10001 media && mkdir -p /data/native && chown media /data/native
+COPY --from=build /out/mediamtx /mediamtx
+COPY --from=build /src/LICENSE /usr/share/licenses/mediamtx/LICENSE
+USER media
+ENTRYPOINT ["/mediamtx"]

@@ -5,6 +5,8 @@ export default [
   layout('routes/layout.tsx', [
     index('routes/home.tsx'),
     route('search', 'routes/search.tsx'),
+    route('videos', 'routes/vods.tsx'),
+    route('vod/:vodId', 'routes/vod.tsx'),
     route('watch/:streamId', 'routes/watch.tsx'),
     route('channels/:handle', 'routes/channel.tsx'),
     route('login', 'routes/login.tsx'),
@@ -15,6 +17,7 @@ export default [
       route('profile', 'routes/profile.tsx'),
       route('studio', 'routes/studio.tsx'),
       route('studio/channel', 'routes/studio-channel.tsx'),
+      route('studio/vods', 'routes/studio-vods.tsx'),
       route('notifications', 'routes/notifications.tsx'),
       route('admin', 'routes/admin.tsx'),
     ]),

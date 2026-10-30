@@ -314,3 +314,13 @@ de suspensión y revocación de URLs/cachés de imágenes siguen pendientes de P
 Pruebas: `./mvnw -P integration verify` (Java 25 y Docker); las clases AdministrationIT y
 AdministrationInfrastructureIT usan proveedores desechables. Un resultado Core no acredita
 corte de emisiones ni acceso revocable integrado en otros servicios.
+
+## Contexto privado VOD
+
+`CORE_VOD_SERVICE_TOKEN` habilita exclusivamente POST `/internal/core/access-context` en el
+listener privado; es distinto de Streaming, Chat, Notificaciones y recording-settings. La ruta
+pública devuelve404. Core verifica sesión vigente, estado/versión del propietario, propiedad del
+canal y rol para READ/WRITE/SESSION/ADMIN; las selecciones de categoría/etiquetas modificadas se
+validan mediante el repositorio publicado de Catálogo. No accede a PostgreSQL VOD.
+`VodAccessIT` verifica separación de conectores/credenciales, propietario/tercero, revocación y
+suspensión. El permiso corto de medios lo emite VOD según [ADR-022](../../docs/adr/ADR-022-vod-go-postgresql-minio.md).

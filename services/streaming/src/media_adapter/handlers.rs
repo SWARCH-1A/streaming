@@ -181,7 +181,9 @@ async fn authorize(
             }
             // A lost response must not revive an authorization ended by Streaming.
             return match state.session_status(&existing.session_id).await {
-                Ok(status) if status != "ENDED" => StatusCode::NO_CONTENT.into_response(),
+                Ok(status) if status != "ENDED" => {
+                    publish_authorized(&existing, state.config.recording_enabled)
+                }
                 _ => error(StatusCode::FORBIDDEN, "SESSION_NOT_ACTIVE"),
             };
         }
@@ -241,10 +243,28 @@ async fn authorize(
                     == 1
                 && source.retired_at.is_none() =>
         {
-            StatusCode::NO_CONTENT.into_response()
+            publish_authorized(&source, state.config.recording_enabled)
         }
         _ => error(StatusCode::CONFLICT, "PUBLISHER_REUSED"),
     }
+}
+
+pub(super) fn publish_authorized(source: &super::repository::Source, recording: bool) -> Response {
+    let mut response = StatusCode::NO_CONTENT.into_response();
+    if recording {
+        if let (Ok(session), Ok(generation)) = (
+            source.session_id.parse(),
+            source.source_generation.to_string().parse(),
+        ) {
+            response
+                .headers_mut()
+                .insert("X-Media-Recording-Session", session);
+            response
+                .headers_mut()
+                .insert("X-Media-Recording-Source-Generation", generation);
+        }
+    }
+    response
 }
 
 async fn hls(
@@ -273,6 +293,14 @@ async fn hls(
         &headers,
         &format!("Bearer {}", state.config.streaming_token),
     );
+    if internal
+        && headers.get("X-Source-Generation").is_some_and(|value| {
+            value.to_str().ok().and_then(|s| s.parse::<i64>().ok())
+                != Some(source.source_generation)
+        })
+    {
+        return error(StatusCode::CONFLICT, "SOURCE_CHANGED");
+    }
     if !internal {
         match state.session_state(&session).await {
             Ok(value) if value.status == "LIVE" && value.availability == "PLAYABLE" => {}

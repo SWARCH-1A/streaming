@@ -35,6 +35,7 @@ def load(source=SOURCE):
 def validate_payload(bundle, name, value, public=False, event=False):
     generate.validator(bundle, name).validate(value)
     validate_subtitle_identity(name, value)
+    validate_vod_identity(name, value)
     if name == "P2Renditions":
         ids = [rendition["renditionId"] for rendition in value["renditions"]]
         prefix = f"/hls/{value['sessionId']}/"
@@ -53,6 +54,70 @@ def validate_payload(bundle, name, value, public=False, event=False):
                 raise ValueError("Private field in a public response or broker message")
     if event:
         validate_event_identity(value)
+
+
+def validate_vod_identity(name, value):
+    if name in {"P2Segment", "P2SegmentUploadMetadata"}:
+        if value["sessionStartMs"] < 0 and value["discontinuity"]:
+            raise ValueError("Only the initial PREPARING prefix can precede the LIVE clock")
+        if name == "P2Segment" and value["object"]["contentType"] != "video/mp2t" and not value.get("initialization"):
+            raise ValueError("Fragmented media requires initialization")
+    elif name == "P2Timeline":
+        if not value["intervals"]:
+            raise ValueError("Timeline requires LIVE media")
+        media_end, session_end = value["intervals"][0]["mediaStartMs"], 0
+        if media_end > 120000 or (media_end > 0 and value["intervals"][0]["sessionStartMs"] != 0):
+            raise ValueError("Only a bounded PREPARING prefix can precede timeline coverage")
+        generation = 0
+        for interval in value["intervals"]:
+            if (interval["mediaStartMs"] != media_end or interval["sessionStartMs"] < session_end
+                    or interval["sourceGeneration"] < generation):
+                raise ValueError("Timeline must be ordered and cover compacted media exactly")
+            media_end += interval["durationMs"]
+            session_end = interval["sessionStartMs"] + interval["durationMs"]
+            generation = interval["sourceGeneration"]
+        if media_end != value["durationMs"]:
+            raise ValueError("Timeline duration differs from coverage")
+    elif name == "P2RecordingIndex":
+        renditions = [v["renditionId"] for v in value["renditions"]]
+        if len(set(renditions)) != len(renditions):
+            raise ValueError("Duplicate rendition")
+        groups = {key: [] for key in renditions}
+        identities = set()
+        for segment in value["segments"]:
+            validate_vod_identity("P2Segment", segment)
+            identity = (segment["renditionId"],segment["sourceGeneration"],segment["sequence"])
+            if segment["sessionId"] != value["sessionId"] or identity in identities or identity[0] not in groups:
+                raise ValueError("Index mixes sessions, duplicate segments or unknown renditions")
+            identities.add(identity);groups[identity[0]].append(segment)
+        reference = None
+        for segments in groups.values():
+            if not segments: raise ValueError("Empty rendition")
+            segments.sort(key=lambda segment: segment["sessionStartMs"])
+            previous = None
+            for segment in segments:
+                if segment["sessionStartMs"] < 0 and segment["sourceGeneration"] != segments[0]["sourceGeneration"]:
+                    raise ValueError("Only the session's initial source generation can precede the LIVE clock")
+                if previous:
+                    gap = segment["sessionStartMs"] - previous["sessionStartMs"] - previous["durationMs"]
+                    generation_changed = segment["sourceGeneration"] != previous["sourceGeneration"]
+                    if (gap < 0 or segment["sourceGeneration"] < previous["sourceGeneration"]
+                            or ((gap > 0 or generation_changed) and not segment["discontinuity"])
+                            or (gap > 0 and not generation_changed)
+                            or (not generation_changed and segment["sequence"] != previous["sequence"]+1)):
+                        raise ValueError("Unexplained segment gap or order")
+                previous = segment
+            coverage = [(v["sourceGeneration"],v["sessionStartMs"],v["durationMs"]) for v in segments]
+            if reference is not None and coverage != reference: raise ValueError("Renditions do not align")
+            reference = coverage
+    elif name == "P2RecordingSnapshot":
+        if value["initialSourceGeneration"] > value["sourceGeneration"]:
+            raise ValueError("Initial source generation exceeds the current generation")
+    elif name == "P2RecordingSnapshots":
+        for snapshot in value["items"]:
+            validate_vod_identity("P2RecordingSnapshot", snapshot)
+    elif name == "P2ReplayQuery" and value["fromMs"] >= value["toMs"]:
+        raise ValueError("Replay window must be nonempty")
 
 
 def validate_subtitle_identity(name, value):
@@ -87,6 +152,21 @@ def validate_event_identity(value):
     if kind == "account.status.changed.v1":
         if value["aggregateId"] != "account:" + payload["userId"] or value["sequence"] != payload["accountVersion"]:
             raise ValueError("Account aggregate/sequence do not match payload")
+        return
+    if kind == "recording.segment.available.v1":
+        identity = f"segment:{payload['sessionId']}:{payload['renditionId']}:{payload['sourceGeneration']}:{payload['sequence']}"
+        if value["aggregateId"] != identity or value["sequence"] != payload["sequence"] + 1:
+            raise ValueError("Segment identity/sequence mismatch")
+        return
+    if kind == "recording.closed.v1":
+        if value["aggregateId"] != "recording:" + payload["sessionId"] or value["sequence"] != payload["streamGeneration"]:
+            raise ValueError("Recording identity/sequence mismatch")
+        return
+    if kind == "vod.availability.changed.v1":
+        if value["aggregateId"] != "vod:" + payload["vodId"] or value["sequence"] != payload["version"]:
+            raise ValueError("VOD identity/sequence mismatch")
+        if payload["available"] and (payload["restriction"] != "NONE" or payload["publicationState"] != "PUBLISHED"):
+            raise ValueError("Unavailable VOD cannot announce availability")
         return
     lifecycle = kind == "stream.session.changed.v1"
     key, version, prefix = ("sessionId", "sessionVersion", "session:") if lifecycle else ("streamId", "projectionVersion", "stream:")
@@ -139,6 +219,13 @@ def verify_events(additions, merged):
 
 def verify(base, additions, merged, sdl):
     generate.verify(base, sdl)
+    for extension in additions.get("protocolExtensions", []):
+        operation = next((op for op in base["operations"] if op["id"] == extension["operation"]), None)
+        if operation is None or operation["visibility"] != "private" or extension["visibility"] != "private":
+            raise ValueError("A private protocol extension must refer to its existing private operation")
+        schema = merged["schemas"][extension["schema"]]
+        if set(extension["headers"].values()) != set(schema["required"]) or len(extension["headers"]) != len(schema["required"]):
+            raise ValueError("Protocol headers must cover their executable schema exactly")
     for name, schema in additions["schemas"].items():
         Draft202012Validator.check_schema(schema)
         for node in generate.walk(schema):
@@ -207,6 +294,7 @@ def artifacts(additions, merged, sdl):
         "schema.json": encode({"$schema": "https://json-schema.org/draft/2020-12/schema", "$defs": merged["schemas"]}),
         "operations.json": encode(additions["operations"]),
         "events.json": encode(additions["events"]),
+        "protocol-extensions.json": encode(additions.get("protocolExtensions", [])),
         "index.d.ts": generate.typescript(merged, sdl).replace("contracts/p1.json and", "contracts/p2.json, inherited P1 schemas and", 1),
     }
     files["manifest.json"] = encode({"source": "contracts/p2.json", "base": "contracts/p1.json", "version": 2,

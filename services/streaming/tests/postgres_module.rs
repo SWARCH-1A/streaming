@@ -249,7 +249,7 @@ async fn migration_snapshots_timeline_and_metadata_remain_local_and_atomic() -> 
     let migrations: i64 = sqlx::query_scalar("SELECT count(*) FROM _sqlx_migrations")
         .fetch_one(&pool)
         .await?;
-    assert_eq!(migrations, 2);
+    assert_eq!(migrations, 4);
     pool.close().await;
     Ok(())
 }
@@ -901,5 +901,43 @@ async fn media_receiver_durably_dedupes_and_fences_payload_reuse_and_old_generat
     let counts: (i64,i64) = sqlx::query_as("SELECT count(*),count(*) FILTER(WHERE processing_error_code='STALE_GENERATION') FROM media_callback_inbox").fetch_one(&pool).await?;
     assert_eq!(counts, (2, 1));
     pool.close().await;
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requiere STREAMING_TEST_DATABASE_URL PostgreSQL desechable"]
+async fn vod_snapshots_survive_metadata_changes_and_ack_requires_ended() -> Result<(), TestError> {
+    let pool = database().await?;
+    let clock = MonotonicSessionClock::default();
+    let ingest = playable(&pool, &clock).await?;
+    let start = json!({"sessionId":ingest.session_id.as_str(),"streamId":ingest.stream_id.as_str(),"channelId":"channel_1","streamGeneration":1,"title":"Título inicial","categoryId":"category_example","tagIds":[],"description":"","autopublish":false,"preferenceVersion":7});
+    sqlx::query("INSERT INTO recording_sessions(session_id,start_snapshot,initial_source_generation) VALUES($1,$2,$3)")
+        .bind(ingest.session_id.as_str())
+        .bind(start.clone())
+        .bind(ingest.source_generation)
+        .execute(&pool)
+        .await?;
+    sqlx::query("UPDATE stream_configs SET title='Título posterior' WHERE stream_id=$1")
+        .bind(ingest.stream_id.as_str())
+        .execute(&pool)
+        .await?;
+    let snapshots = recordings::snapshots(&pool).await?;
+    assert_eq!(snapshots["items"][0]["start"], start);
+    recordings::acknowledge(&pool, ingest.session_id.as_str()).await?;
+    assert_eq!(
+        recordings::snapshots(&pool).await?["items"]
+            .as_array()
+            .map(Vec::len),
+        Some(1)
+    );
+    sqlx::query("UPDATE stream_sessions SET status='ENDED',availability='OFFLINE',ended_at=clock_timestamp() WHERE session_id=$1").bind(ingest.session_id.as_str()).execute(&pool).await?;
+    recordings::acknowledge(&pool, ingest.session_id.as_str()).await?;
+    recordings::acknowledge(&pool, ingest.session_id.as_str()).await?;
+    assert_eq!(
+        recordings::snapshots(&pool).await?["items"]
+            .as_array()
+            .map(Vec::len),
+        Some(0)
+    );
     Ok(())
 }

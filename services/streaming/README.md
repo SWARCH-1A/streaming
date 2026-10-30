@@ -68,7 +68,7 @@ Para actualizar un stack anterior desde este mismo directorio, ejecutar `docker 
 | MediaMTX 8888/9997 | Solo red privada | HLS del motor/Control API |
 | PostgreSQL 5432 | `127.0.0.1:5438` | Bases `streaming` y `streaming_media`, roles separados |
 
-MediaMTX [1.21.1](https://github.com/bluenviron/mediamtx/releases/tag/v1.21.1) está fijado por digest. Solo RTMP/LL-HLS; sin grabación, transcoding ni reemplazo de publisher activo. En OBS, usar Servicio: Personalizado y desactivar «Usar autenticación»: copiar `rtmpUrl` como servidor base (por ejemplo `rtmps://localhost:11938/live`) y únicamente `streamKey` (`sk_...`) como clave de retransmisión. Streaming resuelve la emisión por el hash de la clave. El adaptador no persiste la ruta privada `live/{streamKey}`; la obtiene transitoriamente de la Control API y la vincula al publisher autorizado. HLS público usa `sessionId`, nunca la clave. Los logs de MediaMTX están desactivados para evitar paths secretos; el adaptador conserva readiness y callbacks. La credencial se obtiene una sola vez y no se incluye en URLs públicas, eventos ni storage Web. El motor HLS usa un secreto CDN interno para evitar cookies o tokens de engine en el player anónimo.
+MediaMTX [1.21.1](https://github.com/bluenviron/mediamtx/releases/tag/v1.21.1) está fijado por digest en el perfil P1, sin grabación/transcoding ni reemplazo de publisher activo. La instalación raíz P2 compila el mismo commit con la grabación nativa de ADR-022. En OBS, usar Servicio: Personalizado y desactivar «Usar autenticación»: copiar `rtmpUrl` como servidor base (por ejemplo `rtmps://localhost:11938/live`) y únicamente `streamKey` (`sk_...`) como clave de retransmisión. Streaming resuelve la emisión por el hash de la clave. El adaptador no persiste la ruta privada `live/{streamKey}`; la obtiene transitoriamente de la Control API y la vincula al publisher autorizado. HLS público usa `sessionId`, nunca la clave. Los logs de MediaMTX están desactivados para evitar paths secretos; el adaptador conserva readiness y callbacks. La credencial se obtiene una sola vez y no se incluye en URLs públicas, eventos ni storage Web. El motor HLS usa un secreto CDN interno para evitar cookies o tokens de engine en el player anónimo.
 
 El adaptador verifica publisher y estado vigente antes de servir `/hls/{sessionId}/...`; la pérdida/fin de sesión invalida el alias. Streaming confirma manifiesto, segmento y frame decodificado antes de LIVE. Reconexión preserva sesión/generación dentro de gracia y asigna sourceGeneration nueva.
 
@@ -182,3 +182,27 @@ Las pruebas del módulo usan fixtures propios y bases/esquemas desechables. La a
 STREAMING_EVENTS_TRANSPORT=http (por defecto) conserva publicadores HTTP P1. Con amqp, STREAMING_BROKER_URL (AMQPS) y STREAMING_BROKER_CA_FILE son obligatorios. Los dos relays publican envelopes P2 persistidos en el outbox, con mandatory/confirm antes de marcar publicados. Reintentan caídas del broker sin agotar la ventana P1 de quince minutos. Las consultas Core/Streaming siguen por HTTP.
 
 Ver [perfil compartido](../../infra/broker/README.md) y [ADR-016](../../docs/adr/ADR-016-rabbitmq-eventos-p2.md).
+
+## Integración VOD
+
+En el arranque raíz, `STREAMING_RECORDING_ENABLED=true` activa la copia de preferencia Core al
+reservar una sesión nueva. `STREAMING_RECORDING_CORE_URL` apunta al listener privado Core y
+`STREAMING_RECORDING_SETTINGS_TOKEN` es la credencial limitada a vod-settings. La copia y su versión
+se conservan en `recording_sessions`; reconectar no consulta ni reemplaza la preferencia. Si Core
+no puede confirmarla, el inicio falla sin asumir autopublicación.
+`recording_sessions.initial_source_generation` conserva también la generación inicial asignada;
+los snapshots la entregan como `initialSourceGeneration`. La migración 0004 recupera el valor de
+las autorizaciones de ingesta confirmadas para sesiones existentes. Reconectar solo cambia la
+generación vigente: las generaciones son monotónicas por streamId, no comienzan en 1 por sesión.
+
+Media consulta snapshots/ACK por el listener privado con su Bearer técnico. La cola de captura y
+entrega está en el worker `media-recorder`, descrito en [VOD](../vod/README.md). El header privado
+`X-Source-Generation` cerca lecturas HLS frente a reconexiones. No se comparte ninguna tabla con VOD.
+`MEDIA_RECORDING_ENABLED=true` emite las cabeceras privadas `X-Media-Recording-Session` y
+`X-Media-Recording-Source-Generation` al autorizar al publisher. `P2MediaRecordingBinding` amplía
+la respuesta204 de `media.auth`; el motor consume ese binding por ID de publisher, una vez,
+sin cambios de configuración durante la autorización ni nombres de archivo con la clave.
+La imagen MediaMTX fijada incluye inventario durable y cierre sincrónico por generación; su
+volumen usa sesión/generación, sin claves de ingesta. La captura H264/AAC de una calidad conserva
+el último archivo; SIGKILL sin sello no publica por ENDED. Las cuatro calidades reales y su
+aceptación audiovisual siguen en P2-08. Ver [ADR-022](../../docs/adr/ADR-022-vod-go-postgresql-minio.md).

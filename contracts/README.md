@@ -42,6 +42,9 @@ contracts/generated/p2. Web importa @contracts/p2. No editar los derivados a man
 es offline, comprueba referencias, ejemplos válidos/negativos, identidad/versiones, privacidad,
 permisos, idempotencia y trazabilidad de las operaciones, además de detectar drift.
 El arranque RabbitMQ y los SDK de cada lenguaje se documentan en infra/broker/README.md y ADR-016.
+`protocol-extensions.json` deriva las extensiones de cabeceras sobre operaciones privadas existentes.
+`media.recording-binding.v1` amplía la respuesta204 de `media.auth` con el schema ejecutable
+`P2MediaRecordingBinding`; no duplica la ruta ni modifica los artefactos P1.
 
 Administración añade listados y cambios de estado en `p2.admin.*`, y el evento
 `account.status.changed.v1`. Su aceptación transversal sigue pendiente de P2-17.

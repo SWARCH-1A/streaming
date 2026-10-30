@@ -63,11 +63,11 @@ class SubtitleContractsTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 validate(self.schema, 'P2SubtitlePage', {'items': [self.track, second], 'nextCursor': None})
 
-    def test_routes_are_explicitly_unimplemented_and_owned_by_vod(self):
+    def test_routes_have_vod_provider_and_preserve_access_contract(self):
         operations = [op for op in self.source['operations'] if op['id'].startswith('p2.subtitles.')]
         self.assertEqual({op['id'].rsplit('.', 1)[1] for op in operations}, {'upload', 'list', 'read', 'delete'})
         for op in operations:
-            self.assertEqual(op['status'], 'contract-only')
+            self.assertEqual(op['status'], 'implemented')
             self.assertEqual(op['provider'], 'vod')
             self.assertEqual(op['cacheControl'], 'no-store')
         for op in operations:

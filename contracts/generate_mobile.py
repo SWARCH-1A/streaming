@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "contracts/generated/mobile/MobileContracts.kt"
-ROOTS = "P2NativeLogin LoginRequest RegistrationRequest Registration Profile ChannelBootstrap PublicStream PublicSession Taxonomy ChatMessage ChatHistory ViewerLease P2RecoveryRequest P2RecoveryAccepted P2RecoveryConfirm".split()
+ROOTS = "P2NativeLogin LoginRequest RegistrationRequest Registration Profile ChannelBootstrap PublicStream PublicSession Taxonomy ChatMessage ChatHistory ViewerLease P2RecoveryRequest P2RecoveryAccepted P2RecoveryConfirm P2Vod P2VodPage P2Timeline P2SubtitlePage P2OperationStatus".split()
 
 
 def generate():
