@@ -1,10 +1,12 @@
-FROM node:24-alpine AS build
+FROM node:24-alpine AS dependencies
 WORKDIR /workspace/apps/web
 RUN npm install --global pnpm@11.17.0
 COPY apps/web/package.json apps/web/pnpm-lock.yaml apps/web/pnpm-workspace.yaml apps/web/.npmrc ./
 RUN pnpm install --frozen-lockfile
+FROM dependencies AS check
 COPY contracts/generated /workspace/contracts/generated
 COPY apps/web ./
+FROM check AS build
 RUN pnpm build && pnpm prune --prod
 
 # SPEC-18: an SSR runtime, not a static file server. Renders each request and serves the hashed assets.

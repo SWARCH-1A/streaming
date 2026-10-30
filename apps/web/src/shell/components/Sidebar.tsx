@@ -27,6 +27,12 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             <Icon name="screen" size={18} />
             Estudio de emisión
           </NavLink>
+          <NavLink to="/videos" onClick={onNavigate}>
+            Grabaciones
+          </NavLink>
+          <NavLink to="/studio/vods" onClick={onNavigate}>
+            Mis grabaciones
+          </NavLink>
           <NavLink to="/notifications" onClick={onNavigate}>
             <Icon name="bell" size={18} />
             Notificaciones

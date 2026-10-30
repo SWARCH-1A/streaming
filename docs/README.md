@@ -39,3 +39,8 @@ Plane organiza el trabajo del proyecto STREAMING. Al publicar una actualización
 referencia en Plane debe indicar el commit de origen y conservar responsables, estados y relaciones.
 Una tarea terminada no acredita por sí sola un recorrido integrado. Las tecnologías nuevas se
 seleccionan mediante ADR por el responsable correspondiente.
+
+VOD se implementa en Go/PostgreSQL/MinIO según [ADR-022](adr/ADR-022-vod-go-postgresql-minio.md),
+con Media como lector privado y [Gateway Go/Caddy](adr/ADR-023-gateway-go-caddy.md). La [guía VOD](../services/vod/README.md)
+separa evidencia PostgreSQL/MinIO/RabbitMQ y medios de fixture de las aceptaciones pendientes de
+captura multicalidad P2-08, Chat durable y S3 externo. SPEC-14 conserva sus CA sin cerrar en conjunto.

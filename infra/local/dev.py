@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Manage the ten-service local installation with RabbitMQ (macOS/Linux/WSL)."""
+"""Manage the local installation with RabbitMQ and VOD (macOS/Linux/WSL)."""
 import os
 from pathlib import Path
 import runpy

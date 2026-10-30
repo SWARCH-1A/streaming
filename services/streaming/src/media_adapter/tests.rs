@@ -284,8 +284,38 @@ fn media_state(pool: PgPool, server: &TestServer) -> Result<super::MediaState, T
             hls_secret: "fixture".into(),
             auth_header: "fixture".into(),
             max_open_dead_letters: 10000,
+            recording_enabled: false,
         },
     })
+}
+
+#[test]
+fn native_recording_binding_is_private_and_uses_public_session_generation() {
+    let source = super::repository::Source {
+        publisher_id: Uuid::new_v4(),
+        stream_id: StreamId::new().as_str().to_owned(),
+        session_id: SessionId::new().as_str().to_owned(),
+        stream_generation: 1,
+        source_generation: 2,
+        request_hash: vec![],
+        created_at: time::OffsetDateTime::now_utc(),
+        connected_at: None,
+        playback_at: None,
+        lost_at: None,
+        retired_at: None,
+    };
+    let response = super::handlers::publish_authorized(&source, true);
+    assert_eq!(response.status(), axum::http::StatusCode::NO_CONTENT);
+    assert_eq!(
+        response.headers()["X-Media-Recording-Session"],
+        source.session_id
+    );
+    assert_eq!(
+        response.headers()["X-Media-Recording-Source-Generation"],
+        "2"
+    );
+    let disabled = super::handlers::publish_authorized(&source, false);
+    assert!(!disabled.headers().contains_key("X-Media-Recording-Session"));
 }
 
 #[tokio::test]

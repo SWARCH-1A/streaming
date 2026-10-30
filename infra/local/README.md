@@ -175,3 +175,13 @@ Los volúmenes SQL, avatares y portadas son separados; los dos últimos solo con
 `CORE_IMAGE_STORAGE_PROVIDER=filesystem`. `down` conserva los volúmenes; no añadir `-v` para detener
 una instalación con datos que deban conservarse. Con S3, respaldar SQL y objetos del bucket juntos.
 El traslado de prototipos anteriores se describe en el runbook Core y no se ejecuta automáticamente.
+
+## VOD en la instalación completa
+
+La instalación raíz gestionada por `infra/local/dev.py` incorpora VOD, su PostgreSQL privado,
+MinIO, Gateway y los buffers durables `media-native-recordings` y `media-recordings` de Media.
+MediaMTX se compila desde fuente fijada con el inventario/cierre nativo de ADR-022.
+Los Compose básicos por servicio de esta
+guía mantienen su alcance original. Para incorporar VOD a la instalación completa, repetir
+`init`, `build`, `up`; se conservan secretos y datos anteriores. Certificados, identidades S3
+separadas, migraciones, salud y recuperación: [servicio VOD](../../services/vod/README.md).

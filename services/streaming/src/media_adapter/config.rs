@@ -16,6 +16,7 @@ pub(super) struct MediaConfig {
     pub hls_secret: String,
     pub auth_header: String,
     pub max_open_dead_letters: i64,
+    pub recording_enabled: bool,
 }
 
 impl MediaConfig {
@@ -84,6 +85,7 @@ impl MediaConfig {
             hls_secret,
             auth_header,
             max_open_dead_letters,
+            recording_enabled: value("MEDIA_RECORDING_ENABLED", "false").parse()?,
         })
     }
 }

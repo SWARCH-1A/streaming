@@ -1,0 +1,13 @@
+[
+  {
+    "consumer": "MediaMTX",
+    "direction": "response",
+    "headers": {"X-Media-Recording-Session": "sessionId", "X-Media-Recording-Source-Generation": "sourceGeneration"},
+    "id": "media.recording-binding.v1",
+    "operation": "media.auth",
+    "producer": "MediaAdapter",
+    "schema": "P2MediaRecordingBinding",
+    "visibility": "private",
+    "when": "204 publish authorization with native recording enabled; binds only the authenticated publisher ID; absent/invalid binding skips recording without affecting live."
+  }
+]

@@ -313,6 +313,58 @@ impl PostgresIngestAuthorizationRepository {
         .await
         .map_err(persistence_error)?;
 
+        if std::env::var("STREAMING_RECORDING_ENABLED").as_deref() == Ok("true") {
+            let base = std::env::var("STREAMING_RECORDING_CORE_URL")
+                .map_err(|_| IngestAuthorizationError::InvalidStoredData)?;
+            let token = std::env::var("STREAMING_RECORDING_SETTINGS_TOKEN")
+                .map_err(|_| IngestAuthorizationError::InvalidStoredData)?;
+            let client =
+                crate::adapters::outbound::http_clients::build_client(Duration::from_secs(2))
+                    .map_err(|_| IngestAuthorizationError::InvalidStoredData)?;
+            let response = client
+                .get(format!(
+                    "{}/internal/core/channels/{}/vod-settings",
+                    base.trim_end_matches('/'),
+                    stream_config.channel_id
+                ))
+                .header("X-Service-Name", "streaming-recording-settings")
+                .header("X-Service-Token", token)
+                .send()
+                .await
+                .map_err(|_| IngestAuthorizationError::InvalidStoredData)?;
+            if !response.status().is_success() {
+                return Err(IngestAuthorizationError::InvalidStoredData);
+            }
+            let preference: Value = response
+                .json()
+                .await
+                .map_err(|_| IngestAuthorizationError::InvalidStoredData)?;
+            let autopublish = preference
+                .get("enabled")
+                .and_then(Value::as_bool)
+                .ok_or(IngestAuthorizationError::InvalidStoredData)?;
+            let version = preference
+                .get("version")
+                .and_then(Value::as_i64)
+                .ok_or(IngestAuthorizationError::InvalidStoredData)?;
+            let metadata: (String, String, Value) = sqlx::query_as(
+                "SELECT title,category_id,tag_ids FROM stream_configs WHERE stream_id=$1",
+            )
+            .bind(&stream_config.stream_id)
+            .fetch_one(&mut *transaction)
+            .await
+            .map_err(persistence_error)?;
+            let snapshot = json!({"sessionId":session_id,"streamId":stream_config.stream_id,"channelId":stream_config.channel_id,
+                "streamGeneration":stream_generation,"title":metadata.0,"description":"","categoryId":metadata.1,"tagIds":metadata.2,
+                "autopublish":autopublish,"preferenceVersion":version});
+            sqlx::query("INSERT INTO recording_sessions(session_id,start_snapshot) VALUES($1,$2)")
+                .bind(session_id.as_str())
+                .bind(snapshot)
+                .execute(&mut *transaction)
+                .await
+                .map_err(persistence_error)?;
+        }
+
         append_session_event(
             &mut transaction,
             Uuid::now_v7(),

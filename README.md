@@ -151,7 +151,7 @@ La política y los contratos se documentan en [SPEC-01 P2](docs/spec-p2/spec_01_
 RabbitMQ transporta ciclo de sesión a Core/Chat y snapshots a Discovery y forma parte del arranque
 local anterior. Sus métricas, DLQ y recuperación están en el [runbook](infra/broker/README.md).
 La selección está en [ADR-016](docs/adr/ADR-016-rabbitmq-eventos-p2.md); quedan pendientes las
-funciones VOD, proveedor push y las demás ampliaciones P2. La recuperación
+aceptación audiovisual VOD/Media, replay durable Chat, proveedor push y las demás ampliaciones P2. La recuperación
 RF-004 usa el mismo broker y el worker de [ADR-017](docs/adr/ADR-017-recuperacion-de-credenciales.md).
 
 Al actualizar una instalación que usaba entrega HTTP P1, detener las emisiones antes del cambio
@@ -161,3 +161,12 @@ Los perfiles de pruebas bajo `infra/p1` mantienen su transporte HTTP y su estado
 El cliente Android/iOS vive en [apps/mobile](apps/mobile/README.md): build, instalación, TLS y cobertura
 parcial de SPEC-19. Consume las APIs públicas actuales; VOD, seguimiento, bandeja y push conservan
 sus dependencias P2 pendientes.
+
+## Biblioteca VOD
+
+[services/vod](services/vod/README.md) incorpora biblioteca Go/PostgreSQL, objetos privados MinIO
+local/S3 externo, grabador durable Media, autorización, HLS/timeline, pistas SPEC-22 y limpieza.
+Web añade `/videos`, `/studio/vods`, `/vod/:vodId` y biblioteca de canal; [Gateway](services/gateway/README.md)
+compone canal/VOD/exploración. Repetir `init`, `build`, `up` añade configuración conservando datos.
+La captura final y multicalidad real dependen de P2-08; replay/limpieza de mensajes, de Chat.
+Las pruebas con MinIO y medios de fixture no acreditan esos recorridos ni S3 externo.

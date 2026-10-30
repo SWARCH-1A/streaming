@@ -825,6 +825,10 @@ pub async fn build_app(config: &AppConfig) -> Result<StreamingApp, BootstrapErro
     let private_router = http_endpoints
         .private
         .merge(private_router)
+        .merge(http::recordings::router(
+            pool.clone(),
+            config.media_adapter_service_token.as_deref(),
+        ))
         .layer(owner_gate);
 
     Ok(StreamingApp {

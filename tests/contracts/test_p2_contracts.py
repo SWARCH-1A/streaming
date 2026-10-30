@@ -41,7 +41,7 @@ class P2ContractsTest(unittest.TestCase):
     def test_pending_interfaces_keep_their_owner_decisions(self):
         pending = {item["id"]: item["blockedBy"] for item in self.additions["pendingInterfaces"]}
         self.assertEqual(pending["watch-parties"], ["P2-01", "P2-02", "P2-03"])
-        self.assertEqual(pending["subtitles"], ["P2-09", "P2-17"])
+        self.assertEqual(pending["chat-durable-replay"], ["P2-10"])
 
 
 if __name__ == "__main__":
