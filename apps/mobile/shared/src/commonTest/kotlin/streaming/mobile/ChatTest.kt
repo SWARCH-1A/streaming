@@ -62,6 +62,55 @@ class ChatTest {
         } finally { api.close() }
     }
 
+    @Test fun moderatorRemovalsHideMessagesLiveAndAfterHistoryReload() = runTest {
+        fun message(seq: Int) = """{"messageId":"msg_$seq","sessionId":"ses_fixture","sequence":$seq,""" +
+            """"author":{"userId":"usr_ana","handle":"ana_01","displayName":"Ana","avatarUri":null},"text":"texto $seq",""" +
+            """"serverCreatedAtUtc":"2026-10-31T20:00:0${seq}Z","streamOffsetMs":${seq}000,"streamGeneration":1}"""
+        val histories = listOf(
+            """{"sessionId":"ses_fixture","items":[${message(1)},${message(2)}],"snapshotSequence":2,"roomStatus":"OPEN","moderationVersion":0,"removedMessages":[]}""",
+            // Al recargar, msg_1 ya fue retirado: el servidor lo marca y el cliente no lo conserva.
+            """{"sessionId":"ses_fixture","items":[${message(2)},${message(3)}],"snapshotSequence":3,"roomStatus":"OPEN","moderationVersion":1,""" +
+                """"removedMessages":[{"messageId":"msg_1","sessionId":"ses_fixture","sequence":1,"moderationVersion":1,"removedAtUtc":"2026-10-31T20:01:00Z"}]}""",
+        )
+        var loaded = 0
+        lateinit var socket: TestSocket
+        val engine = object : MockEngine(MockEngineConfig().apply {
+            dispatcher = StandardTestDispatcher(testScheduler)
+            addHandler { request ->
+                if (request.url.encodedPath.startsWith("/realtime/")) {
+                    val context = currentCoroutineContext()
+                    socket = TestSocket(context)
+                    socket.incoming.trySend(Frame.Text(
+                        """{"type":"chat.ready","sessionId":"ses_fixture","roomStatus":"OPEN","lastSequence":2}"""))
+                    HttpResponseData(HttpStatusCode.SwitchingProtocols, GMTDate(), Headers.Empty,
+                        HttpProtocolVersion.HTTP_1_1, socket, context)
+                } else respond(histories[minOf(loaded++, 1)], HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+            }
+        }) {
+            override val supportedCapabilities = super.supportedCapabilities + WebSocketCapability
+        }
+        val failures = mutableListOf<String>()
+        val api = Api("https://fixture.example.test", Session(MemorySecureStore()),
+            HttpClient(engine) { configureVaultClient() }, { stage, _ -> failures += stage })
+        try {
+            val chat = Chat(api, "ses_fixture")
+            val job = launch { chat.connect() }
+            runCurrent()
+            assertEquals(listOf("msg_1", "msg_2"), chat.state.value.messages.map { it.messageId })
+            // Un salto de secuencia recarga el historial, que ya trae msg_1 como retirado.
+            socket.incoming.trySend(Frame.Text("""{"type":"message.created","message":${message(4)}}"""))
+            runCurrent()
+            assertEquals(listOf("msg_2", "msg_3", "msg_4"), chat.state.value.messages.map { it.messageId })
+            socket.incoming.trySend(Frame.Text(
+                """{"type":"message.removed","messageId":"msg_2","sessionId":"ses_fixture","sequence":2,"moderationVersion":2,"removedAtUtc":"2026-10-31T20:02:00Z"}"""))
+            runCurrent()
+            assertEquals(listOf("msg_3", "msg_4"), chat.state.value.messages.map { it.messageId })
+            assertTrue(chat.state.value.connected, "el retiro no provoca reconexión")
+            assertTrue(failures.isEmpty(), failures.toString())
+            job.cancelAndJoin()
+        } finally { api.close() }
+    }
+
     @Test fun parentCancellationWhileAwaitingReadyDoesNotRetry() = runTest {
         var connections = 0
         val failures = mutableListOf<String>()

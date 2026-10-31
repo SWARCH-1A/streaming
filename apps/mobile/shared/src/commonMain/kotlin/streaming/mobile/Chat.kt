@@ -71,7 +71,13 @@ class Chat(private val api: Api, private val sessionId: String) {
 
     private suspend fun backlog() {
         val raw = api.get<JsonObject>("/api/chat/sessions/${id(sessionId)}/messages?limit=50")
-        if ((raw.long("moderationVersion") ?: 0) < moderationVersion) return
+        val version = raw.long("moderationVersion") ?: 0
+        if (version < moderationVersion) return
+        moderationVersion = version
+        // P2: retiros de la misma ventana; se aplican antes de mezclar para que no vuelvan los textos.
+        raw["removedMessages"]?.jsonArray?.forEach { removal ->
+            tombstones += id(removal.jsonObject.string("messageId") ?: error("Missing message ID"))
+        }
         val history = wireJson.decodeFromJsonElement<ChatHistory>(raw)
         require(history.sessionId == sessionId)
         val earliest = history.items.firstOrNull()?.sequence ?: history.snapshotSequence + 1
@@ -102,7 +108,8 @@ class Chat(private val api: Api, private val sessionId: String) {
                 require(value.string("sessionId") == sessionId)
                 current.update { it.copy(status = value.string("roomStatus") ?: "READ_ONLY") }
             }
-            "message.deleted" -> {
+            // P1 message.deleted y P2 message.removed (retiro del moderador) quitan el mensaje igual.
+            "message.deleted", "message.removed" -> {
                 require(value.string("sessionId") == sessionId)
                 val version = value.long("moderationVersion") ?: error("Missing moderation version")
                 if (version < moderationVersion) return
