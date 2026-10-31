@@ -34,11 +34,16 @@ export function VodPage({ vod }: { vod: P2Vod }) {
             setChatError('La versión del video cambió. Vuelve a abrir la grabación.');
             return;
           }
-          // Al avanzar se conservan las ventanas anteriores, como el historial de un chat en vivo.
+          // Al avanzar se conservan las ventanas anteriores, como el historial de un chat en vivo. La
+          // primera página de una ventana reemplaza lo que había de esa ventana: un mensaje retirado
+          // después de cargarlo desaparece al refrescarla.
+          const to = Math.min(vod.durationMs, window.from + 10000);
           setMessages((previous) =>
             [
-              ...previous.filter(
-                (item) => !page.items.some((next) => next.messageId === item.messageId),
+              ...previous.filter((item) =>
+                cursor
+                  ? !page.items.some((next) => next.messageId === item.messageId)
+                  : item.mediaOffsetMs < window.from || item.mediaOffsetMs >= to,
               ),
               ...page.items,
             ].slice(-500),
