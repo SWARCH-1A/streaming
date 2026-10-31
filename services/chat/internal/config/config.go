@@ -42,6 +42,14 @@ type Config struct {
 	UnlinkedRetention    time.Duration
 	ArchiveClaimIdle     time.Duration
 	IdempotencyRetention time.Duration
+	// Replay (ADR-022/024): VOD autoriza la lectura y entrega el timeline. Sin VodBaseURL el replay
+	// responde REPLAY_UNAVAILABLE y el resto de P2 sigue disponible.
+	VodBaseURL         string
+	VodServiceToken    string
+	VodCAFile          string
+	VodDevelopmentHTTP bool
+	VodConnect         time.Duration
+	VodTimeout         time.Duration
 }
 
 func Load() (Config, error) {
@@ -97,6 +105,15 @@ func Load() (Config, error) {
 		UnlinkedRetention:    dur("CHAT_UNLINKED_RETENTION", "168h"),
 		ArchiveClaimIdle:     dur("CHAT_ARCHIVE_CLAIM_IDLE", "30s"),
 		IdempotencyRetention: dur("CHAT_IDEMPOTENCY_RETENTION", "24h"),
+		VodBaseURL:           str("CHAT_VOD_BASE_URL", ""),
+		VodServiceToken:      str("CHAT_VOD_SERVICE_TOKEN", ""),
+		VodCAFile:            str("CHAT_VOD_CA_FILE", ""),
+		VodDevelopmentHTTP:   str("CHAT_VOD_DEVELOPMENT_HTTP", "false") == "true",
+		VodConnect:           dur("CHAT_VOD_CONNECT_TIMEOUT", "200ms"),
+		VodTimeout:           dur("CHAT_VOD_TIMEOUT", "1500ms"),
+	}
+	if c.VodBaseURL != "" && (c.DatabaseURL == "" || c.VodServiceToken == "") {
+		errs = append(errs, "CHAT_VOD_BASE_URL exige CHAT_DATABASE_URL y CHAT_VOD_SERVICE_TOKEN")
 	}
 	if c.EventsTransport != "http" && c.EventsTransport != "amqp" {
 		errs = append(errs, "CHAT_EVENTS_TRANSPORT debe ser http o amqp")

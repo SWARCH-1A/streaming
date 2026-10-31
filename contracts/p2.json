@@ -7590,13 +7590,13 @@
       },
       "timeoutMs": 3000,
       "idempotency": "Read; no automatic command retry",
-      "recovery": "Chat owns durable messages, moderation and cleanup; video playback continues when this dependency is unavailable.",
+      "recovery": "Chat owns durable messages, moderation and cleanup; video playback continues when this dependency is unavailable. On 410 request the window again without cursor.",
       "spec": "SPEC-05",
       "traceability": "docs/spec-p2/spec_05_chat.md",
       "visibility": "public",
-      "limits": "Bounded JSON 16 KiB; pages 20 by default and 50 maximum; private streamed objects use their size/hash inventory.",
+      "limits": "Window toMs-fromMs <= 300000 ms; limit 1..50 (default 20); unknown or repeated query keys 400; removed messages are omitted. VOD authorizes every page through p2.vod.replay-context.",
       "requiredHeaders": [],
-      "status": "contract-only",
+      "status": "implemented",
       "query": "P2ReplayQuery"
     },
     {
@@ -7627,7 +7627,8 @@
       "requiredHeaders": [
         "Idempotency-Key",
         "X-XSRF-TOKEN"
-      ]
+      ],
+      "status": "implemented"
     },
     {
       "id": "p2.chat.block",
@@ -7659,7 +7660,8 @@
       "requiredHeaders": [
         "Idempotency-Key",
         "X-XSRF-TOKEN"
-      ]
+      ],
+      "status": "implemented"
     },
     {
       "id": "p2.chat.unblock",
@@ -7689,7 +7691,8 @@
       "requiredHeaders": [
         "Idempotency-Key",
         "X-XSRF-TOKEN"
-      ]
+      ],
+      "status": "implemented"
     },
     {
       "id": "p2.chat.block-get",
@@ -7715,7 +7718,8 @@
       "idempotency": "Safe read",
       "recovery": "Retry the read.",
       "limits": "Owner only; version 0 if never blocked.",
-      "requiredHeaders": []
+      "requiredHeaders": [],
+      "status": "implemented"
     },
     {
       "id": "p2.chat.delete-user-messages",
@@ -7746,7 +7750,8 @@
       "requiredHeaders": [
         "Idempotency-Key",
         "X-XSRF-TOKEN"
-      ]
+      ],
+      "status": "implemented"
     },
     {
       "id": "p2.chat.operation-status",
@@ -7771,7 +7776,8 @@
       "idempotency": "Safe read",
       "recovery": "Retry the read.",
       "limits": "Owner of the channel only.",
-      "requiredHeaders": []
+      "requiredHeaders": [],
+      "status": "implemented"
     },
     {
       "id": "p2.chat.moderation-context",
@@ -7802,7 +7808,8 @@
         "X-Service-Token",
         "X-Session-Credential"
       ],
-      "semantics": "read"
+      "semantics": "read",
+      "status": "implemented"
     }
   ],
   "retiredP1Operations": [],
@@ -7815,15 +7822,6 @@
         "P2-03"
       ],
       "traceability": "docs/spec-p2/spec_21_watch_party.md"
-    },
-    {
-      "id": "chat-durable-replay",
-      "blockedBy": [
-        "P2-10"
-      ],
-      "traceability": "docs/spec-p2/spec_05_chat.md",
-      "status": "chat-provider-pending",
-      "description": "VOD mapping and availability contracts implemented; durable messages, replay and replay cleanup remain Chat-owned."
     }
   ],
   "subtitleProfile": {

@@ -14,8 +14,8 @@ import (
 	"streaming/chat/internal/chat"
 )
 
-// VodEnvelope es vod.availability.changed.v1 (P2EventVodAvailabilityChanged). VOD es su productor;
-// el payload lo propone Chat como consumidor y queda sujeto a revisión del responsable de VOD.
+// VodEnvelope es vod.availability.changed.v1 (P2EventVodAvailabilityChanged), definido y publicado
+// por VOD (ADR-022). Chat solo lo consume para vincular la sesión y coordinar la limpieza del replay.
 type VodEnvelope struct {
 	EventID       string `json:"eventId"`
 	EventType     string `json:"eventType"`
@@ -26,17 +26,22 @@ type VodEnvelope struct {
 	OccurredAtUTC string `json:"occurredAtUtc"`
 	CorrelationID string `json:"correlationId"`
 	Payload       struct {
-		VodID           string `json:"vodId"`
-		VodVersion      *int64 `json:"vodVersion"`
-		ChannelID       string `json:"channelId"`
-		SessionID       string `json:"sessionId"`
-		Status          string `json:"status"`
-		TimelineStartMs *int64 `json:"timelineStartMs"`
-		DurationMs      *int64 `json:"durationMs"`
+		VodID            string `json:"vodId"`
+		SessionID        string `json:"sessionId"`
+		ChannelID        string `json:"channelId"`
+		Version          *int64 `json:"version"`
+		MappingVersion   *int64 `json:"mappingVersion"`
+		Available        *bool  `json:"available"`
+		Restriction      string `json:"restriction"`
+		PublicationState string `json:"publicationState"`
 	} `json:"payload"`
 }
 
-var vodStatuses = map[string]bool{"PROCESSING": true, "PUBLISHED": true, "UNPUBLISHED": true, "SUSPENDED": true, "DELETED": true}
+var (
+	vodRestrictions  = map[string]bool{"NONE": true, "RETIRED": true, "DELETED": true}
+	vodPublications  = map[string]bool{"DRAFT": true, "PUBLISHED": true}
+	vodPayloadFields = []string{"vodId", "sessionId", "channelId", "version", "mappingVersion", "available", "restriction", "publicationState"}
+)
 
 const maxInteger = 9007199254740991
 
@@ -58,17 +63,18 @@ func decodeVod(body []byte) (VodEnvelope, archive.VodLink, string, error) {
 	}
 	var fields, payloadFields map[string]json.RawMessage
 	if json.Unmarshal(body, &fields) != nil || !keys(fields, "eventId", "eventType", "schemaVersion", "producer", "aggregateId", "sequence", "occurredAtUtc", "correlationId", "payload") ||
-		json.Unmarshal(fields["payload"], &payloadFields) != nil || !keys(payloadFields, "vodId", "vodVersion", "channelId", "sessionId", "status", "timelineStartMs", "durationMs") {
+		json.Unmarshal(fields["payload"], &payloadFields) != nil || !keys(payloadFields, vodPayloadFields...) {
 		return event, archive.VodLink{}, "", invalid
 	}
 	p := event.Payload
 	_, err := uuid.Parse(event.EventID)
 	if err != nil || len(event.EventID) != 36 || event.EventType != "vod.availability.changed.v1" || event.SchemaVersion != 1 ||
 		event.Producer != "vod" || !opaqueID.MatchString(event.CorrelationID) || !chat.ValidOpaqueID(p.VodID) ||
-		!chat.ValidOpaqueID(p.ChannelID) || !chat.ValidSessionID(p.SessionID) || !vodStatuses[p.Status] ||
-		p.VodVersion == nil || *p.VodVersion < 1 || *p.VodVersion > maxInteger || event.Sequence != *p.VodVersion ||
-		event.AggregateID != "vod:"+p.VodID || p.TimelineStartMs == nil || *p.TimelineStartMs < 0 || *p.TimelineStartMs > maxInteger ||
-		(p.DurationMs != nil && (*p.DurationMs < 0 || *p.DurationMs > maxInteger)) {
+		!chat.ValidOpaqueID(p.ChannelID) || !chat.ValidSessionID(p.SessionID) || !vodRestrictions[p.Restriction] ||
+		!vodPublications[p.PublicationState] || p.Available == nil ||
+		p.Version == nil || *p.Version < 1 || *p.Version > maxInteger || event.Sequence != *p.Version ||
+		event.AggregateID != "vod:"+p.VodID || p.MappingVersion == nil || *p.MappingVersion < 0 || *p.MappingVersion > maxInteger ||
+		(*p.Available && (p.Restriction != "NONE" || p.PublicationState != "PUBLISHED")) {
 		return event, archive.VodLink{}, "", invalid
 	}
 	if _, err := utc(event.OccurredAtUTC); err != nil {
@@ -85,6 +91,7 @@ func decodeVod(body []byte) (VodEnvelope, archive.VodLink, string, error) {
 		return event, archive.VodLink{}, "", invalid
 	}
 	hash := sha256.Sum256(encoded)
-	return event, archive.VodLink{VodID: p.VodID, SessionID: p.SessionID, ChannelID: p.ChannelID, VodVersion: *p.VodVersion,
-		Status: p.Status, TimelineStartMs: *p.TimelineStartMs, DurationMs: p.DurationMs}, hex.EncodeToString(hash[:]), nil
+	return event, archive.VodLink{VodID: p.VodID, SessionID: p.SessionID, ChannelID: p.ChannelID, Version: *p.Version,
+		MappingVersion: *p.MappingVersion, Available: *p.Available, Restriction: p.Restriction,
+		PublicationState: p.PublicationState}, hex.EncodeToString(hash[:]), nil
 }

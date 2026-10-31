@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -274,22 +275,41 @@ func (s *Server) handleOperation(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, viewOperation(op))
 }
 
-// replayCursor liga la página siguiente al VOD, la ventana y la versión del vínculo (mapping).
+// replayCursor liga la página siguiente al VOD, la ventana y la mappingVersion del timeline. Avanza
+// por sequence, así que un retiro posterior no desplaza la paginación.
 type replayCursor struct {
-	VodID      string `json:"v"`
-	FromMs     int64  `json:"f"`
-	ToMs       int64  `json:"t"`
-	VodVersion int64  `json:"g"`
-	OffsetMs   int64  `json:"o"`
-	Sequence   int64  `json:"s"`
+	VodID          string `json:"v"`
+	FromMs         int64  `json:"f"`
+	ToMs           int64  `json:"t"`
+	MappingVersion int64  `json:"m"`
+	Sequence       int64  `json:"s"`
 }
 
+// replayPage es P2ReplayPage.
 type replayPage struct {
-	VodID      string            `json:"vodId"`
-	FromMs     int64             `json:"fromMs"`
-	ToMs       int64             `json:"toMs"`
-	Items      []chat.ReplayItem `json:"items"`
-	NextCursor *string           `json:"nextCursor"`
+	VodID             string            `json:"vodId"`
+	MappingVersion    int64             `json:"mappingVersion"`
+	ModerationVersion int64             `json:"moderationVersion"`
+	Items             []chat.ReplayItem `json:"items"`
+	NextCursor        *string           `json:"nextCursor"`
+}
+
+// replayCredential admite la cookie del navegador o un único Bearer nativo; ambos a la vez es 401.
+// Sin credencial la lectura es anónima y VOD decide si el VOD es legible.
+func (s *Server) replayCredential(r *http.Request) (string, bool) {
+	var credential string
+	if ck, err := r.Cookie(s.cfg.SessionCookie); err == nil {
+		credential = ck.Value
+	}
+	auth := r.Header.Values("Authorization")
+	if len(auth) == 0 {
+		return credential, true
+	}
+	scheme, token, found := strings.Cut(auth[0], " ")
+	if len(auth) != 1 || !found || !strings.EqualFold(scheme, "Bearer") || token == "" || len(token) > 512 || credential != "" {
+		return "", false
+	}
+	return token, true
 }
 
 func (s *Server) handleReplay(w http.ResponseWriter, r *http.Request) {
@@ -302,9 +322,9 @@ func (s *Server) handleReplay(w http.ResponseWriter, r *http.Request) {
 	invalid := func(msg string) {
 		s.writeError(w, r, http.StatusBadRequest, &chat.Error{Code: chat.CodeValidation, Message: msg})
 	}
-	for key := range q {
-		if key != "fromMs" && key != "toMs" && key != "limit" && key != "cursor" {
-			invalid("Parámetro no admitido: " + key)
+	for key, values := range q {
+		if (key != "fromMs" && key != "toMs" && key != "limit" && key != "cursor") || len(values) != 1 {
+			invalid("Parámetro no admitido o repetido: " + key)
 			return
 		}
 	}
@@ -314,7 +334,7 @@ func (s *Server) handleReplay(w http.ResponseWriter, r *http.Request) {
 		invalid("fromMs y toMs deben cumplir 0 <= fromMs < toMs y una ventana de hasta 300000 ms.")
 		return
 	}
-	limit := chat.HistoryMaxLimit
+	limit := chat.ReplayDefaultLimit
 	if raw := q.Get("limit"); raw != "" {
 		n, err := strconv.Atoi(raw)
 		if err != nil || n < 1 || n > chat.HistoryMaxLimit {
@@ -323,28 +343,32 @@ func (s *Server) handleReplay(w http.ResponseWriter, r *http.Request) {
 		}
 		limit = n
 	}
-	var after *archive.ReplayPosition
-	var expectVersion *int64
+	var afterSequence int64
+	var expectMapping *int64
 	if raw := q.Get("cursor"); raw != "" {
 		var c replayCursor
 		decoded, err := base64.RawURLEncoding.DecodeString(raw)
-		if err != nil || json.Unmarshal(decoded, &c) != nil || c.VodID != vodID || c.FromMs != fromMs || c.ToMs != toMs {
+		if len(raw) > 8192 || err != nil || json.Unmarshal(decoded, &c) != nil || c.VodID != vodID || c.FromMs != fromMs ||
+			c.ToMs != toMs || c.Sequence < 1 || c.MappingVersion < 1 {
 			invalid("cursor no corresponde a esta consulta.")
 			return
 		}
-		after = &archive.ReplayPosition{OffsetMs: c.OffsetMs, Sequence: c.Sequence}
-		expectVersion = &c.VodVersion
+		afterSequence, expectMapping = c.Sequence, &c.MappingVersion
 	}
-	page, cerr := s.svc.Replay(r.Context(), vodID, fromMs, toMs, after, expectVersion, limit)
+	credential, ok := s.replayCredential(r)
+	if !ok {
+		s.writeError(w, r, http.StatusUnauthorized, chat.Fail(chat.CodeAuthRequired))
+		return
+	}
+	page, cerr := s.svc.Replay(r.Context(), credential, requestID(r), vodID, fromMs, toMs, afterSequence, expectMapping, limit)
 	if cerr != nil {
 		s.writeError(w, r, httpStatus(cerr.Code), cerr)
 		return
 	}
-	out := replayPage{VodID: vodID, FromMs: fromMs, ToMs: toMs, Items: page.Items}
+	out := replayPage{VodID: vodID, MappingVersion: page.MappingVersion, ModerationVersion: page.ModerationVersion, Items: page.Items}
 	if page.More && len(page.Items) > 0 {
-		last := page.Items[len(page.Items)-1]
-		raw, _ := json.Marshal(replayCursor{VodID: vodID, FromMs: fromMs, ToMs: toMs, VodVersion: page.VodVersion,
-			OffsetMs: last.VodOffsetMs, Sequence: last.Sequence})
+		raw, _ := json.Marshal(replayCursor{VodID: vodID, FromMs: fromMs, ToMs: toMs, MappingVersion: page.MappingVersion,
+			Sequence: page.Items[len(page.Items)-1].Sequence})
 		cursor := base64.RawURLEncoding.EncodeToString(raw)
 		out.NextCursor = &cursor
 	}

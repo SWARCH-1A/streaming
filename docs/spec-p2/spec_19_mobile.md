@@ -96,7 +96,7 @@ Explorar y Buscar reinicia las consultas periódicas con el modo de la pestaña 
 | Gateway / SPEC-16, STREAMING-26 | Agregados por pantalla, schemas, errores parciales y proxy WS/HLS | Adaptación a agregados pendiente; APIs públicas base operativas |
 | Canales / SPEC-03, STREAMING-2 | Follow/unfollow, estado personal, listado paginado y acceso suspendido | Proveedor Core integrado desde develop con soporte Bearer; consumo en pantallas móvil pendiente |
 | VOD / SPEC-14, STREAMING-25 | Biblioteca/detalle/disponibilidad, manifiestos y mapping autorizados | Biblioteca y playback VOD pendientes |
-| Chat / SPEC-05, STREAMING-5 | Replay durable, ventanas/cursores, supresiones versionadas | Chat live implementado; replay pendiente |
+| Chat / SPEC-05, STREAMING-5 | Replay durable, ventanas/cursores, supresiones versionadas | Chat live y replay (acepta Bearer) implementados; consumo móvil del replay pendiente |
 | Streaming / SPEC-04, STREAMING-4 | Maestro multicalidad, hasta cuatro rendiciones, continuidad y disponibilidad | Adaptadores Media3/AVPlayer y leases; aceptación multicalidad pendiente de fuente real |
 | Notificaciones / SPEC-20, STREAMING-30 | Bandeja/preferencias, instalación/token, destino validado, FCM/APNs y SMTP | Bandeja/preferencias y SMTP disponibles en el proveedor; integración móvil pendiente. Sin proyecto Firebase ni certificados APNs; sin registro o entrega push |
 | Subtítulos / SPEC-22, STREAMING-32 | VOD autorizado y pistas WebVTT ratificadas | Pendiente de VOD y reproducción integrada |

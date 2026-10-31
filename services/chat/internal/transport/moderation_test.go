@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	"streaming/chat/internal/core"
 	"streaming/chat/internal/service"
 	"streaming/chat/internal/store"
+	"streaming/chat/internal/vod"
 )
 
 const (
@@ -38,6 +40,44 @@ type p2Harness struct {
 	*harness
 	svc *service.Service
 	db  *archive.DB
+	vod *fakeVod
+}
+
+// fakeVod responde p2.vod.replay-context como services/vod: 404 hasta que el VOD es legible.
+type fakeVod struct {
+	mu         sync.Mutex
+	timeline   *vod.Timeline
+	credential string
+}
+
+func (f *fakeVod) set(t *vod.Timeline) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.timeline = t
+}
+
+func (f *fakeVod) lastCredential() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.credential
+}
+
+func (f *fakeVod) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	w.Header().Set("Content-Type", "application/json")
+	if r.Header.Get("X-Service-Name") != "chat" || r.Header.Get("X-Service-Token") != "vod-token" {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]string{"code": "SERVICE_UNAUTHORIZED"})
+		return
+	}
+	f.credential = r.Header.Get("X-Session-Credential")
+	if f.timeline == nil || r.URL.Path != "/internal/vod/vods/"+f.timeline.VodID+"/replay-context" {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"code": "VOD_NOT_FOUND"})
+		return
+	}
+	json.NewEncoder(w).Encode(f.timeline)
 }
 
 // moderationCore responde moderation-context: usr_ana es propietaria de chn_ana.
@@ -92,8 +132,12 @@ func newP2Harness(t *testing.T) *p2Harness {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	st := store.New(rdb, store.Options{EndedRetention: 5 * time.Minute, IdleTTL: time.Hour, InboxTTL: time.Hour})
 	cc, _ := core.New(core.Config{DevelopmentHTTP: true, BaseURL: coreSrv.URL, ServiceToken: "core-token", ConnectTimeout: 100 * time.Millisecond, RequestTimeout: 400 * time.Millisecond})
+	fv := &fakeVod{}
+	vodSrv := httptest.NewServer(fv)
+	t.Cleanup(vodSrv.Close)
+	vc, _ := vod.New(vod.Config{DevelopmentHTTP: true, BaseURL: vodSrv.URL, ServiceToken: "vod-token", ConnectTimeout: 100 * time.Millisecond, RequestTimeout: 400 * time.Millisecond})
 	svc := service.New(cc, st, log, 300*time.Millisecond)
-	svc.EnableP2(service.P2Options{Archive: db, Moderators: cc, RequireChannel: true, UnlinkedRetention: time.Hour, IdempotencyRetention: time.Hour})
+	svc.EnableP2(service.P2Options{Archive: db, Moderators: cc, Vods: vc, RequireChannel: true, UnlinkedRetention: time.Hour, IdempotencyRetention: time.Hour})
 	hub := NewHub(st, log, 50*time.Millisecond)
 	t.Cleanup(hub.Close)
 	srv := NewServer(Config{AllowedOrigins: []string{webOrigin}, SessionCookie: "stream_session", EventsProducer: "streaming", EventsTransport: "amqp"}, svc, hub, st.Ping, log)
@@ -105,7 +149,7 @@ func newP2Harness(t *testing.T) *p2Harness {
 		StreamGeneration: 1, SessionVersion: 2, Status: chat.RoomOpen, Availability: "PLAYABLE", ChannelID: channelID}); err != nil {
 		t.Fatal(err)
 	}
-	return &p2Harness{harness: h, svc: svc, db: db}
+	return &p2Harness{harness: h, svc: svc, db: db, vod: fv}
 }
 
 func resetSchema(ctx context.Context, dsn string) error {
@@ -283,10 +327,15 @@ func TestRemoveUserMessagesOnlyInThisSessionAndArchiveReplay(t *testing.T) {
 		t.Fatalf("%+v", hist)
 	}
 
+	// Un mensaje posterior de Ana queda vigente para paginar el replay.
+	h.mr.FastForward(time.Second)
+	ana.send(cm4, "sigo aquí")
+	ana.expect("message.accepted")
+
 	// El archivador copia lo confirmado; los retiros previos no se reponen.
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		if seq, _ := h.db.LastArchivedSequence(context.Background(), "ses_live"); seq == 3 {
+		if seq, _ := h.db.LastArchivedSequence(context.Background(), "ses_live"); seq == 4 {
 			break
 		}
 		if time.Now().After(deadline) {
@@ -295,50 +344,73 @@ func TestRemoveUserMessagesOnlyInThisSessionAndArchiveReplay(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	}
 
-	if code, _ := h.do(t, call{method: "GET", path: "/api/chat/vods/vod_1/messages?fromMs=0&toMs=60000"}); code != 404 {
-		t.Fatalf("sin VOD publicado no hay replay: %d", code)
+	replay := func(query, cookie string) (int, map[string]any) {
+		return h.do(t, call{method: "GET", path: "/api/chat/vods/vod_1/messages?" + query, cookie: cookie})
 	}
-	link := archive.VodLink{VodID: "vod_1", SessionID: "ses_live", ChannelID: channelID, VodVersion: 1, Status: "PUBLISHED", TimelineStartMs: 60_000}
-	if out, err := h.svc.ApplyVodEvent(context.Background(), uuid.NewString(), "fp", link); err != nil || out != archive.VodApplied {
-		t.Fatalf("%v %v", out, err)
+	if code, _ := replay("fromMs=0&toMs=30000", ""); code != 404 {
+		t.Fatalf("un VOD que VOD no deja leer no tiene replay: %d", code)
 	}
-	// fakeCore ubica todos los mensajes en el timeline 61000 → 1000 ms del VOD.
-	code, page := h.do(t, call{method: "GET", path: "/api/chat/vods/vod_1/messages?fromMs=0&toMs=30000&limit=2"})
+	// fakeCore ubica todos los mensajes en el timeline 61000; el VOD empieza en la sesión 60000.
+	timeline := vod.Timeline{VodID: "vod_1", SessionID: "ses_live", MappingVersion: 1, DurationMs: 60000, GapPolicy: "COMPACT_NEAREST_SEAM",
+		Intervals: []vod.Interval{{SourceGeneration: 1, SessionStartMs: 60000, MediaStartMs: 0, DurationMs: 60000}}}
+	h.vod.set(&timeline)
+	code, page := replay("fromMs=0&toMs=10000&limit=1", "cookie-luis")
 	items, _ := page["items"].([]any)
-	if code != 200 || len(items) != 2 || page["nextCursor"] == nil {
+	if code != 200 || len(items) != 1 || page["nextCursor"] == nil || page["mappingVersion"].(float64) != 1 || page["vodId"] != "vod_1" {
 		t.Fatalf("%d %v", code, page)
 	}
+	if h.vod.lastCredential() != "cookie-luis" {
+		t.Fatalf("VOD autoriza con la credencial del espectador: %q", h.vod.lastCredential())
+	}
 	first := items[0].(map[string]any)
-	if first["vodOffsetMs"].(float64) != 1000 || first["removed"] != true || first["text"] != nil {
-		t.Fatalf("el replay muestra el aviso del moderador sin texto: %v", first)
+	moderation := page["moderationVersion"].(float64)
+	if first["text"] != "hola Luis" || first["mediaOffsetMs"].(float64) != 1000 || first["streamOffsetMs"].(float64) != 61000 ||
+		first["sessionId"] != "ses_live" || first["streamGeneration"].(float64) != 1 || moderation < 2 || first["moderationVersion"] != moderation {
+		t.Fatalf("los retirados no se entregan y el resto lleva su posición en el video: %v %v", first, page)
 	}
-	if second := items[1].(map[string]any); second["text"] != "hola Luis" || second["removed"] != false {
-		t.Fatalf("%v", second)
-	}
-	code, rest := h.do(t, call{method: "GET", path: "/api/chat/vods/vod_1/messages?fromMs=0&toMs=30000&limit=2&cursor=" +
-		url.QueryEscape(page["nextCursor"].(string))})
-	if more, _ := rest["items"].([]any); code != 200 || len(more) != 1 || rest["nextCursor"] != nil {
+	code, rest := replay("fromMs=0&toMs=10000&limit=1&cursor="+url.QueryEscape(page["nextCursor"].(string)), "")
+	if more, _ := rest["items"].([]any); code != 200 || len(more) != 1 || more[0].(map[string]any)["text"] != "sigo aquí" || rest["nextCursor"] != nil {
 		t.Fatalf("%d %v", code, rest)
 	}
+	if code, all := replay("fromMs=0&toMs=10000", ""); code != 200 || len(all["items"].([]any)) != 2 || all["nextCursor"] != nil {
+		t.Fatalf("limit por defecto: %d %v", code, all)
+	}
 	// Buscar otra posición consulta su propia ventana; un cursor de otra ventana se rechaza.
-	if code, empty := h.do(t, call{method: "GET", path: "/api/chat/vods/vod_1/messages?fromMs=30000&toMs=60000"}); code != 200 || len(empty["items"].([]any)) != 0 {
+	if code, empty := replay("fromMs=30000&toMs=60000", ""); code != 200 || len(empty["items"].([]any)) != 0 {
 		t.Fatalf("%d %v", code, empty)
 	}
-	if code, _ := h.do(t, call{method: "GET", path: "/api/chat/vods/vod_1/messages?fromMs=30000&toMs=60000&cursor=" +
-		url.QueryEscape(page["nextCursor"].(string))}); code != 400 {
+	if code, beyond := replay("fromMs=60000&toMs=70000", ""); code != 200 || len(beyond["items"].([]any)) != 0 {
+		t.Fatalf("fuera del video: %d %v", code, beyond)
+	}
+	if code, _ := replay("fromMs=30000&toMs=60000&cursor="+url.QueryEscape(page["nextCursor"].(string)), ""); code != 400 {
 		t.Fatalf("cursor de otra ventana: %d", code)
 	}
-	for _, q := range []string{"fromMs=10&toMs=5", "fromMs=0&toMs=400000", "fromMs=0&toMs=10&extra=1", "fromMs=0&toMs=10&limit=51"} {
-		if code, _ := h.do(t, call{method: "GET", path: "/api/chat/vods/vod_1/messages?" + q}); code != 400 {
+	for _, q := range []string{"fromMs=10&toMs=5", "fromMs=0&toMs=400000", "fromMs=0&toMs=10&extra=1", "fromMs=0&toMs=10&limit=51",
+		"fromMs=0&fromMs=1&toMs=10", "fromMs=0&toMs=10&cursor=x"} {
+		if code, _ := replay(q, ""); code != 400 {
 			t.Fatalf("%s: %d", q, code)
 		}
 	}
+	// Cookie y Bearer a la vez es ambiguo.
+	req, _ := http.NewRequest("GET", h.public.URL+"/api/chat/vods/vod_1/messages?fromMs=0&toMs=10", nil)
+	req.AddCookie(&http.Cookie{Name: "stream_session", Value: "cookie-ana"})
+	req.Header.Set("Authorization", "Bearer cookie-ana")
+	if resp, err := http.DefaultClient.Do(req); err != nil || resp.StatusCode != 401 {
+		t.Fatalf("credenciales contradictorias: %v %v", resp, err)
+	} else {
+		resp.Body.Close()
+	}
 	// Un cambio del mapping invalida los cursores emitidos antes.
-	link.VodVersion = 2
-	h.svc.ApplyVodEvent(context.Background(), uuid.NewString(), "fp2", link)
-	if code, _ := h.do(t, call{method: "GET", path: "/api/chat/vods/vod_1/messages?fromMs=0&toMs=30000&limit=2&cursor=" +
-		url.QueryEscape(page["nextCursor"].(string))}); code != 410 {
+	remapped := timeline
+	remapped.MappingVersion = 2
+	h.vod.set(&remapped)
+	if code, _ := replay("fromMs=0&toMs=10000&limit=1&cursor="+url.QueryEscape(page["nextCursor"].(string)), ""); code != 410 {
 		t.Fatalf("cursor de un mapping anterior: %d", code)
+	}
+	// Retiro o eliminación en VOD: el replay deja de responder en la consulta siguiente.
+	h.vod.set(nil)
+	if code, _ := replay("fromMs=0&toMs=10000", ""); code != 404 {
+		t.Fatalf("VOD ya no legible: %d", code)
 	}
 }
 

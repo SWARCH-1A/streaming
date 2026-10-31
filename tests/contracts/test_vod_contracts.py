@@ -38,7 +38,7 @@ class VodContracts(unittest.TestCase):
         with self.assertRaises(ValueError):check_p2.validate_payload(self.bundle,'P2ReplayQuery',{'fromMs':100,'toMs':100})
         value=self.example('P2OperationStatus');self.assertEqual(value['replayCleanup'],'DELEGATED_TO_CHAT')
         providers={op['id']:op.get('status') for op in self.additions['operations']}
-        self.assertEqual(providers['p2.chat.replay'],'contract-only')
+        self.assertEqual(providers['p2.chat.replay'],'implemented')
         self.assertEqual(providers['p2.vod.timeline'],'implemented')
     def test_preparing_prefix_keeps_live_clock_nonnegative(self):
         value=self.example('P2Segment');value.update(sessionStartMs=-500,sourceGeneration=7)

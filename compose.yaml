@@ -123,6 +123,10 @@ services:
       CHAT_INTERNAL_TLS_CERT_FILE: /run/secrets/chat.crt
       CHAT_INTERNAL_TLS_KEY_FILE: /run/secrets/chat.key
       CHAT_ENDED_RETENTION: 5m
+      # Replay (ADR-022/024): VOD autoriza la lectura y entrega el timeline por su listener privado.
+      CHAT_VOD_BASE_URL: https://vod:8099
+      CHAT_VOD_CA_FILE: /run/secrets/ca.crt
+      CHAT_VOD_SERVICE_TOKEN: ${VOD_CHAT_SERVICE_TOKEN:?Run init}
     volumes:
       - ${P1_STATE}/chat.crt:/run/secrets/chat.crt:ro
       - ${P1_STATE}/chat.key:/run/secrets/chat.key:ro

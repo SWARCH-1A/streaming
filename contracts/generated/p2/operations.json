@@ -1543,13 +1543,13 @@
     "consumer": "Web / Mobile",
     "id": "p2.chat.replay",
     "idempotency": "Read; no automatic command retry",
-    "limits": "Bounded JSON 16 KiB; pages 20 by default and 50 maximum; private streamed objects use their size/hash inventory.",
+    "limits": "Window toMs-fromMs <= 300000 ms; limit 1..50 (default 20); unknown or repeated query keys 400; removed messages are omitted. VOD authorizes every page through p2.vod.replay-context.",
     "method": "GET",
     "owner": "chat",
     "path": "/api/chat/vods/{vodId}/messages",
     "provider": "chat",
     "query": "P2ReplayQuery",
-    "recovery": "Chat owns durable messages, moderation and cleanup; video playback continues when this dependency is unavailable.",
+    "recovery": "Chat owns durable messages, moderation and cleanup; video playback continues when this dependency is unavailable. On 410 request the window again without cursor.",
     "request": null,
     "requiredHeaders": [],
     "responses": {
@@ -1566,7 +1566,7 @@
       "504": "Error"
     },
     "spec": "SPEC-05",
-    "status": "contract-only",
+    "status": "implemented",
     "timeoutMs": 3000,
     "traceability": "docs/spec-p2/spec_05_chat.md",
     "visibility": "public"
@@ -1594,6 +1594,7 @@
       "503": "Error"
     },
     "spec": "SPEC-05 P2",
+    "status": "implemented",
     "timeoutMs": 3000,
     "traceability": "docs/spec-p2/spec_05_chat.md",
     "visibility": "public"
@@ -1623,6 +1624,7 @@
       "503": "Error"
     },
     "spec": "SPEC-05 P2",
+    "status": "implemented",
     "timeoutMs": 3000,
     "traceability": "docs/spec-p2/spec_05_chat.md",
     "visibility": "public"
@@ -1650,6 +1652,7 @@
       "503": "Error"
     },
     "spec": "SPEC-05 P2",
+    "status": "implemented",
     "timeoutMs": 3000,
     "traceability": "docs/spec-p2/spec_05_chat.md",
     "visibility": "public"
@@ -1669,6 +1672,7 @@
     "requiredHeaders": [],
     "responses": {"200": "P2ChatBlock", "400": "Error", "401": "Error", "403": "Error", "404": "Error", "503": "Error"},
     "spec": "SPEC-05 P2",
+    "status": "implemented",
     "timeoutMs": 2000,
     "traceability": "docs/spec-p2/spec_05_chat.md",
     "visibility": "public"
@@ -1697,6 +1701,7 @@
       "503": "Error"
     },
     "spec": "SPEC-05 P2",
+    "status": "implemented",
     "timeoutMs": 5000,
     "traceability": "docs/spec-p2/spec_05_chat.md",
     "visibility": "public"
@@ -1716,6 +1721,7 @@
     "requiredHeaders": [],
     "responses": {"200": "P2ChatModerationOperation", "401": "Error", "403": "Error", "404": "Error", "503": "Error"},
     "spec": "SPEC-05 P2",
+    "status": "implemented",
     "timeoutMs": 2000,
     "traceability": "docs/spec-p2/spec_05_chat.md",
     "visibility": "public"
@@ -1736,6 +1742,7 @@
     "responses": {"200": "P2ChatModerationContext", "400": "Error", "401": "Error", "403": "Error", "404": "Error", "503": "Error"},
     "semantics": "read",
     "spec": "SPEC-03 P2",
+    "status": "implemented",
     "timeoutMs": 400,
     "traceability": "docs/spec-p2/spec_03_channel.md",
     "visibility": "private"

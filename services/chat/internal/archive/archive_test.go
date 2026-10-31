@@ -144,7 +144,7 @@ func TestIdempotencyReplaysAndRejectsOtherPayload(t *testing.T) {
 	}
 }
 
-func TestVodLinkReplayWindowAndDeletion(t *testing.T) {
+func TestVodLinkReplayRangeAndDeletion(t *testing.T) {
 	db := testDB(t)
 	ctx := context.Background()
 	var rows []Row
@@ -153,7 +153,8 @@ func TestVodLinkReplayWindowAndDeletion(t *testing.T) {
 	}
 	db.InsertMessages(ctx, rows)
 	db.RemoveMessages(ctx, "chn_a", "ses_1", "owner", []chat.Message{rows[2].Message}, t0) // offset 13000
-	link := VodLink{VodID: "vod_1", SessionID: "ses_1", ChannelID: "chn_a", VodVersion: 1, Status: "PROCESSING", TimelineStartMs: 10_000}
+	link := VodLink{VodID: "vod_1", SessionID: "ses_1", ChannelID: "chn_a", Version: 1, MappingVersion: 0,
+		Restriction: "NONE", PublicationState: "DRAFT"}
 	if out, err := db.ApplyVod(ctx, "evt-1", "fp1", link, t0); err != nil || out != VodApplied {
 		t.Fatalf("%v %v", out, err)
 	}
@@ -163,40 +164,43 @@ func TestVodLinkReplayWindowAndDeletion(t *testing.T) {
 	if out, _ := db.ApplyVod(ctx, "evt-1", "fp-other", link, t0); out != VodConflict {
 		t.Fatalf("mismo eventId con otro contenido: %v", out)
 	}
-	link.VodVersion, link.Status = 2, "PUBLISHED"
-	duration := int64(5500)
-	link.DurationMs = &duration
+	link.Version, link.MappingVersion, link.Available, link.PublicationState = 2, 1, true, "PUBLISHED"
 	db.ApplyVod(ctx, "evt-2", "fp2", link, t0)
 	old := link
-	old.VodVersion, old.Status = 1, "PROCESSING"
+	old.Version, old.Available, old.PublicationState = 1, false, "DRAFT"
 	if out, _ := db.ApplyVod(ctx, "evt-old", "fp-old", old, t0); out != VodStale {
 		t.Fatalf("una versión vieja no reemplaza la nueva: %v", out)
 	}
 	stored, found, _ := db.GetVod(ctx, "vod_1")
-	if !found || stored.Status != "PUBLISHED" || stored.VodVersion != 2 {
+	if !found || !stored.Available || stored.Version != 2 || stored.MappingVersion != 1 || stored.PublicationState != "PUBLISHED" {
 		t.Fatalf("%+v", stored)
 	}
-	// Ventana [2000, 5000) del video = offsets 12000..14999 de la sesión.
-	items, err := db.Replay(ctx, stored, 2000, 5000, nil, 2)
-	if err != nil || len(items) != 2 || items[0].VodOffsetMs != 2000 || items[1].VodOffsetMs != 3000 || !items[1].Removed || items[1].Text != nil {
-		t.Fatalf("%+v %v", items, err)
+	// Tramo [12000, 15000) de la sesión: 12000 y 14000; 13000 fue retirado y no se entrega.
+	hi := int64(15_000)
+	r := ReplayRange{SessionID: "ses_1", FromOffsetMs: 12_000, ToOffsetMs: &hi}
+	items, moderation, err := db.Replay(ctx, r, 0, 1)
+	if err != nil || len(items) != 1 || items[0].StreamOffsetMs != 12_000 || moderation != 1 {
+		t.Fatalf("%+v %d %v", items, moderation, err)
 	}
-	next, err := db.Replay(ctx, stored, 2000, 5000, &ReplayPosition{OffsetMs: 3000, Sequence: items[1].Sequence}, 2)
-	if err != nil || len(next) != 1 || next[0].VodOffsetMs != 4000 {
-		t.Fatalf("el cursor evita duplicados: %+v %v", next, err)
+	next, _, err := db.Replay(ctx, r, items[0].Sequence, 5)
+	if err != nil || len(next) != 1 || next[0].StreamOffsetMs != 14_000 {
+		t.Fatalf("la secuencia evita duplicados y salta el retirado: %+v %v", next, err)
 	}
-	// La duración del VOD acota la ventana: 6000 queda fuera de 5500.
-	if tail, _ := db.Replay(ctx, stored, 5000, 10_000, nil, 50); len(tail) != 1 || tail[0].VodOffsetMs != 5000 {
+	// Sin cota superior llega hasta el último mensaje de la sesión.
+	if tail, _, _ := db.Replay(ctx, ReplayRange{SessionID: "ses_1", FromOffsetMs: 15_000}, 0, 50); len(tail) != 2 {
 		t.Fatalf("%+v", tail)
 	}
-	link.VodVersion, link.Status = 3, "DELETED"
+	if none, moderation, err := db.Replay(ctx, ReplayRange{SessionID: "ses_otra"}, 0, 50); err != nil || len(none) != 0 || moderation != 0 {
+		t.Fatalf("sesión sin archivo: %+v %d %v", none, moderation, err)
+	}
+	link.Version, link.Available, link.Restriction = 3, false, "DELETED"
 	if out, _ := db.ApplyVod(ctx, "evt-3", "fp3", link, t0); out != VodApplied {
 		t.Fatal("DELETED se aplica")
 	}
 	if _, ok, _ := db.SessionChannel(ctx, "ses_1"); ok {
 		t.Fatal("eliminar el único VOD borra el historial de la sesión")
 	}
-	link.VodVersion, link.Status = 4, "PUBLISHED"
+	link.Version, link.Available, link.Restriction = 4, true, "NONE"
 	if out, _ := db.ApplyVod(ctx, "evt-4", "fp4", link, t0); out != VodStale {
 		t.Fatal("DELETED es terminal")
 	}
@@ -206,7 +210,7 @@ func TestPurgeUnlinkedKeepsSessionsWithVod(t *testing.T) {
 	db := testDB(t)
 	ctx := context.Background()
 	db.InsertMessages(ctx, []Row{{"chn_a", msg("ses_old", 1, "u1", 1)}, {"chn_a", msg("ses_vod", 1, "u1", 1)}})
-	db.ApplyVod(ctx, "evt-1", "fp", VodLink{VodID: "vod_1", SessionID: "ses_vod", ChannelID: "chn_a", VodVersion: 1, Status: "PROCESSING"}, t0)
+	db.ApplyVod(ctx, "evt-1", "fp", VodLink{VodID: "vod_1", SessionID: "ses_vod", ChannelID: "chn_a", Version: 1, Restriction: "NONE", PublicationState: "DRAFT"}, t0)
 	n, err := db.PurgeUnlinked(ctx, t0.Add(8*24*time.Hour))
 	if err != nil || n != 1 {
 		t.Fatalf("%d %v", n, err)

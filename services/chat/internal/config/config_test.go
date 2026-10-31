@@ -52,3 +52,17 @@ func TestLoadRejectsIncompletePublicTLSPair(t *testing.T) {
 		t.Fatalf("%v", err)
 	}
 }
+
+func TestLoadVodReplayRequiresArchiveAndToken(t *testing.T) {
+	setRequired(t)
+	t.Setenv("CHAT_VOD_BASE_URL", "https://vod:8099")
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "CHAT_VOD_SERVICE_TOKEN") {
+		t.Fatalf("%v", err)
+	}
+	t.Setenv("CHAT_DATABASE_URL", "postgres://chat@chat-pg/chat")
+	t.Setenv("CHAT_VOD_SERVICE_TOKEN", "z")
+	c, err := Load()
+	if err != nil || c.VodBaseURL != "https://vod:8099" || c.VodTimeout != 1500*time.Millisecond {
+		t.Fatalf("%+v %v", c, err)
+	}
+}

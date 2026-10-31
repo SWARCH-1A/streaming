@@ -64,7 +64,7 @@ La respuesta no contiene stack, SQL, secretos ni información privada de otra cu
 | `p2.vod.delete` | DELETE `/api/vods/{vodId}` | VOD | — | 202 P2Accepted | session |
 | `p2.vod.timeline` | GET `/api/vods/{vodId}/timeline` | VOD | — | 200 P2Timeline | public |
 | `p2.vod.media` | GET `/vod-media/{vodId}/{assetPath}` | VOD | — | 200 Binary, 206 Binary | public |
-| `p2.chat.replay` | GET `/api/chat/vods/{vodId}/messages` | Chat | —; query P2ChatReplayQuery | 200 P2ChatReplayPage | public |
+| `p2.chat.replay` | GET `/api/chat/vods/{vodId}/messages` | Chat | —; query P2ReplayQuery | 200 P2ReplayPage | public-if-readable |
 | `p2.chat.delete-message` | DELETE `/api/chat/sessions/{sessionId}/messages/{messageId}` | Chat | — | 200 P2ChatRemoval | session |
 | `p2.chat.block` | PUT `/api/chat/channels/{channelId}/blocks/{userId}` | Chat | P2ChatBlockCommand | 200 P2ChatBlock | session |
 | `p2.chat.unblock` | DELETE `/api/chat/channels/{channelId}/blocks/{userId}` | Chat | — | 200 P2ChatBlock | session |
@@ -216,10 +216,14 @@ devuelve 422. Solo modera la cuenta propietaria, confirmada por Core en cada ope
 pertenecer al canal, hasta el sequence observado al aceptar la orden. Responde 202 con la
 operación `COMPLETED` y su `statusUri`.
 
-**Replay.** Exige fromMs < toMs y limit 1..50. El cursor se liga a vodId, ventana, mappingVersion y
-moderación; si el mapping cambió se invalida y se pide una ventana nueva. Los mensajes suprimidos
-no vuelven a aparecer. Los huecos conocidos se compactan y los mensajes se agrupan en la unión manteniendo secuencia
-original (ADR-022). `p2.chat.replay` conserva estado contract-only hasta la entrega durable de Chat.
+**Replay.** Exige 0 ≤ fromMs < toMs, una ventana de hasta 300 000 ms del video y limit 1..50 (20
+por defecto); un parámetro desconocido o repetido es 400. En cada página Chat pide a VOD
+`p2.vod.replay-context` con la credencial del espectador (cookie o un Bearer; ambos a la vez es
+401). Un VOD que esa credencial no puede leer es 404; si VOD no responde, 503
+`REPLAY_UNAVAILABLE` y el video sigue. Los huecos conocidos se compactan y los mensajes se agrupan
+en la unión manteniendo la secuencia original (ADR-022). Los mensajes retirados no se entregan. El
+cursor se liga a vodId, ventana y `mappingVersion` y avanza por `sequence`; si el mapping cambió
+responde 410 y se pide la ventana sin cursor. Un cursor de otra ventana es 400.
 
 WebSocket mantiene `/realtime/chat/sessions/{sessionId}`. Navegador: cookie y Origin permitido;
 nativo: Authorization Bearer en Upgrade, sin token en query ni Origin inventado. Identidades

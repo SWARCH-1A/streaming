@@ -12,6 +12,7 @@ import (
 	"streaming/chat/internal/chat"
 	"streaming/chat/internal/core"
 	"streaming/chat/internal/store"
+	"streaming/chat/internal/vod"
 )
 
 // ModeratorAuthority es el contrato Core que confirma sesión vigente y propiedad del canal.
@@ -19,12 +20,18 @@ type ModeratorAuthority interface {
 	ModerationContext(ctx context.Context, credential, channelID string) (core.ModerationContext, *chat.Error)
 }
 
+// ReplayAuthority es el contrato VOD que autoriza la lectura del VOD y entrega su timeline.
+type ReplayAuthority interface {
+	ReplayContext(ctx context.Context, credential, vodID, requestID string) (vod.Timeline, *chat.Error)
+}
+
 // P2Options habilita el archivo PostgreSQL, la moderación y el replay (SPEC-05 P2, ADR-024).
 type P2Options struct {
 	Archive              *archive.DB
 	Moderators           ModeratorAuthority
-	RequireChannel       bool          // con ciclo por broker, una sala sin canal conocido no acepta envíos
-	UnlinkedRetention    time.Duration // historial de sesiones que nunca recibieron un VOD
+	Vods                 ReplayAuthority // sin VOD configurado el replay responde no disponible
+	RequireChannel       bool            // con ciclo por broker, una sala sin canal conocido no acepta envíos
+	UnlinkedRetention    time.Duration   // historial de sesiones que nunca recibieron un VOD
 	IdempotencyRetention time.Duration
 }
 
@@ -258,33 +265,53 @@ func (s *Service) GetBlock(ctx context.Context, channelID, target string) (chat.
 
 // ---- Replay ----
 
-// ReplayPage es una ventana del chat de un VOD publicado.
+// ReplayPage es una página de la ventana [fromMs, toMs) del video.
 type ReplayPage struct {
-	VodID      string
-	VodVersion int64
-	Items      []chat.ReplayItem
-	More       bool
+	VodID             string
+	MappingVersion    int64
+	ModerationVersion int64
+	Items             []chat.ReplayItem
+	More              bool
 }
 
-// Replay lee la ventana [fromMs, toMs) del VOD. Solo un VOD publicado expone su chat.
-func (s *Service) Replay(ctx context.Context, vodID string, fromMs, toMs int64, after *archive.ReplayPosition, expectVersion *int64, limit int) (ReplayPage, *chat.Error) {
-	link, found, err := s.p2.Archive.GetVod(ctx, vodID)
-	if err != nil {
-		return ReplayPage{}, s.unavailable("leer VOD", "vodId", vodID, "err", err)
+// Replay lee una página del chat de un VOD. VOD decide en cada consulta si la credencial puede leer
+// el VOD (publicado, o borrador para su propietario) y entrega el timeline; Chat traduce la ventana
+// del video a un tramo de la sesión y omite los mensajes retirados. Si el cursor se emitió con otra
+// mappingVersion, responde CURSOR_EXPIRED.
+func (s *Service) Replay(ctx context.Context, credential, requestID, vodID string, fromMs, toMs int64, afterSequence int64, expectMapping *int64, limit int) (ReplayPage, *chat.Error) {
+	if s.p2.Vods == nil {
+		return ReplayPage{}, chat.Fail(vod.CodeReplayUnavailable)
 	}
-	if !found || link.Status != "PUBLISHED" {
-		return ReplayPage{}, chat.Fail(chat.CodeVodNotFound)
+	timeline, cerr := s.p2.Vods.ReplayContext(ctx, credential, vodID, requestID)
+	if cerr != nil {
+		return ReplayPage{}, cerr
 	}
-	if expectVersion != nil && *expectVersion != link.VodVersion {
+	if expectMapping != nil && *expectMapping != timeline.MappingVersion {
 		return ReplayPage{}, chat.Fail(chat.CodeCursorExpired)
 	}
-	items, err := s.p2.Archive.Replay(ctx, link, fromMs, toMs, after, limit+1)
+	page := ReplayPage{VodID: vodID, MappingVersion: timeline.MappingVersion, ModerationVersion: 1, Items: []chat.ReplayItem{}}
+	lo, ok := timeline.SessionThreshold(fromMs)
+	if !ok {
+		return page, nil
+	}
+	r := archive.ReplayRange{SessionID: timeline.SessionID, FromOffsetMs: lo}
+	if hi, ok := timeline.SessionThreshold(toMs); ok {
+		r.ToOffsetMs = &hi
+	}
+	messages, moderation, err := s.p2.Archive.Replay(ctx, r, afterSequence, limit+1)
 	if err != nil {
 		return ReplayPage{}, s.unavailable("leer replay", "vodId", vodID, "err", err)
 	}
-	page := ReplayPage{VodID: vodID, VodVersion: link.VodVersion, Items: items}
-	if len(items) > limit {
-		page.Items, page.More = items[:limit], true
+	// moderation_version cuenta los retiros de la sesión desde 0; el contrato publica versiones >= 1.
+	page.ModerationVersion = moderation + 1
+	if len(messages) > limit {
+		messages, page.More = messages[:limit], true
+	}
+	for _, m := range messages {
+		page.Items = append(page.Items, chat.ReplayItem{MessageID: m.MessageID, SessionID: m.SessionID,
+			Sequence: m.Sequence, Author: m.Author, Text: m.Text, ServerCreatedAtUTC: m.ServerCreatedAtUTC,
+			StreamOffsetMs: m.StreamOffsetMs, StreamGeneration: m.StreamGeneration,
+			MediaOffsetMs: timeline.MediaOffset(m.StreamOffsetMs), ModerationVersion: page.ModerationVersion})
 	}
 	return page, nil
 }

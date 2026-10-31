@@ -286,16 +286,23 @@ type Removal struct {
 	RemovedAtUTC      time.Time `json:"removedAtUtc"`
 }
 
-// ReplayItem es un mensaje del replay ubicado en el tiempo del VOD. Text es nil si fue retirado.
+// ReplayItem es un mensaje vigente del replay (P2ReplayMessage). MediaOffsetMs es su posición en el
+// video según el timeline de VOD; StreamOffsetMs y StreamGeneration conservan su origen en la sesión.
 type ReplayItem struct {
 	MessageID          string    `json:"messageId"`
+	SessionID          string    `json:"sessionId"`
 	Sequence           int64     `json:"sequence"`
-	VodOffsetMs        int64     `json:"vodOffsetMs"`
 	Author             Author    `json:"author"`
-	Text               *string   `json:"text"`
-	Removed            bool      `json:"removed"`
+	Text               string    `json:"text"`
 	ServerCreatedAtUTC time.Time `json:"serverCreatedAtUtc"`
+	StreamOffsetMs     int64     `json:"streamOffsetMs"`
+	StreamGeneration   int64     `json:"streamGeneration"`
+	MediaOffsetMs      int64     `json:"mediaOffsetMs"`
+	ModerationVersion  int64     `json:"moderationVersion"`
 }
 
 // ReplayWindowMaxMs limita la ventana temporal de una consulta de replay (5 minutos de video).
 const ReplayWindowMaxMs = 5 * 60 * 1000
+
+// ReplayDefaultLimit es el tamaño de página si la consulta no indica limit (P2ReplayQuery).
+const ReplayDefaultLimit = 20

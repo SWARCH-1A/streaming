@@ -24,6 +24,7 @@ import (
 	"streaming/chat/internal/service"
 	"streaming/chat/internal/store"
 	"streaming/chat/internal/transport"
+	"streaming/chat/internal/vod"
 )
 
 func main() {
@@ -72,7 +73,7 @@ func main() {
 	}
 	svc := service.New(coreClient, st, log, cfg.AuthBudget)
 	ready := st.Ping
-	var vod *broker.Consumer
+	var vodEvents *broker.Consumer
 	if cfg.DatabaseURL != "" {
 		db, err := openArchive(cfg.DatabaseURL)
 		if err != nil {
@@ -80,10 +81,22 @@ func main() {
 			os.Exit(1)
 		}
 		defer db.Close()
-		svc.EnableP2(service.P2Options{
+		opts := service.P2Options{
 			Archive: db, Moderators: coreClient, RequireChannel: cfg.EventsTransport == "amqp",
 			UnlinkedRetention: cfg.UnlinkedRetention, IdempotencyRetention: cfg.IdempotencyRetention,
-		})
+		}
+		if cfg.VodBaseURL != "" {
+			vods, err := vod.New(vod.Config{
+				BaseURL: cfg.VodBaseURL, ServiceToken: cfg.VodServiceToken, CAFile: cfg.VodCAFile,
+				DevelopmentHTTP: cfg.VodDevelopmentHTTP, ConnectTimeout: cfg.VodConnect, RequestTimeout: cfg.VodTimeout,
+			})
+			if err != nil {
+				log.Error("cliente VOD", "err", err)
+				os.Exit(1)
+			}
+			opts.Vods = vods
+		}
+		svc.EnableP2(opts)
 		ready = func(ctx context.Context) error {
 			if err := st.Ping(ctx); err != nil {
 				return err
@@ -91,7 +104,7 @@ func main() {
 			return db.Ping(ctx)
 		}
 		if cfg.EventsTransport == "amqp" {
-			if vod, err = broker.NewVod(cfg.BrokerURL, cfg.BrokerCAFile, svc, log); err != nil {
+			if vodEvents, err = broker.NewVod(cfg.BrokerURL, cfg.BrokerCAFile, svc, log); err != nil {
 				log.Error("configuración de broker inválida", "err", err)
 				os.Exit(1)
 			}
@@ -132,8 +145,8 @@ func main() {
 	if lifecycle != nil {
 		go lifecycle.Run(sweepCtx)
 	}
-	if vod != nil {
-		go vod.Run(sweepCtx)
+	if vodEvents != nil {
+		go vodEvents.Run(sweepCtx)
 	}
 	if svc.P2Enabled() {
 		host, _ := os.Hostname()

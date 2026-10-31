@@ -1,6 +1,6 @@
 # SPEC-05 — Chat, moderación y replay
 
-**Prioridad:** P2. **Responsable:** Chat. **Estado:** chat live, Upgrade Bearer nativo y moderación implementados; replay pendiente de alinear con el timeline de VOD (ADR-022).
+**Prioridad:** P2. **Responsable:** Chat. **Estado:** chat live, Upgrade Bearer nativo, moderación y replay implementados; aceptación integrada pendiente.
 **RF:** RF-031…037, RF-082…083. **RNF:** RNF-013, 018…019, 022…032, 041…050.
 
 ## 1. Contexto y problema
@@ -67,9 +67,9 @@ confirma la entrada solo después del commit. La sala viva expira 5 minutos tras
 historial durable dura mientras exista un VOD de la sesión. Una sesión sin VOD se borra a los
 7 días de su último mensaje (`CHAT_UNLINKED_RETENTION`).
 
-**Retiro.** Un mensaje retirado conserva su fila y posición sin texto. Historial, frame
-`message.removed` y replay muestran el aviso "Mensaje eliminado por el moderador". Cada retiro
-incrementa `moderationVersion` de la sesión. Un `message.created` posterior no repone el texto.
+**Retiro.** Un mensaje retirado conserva su fila y posición sin texto. Historial y frame
+`message.removed` muestran el aviso "Mensaje eliminado por el moderador"; el replay lo omite. Cada
+retiro incrementa `moderationVersion` de la sesión. Un `message.created` posterior no repone el texto.
 
 **Bloqueo.** El bloqueo identifica canal, cuenta, modalidad (`TEMPORARY` con `PT10M`, `PT1H`,
 `PT24H` o `P7D`; `PERMANENT` hasta su retiro), vencimiento y versión. Gana la última escritura.
@@ -82,12 +82,21 @@ un timer en memoria. La cuenta bloqueada recibe `CHAT_BLOCKED` con `blockMode` y
 sequence observado al aceptar la orden. Responde 202 con la operación terminada y su `statusUri`.
 
 **Mapping temporal.** `streamOffsetMs` es la posición del timeline de la sesión al autorizar el
-mensaje. VOD publica `timelineStartMs` en `vod.availability.changed.v1` y la posición en el video
-es `streamOffsetMs - timelineStartMs`. La grabación conserva los cortes de reconexión, así que los
-mensajes enviados durante un corte quedan en su lugar. Cambiar el mapping incrementa
-`vodVersion` e invalida los cursores (410). El replay entrega ventanas de hasta 300 000 ms y
-50 mensajes por página. La Web pide ventanas alineadas de 30 s y, al adelantar o retroceder,
-consulta la ventana de la nueva posición.
+mensaje. VOD compacta los huecos conocidos y publica el timeline (`P2Timeline`, ADR-022) en
+`p2.vod.replay-context`. En cada página Chat lo pide con la credencial del espectador; así VOD
+decide si el VOD es legible (publicado, o borrador para su propietario) y no hay copia local que
+pueda quedar desfasada. Dentro de un tramo, la posición en el video es `mediaStartMs +
+streamOffsetMs - sessionStartMs`. Un mensaje enviado durante un corte va a la unión siguiente y uno
+posterior al último tramo, al último milisegundo reproducible. El cero de Chat es el instante
+LIVE, después del prefijo PREPARING. Como ese mapping es no decreciente, la ventana [fromMs, toMs)
+del video corresponde a un único tramo de la sesión. Chat lee ese tramo en orden de `sequence`
+original y omite los retirados. Cada mensaje lleva `mediaOffsetMs`, `streamOffsetMs` y
+`streamGeneration`. La página publica `moderationVersion` (retiros de la sesión más uno).
+
+Las ventanas son de hasta 300 000 ms, con 20 mensajes por página por defecto y 50 como máximo. El
+cursor se liga a vodId, ventana y `mappingVersion` y avanza por `sequence`, así que un retiro
+posterior no desplaza la paginación. Si VOD cambió el mapping responde 410 y hay que pedir la
+ventana sin cursor. La página VOD de Web consulta ventanas de 10 s de la posición reproducida.
 
 Los schemas y operaciones `p2.chat.*` están en [contracts/p2.json](../../contracts/p2.json) y
 [HTTP/WS](../contratos_p2_http.md). Las mutaciones exigen propietario confirmado por Core
@@ -104,16 +113,15 @@ puede leer, sin permiso de envío. `native_test.go` verifica handshake, rechazo 
 | --- | --- | --- |
 | Core | Sesión, suspensión, autor y propiedad del canal (`message-context`, `moderation-context`); cookie web o credencial móvil | Rechazar nuevas operaciones protegidas si no se puede autorizar |
 | Streaming | Estado/timeline actual por HTTP; ciclo de sesión por broker | Eventos no conceden permisos; fin cierra escritura |
-| VOD | `vod.availability.changed.v1` por broker (`chat.vod`): vínculo VOD–sesión, estado, `timelineStartMs` y eliminación; payload propuesto por Chat, en revisión de VOD | Replay solo para `PUBLISHED`; `DELETED` borra el historial sin otro VOD |
+| VOD | `p2.vod.replay-context` (autorización y `P2Timeline` por página); `vod.availability.changed.v1` por broker (`chat.vod`): vínculo VOD–sesión, versión y eliminación (ADR-022) | Sin respuesta de VOD el replay devuelve 503 `REPLAY_UNAVAILABLE` y el video sigue; VOD no legible es 404; `DELETED` borra el historial sin otro VOD (`replayCleanup=DELEGATED_TO_CHAT`) |
 | Gateway / clientes | WS, historial, moderación y consulta temporal | Error acotado y visible sin cortar video |
 
 ## 9. Decisiones y preguntas abiertas
 
 [P2-10 y P2-11](../decisiones_pendientes_p2.md) quedan resueltas en
-[ADR-024](../adr/ADR-024-chat-redis-postgresql-replay-moderacion.md). Queda abierta la
-ratificación del payload `vod.availability.changed.v1` por el responsable de VOD, junto con su
-publicación. Mientras VOD no lo publique no existe replay de punta a punta. La credencial Bearer
-móvil para moderar sigue P2-14.
+[ADR-024](../adr/ADR-024-chat-redis-postgresql-replay-moderacion.md), con el mapping de
+[ADR-022](../adr/ADR-022-vod-go-postgresql-minio.md). La credencial Bearer móvil para moderar
+sigue P2-14; el replay ya acepta Bearer.
 
 ## 10. Verificación
 

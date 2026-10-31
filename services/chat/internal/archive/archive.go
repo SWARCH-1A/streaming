@@ -472,17 +472,21 @@ func sha(v string) string {
 
 // ---- VOD y replay ----
 
-// VodLink vincula un VOD a la sesión cuyo chat reproduce. TimelineStartMs es la posición del
-// timeline de la sesión que corresponde al instante 0 del video.
+// VodLink es el último vod.availability.changed.v1 aplicado a un VOD. El mapping temporal no se
+// copia: Chat lo consulta a VOD (p2.vod.replay-context) en cada lectura de replay.
 type VodLink struct {
-	VodID           string
-	SessionID       string
-	ChannelID       string
-	VodVersion      int64
-	Status          string
-	TimelineStartMs int64
-	DurationMs      *int64
+	VodID            string
+	SessionID        string
+	ChannelID        string
+	Version          int64
+	MappingVersion   int64
+	Available        bool
+	Restriction      string
+	PublicationState string
 }
+
+// Deleted indica la eliminación terminal del VOD; su replay deja de existir.
+func (l VodLink) Deleted() bool { return l.Restriction == "DELETED" }
 
 // VodOutcome describe el efecto de un evento VOD.
 type VodOutcome string
@@ -496,7 +500,7 @@ const (
 
 // ApplyVod registra el evento en la inbox y aplica el vínculo en la misma transacción. Versiones
 // viejas no reemplazan una nueva y DELETED es terminal. Al quedar una sesión sin VOD vigente tras
-// un DELETED, su historial se borra en la misma transacción.
+// un DELETED, su historial se borra en la misma transacción (VOD delega esa limpieza en Chat).
 func (d *DB) ApplyVod(ctx context.Context, eventID, fingerprint string, link VodLink, now time.Time) (VodOutcome, error) {
 	tx, err := d.pool.Begin(ctx)
 	if err != nil {
@@ -515,25 +519,26 @@ func (d *DB) ApplyVod(ctx context.Context, eventID, fingerprint string, link Vod
 		return "", err
 	}
 	var curVersion int64
-	var curStatus, curSession string
-	err = tx.QueryRow(ctx, `SELECT vod_version, status, session_id FROM chat_vod_links WHERE vod_id=$1 FOR UPDATE`, link.VodID).
-		Scan(&curVersion, &curStatus, &curSession)
+	var curRestriction, curSession string
+	err = tx.QueryRow(ctx, `SELECT version, restriction, session_id FROM chat_vod_links WHERE vod_id=$1 FOR UPDATE`, link.VodID).
+		Scan(&curVersion, &curRestriction, &curSession)
 	outcome := VodApplied
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
-		_, err = tx.Exec(ctx, `INSERT INTO chat_vod_links (vod_id, session_id, channel_id, vod_version, status,
-			timeline_start_ms, duration_ms, updated_at_utc) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-			link.VodID, link.SessionID, link.ChannelID, link.VodVersion, link.Status, link.TimelineStartMs, link.DurationMs, now.UTC())
+		_, err = tx.Exec(ctx, `INSERT INTO chat_vod_links (vod_id, session_id, channel_id, version, mapping_version,
+			available, restriction, publication_state, updated_at_utc) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			link.VodID, link.SessionID, link.ChannelID, link.Version, link.MappingVersion, link.Available,
+			link.Restriction, link.PublicationState, now.UTC())
 	case err != nil:
 		return "", err
 	case curSession != link.SessionID:
 		outcome = VodConflict
-	case curStatus == "DELETED" || link.VodVersion <= curVersion:
+	case curRestriction == "DELETED" || link.Version <= curVersion:
 		outcome = VodStale
 	default:
-		_, err = tx.Exec(ctx, `UPDATE chat_vod_links SET vod_version=$2, status=$3, timeline_start_ms=$4,
-			duration_ms=$5, updated_at_utc=$6 WHERE vod_id=$1`,
-			link.VodID, link.VodVersion, link.Status, link.TimelineStartMs, link.DurationMs, now.UTC())
+		_, err = tx.Exec(ctx, `UPDATE chat_vod_links SET version=$2, mapping_version=$3, available=$4, restriction=$5,
+			publication_state=$6, updated_at_utc=$7 WHERE vod_id=$1`,
+			link.VodID, link.Version, link.MappingVersion, link.Available, link.Restriction, link.PublicationState, now.UTC())
 	}
 	if err != nil {
 		return "", err
@@ -541,9 +546,9 @@ func (d *DB) ApplyVod(ctx context.Context, eventID, fingerprint string, link Vod
 	if outcome == VodConflict {
 		return outcome, nil
 	}
-	if outcome == VodApplied && link.Status == "DELETED" {
+	if outcome == VodApplied && link.Deleted() {
 		if _, err := tx.Exec(ctx, `DELETE FROM chat_sessions s WHERE s.session_id=$1 AND NOT EXISTS (
-			SELECT 1 FROM chat_vod_links l WHERE l.session_id=s.session_id AND l.status <> 'DELETED')`, link.SessionID); err != nil {
+			SELECT 1 FROM chat_vod_links l WHERE l.session_id=s.session_id AND l.restriction <> 'DELETED')`, link.SessionID); err != nil {
 			return "", err
 		}
 	}
@@ -557,56 +562,51 @@ func (d *DB) ApplyVod(ctx context.Context, eventID, fingerprint string, link Vod
 // GetVod devuelve el vínculo registrado de un VOD.
 func (d *DB) GetVod(ctx context.Context, vodID string) (VodLink, bool, error) {
 	l := VodLink{VodID: vodID}
-	err := d.pool.QueryRow(ctx, `SELECT session_id, channel_id, vod_version, status, timeline_start_ms, duration_ms
-		FROM chat_vod_links WHERE vod_id=$1`, vodID).Scan(&l.SessionID, &l.ChannelID, &l.VodVersion, &l.Status,
-		&l.TimelineStartMs, &l.DurationMs)
+	err := d.pool.QueryRow(ctx, `SELECT session_id, channel_id, version, mapping_version, available, restriction,
+		publication_state FROM chat_vod_links WHERE vod_id=$1`, vodID).Scan(&l.SessionID, &l.ChannelID, &l.Version,
+		&l.MappingVersion, &l.Available, &l.Restriction, &l.PublicationState)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return l, false, nil
 	}
 	return l, err == nil, err
 }
 
-// ReplayPosition es el último elemento entregado, en tiempo del VOD: orden por (offset, sequence).
-type ReplayPosition struct {
-	OffsetMs int64
-	Sequence int64
+// ReplayRange es el tramo [FromOffsetMs, ToOffsetMs) del timeline de la sesión que cae en una ventana
+// del video; ToOffsetMs nil llega hasta el final de la sesión.
+type ReplayRange struct {
+	SessionID    string
+	FromOffsetMs int64
+	ToOffsetMs   *int64
 }
 
-// Replay lee hasta limit mensajes de la ventana [fromMs, toMs) del video, después de after.
-// Un mensaje retirado se entrega como marca sin texto.
-func (d *DB) Replay(ctx context.Context, link VodLink, fromMs, toMs int64, after *ReplayPosition, limit int) ([]chat.ReplayItem, error) {
-	lo, hi := link.TimelineStartMs+fromMs, link.TimelineStartMs+toMs
-	if link.DurationMs != nil {
-		hi = min(hi, link.TimelineStartMs+*link.DurationMs)
+// Replay lee hasta limit mensajes vigentes del tramo, en orden de secuencia y después de afterSequence.
+// Los retirados no se entregan. Devuelve también la versión de moderación de la sesión.
+func (d *DB) Replay(ctx context.Context, r ReplayRange, afterSequence int64, limit int) ([]chat.Message, int64, error) {
+	var moderation int64
+	err := d.pool.QueryRow(ctx, `SELECT moderation_version FROM chat_sessions WHERE session_id=$1`, r.SessionID).Scan(&moderation)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return []chat.Message{}, 0, nil
 	}
-	afterOffset, afterSeq := lo, int64(0)
-	if after != nil {
-		afterOffset, afterSeq = link.TimelineStartMs+after.OffsetMs, after.Sequence
+	if err != nil {
+		return nil, 0, err
 	}
 	rows, err := d.pool.Query(ctx, `SELECT `+messageColumns+` FROM chat_messages
-		WHERE session_id=$1 AND stream_offset_ms >= $2 AND stream_offset_ms < $3
-		  AND (stream_offset_ms, sequence) > ($4, $5)
-		ORDER BY stream_offset_ms, sequence LIMIT $6`, link.SessionID, lo, hi, afterOffset, afterSeq, limit)
+		WHERE session_id=$1 AND stream_offset_ms >= $2 AND ($3::BIGINT IS NULL OR stream_offset_ms < $3)
+		  AND sequence > $4 AND removed_at_utc IS NULL
+		ORDER BY sequence LIMIT $5`, r.SessionID, r.FromOffsetMs, r.ToOffsetMs, afterSequence, limit)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
-	items := []chat.ReplayItem{}
+	out := []chat.Message{}
 	for rows.Next() {
 		a, err := scanMessage(rows)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
-		item := chat.ReplayItem{MessageID: a.msg.MessageID, Sequence: a.msg.Sequence,
-			VodOffsetMs: a.msg.StreamOffsetMs - link.TimelineStartMs, Author: a.msg.Author,
-			ServerCreatedAtUTC: a.msg.ServerCreatedAtUTC, Removed: a.removal != nil}
-		if a.removal == nil {
-			text := a.msg.Text
-			item.Text = &text
-		}
-		items = append(items, item)
+		out = append(out, a.msg)
 	}
-	return items, rows.Err()
+	return out, moderation, rows.Err()
 }
 
 // ---- Limpieza ----

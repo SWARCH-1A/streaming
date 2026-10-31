@@ -23,6 +23,7 @@ La sala se conserva durante la sesión y se elimina 5 minutos después del fin.
 | `internal/core` | Cliente del contrato privado Core: `message-context`, `moderation-context` y snapshot de sesión. |
 | `internal/service` | Casos de uso: resolver sala, enviar, historial, eventos de sesión, moderación, replay, archivador y mantenimiento. |
 | `internal/broker` | Consumidores RabbitMQ `chat.lifecycle` y `chat.vod`, con reintentos y dead-letter. |
+| `internal/vod` | Cliente de `p2.vod.replay-context` y mapping de `P2Timeline` (posición en el video y ventana inversa). |
 | `internal/transport` | REST de historial, WebSocket, hub de distribución y `POST /internal/chat/session-events`. |
 
 ## Interfaces
@@ -35,7 +36,9 @@ Listener público (`CHAT_PUBLIC_ADDR`, 8085), encaminado por el proxy:
 
 Con archivo (P2), además:
 
-- `GET /api/chat/vods/{vodId}/messages?fromMs&toMs[&limit&cursor]`: replay público de un VOD publicado.
+- `GET /api/chat/vods/{vodId}/messages?fromMs&toMs[&limit&cursor]`: replay de un VOD legible para la
+  credencial (publicado, o borrador para su propietario). VOD lo autoriza en cada página con
+  `p2.vod.replay-context` y entrega el timeline; Chat traduce la ventana del video y omite los retirados.
 - `DELETE /api/chat/sessions/{sessionId}/messages/{messageId}`: retirar un mensaje.
 - `PUT|DELETE|GET /api/chat/channels/{channelId}/blocks/{userId}`: bloquear, desbloquear y consultar.
 - `POST /api/chat/channels/{channelId}/message-removals` y `GET .../moderation-operations/{operationId}`:
@@ -74,6 +77,10 @@ Listener interno (`CHAT_INTERNAL_ADDR`, 8086), nunca publicado por el proxy:
 | `CHAT_UNLINKED_RETENTION` | `168h` | Historial durable de una sesión que nunca recibió un VOD, contado desde su último mensaje. |
 | `CHAT_ARCHIVE_CLAIM_IDLE` | `30s` | Tiempo tras el cual otra réplica reclama entradas de archivo no confirmadas. |
 | `CHAT_IDEMPOTENCY_RETENTION` | `24h` | Retención de los resultados de `Idempotency-Key`. |
+| `CHAT_VOD_BASE_URL` | vacío | Listener privado de VOD (`https://vod:8099`). Exige `CHAT_DATABASE_URL`; vacío hace que el replay responda 503 `REPLAY_UNAVAILABLE`. |
+| `CHAT_VOD_SERVICE_TOKEN` | vacío | Token de Chat hacia VOD; obligatorio con `CHAT_VOD_BASE_URL` (`VOD_CHAT_SERVICE_TOKEN` local). |
+| `CHAT_VOD_CA_FILE` / `CHAT_VOD_DEVELOPMENT_HTTP` | vacío / `false` | CA privada para TLS hacia VOD; HTTP solo en desarrollo aislado. |
+| `CHAT_VOD_CONNECT_TIMEOUT` / `CHAT_VOD_TIMEOUT` | `200ms` / `1500ms` | Presupuesto por consulta de timeline a VOD. |
 
 Redis debe correr con `appendonly yes`, `appendfsync always` y `maxmemory-policy noeviction`, como en
 [compose.chat.yaml](../../infra/local/compose.chat.yaml). Un Redis primario, sin Cluster.
