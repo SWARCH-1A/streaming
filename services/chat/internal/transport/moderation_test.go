@@ -137,7 +137,7 @@ func newP2Harness(t *testing.T) *p2Harness {
 	t.Cleanup(vodSrv.Close)
 	vc, _ := vod.New(vod.Config{DevelopmentHTTP: true, BaseURL: vodSrv.URL, ServiceToken: "vod-token", ConnectTimeout: 100 * time.Millisecond, RequestTimeout: 400 * time.Millisecond})
 	svc := service.New(cc, st, log, 300*time.Millisecond)
-	svc.EnableP2(service.P2Options{Archive: db, Moderators: cc, Vods: vc, RequireChannel: true, UnlinkedRetention: time.Hour, IdempotencyRetention: time.Hour})
+	svc.EnableP2(service.P2Options{Archive: db, Moderators: cc, Vods: vc, UnlinkedRetention: time.Hour, IdempotencyRetention: time.Hour})
 	hub := NewHub(st, log, 50*time.Millisecond)
 	t.Cleanup(hub.Close)
 	srv := NewServer(Config{AllowedOrigins: []string{webOrigin}, SessionCookie: "stream_session", EventsProducer: "streaming", EventsTransport: "amqp"}, svc, hub, st.Ping, log)

@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -120,17 +121,28 @@ func (d *DB) InsertMessages(ctx context.Context, rows []Row) error {
 	}
 	defer tx.Rollback(ctx)
 	batch := &pgx.Batch{}
+	// Mismo orden de bloqueo que ApplyVod: una entrada tardía y el borrado de su sesión no se cruzan.
+	sessions := make([]string, 0, len(rows))
+	for _, r := range rows {
+		sessions = append(sessions, r.Message.SessionID)
+	}
+	slices.Sort(sessions)
+	for _, sid := range slices.Compact(sessions) {
+		batch.Queue(`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, sessionLock(sid))
+	}
 	for _, r := range rows {
 		m := r.Message
+		// Una sesión cuyos VOD están todos eliminados ya borró su historial: no se recrea.
 		batch.Queue(`INSERT INTO chat_sessions (session_id, channel_id, first_message_at_utc, last_message_at_utc)
-			VALUES ($1, $2, $3, $3)
+			SELECT $1, $2, $3, $3 WHERE NOT `+historyDeleted+`
 			ON CONFLICT (session_id) DO UPDATE SET
 			  first_message_at_utc = LEAST(COALESCE(chat_sessions.first_message_at_utc, EXCLUDED.first_message_at_utc), EXCLUDED.first_message_at_utc),
 			  last_message_at_utc = GREATEST(COALESCE(chat_sessions.last_message_at_utc, EXCLUDED.last_message_at_utc), EXCLUDED.last_message_at_utc)`,
 			m.SessionID, r.ChannelID, m.ServerCreatedAtUTC)
 		batch.Queue(`INSERT INTO chat_messages (session_id, sequence, message_id, author_user_id, author_handle,
 			author_display_name, author_avatar_uri, text, server_created_at_utc, stream_offset_ms, stream_generation)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+			WHERE EXISTS (SELECT 1 FROM chat_sessions WHERE session_id = $1)
 			ON CONFLICT DO NOTHING`,
 			m.SessionID, m.Sequence, m.MessageID, m.Author.UserID, m.Author.Handle, m.Author.DisplayName,
 			m.Author.AvatarURI, m.Text, m.ServerCreatedAtUTC, m.StreamOffsetMs, m.StreamGeneration)
@@ -140,6 +152,13 @@ func (d *DB) InsertMessages(ctx context.Context, rows []Row) error {
 	}
 	return tx.Commit(ctx)
 }
+
+// historyDeleted es cierto cuando la sesión $1 tiene vínculos VOD y todos están eliminados: su
+// historial se borró por delegación de VOD y una entrada pendiente del archivo no debe recrearlo.
+const historyDeleted = `(EXISTS (SELECT 1 FROM chat_vod_links l WHERE l.session_id = $1)
+	AND NOT EXISTS (SELECT 1 FROM chat_vod_links l WHERE l.session_id = $1 AND l.restriction <> 'DELETED'))`
+
+func sessionLock(sid string) string { return "chat.session|" + sid }
 
 // SessionChannel devuelve el canal de una sesión archivada.
 func (d *DB) SessionChannel(ctx context.Context, sid string) (string, bool, error) {
@@ -429,40 +448,87 @@ type Result struct {
 // registran resultados exitosos; un error permite reintentar con la misma clave.
 func (d *DB) Idempotent(ctx context.Context, userID, key, fingerprint string, retention time.Duration, action func() (Result, error)) (Result, error) {
 	keyHash := sha(strings.ToLower(key))
-	tx, err := d.pool.Begin(ctx)
-	if err != nil {
-		return Result{}, err
-	}
-	defer tx.Rollback(ctx)
-	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, "chat.idem|"+userID+"|"+keyHash); err != nil {
-		return Result{}, err
-	}
-	var prev Result
-	var prevFingerprint, body string
-	err = tx.QueryRow(ctx, `SELECT fingerprint, status, response FROM chat_idempotency
-		WHERE user_id=$1 AND key_hash=$2 AND retain_until_utc > now()`, userID, keyHash).Scan(&prevFingerprint, &prev.Status, &body)
-	if err == nil {
-		if prevFingerprint != fingerprint {
+	deadline := time.Now().Add(idempotencyWait)
+	for {
+		claimed, prev, err := d.claimIdempotency(ctx, userID, keyHash, fingerprint)
+		if err != nil {
+			return Result{}, err
+		}
+		if claimed {
+			break
+		}
+		if prev.fingerprint != fingerprint {
 			return Result{}, ErrIdempotencyConflict
 		}
-		prev.Body = []byte(body)
-		return prev, nil
+		if prev.Status != 0 {
+			return prev.Result, nil
+		}
+		// Otra petición con la misma clave está aplicando la acción: se espera sin retener conexión.
+		if time.Now().After(deadline) {
+			return Result{}, ErrIdempotencyBusy
+		}
+		select {
+		case <-ctx.Done():
+			return Result{}, ctx.Err()
+		case <-time.After(50 * time.Millisecond):
+		}
 	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return Result{}, err
-	}
+	// La acción usa sus propias conexiones; la reserva ya está confirmada y no hay transacción abierta.
 	res, err := action()
 	if err != nil {
+		if _, derr := d.pool.Exec(context.WithoutCancel(ctx), `DELETE FROM chat_idempotency
+			WHERE user_id=$1 AND key_hash=$2 AND fingerprint=$3 AND status=0`, userID, keyHash, fingerprint); derr != nil {
+			return Result{}, errors.Join(err, derr)
+		}
 		return Result{}, err
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO chat_idempotency (user_id, key_hash, fingerprint, status, response, retain_until_utc)
-		VALUES ($1, $2, $3, $4, $5, now() + make_interval(secs => $6))
-		ON CONFLICT (user_id, key_hash) DO UPDATE SET fingerprint = EXCLUDED.fingerprint, status = EXCLUDED.status,
-		  response = EXCLUDED.response, retain_until_utc = EXCLUDED.retain_until_utc`,
+	if _, err := d.pool.Exec(ctx, `UPDATE chat_idempotency SET status=$4, response=$5,
+		retain_until_utc = now() + make_interval(secs => $6)
+		WHERE user_id=$1 AND key_hash=$2 AND fingerprint=$3 AND status=0`,
 		userID, keyHash, fingerprint, res.Status, string(res.Body), retention.Seconds()); err != nil {
 		return Result{}, err
 	}
-	return res, tx.Commit(ctx)
+	return res, nil
+}
+
+// idempotencyLease es lo que dura la reserva de una clave mientras se aplica su acción; si el proceso
+// cae, otra petición la retoma al vencer. idempotencyWait acota la espera de una petición repetida.
+const (
+	idempotencyLease = 30 * time.Second
+	idempotencyWait  = 5 * time.Second
+)
+
+// ErrIdempotencyBusy indica que otra petición con la misma clave sigue en curso.
+var ErrIdempotencyBusy = errors.New("idempotency key in progress")
+
+type storedResult struct {
+	Result
+	fingerprint string
+}
+
+// claimIdempotency reserva la clave con status 0 (en curso), o devuelve el registro vigente.
+func (d *DB) claimIdempotency(ctx context.Context, userID, keyHash, fingerprint string) (bool, storedResult, error) {
+	tag, err := d.pool.Exec(ctx, `INSERT INTO chat_idempotency (user_id, key_hash, fingerprint, status, response, retain_until_utc)
+		VALUES ($1, $2, $3, 0, '', now() + make_interval(secs => $4))
+		ON CONFLICT (user_id, key_hash) DO UPDATE SET fingerprint = EXCLUDED.fingerprint, status = 0, response = '',
+		  retain_until_utc = EXCLUDED.retain_until_utc
+		WHERE chat_idempotency.retain_until_utc <= now()`, userID, keyHash, fingerprint, idempotencyLease.Seconds())
+	if err != nil {
+		return false, storedResult{}, err
+	}
+	if tag.RowsAffected() == 1 {
+		return true, storedResult{}, nil
+	}
+	var prev storedResult
+	var body string
+	err = d.pool.QueryRow(ctx, `SELECT fingerprint, status, response FROM chat_idempotency
+		WHERE user_id=$1 AND key_hash=$2`, userID, keyHash).Scan(&prev.fingerprint, &prev.Status, &body)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Se borró entre las dos lecturas (acción fallida o purga): se vuelve a intentar la reserva.
+		return d.claimIdempotency(ctx, userID, keyHash, fingerprint)
+	}
+	prev.Body = []byte(body)
+	return false, prev, err
 }
 
 func sha(v string) string {
@@ -547,6 +613,9 @@ func (d *DB) ApplyVod(ctx context.Context, eventID, fingerprint string, link Vod
 		return outcome, nil
 	}
 	if outcome == VodApplied && link.Deleted() {
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, sessionLock(link.SessionID)); err != nil {
+			return "", err
+		}
 		if _, err := tx.Exec(ctx, `DELETE FROM chat_sessions s WHERE s.session_id=$1 AND NOT EXISTS (
 			SELECT 1 FROM chat_vod_links l WHERE l.session_id=s.session_id AND l.restriction <> 'DELETED')`, link.SessionID); err != nil {
 			return "", err

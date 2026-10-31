@@ -37,7 +37,8 @@ de P1: el ACK sigue dependiendo solo de Redis.
    `(sessionId, sequence)` como clave primaria.
 5. **Retención.** La sala viva de Redis se conserva 5 minutos tras el fin (`CHAT_ENDED_RETENTION`).
    En PostgreSQL el historial dura mientras exista un VOD vinculado a la sesión. Un evento
-   `DELETED` borra el historial cuando la sesión no tiene otro VOD vigente. Una sesión que nunca
+   `DELETED` borra el historial cuando la sesión no tiene otro VOD vigente; una entrada del
+   archivo que llegue después no lo recrea, y ambos pasos se serializan por sesión. Una sesión que nunca
    recibió vínculo VOD se borra después de `CHAT_UNLINKED_RETENTION` (7 días) desde su último
    mensaje.
 6. **Mapping temporal (P2-10).** `streamOffsetMs` es la posición del timeline de la sesión que
@@ -66,8 +67,10 @@ de P1: el ACK sigue dependiendo solo de Redis.
      `PERMANENT` hasta su retiro manual. Ante cambios concurrentes gana la última escritura y
      `version` crece en cada cambio.
    - **Aplicación del bloqueo:** el registro vive en PostgreSQL y Redis guarda una copia que el
-     script de envío consulta, con `PXAT` en el mismo instante absoluto. El mantenimiento
-     periódico repone esa copia desde PostgreSQL.
+     script de envío consulta, con `PXAT` en el mismo instante absoluto. La copia lleva la
+     `version` de PostgreSQL y solo se reemplaza o borra con una versión igual o mayor; un retiro
+     deja una marca `LIFTED` durante una hora. Así el mantenimiento periódico, que repone la copia
+     desde PostgreSQL, no deshace un bloqueo o retiro confirmado mientras corre.
    - **Lo que ve la cuenta bloqueada:** el error `CHAT_BLOCKED`, con `blockMode` y
      `blockedUntilUtc`.
    - **Borrado por usuario:** abarca solo la emisión indicada, hasta el sequence observado al
@@ -76,7 +79,9 @@ de P1: el ACK sigue dependiendo solo de Redis.
      difunde con el frame `message.removed`.
 10. **Seguridad de las mutaciones.** Se exigen Origin permitido, el doble envío CSRF emitido por
     Core (`XSRF-TOKEN` / `X-XSRF-TOKEN`) e `Idempotency-Key`, con resultado retenido 24 h en
-    PostgreSQL.
+    PostgreSQL. La clave se reserva en una escritura corta y la acción corre fuera de esa
+    transacción, para que las peticiones concurrentes no agoten el pool; una repetición en curso
+    espera hasta 5 s y luego responde `CHAT_UNAVAILABLE`.
 
 ## Opciones consideradas
 

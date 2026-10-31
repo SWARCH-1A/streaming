@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -18,7 +19,7 @@ func TestBlockedUserCannotSendInAnySessionOfTheChannelOnly(t *testing.T) {
 	s, mr := newStore(t)
 	ctx := context.Background()
 	until := time.Now().Add(10 * time.Minute).UTC().Truncate(time.Millisecond)
-	if err := s.SetBlock(ctx, "chn_a", "u1", &until); err != nil {
+	if err := s.SetBlock(ctx, "chn_a", "u1", &until, 1); err != nil {
 		t.Fatal(err)
 	}
 	for _, sid := range []string{"ses_1", "ses_2"} {
@@ -35,7 +36,7 @@ func TestBlockedUserCannotSendInAnySessionOfTheChannelOnly(t *testing.T) {
 		t.Fatalf("otro canal: %+v", res)
 	}
 	mr.FastForward(time.Second)
-	if err := s.ClearBlock(ctx, "chn_a", "u1"); err != nil {
+	if err := s.LiftBlock(ctx, "chn_a", "u1", 2); err != nil {
 		t.Fatal(err)
 	}
 	if res, _ := s.Accept(ctx, channelInput("ses_1", "chn_a", "u1", "c4", "ya puedo")); res.Outcome != Accepted {
@@ -46,12 +47,12 @@ func TestBlockedUserCannotSendInAnySessionOfTheChannelOnly(t *testing.T) {
 func TestPermanentBlockAndTemporaryExpiry(t *testing.T) {
 	s, mr := newStore(t)
 	ctx := context.Background()
-	s.SetBlock(ctx, "chn_a", "u1", nil)
+	s.SetBlock(ctx, "chn_a", "u1", nil, 1)
 	if res, _ := s.Accept(ctx, channelInput("ses_1", "chn_a", "u1", "c1", "x")); res.Outcome != Blocked || res.BlockedUntil != nil {
 		t.Fatalf("permanente: %+v", res)
 	}
 	until := time.Now().Add(time.Minute)
-	s.SetBlock(ctx, "chn_a", "u2", &until)
+	s.SetBlock(ctx, "chn_a", "u2", &until, 1)
 	mr.SetTime(until.Add(time.Second))
 	mr.FastForward(time.Minute + time.Second)
 	if res, _ := s.Accept(ctx, channelInput("ses_1", "chn_a", "u2", "c2", "x")); res.Outcome != Accepted {
@@ -63,7 +64,7 @@ func TestDuplicateOfAcceptedMessageStillAcksAfterBlock(t *testing.T) {
 	s, _ := newStore(t)
 	ctx := context.Background()
 	first, _ := s.Accept(ctx, channelInput("ses_1", "chn_a", "u1", "c1", "hola"))
-	s.SetBlock(ctx, "chn_a", "u1", nil)
+	s.SetBlock(ctx, "chn_a", "u1", nil, 1)
 	again, err := s.Accept(ctx, channelInput("ses_1", "chn_a", "u1", "c1", "hola"))
 	if err != nil || again.Outcome != Duplicate || again.Ack != first.Ack {
 		t.Fatalf("el reintento conserva su ACK: %+v %v", again, err)
@@ -177,18 +178,57 @@ func TestBrokerEventRecordsChannelForTheSession(t *testing.T) {
 	}
 }
 
-func TestClearBlocksExceptRemovesLiftedCopies(t *testing.T) {
+func TestBlockCopiesNeverRegressToAnOlderVersion(t *testing.T) {
 	s, _ := newStore(t)
 	ctx := context.Background()
-	s.SetBlock(ctx, "chn_a", "u1", nil)
-	s.SetBlock(ctx, "chn_a", "u2", nil)
-	if err := s.ClearBlocksExcept(ctx, map[string]bool{"chn_a:u1": true}); err != nil {
+	blocked := func() bool {
+		res, _ := s.Accept(ctx, channelInput("ses_1", "chn_a", "u1", uuidLike(), "x"))
+		return res.Outcome == Blocked
+	}
+	s.SetBlock(ctx, "chn_a", "u1", nil, 1)
+	// Retiro v2 y luego un mantenimiento con la foto vieja (v1) intenta reponerlo.
+	s.LiftBlock(ctx, "chn_a", "u1", 2)
+	s.SetBlock(ctx, "chn_a", "u1", nil, 1)
+	if blocked() {
+		t.Fatal("una foto vieja no repone un bloqueo ya retirado")
+	}
+	// La marca de retiro no la borra la limpieza: vence sola.
+	s.DropStaleBlock(ctx, "chn_a", "u1", 5)
+	if n, _ := s.rdb.Exists(ctx, blockKey("chn_a", "u1")).Result(); n != 1 {
+		t.Fatal("la marca de retiro se conserva")
+	}
+	s.SetBlock(ctx, "chn_a", "u1", nil, 3)
+	if !blocked() {
+		t.Fatal("un bloqueo nuevo (v3) rige")
+	}
+}
+
+func TestDropStaleBlockKeepsANewerCopy(t *testing.T) {
+	s, _ := newStore(t)
+	ctx := context.Background()
+	// La reconciliación leyó v1 retirado, pero entre tanto se confirmó un bloqueo v2.
+	s.SetBlock(ctx, "chn_a", "u1", nil, 2)
+	if err := s.DropStaleBlock(ctx, "chn_a", "u1", 1); err != nil {
 		t.Fatal(err)
 	}
 	if n, _ := s.rdb.Exists(ctx, blockKey("chn_a", "u1")).Result(); n != 1 {
-		t.Fatal("un bloqueo vigente se conserva")
+		t.Fatal("una copia más nueva que la lectura se conserva")
 	}
-	if n, _ := s.rdb.Exists(ctx, blockKey("chn_a", "u2")).Result(); n != 0 {
-		t.Fatal("un bloqueo retirado se borra")
+	if err := s.DropStaleBlock(ctx, "chn_a", "u1", 2); err != nil {
+		t.Fatal(err)
 	}
+	if n, _ := s.rdb.Exists(ctx, blockKey("chn_a", "u1")).Result(); n != 0 {
+		t.Fatal("una copia no más nueva que PostgreSQL se borra")
+	}
+	ids, _ := s.BlockIDs(ctx)
+	if len(ids) != 0 {
+		t.Fatalf("%v", ids)
+	}
+}
+
+var uuidSeq int
+
+func uuidLike() string {
+	uuidSeq++
+	return "cmid-" + strconv.Itoa(uuidSeq)
 }

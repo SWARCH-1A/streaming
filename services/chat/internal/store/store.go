@@ -121,7 +121,8 @@ end
 if ARGV[3] ~= '1' then return {'DENIED', ARGV[4]} end
 if redis.call('HGET', KEYS[1], 'status') == 'READ_ONLY' then return {'DENIED', 'CHAT_READ_ONLY'} end
 local block = redis.call('GET', KEYS[6])
-if block and (block == 'PERMANENT' or tonumber(block) > tonumber(ARGV[10])) then return {'BLOCKED', block} end
+if block then block = string.match(block, '^([^|]+)') end
+if block and (block == 'PERMANENT' or (block ~= 'LIFTED' and tonumber(block) > tonumber(ARGV[10]))) then return {'BLOCKED', block} end
 if not redis.call('SET', KEYS[5], '1', 'PX', ARGV[8], 'NX') then
   return {'RATE_LIMITED', tostring(redis.call('PTTL', KEYS[5]))}
 end
@@ -362,37 +363,70 @@ func (s *Store) ApplyRemovals(ctx context.Context, sid string, moderationVersion
 	return removeScript.Run(ctx, s.rdb, []string{seqKey(sid), removedKey(sid), modKey(sid), modverKey(sid)}, args...).Err()
 }
 
-// SetBlock copia un bloqueo vigente a Redis para que el script de envío lo aplique. Un bloqueo
-// temporal vence en Redis en el mismo instante absoluto que en PostgreSQL.
-func (s *Store) SetBlock(ctx context.Context, channelID, userID string, until *time.Time) error {
+// La copia de un bloqueo es "estado|versión": PERMANENT, el vencimiento en ms o LIFTED. La versión
+// es la de PostgreSQL y solo crece, así que una escritura con versión vieja (un mantenimiento con una
+// foto anterior) nunca deshace una decisión más nueva.
+var setBlockScript = redis.NewScript(`
+local cur = redis.call('GET', KEYS[1])
+if cur and tonumber(string.match(cur, '|(%d+)$') or '0') >= tonumber(ARGV[2]) then return 0 end
+if ARGV[3] == '' then redis.call('SET', KEYS[1], ARGV[1] .. '|' .. ARGV[2])
+else redis.call('SET', KEYS[1], ARGV[1] .. '|' .. ARGV[2], 'PXAT', ARGV[3]) end
+return 1
+`)
+
+var dropBlockScript = redis.NewScript(`
+local cur = redis.call('GET', KEYS[1])
+if not cur then return 0 end
+if string.match(cur, '^LIFTED|') then return 0 end
+if tonumber(string.match(cur, '|(%d+)$') or '0') > tonumber(ARGV[1]) then return 0 end
+return redis.call('DEL', KEYS[1])
+`)
+
+// liftedTTL mantiene la marca de retiro más que cualquier pasada de mantenimiento en curso.
+const liftedTTL = time.Hour
+
+func (s *Store) putBlock(ctx context.Context, channelID, userID, state string, version int64, at *time.Time) error {
+	pxat := ""
+	if at != nil {
+		pxat = strconv.FormatInt(at.UnixMilli(), 10)
+	}
+	return setBlockScript.Run(ctx, s.rdb, []string{blockKey(channelID, userID)}, state, version, pxat).Err()
+}
+
+// SetBlock copia un bloqueo vigente (versión de PostgreSQL) a Redis para que el script de envío lo
+// aplique. Un bloqueo temporal vence en Redis en el mismo instante absoluto que en PostgreSQL.
+func (s *Store) SetBlock(ctx context.Context, channelID, userID string, until *time.Time, version int64) error {
 	if until == nil {
-		return s.rdb.Set(ctx, blockKey(channelID, userID), "PERMANENT", 0).Err()
+		return s.putBlock(ctx, channelID, userID, "PERMANENT", version, nil)
 	}
 	if !until.After(time.Now()) {
-		return s.ClearBlock(ctx, channelID, userID)
+		return s.LiftBlock(ctx, channelID, userID, version)
 	}
-	return s.rdb.SetArgs(ctx, blockKey(channelID, userID), strconv.FormatInt(until.UnixMilli(), 10),
-		redis.SetArgs{ExpireAt: *until}).Err()
+	return s.putBlock(ctx, channelID, userID, strconv.FormatInt(until.UnixMilli(), 10), version, until)
 }
 
-// ClearBlock retira la copia de aplicación de un bloqueo.
-func (s *Store) ClearBlock(ctx context.Context, channelID, userID string) error {
-	return s.rdb.Del(ctx, blockKey(channelID, userID)).Err()
+// LiftBlock reemplaza la copia por una marca de retiro con la versión del retiro.
+func (s *Store) LiftBlock(ctx context.Context, channelID, userID string, version int64) error {
+	expires := time.Now().Add(liftedTTL)
+	return s.putBlock(ctx, channelID, userID, "LIFTED", version, &expires)
 }
 
-// ClearBlocksExcept borra copias de bloqueos que ya no rigen en PostgreSQL (p. ej. un retiro cuya
-// escritura en Redis falló). active usa la forma channelId:userId.
-func (s *Store) ClearBlocksExcept(ctx context.Context, active map[string]bool) error {
+// BlockIDs lista las copias de bloqueos en la forma channelId:userId.
+func (s *Store) BlockIDs(ctx context.Context) ([]string, error) {
+	var ids []string
 	iter := s.rdb.Scan(ctx, 0, "chat:block:*", 200).Iterator()
 	for iter.Next(ctx) {
-		key := iter.Val()
-		if id := strings.TrimPrefix(key, "chat:block:"); !active[id] && key != noBlockKey {
-			if err := s.rdb.Del(ctx, key).Err(); err != nil {
-				return err
-			}
+		if key := iter.Val(); key != noBlockKey {
+			ids = append(ids, strings.TrimPrefix(key, "chat:block:"))
 		}
 	}
-	return iter.Err()
+	return ids, iter.Err()
+}
+
+// DropStaleBlock borra la copia de un bloqueo que ya no rige si su versión no supera la leída en
+// PostgreSQL; una copia más nueva (escrita después de esa lectura) se conserva.
+func (s *Store) DropStaleBlock(ctx context.Context, channelID, userID string, version int64) error {
+	return dropBlockScript.Run(ctx, s.rdb, []string{blockKey(channelID, userID)}, version).Err()
 }
 
 // ---- Archivo hacia PostgreSQL ----

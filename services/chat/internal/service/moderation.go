@@ -30,7 +30,6 @@ type P2Options struct {
 	Archive              *archive.DB
 	Moderators           ModeratorAuthority
 	Vods                 ReplayAuthority // sin VOD configurado el replay responde no disponible
-	RequireChannel       bool            // con ciclo por broker, una sala sin canal conocido no acepta envíos
 	UnlinkedRetention    time.Duration   // historial de sesiones que nunca recibieron un VOD
 	IdempotencyRetention time.Duration
 }
@@ -90,6 +89,10 @@ func (s *Service) Idempotent(ctx context.Context, userID, key, fingerprint strin
 	}
 	if errors.Is(err, archive.ErrIdempotencyConflict) {
 		return archive.Result{}, chat.Fail(chat.CodeIdempotencyConflict)
+	}
+	if errors.Is(err, archive.ErrIdempotencyBusy) {
+		// La primera petición con esta clave sigue en curso; el cliente reintenta con la misma clave.
+		return archive.Result{}, chat.Fail(chat.CodeChatUnavailable)
 	}
 	if err != nil {
 		return archive.Result{}, s.unavailable("idempotencia", "err", err)
@@ -234,7 +237,7 @@ func (s *Service) PutBlock(ctx context.Context, moderator, channelID, target str
 	if err != nil {
 		return chat.Block{}, s.unavailable("guardar bloqueo", "channelId", channelID, "err", err)
 	}
-	if err := s.store.SetBlock(ctx, channelID, target, expires); err != nil {
+	if err := s.store.SetBlock(ctx, channelID, target, expires, b.Version); err != nil {
 		// PostgreSQL ya registró el bloqueo; el mantenimiento periódico repone la copia de Redis.
 		return chat.Block{}, s.unavailable("aplicar bloqueo", "channelId", channelID, "err", err)
 	}
@@ -248,7 +251,7 @@ func (s *Service) LiftBlock(ctx context.Context, channelID, target string) (chat
 	if err != nil {
 		return chat.Block{}, s.unavailable("retirar bloqueo", "channelId", channelID, "err", err)
 	}
-	if err := s.store.ClearBlock(ctx, channelID, target); err != nil {
+	if err := s.store.LiftBlock(ctx, channelID, target, b.Version); err != nil {
 		return chat.Block{}, s.unavailable("retirar bloqueo en Redis", "channelId", channelID, "err", err)
 	}
 	return s.withActive(b), nil
@@ -393,24 +396,8 @@ func (s *Service) archive(ctx context.Context, entries []store.ArchiveEntry) err
 // MaintainP2 repone bloqueos en Redis desde PostgreSQL y borra historial sin VOD vencido.
 func (s *Service) MaintainP2(ctx context.Context) {
 	now := s.now()
-	blocks, err := s.p2.Archive.ActiveBlocks(ctx, now)
-	if err != nil {
-		s.log.Warn("listar bloqueos vigentes", "err", err)
-	} else {
-		active := map[string]bool{}
-		for _, b := range blocks {
-			active[b.ChannelID+":"+b.UserID] = true
-			var until *time.Time
-			if b.Mode != nil && *b.Mode == chat.BlockTemporary {
-				until = b.ExpiresAtUTC
-			}
-			if err := s.store.SetBlock(ctx, b.ChannelID, b.UserID, until); err != nil {
-				s.log.Warn("reponer bloqueo", "channelId", b.ChannelID, "err", err)
-			}
-		}
-		if err := s.store.ClearBlocksExcept(ctx, active); err != nil {
-			s.log.Warn("limpiar bloqueos retirados", "err", err)
-		}
+	if err := s.reconcileBlocks(ctx, now); err != nil {
+		s.log.Warn("reconciliar bloqueos", "err", err)
 	}
 	if n, err := s.p2.Archive.PurgeUnlinked(ctx, now.Add(-s.p2.UnlinkedRetention)); err != nil {
 		s.log.Warn("borrar historial sin VOD", "err", err)
@@ -420,4 +407,53 @@ func (s *Service) MaintainP2(ctx context.Context) {
 	if _, err := s.p2.Archive.PurgeIdempotency(ctx); err != nil {
 		s.log.Warn("borrar idempotencia vencida", "err", err)
 	}
+}
+
+// reconcileBlocks copia a Redis los bloqueos vigentes y retira las copias que ya no rigen. Todas las
+// escrituras llevan la versión de PostgreSQL, de modo que un bloqueo o retiro confirmado mientras
+// corre la pasada (en esta u otra réplica) no queda deshecho por la foto anterior.
+func (s *Service) reconcileBlocks(ctx context.Context, now time.Time) error {
+	blocks, err := s.p2.Archive.ActiveBlocks(ctx, now)
+	if err != nil {
+		return err
+	}
+	active := map[string]bool{}
+	for _, b := range blocks {
+		active[b.ChannelID+":"+b.UserID] = true
+		if err := s.store.SetBlock(ctx, b.ChannelID, b.UserID, enforcedUntil(b), b.Version); err != nil {
+			s.log.Warn("reponer bloqueo", "channelId", b.ChannelID, "err", err)
+		}
+	}
+	ids, err := s.store.BlockIDs(ctx)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		channelID, userID, ok := strings.Cut(id, ":")
+		if !ok || active[id] {
+			continue
+		}
+		// Relee la fila: el bloqueo pudo confirmarse después de la foto de ActiveBlocks.
+		b, err := s.p2.Archive.GetBlock(ctx, channelID, userID)
+		if err != nil {
+			return err
+		}
+		if b.ActiveAt(s.now()) {
+			err = s.store.SetBlock(ctx, channelID, userID, enforcedUntil(b), b.Version)
+		} else {
+			err = s.store.DropStaleBlock(ctx, channelID, userID, b.Version)
+		}
+		if err != nil {
+			s.log.Warn("reconciliar bloqueo", "channelId", channelID, "err", err)
+		}
+	}
+	return nil
+}
+
+// enforcedUntil es el vencimiento que aplica Redis: nil para un bloqueo permanente.
+func enforcedUntil(b chat.Block) *time.Time {
+	if b.Mode != nil && *b.Mode == chat.BlockTemporary {
+		return b.ExpiresAtUTC
+	}
+	return nil
 }

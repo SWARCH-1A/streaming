@@ -61,6 +61,12 @@ func TestLoadVodReplayRequiresArchiveAndToken(t *testing.T) {
 	}
 	t.Setenv("CHAT_DATABASE_URL", "postgres://chat@chat-pg/chat")
 	t.Setenv("CHAT_VOD_SERVICE_TOKEN", "z")
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "CHAT_EVENTS_TRANSPORT=amqp") {
+		t.Fatalf("el archivo con eventos HTTP debe rechazarse: %v", err)
+	}
+	t.Setenv("CHAT_EVENTS_TRANSPORT", "amqp")
+	t.Setenv("CHAT_BROKER_URL", "amqps://chat@broker:5671/")
+	t.Setenv("CHAT_BROKER_CA_FILE", "fictitious-ca.crt")
 	c, err := Load()
 	if err != nil || c.VodBaseURL != "https://vod:8099" || c.VodTimeout != 1500*time.Millisecond {
 		t.Fatalf("%+v %v", c, err)

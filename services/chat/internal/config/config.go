@@ -115,6 +115,11 @@ func Load() (Config, error) {
 	if c.VodBaseURL != "" && (c.DatabaseURL == "" || c.VodServiceToken == "") {
 		errs = append(errs, "CHAT_VOD_BASE_URL exige CHAT_DATABASE_URL y CHAT_VOD_SERVICE_TOKEN")
 	}
+	// El archivo P2 necesita el canal de cada sesión, que solo trae el ciclo por broker; con HTTP los
+	// envíos no se encolarían para archivar y el replay quedaría vacío sin aviso.
+	if c.DatabaseURL != "" && c.EventsTransport != "amqp" {
+		errs = append(errs, "CHAT_DATABASE_URL exige CHAT_EVENTS_TRANSPORT=amqp")
+	}
 	if c.EventsTransport != "http" && c.EventsTransport != "amqp" {
 		errs = append(errs, "CHAT_EVENTS_TRANSPORT debe ser http o amqp")
 	}

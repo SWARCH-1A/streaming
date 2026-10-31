@@ -82,7 +82,7 @@ func main() {
 		}
 		defer db.Close()
 		opts := service.P2Options{
-			Archive: db, Moderators: coreClient, RequireChannel: cfg.EventsTransport == "amqp",
+			Archive: db, Moderators: coreClient,
 			UnlinkedRetention: cfg.UnlinkedRetention, IdempotencyRetention: cfg.IdempotencyRetention,
 		}
 		if cfg.VodBaseURL != "" {

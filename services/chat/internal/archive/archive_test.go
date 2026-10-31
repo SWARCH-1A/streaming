@@ -6,7 +6,11 @@ package archive
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -217,5 +221,104 @@ func TestPurgeUnlinkedKeepsSessionsWithVod(t *testing.T) {
 	}
 	if _, ok, _ := db.SessionChannel(ctx, "ses_vod"); !ok {
 		t.Fatal("una sesión con VOD no se borra por antigüedad")
+	}
+}
+
+func TestLateArchiveEntryDoesNotRestoreDeletedHistory(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	db.InsertMessages(ctx, []Row{{"chn_a", msg("ses_1", 1, "u1", 1000)}})
+	link := VodLink{VodID: "vod_1", SessionID: "ses_1", ChannelID: "chn_a", Version: 1, Restriction: "DELETED", PublicationState: "DRAFT"}
+	if out, err := db.ApplyVod(ctx, "evt-del", "fp", link, t0); err != nil || out != VodApplied {
+		t.Fatalf("%v %v", out, err)
+	}
+	// Una entrada que seguía pendiente en chat:archive llega después del borrado.
+	if err := db.InsertMessages(ctx, []Row{{"chn_a", msg("ses_1", 2, "u1", 2000)}, {"chn_a", msg("ses_2", 1, "u1", 1000)}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := db.SessionChannel(ctx, "ses_1"); ok {
+		t.Fatal("una entrada tardía no recrea el historial borrado por VOD")
+	}
+	var n int
+	db.pool.QueryRow(ctx, `SELECT count(*) FROM chat_messages WHERE session_id='ses_1'`).Scan(&n)
+	if n != 0 {
+		t.Fatalf("mensajes revividos: %d", n)
+	}
+	if _, ok, _ := db.SessionChannel(ctx, "ses_2"); !ok {
+		t.Fatal("otra sesión del mismo lote se archiva")
+	}
+}
+
+func TestIdempotentActionDoesNotStarveThePool(t *testing.T) {
+	db := testDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	max := int(db.pool.Config().MaxConns)
+	var wg sync.WaitGroup
+	errs := make(chan error, 3*max)
+	for i := 0; i < 3*max; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			key := "550e8400-e29b-41d4-a716-44665544" + fmt.Sprintf("%04d", i)
+			_, err := db.Idempotent(ctx, "owner", key, "fp", time.Hour, func() (Result, error) {
+				// La acción necesita su propia conexión del pool, como PutBlock o RemoveMessages.
+				_, err := db.PutBlock(ctx, "chn_a", fmt.Sprintf("u%d", i), "owner", chat.BlockPermanent, nil, nil, t0)
+				return Result{Status: 200, Body: []byte(`{}`)}, err
+			})
+			errs <- err
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("más peticiones que conexiones no deben bloquearse: %v", err)
+		}
+	}
+}
+
+func TestIdempotentSameKeyRunsOnceAndFailedActionCanRetry(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	key := "550e8400-e29b-41d4-a716-446655449999"
+	var calls atomic.Int32
+	var wg sync.WaitGroup
+	bodies := make(chan string, 6)
+	for range 6 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			r, err := db.Idempotent(ctx, "owner", key, "fp", time.Hour, func() (Result, error) {
+				calls.Add(1)
+				time.Sleep(200 * time.Millisecond)
+				return Result{Status: 201, Body: []byte(`{"n":1}`)}, nil
+			})
+			if err != nil {
+				t.Error(err)
+			}
+			bodies <- string(r.Body)
+		}()
+	}
+	wg.Wait()
+	close(bodies)
+	for b := range bodies {
+		if b != `{"n":1}` {
+			t.Fatalf("respuesta distinta: %s", b)
+		}
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("la acción corre una vez por clave: %d", calls.Load())
+	}
+	other := "550e8400-e29b-41d4-a716-446655448888"
+	if _, err := db.Idempotent(ctx, "owner", other, "fp", time.Hour, func() (Result, error) {
+		return Result{}, errors.New("falla")
+	}); err == nil {
+		t.Fatal("el error de la acción se propaga")
+	}
+	if r, err := db.Idempotent(ctx, "owner", other, "fp", time.Hour, func() (Result, error) {
+		return Result{Status: 200, Body: []byte(`{}`)}, nil
+	}); err != nil || r.Status != 200 {
+		t.Fatalf("tras un fallo la clave se puede reintentar: %+v %v", r, err)
 	}
 }

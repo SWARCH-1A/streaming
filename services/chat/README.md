@@ -73,7 +73,7 @@ Listener interno (`CHAT_INTERNAL_ADDR`, 8086), nunca publicado por el proxy:
 | `CHAT_READER_BLOCK` | `2s` | Espera máxima de cada lectura bloqueante del Stream de una sala. |
 | `CHAT_SESSION_COOKIE` | `stream_session` | Cookie de sesión Core. |
 | `CHAT_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error`. |
-| `CHAT_DATABASE_URL` | vacío | PostgreSQL de Chat (`postgres://…`). Vacío conserva el perfil P1 sin archivo ni moderación. |
+| `CHAT_DATABASE_URL` | vacío | PostgreSQL de Chat (`postgres://…`). Exige `CHAT_EVENTS_TRANSPORT=amqp`, porque el canal de cada sesión llega por el ciclo del broker. Vacío conserva el perfil P1 sin archivo ni moderación. |
 | `CHAT_UNLINKED_RETENTION` | `168h` | Historial durable de una sesión que nunca recibió un VOD, contado desde su último mensaje. |
 | `CHAT_ARCHIVE_CLAIM_IDLE` | `30s` | Tiempo tras el cual otra réplica reclama entradas de archivo no confirmadas. |
 | `CHAT_IDEMPOTENCY_RETENTION` | `24h` | Retención de los resultados de `Idempotency-Key`. |

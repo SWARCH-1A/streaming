@@ -166,7 +166,7 @@ func (s *Service) Send(ctx context.Context, sid, credential, clientMessageID, ra
 			return chat.Ack{}, false, chat.Fail(chat.CodeChatUnavailable)
 		}
 		channel = room.ChannelID
-		if channel == "" && s.p2.RequireChannel && writeAllowed {
+		if channel == "" && writeAllowed {
 			writeAllowed, denial = false, chat.CodeChatUnavailable
 		}
 	}

@@ -12,26 +12,11 @@ services:
       interval: 5s
       timeout: 3s
       retries: 12
-  # Copia durable de Chat P2 (ADR-024): replay, bloqueos y retiros.
-  chat-postgres:
-    image: postgres:18-alpine
-    environment:
-      POSTGRES_DB: chat
-      POSTGRES_USER: chat
-      POSTGRES_PASSWORD: ${CHAT_DB_PASSWORD:?Define CHAT_DB_PASSWORD}
-    volumes:
-      - chat-postgres:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U chat -d chat"]
-      interval: 5s
-      timeout: 3s
-      retries: 12
   chat:
     build:
       context: ../../services/chat
     environment:
       CHAT_REDIS_URL: redis://chat-redis:6379/0
-      CHAT_DATABASE_URL: postgres://chat:${CHAT_DB_PASSWORD:?Define CHAT_DB_PASSWORD}@chat-postgres:5432/chat?sslmode=disable
       CHAT_ALLOWED_ORIGINS: ${WEB_ORIGIN:-http://localhost:3000}
       CHAT_CORE_BASE_URL: ${CHAT_CORE_BASE_URL:-https://core:8082}
       CHAT_CORE_DEVELOPMENT_HTTP: ${CHAT_CORE_DEVELOPMENT_HTTP:-false}
@@ -39,17 +24,11 @@ services:
       CHAT_CORE_SERVICE_TOKEN: ${CHAT_CORE_SERVICE_TOKEN:?Define CHAT_CORE_SERVICE_TOKEN}
       CHAT_SESSION_EVENTS_TOKEN: ${CHAT_SESSION_EVENTS_TOKEN:?Define CHAT_SESSION_EVENTS_TOKEN}
       CHAT_ENDED_RETENTION: ${CHAT_ENDED_RETENTION:-5m}
-      # Opcional: sin VOD el replay responde REPLAY_UNAVAILABLE (503).
-      CHAT_VOD_BASE_URL: ${CHAT_VOD_BASE_URL:-}
-      CHAT_VOD_SERVICE_TOKEN: ${CHAT_VOD_SERVICE_TOKEN:-}
     ports:
       - "127.0.0.1:${CHAT_PORT:-8085}:8085"
       - "127.0.0.1:${CHAT_INTERNAL_PORT:-8086}:8086"
     depends_on:
       chat-redis:
         condition: service_healthy
-      chat-postgres:
-        condition: service_healthy
 volumes:
   chat-redis:
-  chat-postgres:
