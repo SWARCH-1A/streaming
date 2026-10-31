@@ -77,3 +77,16 @@
   gap: 0.125rem;
   margin-bottom: 0.75rem;
 }
+.body {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+}
+.moderated {
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 0.5rem;
+}
+.moderated > .body {
+  grid-column: 1;
+  grid-row: 1;
+}
