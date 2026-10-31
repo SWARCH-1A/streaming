@@ -58,12 +58,11 @@ export function ReplayChatPanel({ messages, positionMs, pending, error, onRetry,
         }}
       >
         {visible.map((message) => (
-          <div key={message.messageId} className="stack">
+          <div key={message.messageId} className={styles.message}>
             <p>
-              <strong>{message.author.displayName}</strong>{' '}
-              <time>{clock(message.mediaOffsetMs)}</time>
+              <strong>{message.author.displayName}</strong>: {message.text}
             </p>
-            <p>{message.text}</p>
+            <time className={styles.time}>{clock(message.mediaOffsetMs)}</time>
           </div>
         ))}
         {pending ? <p role="status">Cargando chat…</p> : null}

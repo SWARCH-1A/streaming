@@ -266,17 +266,16 @@ export function LiveChatPanel({ sessionId, readOnly, channelId, moderator = fals
               Mensaje eliminado por el moderador
             </p>
           ) : (
-            <div key={entry.sequence} className="stack">
+            <div key={entry.sequence} className={styles.message}>
               <p>
-                <strong>{entry.message.author.displayName}</strong>{' '}
-                <time dateTime={entry.message.serverCreatedAtUtc}>
-                  {new Date(entry.message.serverCreatedAtUtc).toLocaleTimeString('es', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </time>
+                <strong>{entry.message.author.displayName}</strong>: {entry.message.text}
               </p>
-              <p>{entry.message.text}</p>
+              <time className={styles.time} dateTime={entry.message.serverCreatedAtUtc}>
+                {new Date(entry.message.serverCreatedAtUtc).toLocaleTimeString('es', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </time>
               {moderator && channelId && entry.message.author.userId !== user?.userId ? (
                 <ModerationActions
                   channelId={channelId}

@@ -68,3 +68,12 @@
   color: var(--color-error);
   margin-top: 0.5rem;
 }
+.time {
+  font-size: 0.6875rem;
+  color: var(--color-muted);
+}
+.message {
+  display: grid;
+  gap: 0.125rem;
+  margin-bottom: 0.75rem;
+}
