@@ -155,3 +155,23 @@ func TestNativeCaptureSurvivesRestartAndRequiresProducerClose(t *testing.T) {
 		t.Fatal("changed native identity accepted")
 	}
 }
+
+func TestAvcCodecUsesProfileAndLevel(t *testing.T) {
+	for _, tc := range []struct {
+		profile string
+		level   int
+		want    string
+	}{{"Constrained Baseline", 30, "avc1.42c01e"}, {"Main", 31, "avc1.4d401f"}, {"High", 40, "avc1.640028"}} {
+		if got, ok := avcCodec(tc.profile, tc.level); !ok || got != tc.want {
+			t.Errorf("%s %d: %q %v", tc.profile, tc.level, got, ok)
+		}
+	}
+	for _, bad := range []struct {
+		profile string
+		level   int
+	}{{"", 30}, {"High", 0}, {"Unknown", 30}} {
+		if _, ok := avcCodec(bad.profile, bad.level); ok {
+			t.Errorf("%+v debe rechazarse", bad)
+		}
+	}
+}
