@@ -1,7 +1,7 @@
 # SPEC-22 — Pistas WebVTT para VOD y controles accesibles
 
 **Prioridad:** P2. **Responsable:** Subtítulos / accesibilidad, con VOD y clientes.
-**Estado:** contratos y validador de conformidad; proveedor y reproducción pendientes.
+**Estado:** proveedor VOD y controles Web implementados; aceptación audiovisual/móvil pendiente.
 **RF:** RF-063…065. **RNF:** RNF-022…030, 035…038, 041…047.
 
 ## 1. Contexto y problema
@@ -15,7 +15,7 @@ transcripción, traducción ni subtítulos de directo. RF-063 admite contenido a
 Es una capacidad del dominio VOD, no un microservicio. VOD posee pistas, permisos, referencias
 privadas a objetos y limpieza; Core sigue siendo autoridad de sesión/estado. Web y móvil poseen
 sus controles de presentación. El Gateway enruta, sin escribir datos ni decidir propiedad.
-El runtime, almacenamiento de metadatos y proveedor S3 de VOD permanecen en P2-09.
+Go, PostgreSQL propio y MinIO local/S3 externo configurable se aceptan en ADR-022; no cambia el perfil de texto.
 
 ## 3. Historia y recorrido
 
@@ -66,9 +66,9 @@ ocultar huecos de reconexión. El cliente compara mappingVersion con el vídeo q
 
 ## 6. Interfaces y seguridad
 
-La fuente es `contracts/p2.json.operations` y sus schemas P2Subtitle*, con status=contract-only.
+La fuente es `contracts/p2.json.operations` y sus schemas P2Subtitle*, con status=implemented en VOD.
 Las rutas, multipart, errores e idempotencia están en [contratos HTTP](../contratos_p2_http.md#subtitulos-vod).
-La especificación estructura estas interfaces; no acredita endpoints ejecutables.
+El proveedor se implementa en services/vod; la aceptación de reproducción se acredita aparte.
 
 El propietario activo puede cargar/retirar y ver pistas de su borrador validado. El público solo
 lista/lee si puede reproducir el VOD publicado; una sesión presentada inválida no se degrada a anónima.
@@ -120,8 +120,9 @@ node tests/contracts/test_subtitle_schemas.mjs
 ```
 
 El número recibido por el checker es dato de prueba; el proveedor lo obtendrá de su propia
-duración validada, nunca del archivo/cliente. No hay aún persistencia, permisos ejecutables,
-controles ni prueba audiovisual. Los ejemplos de dos idiomas prueban offsets iguales, no sincronía
+duración validada, nunca del archivo/cliente. `services/vod` implementa persistencia/permisos,
+validación del mismo perfil y limpieza; Web permite carga/selección/retirada. La integración Go con
+PostgreSQL/MinIO comprueba carga privada y Range real de WebVTT. La prueba audiovisual sigue pendiente. Los ejemplos de dos idiomas prueban offsets iguales, no sincronía
 perceptual con un vídeo que no se ha reproducido. No cerrar SPEC-22 con esta evidencia aislada.
 
 ## 10. Decisiones, dependencias y costo
@@ -134,8 +135,8 @@ Persistencia/permisos dependen de SPEC-14/P2-09/P2-17; presentación de SPEC-18/
 
 ## 11. Entrega al proveedor y consumidores
 
-Los contratos permiten avanzar sin elegir el runtime de VOD. Antes de implementar el recorrido
-integrado, el responsable de cada dominio debe aportar y verificar lo siguiente:
+Los contratos y el proveedor VOD están disponibles. Para aceptar el recorrido integrado,
+cada dominio verifica lo siguiente:
 
 | Responsable | Entrega necesaria |
 | --- | --- |
@@ -145,6 +146,6 @@ integrado, el responsable de cada dominio debe aportar y verificar lo siguiente:
 | Web/móvil | Selección/desactivación, seek, calidad, rechazo de respuestas tardías, controles accesibles y fallo de pista sin cortar vídeo |
 | Integración | Proveedores reales, acceso por URL directa y recuperación ante fallos; fixtures de texto no acreditan reproducción |
 
-`pendingInterfaces.subtitles` conserva P2-09 y P2-17 como dependencias de ejecución; P2-04/05
-describen las decisiones del perfil ya propuestas. La asignación de VOD requiere coordinación
-del equipo. SPEC-22 permanece abierta hasta completar los criterios anteriores.
+P2-09 y el acceso VOD de P2-17 se concretan en ADR-022. El perfil P2-04/05 se conserva. SPEC-22
+permanece abierta hasta completar reproducción real, accesibilidad y móvil; la disponibilidad
+del proveedor o sus pruebas de texto no cierra esos criterios.

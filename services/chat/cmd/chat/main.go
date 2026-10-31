@@ -1,6 +1,6 @@
 // Command chat inicia el servicio Chat: listener público (historial y WebSocket) y listener interno
 // (session-events). Redis guarda el vivo; con CHAT_DATABASE_URL, PostgreSQL guarda el archivo para
-// replay, los bloqueos y los retiros (ADR-021).
+// replay, los bloqueos y los retiros (ADR-024).
 package main
 
 import (

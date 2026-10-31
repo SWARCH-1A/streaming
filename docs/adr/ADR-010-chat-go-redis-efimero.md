@@ -2,7 +2,7 @@
 
 > Ámbito: perfil P1. [ADR-015](ADR-015-arquitectura-p2.md) define la arquitectura P2:
 > SSR, Gateway, broker, VOD y chat durable. Este ADR conserva la decisión de la primera entrega;
-> [ADR-021](ADR-021-chat-redis-postgresql-replay-moderacion.md) añade PostgreSQL para replay y
+> [ADR-024](ADR-024-chat-redis-postgresql-replay-moderacion.md) añade PostgreSQL para replay y
 > moderación en P2 sin cambiar el vivo descrito aquí.
 
 

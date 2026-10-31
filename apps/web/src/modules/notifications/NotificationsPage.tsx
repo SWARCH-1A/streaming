@@ -76,7 +76,14 @@ export function NotificationsPage() {
             <li key={notification.notificationId}>
               <p>
                 {notification.readAtUtc ? null : <strong>Nuevo · </strong>}
-                <Link to={notification.linkPath}>{notification.title}</Link>
+                {/* SPEC-20 CA-09: a suspended channel keeps the record but offers no way into its content. */}
+                {notification.available ? (
+                  <Link to={notification.linkPath}>{notification.title}</Link>
+                ) : (
+                  <>
+                    {notification.title} <em>(canal no disponible)</em>
+                  </>
+                )}
               </p>
               <p>
                 <time dateTime={notification.createdAtUtc}>

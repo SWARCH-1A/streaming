@@ -1,4 +1,4 @@
-# ADR-021: Chat con Redis para el vivo y PostgreSQL propio para replay y moderación
+# ADR-024: Chat con Redis para el vivo y PostgreSQL propio para replay y moderación
 
 - Estado: aceptada para Chat
 - Fecha: 2026-10-28

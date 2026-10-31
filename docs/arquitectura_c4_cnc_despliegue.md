@@ -35,7 +35,9 @@ flowchart TB
   B -->|Suscripción Chat| CH
   B -->|Segmentos / fin de emisión| V
   B -->|Eventos / trabajos de entrega| N
-  M -->|Carga confirmada de segmentos| O[(S3 externo)]
+  M -->|Bytes por HTTP privado| V
+  V -->|Escritura confirmada| O[(S3 externo)]
+  M -->|Lectura privada| O
   M -->|Disponibilidad de segmento| S
   V -->|Referencias / manifiestos / limpieza| O
   CH -->|Persistencia privada| CD[(Datos Chat)]
@@ -47,8 +49,8 @@ flowchart TB
   N -->|Push| Push[Proveedor móvil]
 ```
 
-La flecha de carga representa la responsabilidad técnica de persistir el segmento antes de
-avisar; Streaming/Media y VOD deben cerrar qué proceso ejecuta esa carga. El broker transporta
+VOD es escritor y verificador S3; Media conserva buffer durable, transfiere por HTTP privado y
+publica avisos confirmados. Media entrega bytes con otra identidad S3 de solo lectura (ADR-022). El broker transporta
 referencias y metadatos, no bytes de video. Las llamadas HTTP síncronas entre servicios para
 consultas y autorización se describen en los [flujos](integracion_sistema_p1.md).
 
@@ -73,8 +75,8 @@ Una vista agregada no desplaza permisos ni escrituras al Gateway.
 
 Core mantiene módulos de Cuentas, Canales/seguimiento, Catálogo y Discovery en un proceso Java.
 Streaming conserva su proceso Rust y Chat su proceso Go. VOD y Notificaciones son unidades
-independientes. Las tecnologías de VOD, de Notificaciones y del Gateway se seleccionan por
-responsable mediante ADR. Cuentas publica trabajos de recuperación y ofrece contratos privados
+independientes. VOD usa Go/PostgreSQL/MinIO (ADR-022), Notificaciones TypeScript/PostgreSQL/SMTP
+(ADR-020), y Gateway Go con Caddy (ADR-023). Cuentas publica trabajos de recuperación y ofrece contratos privados
 de entrega; su consumidor y SMTP pertenecen a Notificaciones y están pendientes (ADR-017).
 Web usa TypeScript y móvil Kotlin. Watch parties y subtítulos requieren concretar su SPEC y
 ubicación funcional antes de atribuirles un nuevo proceso.
@@ -131,7 +133,7 @@ como procesos independientes. Este punto permanece en P2-18.
 El dominio público usa HTTPS y mantiene bloqueadas las rutas internas. Los puertos, lenguajes
 nuevos, imágenes de contenedor y comandos P2 se fijan con la implementación. Para local se
 admite configuración sencilla y almacenamiento compatible S3 configurable; MinIO y RustFS
-son candidatos. Los comandos existentes siguen descritos en el [README](../README.md) y
+se concretan en MinIO para VOD por ADR-022. Los comandos existentes siguen descritos en el [README](../README.md) y
 el [runbook P1](../infra/p1/README.md).
 
 ## Aislamiento y recuperación

@@ -7,7 +7,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.web.csrf.CsrfToken;
-import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -54,14 +53,14 @@ public class ChannelController {
     }
 
     @PatchMapping(path="/api/channels/{channelId}",consumes=MediaType.APPLICATION_JSON_VALUE,produces=MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ChannelQueries.ChannelView> patch(@CookieValue(name="${core.cookie-name:stream_session}",required=false) String credential,
+    public ResponseEntity<ChannelQueries.ChannelView> patch(@org.springframework.web.bind.annotation.RequestAttribute(name=streaming.core.security.SessionCredentialFilter.CREDENTIAL,required=false) String credential,
             @PathVariable String channelId,@RequestBody JsonNode request) {
         var principal=edits.requirePrincipal(credential);
         return ResponseEntity.ok().header("Cache-Control","no-store, private").body(edits.patch(principal,channelId,request));
     }
 
     @PostMapping(path="/api/channels/{channelId}/banner-uploads",consumes=MediaType.MULTIPART_FORM_DATA_VALUE,produces=MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ChannelApplicationService.UploadResponse> upload(@CookieValue(name="${core.cookie-name:stream_session}",required=false) String credential,
+    public ResponseEntity<ChannelApplicationService.UploadResponse> upload(@org.springframework.web.bind.annotation.RequestAttribute(name=streaming.core.security.SessionCredentialFilter.CREDENTIAL,required=false) String credential,
             @PathVariable String channelId,@RequestPart("file") MultipartFile file) throws java.io.IOException {
         var principal=edits.requirePrincipal(credential);
         return ResponseEntity.status(201).header("Cache-Control","no-store, private").body(edits.upload(principal,channelId,file.getBytes()));

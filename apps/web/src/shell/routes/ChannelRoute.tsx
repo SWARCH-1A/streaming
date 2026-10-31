@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import type { ChannelBootstrap } from '@contracts/p1';
-import type { P2Follow } from '@contracts/p2';
+import type { P2Follow, P2VodPage } from '@contracts/p2';
 
 import artwork from '@/public/images/signal-grid.svg';
 
@@ -11,6 +11,7 @@ import { Badge } from '@/src/components/atoms/Badge';
 import { Notice } from '@/src/components/molecules/Notice';
 import { Panel } from '@/src/components/molecules/Panel';
 import { FollowButton } from '@/src/modules/channels/entry';
+import { Library } from '@/src/modules/vod/entry';
 import { request } from '@/src/shared/api/http';
 import { useResource } from '@/src/shared/api/useResource';
 
@@ -20,9 +21,16 @@ interface ChannelRouteProps {
   /** Bootstrap rendered by the SSR loader; the browser only revalidates it every 4 s. */
   initial?: ChannelBootstrap;
   initialFollow?: P2Follow | null;
+  initialVods?: P2VodPage;
+  vodError?: string;
 }
 
-export function ChannelRoute({ initial, initialFollow = null }: ChannelRouteProps = {}) {
+export function ChannelRoute({
+  initial,
+  initialFollow = null,
+  initialVods,
+  vodError,
+}: ChannelRouteProps = {}) {
   const { handle = '' } = useParams();
   const resource = useResource(
     `channel:${handle}`,
@@ -114,6 +122,14 @@ export function ChannelRoute({ initial, initialFollow = null }: ChannelRouteProp
         <p>{channel.description || 'Este canal aún no ha añadido una descripción.'}</p>
         {profile.bio ? <p>{profile.bio}</p> : null}
       </Panel>
+      <section className="stack">
+        <h2>Grabaciones del canal</h2>
+        <Library
+          channelId={channel.channelId}
+          {...(initialVods ? { initial: initialVods } : {})}
+          {...(vodError ? { initialError: vodError } : {})}
+        />
+      </section>
     </div>
   );
 }

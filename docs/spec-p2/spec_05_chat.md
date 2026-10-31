@@ -1,6 +1,6 @@
 # SPEC-05 — Chat, moderación y replay
 
-**Prioridad:** P2. **Responsable:** Chat. **Estado:** implementación inicial; aceptación pendiente.
+**Prioridad:** P2. **Responsable:** Chat. **Estado:** chat live, Upgrade Bearer nativo y moderación implementados; replay pendiente de alinear con el timeline de VOD (ADR-022).
 **RF:** RF-031…037, RF-082…083. **RNF:** RNF-013, 018…019, 022…032, 041…050.
 
 ## 1. Contexto y problema
@@ -12,7 +12,7 @@ El propietario modera mensajes y participantes desde su canal. [Alcance](../alca
 
 Chat conserva su servicio Go, API y WebSocket. Posee mensajes, secuencias, deduplicación,
 cuota, bloqueos, supresiones e historial durable. Redis guarda el vivo y PostgreSQL propio
-(`chat-pg`) la copia durable para replay y moderación ([ADR-021](../adr/ADR-021-chat-redis-postgresql-replay-moderacion.md)).
+(`chat-pg`) la copia durable para replay y moderación ([ADR-024](../adr/ADR-024-chat-redis-postgresql-replay-moderacion.md)).
 
 ## 3. Historia de usuario
 
@@ -93,6 +93,11 @@ Los schemas y operaciones `p2.chat.*` están en [contracts/p2.json](../../contra
 [HTTP/WS](../contratos_p2_http.md). Las mutaciones exigen propietario confirmado por Core
 (`p2.chat.moderation-context`), Origin permitido, doble envío CSRF e `Idempotency-Key`.
 
+El Upgrade nativo acepta Authorization Bearer sin Cookie ni Origin ficticio y verifica el contexto
+Core antes de 101. Cada envío vuelve a autorizar con la misma credencial. Un origen de navegador
+fuera de la lista sigue devolviendo 403; Cookie más Bearer devuelve 401. Un cliente nativo anónimo
+puede leer, sin permiso de envío. `native_test.go` verifica handshake, rechazo y revocación posterior.
+
 ## 8. Dependencias y contratos de integración
 
 | Dependencia | Contrato | Fallo |
@@ -105,7 +110,7 @@ Los schemas y operaciones `p2.chat.*` están en [contracts/p2.json](../../contra
 ## 9. Decisiones y preguntas abiertas
 
 [P2-10 y P2-11](../decisiones_pendientes_p2.md) quedan resueltas en
-[ADR-021](../adr/ADR-021-chat-redis-postgresql-replay-moderacion.md). Queda abierta la
+[ADR-024](../adr/ADR-024-chat-redis-postgresql-replay-moderacion.md). Queda abierta la
 ratificación del payload `vod.availability.changed.v1` por el responsable de VOD, junto con su
 publicación. Mientras VOD no lo publique no existe replay de punta a punta. La credencial Bearer
 móvil para moderar sigue P2-14.

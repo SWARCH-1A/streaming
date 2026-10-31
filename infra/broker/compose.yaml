@@ -51,6 +51,16 @@ services:
     depends_on:
       broker:
         condition: service_healthy
+  vod:
+    environment:
+      VOD_BROKER_URL: amqps://vod:${BROKER_VOD_PASSWORD:?Run init}@broker:5671/streaming-p2?heartbeat=30
+      VOD_BROKER_CA_FILE: /run/secrets/ca.crt
+    depends_on:
+      broker:
+        condition: service_healthy
+  media-recorder:
+    environment:
+      RECORDER_BROKER_URL: amqps://streaming:${BROKER_STREAMING_PASSWORD:?Run init}@broker:5671/streaming-p2?heartbeat=30
   broker-ops:
     profiles: [tools]
     build:

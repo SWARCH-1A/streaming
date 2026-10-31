@@ -1,4 +1,4 @@
--- Chat P2 (ADR-021): copia durable de mensajes para replay, moderación y vínculos VOD.
+-- Chat P2 (ADR-024): copia durable de mensajes para replay, moderación y vínculos VOD.
 -- Base propia de Chat; ningún otro servicio lee ni escribe estas tablas.
 
 CREATE TABLE chat_sessions (

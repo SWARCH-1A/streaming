@@ -1,6 +1,6 @@
 # ADR-018 — Subtítulos aportados por el propietario dentro de VOD
 
-- Estado: propuesta con contratos/validador; revisión de VOD y consumidores pendiente.
+- Estado: perfil ratificado e implementado en VOD/Web por ADR-022; aceptación audiovisual/móvil pendiente.
 - Fecha: 2026-10-25.
 - Responsable: Subtítulos / accesibilidad, coordinado con VOD, Web, móvil y Gateway.
 - Trazabilidad: SPEC-22; RF-063…065; P2-04/05 y dependencia P2-09/17.
@@ -11,7 +11,7 @@ RF-063 permite asociar pistas a contenido almacenado. El alcance encargado es ap
 preparados para VOD; no requiere crear un servicio de transcripción ni subtítulos en vivo.
 La identidad, duración, edición temporal y permisos pertenecen a VOD y deben regir también el texto.
 
-## Decisión propuesta
+## Decisión
 
 Cargar WebVTT UTF-8 mediante API VOD por propietario activo. La pista se valida contra la duración
 y versión del montaje final. Se guarda como objeto privado y solo se anuncia después de confirmar
@@ -22,7 +22,7 @@ El perfil p2-webvtt-text-v1 limita tamaño/cues y admite texto, entidades, ident
 y solapamientos. Rechaza estilos, markup y ajustes avanzados con error explícito. La definición
 completa está en [SPEC-22](../spec-p2/spec_22_subtitles.md), sin segunda lista contradictoria.
 Idiomas tienen un subconjunto sintáctico explícito de BCP 47; no se afirma soporte de todo el registro.
-Los límites y firmas quedan sujetos a revisión conjunta antes de integrar los reproductores.
+ADR-022 conserva estos límites y firmas; la reproducción real y sus controles se verifican con los consumidores.
 
 ## Alternativas y consecuencias
 
@@ -39,7 +39,8 @@ y revisar cada idioma: los contratos no certifican traducción, exactitud lingü
 
 ## Estado de implementación y aceptación
 
-Implementado: schemas neutrales, operaciones contract-only, fixtures y checker Python offline.
-Python es herramienta de pruebas, no elección del runtime de VOD. No se implementan otro servicio,
-base ni rutas de producción. CA-01…07 siguen abiertos hasta revisión de contratos y pruebas de
-proveedor/reproductores reales, suspensión por URL directa, recuperación y accesibilidad humana.
+Implementado: schemas neutrales, fixtures/checker Python, proveedor Go/PostgreSQL/MinIO en VOD,
+carga y controles Web. Python continúa como herramienta de conformidad. Las pruebas VOD con
+almacenamiento real comprueban autorización, WebVTT, Range y limpieza; las pruebas Web usan un
+motor de medios simulado. CA-01…07 siguen abiertos hasta completar reproducción audiovisual,
+móvil, suspensión integrada, recuperación y accesibilidad humana. Ver [ADR-022](ADR-022-vod-go-postgresql-minio.md).

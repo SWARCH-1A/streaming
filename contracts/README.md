@@ -42,9 +42,12 @@ contracts/generated/p2. Web importa @contracts/p2. No editar los derivados a man
 es offline, comprueba referencias, ejemplos válidos/negativos, identidad/versiones, privacidad,
 permisos, idempotencia y trazabilidad de las operaciones, además de detectar drift.
 El arranque RabbitMQ y los SDK de cada lenguaje se documentan en infra/broker/README.md y ADR-016.
+`protocol-extensions.json` deriva las extensiones de cabeceras sobre operaciones privadas existentes.
+`media.recording-binding.v1` amplía la respuesta204 de `media.auth` con el schema ejecutable
+`P2MediaRecordingBinding`; no duplica la ruta ni modifica los artefactos P1.
 
-Chat añade moderación, replay y `p2.chat.moderation-context` en `p2.chat.*`, y propone el payload
-de `vod.availability.changed.v1` (review-required hasta que VOD lo ratifique; ADR-021).
+Chat añade moderación y `p2.chat.moderation-context` en `p2.chat.*`; consume
+`vod.availability.changed.v1` y `p2.vod.replay-context` definidos por VOD (ADR-022).
 
 Administración añade listados y cambios de estado en `p2.admin.*`, y el evento
 `account.status.changed.v1`. Su aceptación transversal sigue pendiente de P2-17.
@@ -78,3 +81,12 @@ Prueba adicional con Ajv (tras instalar las dependencias Web):
 ```sh
 node tests/contracts/test_subtitle_schemas.mjs
 ```
+
+## Consumidor Kotlin móvil
+
+`python contracts/generate_mobile.py --write` genera DTO serializables y consultas GraphQL desde
+los schemas canónicos P1/P2 en `generated/mobile/MobileContracts.kt`. Sin argumentos comprueba
+drift y CI ejecuta ese check. `apps/mobile/shared` incluye directamente esa carpeta. Los DTO
+con secretos redactan `toString`; sus valores solo se serializan para el transporte autorizado.
+`P2NativeLogin` y las operaciones de login/logout móvil están implementados en Core; no requieren
+Idempotency-Key, igual que la sesión base. Las operaciones de registro/recuperación sí lo conservan.

@@ -2,8 +2,9 @@
 
 La fuente estructural [contracts/p2.json](../contracts/p2.json) hereda schemas de
 [p1.json](../contracts/p1.json) y concreta Recuperación (RF-004), Subtítulos VOD y consulta de
-calidades live (RF-028). Los tres contratos usan el generador P2 compartido.
-Las demás familias del inventario conservan su diseño documental hasta incorporar sus schemas.
+calidades live (RF-028), VOD, timeline, transferencia privada y agregados canal/VOD/exploración.
+Las operaciones identifican su estado implementado o contract-only; las demás familias conservan
+su diseño documental hasta incorporar schemas.
 [SPEC-10](spec-p2/spec_10_contracts.md) define mantenimiento y validación. El inventario de rutas
 describe interfaces; la implementación y las pruebas de cada proveedor se acreditan por separado.
 Cada operación tiene auth, timeout, idempotencia, consumidor, errores y SPEC en la fuente.
@@ -128,6 +129,14 @@ presenta como reproducible. Los agregados dependen del solicitante y usan Cache-
 Login móvil recibe LoginRequest y devuelve accessToken opaco, tokenType=Bearer, userId y expiresAtUtc.
 La credencial solo aparece en esa respuesta TLS/no-store y en su transporte autenticado posterior.
 Mantiene la misma vida fija de 24 h, expiración y revocación de Core; no hay refresh token nuevo.
+Core implementa ambas operaciones. Login no emite Set-Cookie; logout sin credencial o con una ya
+revocada devuelve 204. Ambas conservan las cuotas/autoridad de Cuentas y no exigen Idempotency-Key.
+Authorization acepta una sola credencial Bearer opaca de 43 caracteres base64url, sin padding;
+combinarla con la cookie de sesión o enviar un esquema inválido produce 401 AUTH_REQUIRED.
+
+La exención CSRF nativa exige ausencia de Cookie y Origin. Se aplica al Bearer válido y a POST
+mobile-sessions, registrations, recovery-requests, recoveries/confirm y DELETE mobile-sessions/current.
+Registro y recuperación conservan Idempotency-Key. Con Cookie u Origin se mantiene CSRF web.
 
 La solicitud recibe `{email}` y devuelve 202 con `P2RecoveryAccepted.message` uniforme.
 Confirmar recibe `{recoveryToken,newPassword}` y devuelve 204 sin cuerpo. El token opaco de
@@ -168,7 +177,7 @@ confirma la solicitud, sin acreditar entrega de correo.
 PUT/DELETE operan sobre el usuario de la sesión. No-op conserva versión y no publica otro cambio.
 El snapshot privado de destinatarios conserva snapshotId/capturedAtUtc en todas sus páginas y
 solo devuelve userId/followVersion, no emails. Cursor ligado a otro canal/snapshot se rechaza.
-La preferencia de autopublicación y su propuesta de persistencia Core están en revisión P2-09;
+La preferencia de autopublicación se conserva autoritativamente en Core según ADR-022;
 no existen dos autoridades para el mismo valor. Streaming consulta la preferencia por el
 endpoint privado limitado al reservar una nueva sesión, sin depender de una cookie del
 encoder, y conserva esa copia también tras reconexión. Fallar la consulta no equivale a true.
@@ -181,7 +190,7 @@ requiere campo editable y expectedVersion. Publicar exige medio completo validad
 DELETE retira visibilidad antes de limpiar: 202 significa limpieza pendiente, no acceso vigente.
 
 `P2Accepted` devuelve operationId, status y statusUri del dueño del trabajo. VOD, Chat y Streaming
-ofrecen consulta privada `P2OperationStatus`; Gateway retransmite el statusUri del dueño y no
+ofrecen consultas de estado de su dueño; VOD implementa `P2OperationStatus` para propietario/solicitante. Gateway retransmite el statusUri y no
 mantiene una base global de jobs. FAILED no republica contenido ni habilita un recurso retirado.
 Errores de consulta de estado no se convierten en COMPLETED.
 
@@ -192,7 +201,7 @@ larga. `assetPath` se resuelve contra el inventario del VOD, sin traversal ni UR
 
 ## Chat, bloqueos y replay
 
-Las reglas están en [ADR-021](adr/ADR-021-chat-redis-postgresql-replay-moderacion.md).
+Las reglas están en [ADR-024](adr/ADR-024-chat-redis-postgresql-replay-moderacion.md).
 
 **Bloqueo por canal.** `TEMPORARY` exige una duración fija (`PT10M`, `PT1H`, `PT24H`, `P7D`) y
 el servidor calcula `expiresAtUtc`. `PERMANENT` no admite duración. Gana la última escritura y
@@ -207,10 +216,10 @@ devuelve 422. Solo modera la cuenta propietaria, confirmada por Core en cada ope
 pertenecer al canal, hasta el sequence observado al aceptar la orden. Responde 202 con la
 operación `COMPLETED` y su `statusUri`.
 
-**Replay.** Exige 0 ≤ fromMs < toMs, una ventana de hasta 300 000 ms y limit 1..50. Solo
-responde para VODs `PUBLISHED`; en otro caso devuelve 404. El cursor se liga a vodId, ventana y
-`vodVersion`. Si el mapping cambió responde 410 y hay que pedir la ventana otra vez, y un cursor
-de otra ventana es 400. Un mensaje retirado se entrega con `text: null` y `removed: true`.
+**Replay.** Exige fromMs < toMs y limit 1..50. El cursor se liga a vodId, ventana, mappingVersion y
+moderación; si el mapping cambió se invalida y se pide una ventana nueva. Los mensajes suprimidos
+no vuelven a aparecer. Los huecos conocidos se compactan y los mensajes se agrupan en la unión manteniendo secuencia
+original (ADR-022). `p2.chat.replay` conserva estado contract-only hasta la entrega durable de Chat.
 
 WebSocket mantiene `/realtime/chat/sessions/{sessionId}`. Navegador: cookie y Origin permitido;
 nativo: Authorization Bearer en Upgrade, sin token en query ni Origin inventado. Identidades
@@ -231,8 +240,8 @@ cliente. installationId del path y body deben coincidir. Una instalación se vin
 logout/cambio de usuario retira la asociación anterior. Tokens de proveedor no aparecen en lectura
 pública ni logs. La provisión push real permanece en P2-13.
 
-Los tres endpoints Core administrativos están implementados; retirada por Gateway y contexto
-privado de acceso continúan pendientes. GET users/channels acepta limit 1…50 (20 por defecto)
+Los tres endpoints Core administrativos, el contexto privado de acceso y la retirada VOD por
+Gateway están implementados; las retiradas de otros tipos conservan sus dependencias. GET users/channels acepta limit 1…50 (20 por defecto)
 y cursor firmado de cinco minutos ligado a actor/listado; claves query ajenas dan 400 y cursor
 inválido/vencido da 410 CURSOR_INVALID. La paginación por ID no ofrece snapshot entre páginas.
 Todas las respuestas exitosas usan no-store. Visitante: 401 SESSION_REQUIRED; usuario ordinario:
@@ -253,15 +262,15 @@ aceptación si ese dominio no la persistió. Suspensión no borra datos ni repub
 ## Interfaces aún bloqueadas
 
 Watch parties requiere cerrar P2-01…03. `contracts/p2.json.pendingInterfaces` conserva dependencias reales.
-Subtítulos tiene los contratos siguientes, marcados contract-only: no hay proveedor ejecutable.
-P2-09/11/17 identifican otras firmas que necesitan ratificación; P2-15 se resolvió en ADR-017; las tablas de diseño por sí solas
+Subtítulos tiene proveedor VOD y controles Web; quedan pendientes reproducción audiovisual y móvil.
+P2-10/11/17 identifican la aceptación pendiente de Chat y propagación transversal; las tablas de diseño por sí solas
 no demuestran schemas completos ni endpoints disponibles.
 
 ## Subtitulos VOD
 
 SPEC-22 y ADR-018 definen carga por propietario, exclusivamente sobre VOD. Fuente neutral:
 `contracts/p2.json.operations` y schemas P2Subtitle*. Cada operación declara proveedor VOD,
-consumidores Web/móvil y status=contract-only. El tiempo máximo propuesto es 10 s; el cliente
+consumidores Web/móvil y status=implemented. El tiempo máximo propuesto es 10 s; el cliente
 no transforma un timeout en éxito ni reintenta una mutación con una clave nueva.
 
 | ID | Método y ruta | Entrada | Éxito | Permiso |
@@ -308,5 +317,5 @@ No se filtra contenido privado: para visitantes, borrador/restringido/retirado e
 
 Todas estas respuestas usan Cache-Control: no-store; reader añade Content-Type: text/vtt y
 X-Content-Type-Options: nosniff. No necesita Range: devuelve la pista completa acotada. Cada
-petición revalida acceso y mapping; P2-17 fijará cómo se obtiene autorización vigente y su plazo.
+petición de pista revalida acceso en Core y mapping local según ADR-022.
 Las URLs no van directamente a S3. Esto no revoca texto previamente descargado por el usuario.

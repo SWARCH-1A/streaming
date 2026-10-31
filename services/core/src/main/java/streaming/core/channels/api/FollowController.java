@@ -7,12 +7,12 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -21,6 +21,7 @@ import streaming.core.channels.application.ChannelApplicationService;
 import streaming.core.channels.application.ChannelException;
 import streaming.core.channels.application.FollowApplicationService;
 import streaming.core.security.RequestAuditFilter;
+import streaming.core.security.SessionCredentialFilter;
 import tools.jackson.databind.JsonNode;
 
 /** p2.channels.* and p2.recording.preference-*; the screen aggregate is composed by the Gateway. */
@@ -34,27 +35,27 @@ public class FollowController {
     }
 
     @GetMapping(path="/api/channels/{channelId}/followers/me",produces=MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<FollowApplicationService.FollowView> state(@CookieValue(name="${core.cookie-name:stream_session}",required=false) String credential,
+    public ResponseEntity<FollowApplicationService.FollowView> state(@RequestAttribute(name=SessionCredentialFilter.CREDENTIAL,required=false) String credential,
             @PathVariable String channelId) {
         return privateBody(follows.state(sessions.requirePrincipal(credential),channelId));
     }
 
     @PutMapping(path="/api/channels/{channelId}/followers/me",produces=MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<FollowApplicationService.FollowView> follow(@CookieValue(name="${core.cookie-name:stream_session}",required=false) String credential,
+    public ResponseEntity<FollowApplicationService.FollowView> follow(@RequestAttribute(name=SessionCredentialFilter.CREDENTIAL,required=false) String credential,
             @PathVariable String channelId,@RequestHeader(name="Idempotency-Key",required=false) String key,HttpServletRequest request) {
         var principal=sessions.requirePrincipal(credential);
         return privateBody(follows.follow(principal,channelId,uuid(key),requestId(request)));
     }
 
     @DeleteMapping(path="/api/channels/{channelId}/followers/me",produces=MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<FollowApplicationService.FollowView> unfollow(@CookieValue(name="${core.cookie-name:stream_session}",required=false) String credential,
+    public ResponseEntity<FollowApplicationService.FollowView> unfollow(@RequestAttribute(name=SessionCredentialFilter.CREDENTIAL,required=false) String credential,
             @PathVariable String channelId,@RequestHeader(name="Idempotency-Key",required=false) String key,HttpServletRequest request) {
         var principal=sessions.requirePrincipal(credential);
         return privateBody(follows.unfollow(principal,channelId,uuid(key),requestId(request)));
     }
 
     @GetMapping(path="/api/me/followed-channels",produces=MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<FollowApplicationService.FollowPage> followed(@CookieValue(name="${core.cookie-name:stream_session}",required=false) String credential,
+    public ResponseEntity<FollowApplicationService.FollowPage> followed(@RequestAttribute(name=SessionCredentialFilter.CREDENTIAL,required=false) String credential,
             @RequestParam Map<String,String> query) {
         var principal=sessions.requirePrincipal(credential);
         if(!Set.of("limit","cursor").containsAll(query.keySet())) throw invalid("Solo se admiten limit y cursor.");
@@ -62,13 +63,13 @@ public class FollowController {
     }
 
     @GetMapping(path="/api/channels/{channelId}/vod-settings",produces=MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<FollowApplicationService.VodSettingsView> vodSettings(@CookieValue(name="${core.cookie-name:stream_session}",required=false) String credential,
+    public ResponseEntity<FollowApplicationService.VodSettingsView> vodSettings(@RequestAttribute(name=SessionCredentialFilter.CREDENTIAL,required=false) String credential,
             @PathVariable String channelId) {
         return privateBody(follows.vodSettings(sessions.requirePrincipal(credential),channelId));
     }
 
     @PutMapping(path="/api/channels/{channelId}/vod-settings",consumes=MediaType.APPLICATION_JSON_VALUE,produces=MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<FollowApplicationService.VodSettingsView> updateVodSettings(@CookieValue(name="${core.cookie-name:stream_session}",required=false) String credential,
+    public ResponseEntity<FollowApplicationService.VodSettingsView> updateVodSettings(@RequestAttribute(name=SessionCredentialFilter.CREDENTIAL,required=false) String credential,
             @PathVariable String channelId,@RequestHeader(name="Idempotency-Key",required=false) String key,@RequestBody JsonNode body) {
         var principal=sessions.requirePrincipal(credential);
         fields(body,Set.of("enabled","expectedVersion"),Set.of("enabled","expectedVersion"));

@@ -14,7 +14,7 @@
 //
 // Claves globales: chat:quota:{userId} (ventana de 1000 ms), chat:inbox:{eventId} (dedupe de eventos),
 // chat:block:{channelId}:{userId} (copia de aplicación de un bloqueo; PostgreSQL es la fuente) y
-// chat:archive (stream con grupo archiver: outbox hacia PostgreSQL, ADR-021).
+// chat:archive (stream con grupo archiver: outbox hacia PostgreSQL, ADR-024).
 // Al terminar la sesión todas las claves de la sala expiran tras la retención configurada; el
 // archivo es independiente y solo se borra una entrada después de confirmarla en PostgreSQL.
 package store

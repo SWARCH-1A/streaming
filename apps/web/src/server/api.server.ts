@@ -71,3 +71,17 @@ async function read<T>(
   if (!response.ok) throw new UpstreamError(response.status);
   return (await response.json()) as T;
 }
+
+/** Domain VOD reads preserve request-local credentials, including private draft previews. */
+export async function serverVodGet<T>(request: Request, path: string): Promise<T> {
+  if (!/^\/api\/(?:vods|me\/vods)(?:[/?]|$)/.test(path)) throw new Error('Expected VOD API');
+  const base = process.env.WEB_VOD_UPSTREAM;
+  if (!base) throw new UpstreamError(503);
+  return read<T>(request, path, base.replace(/\/$/, ''), true);
+}
+export async function serverGatewayGet<T>(request: Request, path: string): Promise<T> {
+  if (!path.startsWith('/api/screens/')) throw new Error('Expected screen API');
+  const base = process.env.WEB_GATEWAY_UPSTREAM;
+  if (!base) throw new UpstreamError(503);
+  return read<T>(request, path, base.replace(/\/$/, ''), true);
+}

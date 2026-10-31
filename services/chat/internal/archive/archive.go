@@ -1,4 +1,4 @@
-// Package archive es el repositorio PostgreSQL de Chat (ADR-021): copia durable de mensajes para
+// Package archive es el repositorio PostgreSQL de Chat (ADR-024): copia durable de mensajes para
 // replay, bloqueos por canal, retiros, operaciones de moderación, idempotencia y vínculos VOD.
 // Redis sigue siendo el almacén del vivo; aquí solo escribe Chat.
 package archive

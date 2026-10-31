@@ -38,7 +38,7 @@ se propone como configuración del canal y debe ratificarse con VOD antes de fij
 - [x] CA-04: lista seguida y estado por canal concuerdan tras commit y se paginan sin repetir ni omitir dentro del snapshot.
 - [x] CA-05: relación y outbox confirman juntos; reiniciar o perder ACK no pierde el aviso de cambio.
 - [x] CA-06: destinatarios solo son accesibles por credencial privada limitada, sin devolver email ni tokens.
-- [ ] CA-07: canal suspendido aparece indisponible y no permite eludir acceso a su live/VOD.
+- [x] CA-07: canal suspendido aparece indisponible y no permite eludir acceso a su live/VOD. (Canales/Core: seguir, estado, destinatarios y vod-settings responden 404; lista seguida lo oculta conservando la relación; `FollowIT`. El corte de live/VOD lo ejecutan Streaming/VOD según SPEC-23/P2-17.)
 - [ ] CA-08: autopublicación por defecto es true, update concurrente usa versión y una sesión iniciada conserva su copia.
 
 La API de autopublicación conserva el valor y su versión; este checkout todavía no implementa
@@ -56,6 +56,10 @@ El bootstrap Core base puede conservar compatibilidad; el agregado de pantalla p
 Gateway. Configuración VOD: `enabled` y `version`, default true, copiados al abrir sesión. El
 lugar de almacenamiento debe ratificarse; Streaming la consulta al abrir sesión mediante
 `p2.recording.preference-internal`, sin requerir la cookie de un navegador; no hay dos preferencias autoritativas Core/VOD.
+
+Las rutas públicas de seguimiento, listado de seguidos y configuración VOD aceptan la sesión
+opaca por cookie web o Bearer móvil según SPEC-01. Web conserva CSRF; los comandos nativos
+sin Cookie ni Origin usan Bearer validado y mantienen Idempotency-Key y autorización de dominio.
 
 ## 8. Dependencias y contratos de integración
 

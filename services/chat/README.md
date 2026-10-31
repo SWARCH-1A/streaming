@@ -4,7 +4,7 @@ Chat es el servicio Go que maneja salas, mensajes, historial y WebSocket. Redis 
 secuencias, la deduplicación y la cuota global por cuenta, según
 [ADR-010](../../docs/adr/ADR-010-chat-go-redis-efimero.md). Con `CHAT_DATABASE_URL`, PostgreSQL
 propio guarda la copia durable para replay, los bloqueos y los retiros
-([ADR-021](../../docs/adr/ADR-021-chat-redis-postgresql-replay-moderacion.md),
+([ADR-024](../../docs/adr/ADR-024-chat-redis-postgresql-replay-moderacion.md),
 [SPEC-05 P2](../../docs/spec-p2/spec_05_chat.md)).
 
 Cada mensaje nuevo necesita un contexto Core con identidad, autor y estado de la emisión.

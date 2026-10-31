@@ -229,7 +229,7 @@ type Room struct {
 // ValidOpaqueID acepta IDs de canal, usuario, VOD y mensaje seguros para rutas y claves.
 func ValidOpaqueID(id string) bool { return sessionIDPattern.MatchString(id) && len(id) <= 64 }
 
-// ---- Moderación (SPEC-05 P2, ADR-021) ----
+// ---- Moderación (SPEC-05 P2, ADR-024) ----
 
 // BlockMode distingue un bloqueo con vencimiento de uno que dura hasta su retiro manual.
 type BlockMode string

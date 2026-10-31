@@ -1,8 +1,8 @@
 # Contratos de eventos y trabajos P2
 
 [contracts/p2.json](../contracts/p2.json) registra tipos, productores y suscripciones. Los envelopes/payloads ejecutables
-de ciclo, Discovery, recuperación, seguimiento, estado de cuenta y entregas de Notificaciones están definidos. `vod.availability.changed.v1` tiene un payload propuesto por Chat, en revisión del responsable de VOD ([ADR-021](adr/ADR-021-chat-redis-postgresql-replay-moderacion.md)). Segmentos y cierre de grabación siguen como pending-owner,
-sin schemas vacíos que simulen disponibilidad. [SPEC-17](spec-p2/spec_17_broker.md) define entrega y operación.
+de las nueve familias, incluidos segmentos/cierre y disponibilidad VOD, están definidos. Los
+consumidores pendientes se acreditan por separado de la disponibilidad del schema. [SPEC-17](spec-p2/spec_17_broker.md) define entrega y operación.
 Los nombres son lógicos; su mapeo a exchanges/topics/streams/queues depende del broker elegido.
 
 ## Envelope
@@ -48,17 +48,17 @@ Proyección: `stream:<streamId>`, sequence=projectionVersion; el payload conserv
 para cortes/rebuild. No se compara sessionVersion con projectionVersion.
 
 Segmento: unicidad `(sessionId,renditionId,sourceGeneration,sequence)`; el sequence del envelope
-no se usa como orden global de todas las rendiciones. Un segmento con hash diferente y misma
+es `sequence` del segmento más1 y no se usa como orden global de todas las rendiciones. Un segmento con hash diferente y misma
 identidad es conflicto. Llegar un segmento de generación anterior no lo invalida si pertenece
 al inventario legítimo de la misma grabación; no reemplaza otro segmento ni la fuente vigente.
 
 Cierre de grabación: un índice final confirmado por sesión/generación. Un cierre repetido conserva
-identidad/fingerprint; cierres incompatibles producen conflicto. `stream.session.changed=ENDED`
+identidad/fingerprint; aggregateId=`recording:<sessionId>` y sequence=streamGeneration. Cierres incompatibles producen conflicto. `stream.session.changed=ENDED`
 no sustituye este mensaje ni acredita completitud del archivo.
 
 Seguimiento: clave channelId/userId con versión monotónica incluso tras unfollow.
 Cuenta: userId/accountVersion; una reentrega vieja no reactiva una cuenta suspendida.
-VOD: vodId/version; DELETED es terminal para ese vodId y no se recrea desde un cierre atrasado.
+VOD: aggregateId=`vod:<vodId>`, sequence=version. Cambios de cuenta generan disponibilidad por versión sin alterar borradores/retiradas. DELETED es terminal para ese vodId y no se recrea desde un cierre atrasado.
 Entrega: deliveryId; cada destino/medio es independiente de los demás intentos.
 
 ## Confirmación y recuperación

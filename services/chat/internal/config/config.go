@@ -37,7 +37,7 @@ type Config struct {
 	ReaderBlock         time.Duration
 	RoomSweepInterval   time.Duration
 	LogLevel            string
-	// P2 (ADR-021): sin DatabaseURL Chat conserva el perfil P1 sin archivo ni moderación.
+	// P2 (ADR-024): sin DatabaseURL Chat conserva el perfil P1 sin archivo ni moderación.
 	DatabaseURL          string
 	UnlinkedRetention    time.Duration
 	ArchiveClaimIdle     time.Duration

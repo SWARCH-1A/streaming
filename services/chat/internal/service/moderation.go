@@ -19,7 +19,7 @@ type ModeratorAuthority interface {
 	ModerationContext(ctx context.Context, credential, channelID string) (core.ModerationContext, *chat.Error)
 }
 
-// P2Options habilita el archivo PostgreSQL, la moderación y el replay (SPEC-05 P2, ADR-021).
+// P2Options habilita el archivo PostgreSQL, la moderación y el replay (SPEC-05 P2, ADR-024).
 type P2Options struct {
 	Archive              *archive.DB
 	Moderators           ModeratorAuthority
