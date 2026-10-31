@@ -133,8 +133,10 @@ sigue P2-14; el replay ya acepta Bearer.
 | RNF-025…032/041…049 | Credenciales por transporte, datos públicos, schemas y logs sin secretos |
 
 Las pruebas de [services/chat](../../services/chat/README.md) cubren estos comportamientos con
-Redis simulado y PostgreSQL real. La aceptación de los CA exige además el stack integrado, la
-carga y un VOD real; esta SPEC no registra esos resultados.
+Redis simulado y PostgreSQL real. [p2-chat-replay](../../tests/integration/p2-chat-replay/run.py)
+recorre el stack integrado con un VOD real: borrador, publicación, seek, paginación y eliminación.
+La aceptación de los CA exige además carga y reinicios en el stack; esta SPEC no registra esos
+resultados.
 
 ## 11. Esfuerzo, riesgos y consecuencias
 

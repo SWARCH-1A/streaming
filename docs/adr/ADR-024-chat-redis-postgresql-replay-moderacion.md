@@ -112,8 +112,13 @@ de P1: el ACK sigue dependiendo solo de Redis.
 - `CoreChatIT` para `moderation-context`, `contracts/check_p2.py` y las pruebas Web del módulo
   chat.
 
-Falta medir carga, reinicio real de Redis y PostgreSQL en el stack, y el replay contra un VOD
-real. Esas mediciones pertenecen a la aceptación de SPEC-05.
+- [p2-chat-replay](../../tests/integration/p2-chat-replay/run.py) contra el stack local: fuente
+  RTMPS con corte de reconexión, retiro, VOD real en borrador (propietario 200, anónimo 404),
+  publicado (`mediaOffsetMs` igual a la regla de `P2Timeline`, cursor y seek) y eliminado (404 y
+  limpieza del historial). La página resultante valida contra `P2ReplayPage`.
+
+Falta medir carga y el reinicio real de Redis y PostgreSQL en el stack. Esas mediciones
+pertenecen a la aceptación de SPEC-05.
 
 ## Revisión
 
