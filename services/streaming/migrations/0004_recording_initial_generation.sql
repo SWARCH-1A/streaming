@@ -4,9 +4,9 @@ ALTER TABLE recording_sessions ADD COLUMN initial_source_generation BIGINT;
 
 UPDATE recording_sessions recording
 SET initial_source_generation = (
-    SELECT MIN(authorization.source_generation)
-    FROM ingest_authorizations authorization
-    WHERE authorization.session_id = recording.session_id
+    SELECT MIN(ingest.source_generation)
+    FROM ingest_authorizations ingest
+    WHERE ingest.session_id = recording.session_id
 );
 
 ALTER TABLE recording_sessions
