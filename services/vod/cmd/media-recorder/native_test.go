@@ -175,3 +175,28 @@ func TestAvcCodecUsesProfileAndLevel(t *testing.T) {
 		}
 	}
 }
+
+func TestLegacyCheckpointCodecMatchesUpgradedProbe(t *testing.T) {
+	audio := "mp4a.40.2"
+	legacy := vod.Rendition{RenditionID: "rend_source", Width: 640, Height: 360, Bitrate: 1, VideoCodec: "avc1", AudioCodec: &audio}
+	next := legacy
+	next.VideoCodec = "avc1.42c01e"
+	upgraded, same := sameNativeRendition(legacy, next)
+	if !same || upgraded.VideoCodec != "avc1.42c01e" {
+		t.Fatalf("un checkpoint previo a la actualización no falla la grabación: %+v %v", upgraded, same)
+	}
+	if _, same := sameNativeRendition(upgraded, next); !same {
+		t.Fatal("el códec actualizado sigue coincidiendo")
+	}
+	for name, change := range map[string]func(*vod.Rendition){
+		"otro perfil":     func(r *vod.Rendition) { r.VideoCodec = "avc1.64001f" },
+		"otra resolución": func(r *vod.Rendition) { r.Width = 1280 },
+		"sin audio":       func(r *vod.Rendition) { r.AudioCodec = nil },
+	} {
+		other := next
+		change(&other)
+		if _, same := sameNativeRendition(upgraded, other); same {
+			t.Errorf("%s debe detectarse", name)
+		}
+	}
+}

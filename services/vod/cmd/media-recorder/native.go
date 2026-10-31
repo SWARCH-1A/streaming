@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"streaming/vod/internal/vod"
+	"strings"
 	"time"
 )
 
@@ -137,9 +138,13 @@ func (r *recorder) captureNative(src source) error {
 				return nil
 			}
 			previous, exists := s.Renditions["rend_source"]
-			if exists && (previous.Width != rendition.Width || previous.Height != rendition.Height || previous.Codecs() != rendition.Codecs()) {
-				r.mu.Unlock()
-				return r.nativeFailure(src.Start.SessionID, "CAPTURE_NATIVE_RENDITION_CHANGED")
+			if exists {
+				var same bool
+				if previous, same = sameNativeRendition(previous, rendition); !same {
+					r.mu.Unlock()
+					return r.nativeFailure(src.Start.SessionID, "CAPTURE_NATIVE_RENDITION_CHANGED")
+				}
+				s.Renditions["rend_source"] = previous
 			}
 			if !exists {
 				s.Renditions["rend_source"] = rendition
@@ -229,6 +234,16 @@ func probeNative(ctx context.Context, file string, size, duration int64) (vod.Re
 		return r, fmt.Errorf("native streams invalid")
 	}
 	return r, nil
+}
+
+// sameNativeRendition reports whether next keeps the stored rendition's format. Checkpoints written
+// before avcCodec stored a bare "avc1"; that legacy value matches any H.264 string and is upgraded so
+// an unfinished recording survives the recorder upgrade.
+func sameNativeRendition(previous, next vod.Rendition) (vod.Rendition, bool) {
+	if previous.VideoCodec == "avc1" && strings.HasPrefix(next.VideoCodec, "avc1.") {
+		previous.VideoCodec = next.VideoCodec
+	}
+	return previous, previous.Width == next.Width && previous.Height == next.Height && previous.Codecs() == next.Codecs()
 }
 
 // avcCodec builds the RFC 6381 string (avc1.PPCCLL) that browsers require in CODECS; a bare
