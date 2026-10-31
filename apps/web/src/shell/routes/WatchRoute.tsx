@@ -126,6 +126,8 @@ export function WatchRoute({
               key={`${session.sessionId}:${user?.userId ?? 'anonymous'}`}
               sessionId={session.sessionId}
               readOnly={session.status === 'ENDED' || session.status === 'PREPARING'}
+              channelId={stream.channelId}
+              moderator={!!user && user.userId === channel.data?.channel.ownerUserId}
             />
           </ViewErrorBoundary>
         ) : null}

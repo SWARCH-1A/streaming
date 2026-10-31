@@ -155,3 +155,48 @@ func TestNativeCaptureSurvivesRestartAndRequiresProducerClose(t *testing.T) {
 		t.Fatal("changed native identity accepted")
 	}
 }
+
+func TestAvcCodecUsesProfileAndLevel(t *testing.T) {
+	for _, tc := range []struct {
+		profile string
+		level   int
+		want    string
+	}{{"Constrained Baseline", 30, "avc1.42c01e"}, {"Main", 31, "avc1.4d401f"}, {"High", 40, "avc1.640028"}} {
+		if got, ok := avcCodec(tc.profile, tc.level); !ok || got != tc.want {
+			t.Errorf("%s %d: %q %v", tc.profile, tc.level, got, ok)
+		}
+	}
+	for _, bad := range []struct {
+		profile string
+		level   int
+	}{{"", 30}, {"High", 0}, {"Unknown", 30}} {
+		if _, ok := avcCodec(bad.profile, bad.level); ok {
+			t.Errorf("%+v debe rechazarse", bad)
+		}
+	}
+}
+
+func TestLegacyCheckpointCodecMatchesUpgradedProbe(t *testing.T) {
+	audio := "mp4a.40.2"
+	legacy := vod.Rendition{RenditionID: "rend_source", Width: 640, Height: 360, Bitrate: 1, VideoCodec: "avc1", AudioCodec: &audio}
+	next := legacy
+	next.VideoCodec = "avc1.42c01e"
+	upgraded, same := sameNativeRendition(legacy, next)
+	if !same || upgraded.VideoCodec != "avc1.42c01e" {
+		t.Fatalf("un checkpoint previo a la actualización no falla la grabación: %+v %v", upgraded, same)
+	}
+	if _, same := sameNativeRendition(upgraded, next); !same {
+		t.Fatal("el códec actualizado sigue coincidiendo")
+	}
+	for name, change := range map[string]func(*vod.Rendition){
+		"otro perfil":     func(r *vod.Rendition) { r.VideoCodec = "avc1.64001f" },
+		"otra resolución": func(r *vod.Rendition) { r.Width = 1280 },
+		"sin audio":       func(r *vod.Rendition) { r.AudioCodec = nil },
+	} {
+		other := next
+		change(&other)
+		if _, same := sameNativeRendition(upgraded, other); same {
+			t.Errorf("%s debe detectarse", name)
+		}
+	}
+}
