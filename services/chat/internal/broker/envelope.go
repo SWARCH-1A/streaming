@@ -115,7 +115,7 @@ func decode(body []byte) (Envelope, chat.SessionState, string, error) {
 	stateHash := sha256.Sum256(stateBytes)
 	event.stateFingerprint = hex.EncodeToString(stateHash[:])
 	return event, chat.SessionState{SessionID: p.SessionID, StreamGeneration: *p.StreamGeneration,
-		SessionVersion: *p.SessionVersion, Status: status, Availability: p.Availability}, hex.EncodeToString(hash[:]), nil
+		SessionVersion: *p.SessionVersion, Status: status, Availability: p.Availability, ChannelID: p.ChannelID}, hex.EncodeToString(hash[:]), nil
 }
 
 func keys(fields map[string]json.RawMessage, names ...string) bool {

@@ -104,8 +104,8 @@ public class PrivateCoreListener implements WebServerFactoryCustomizer<TomcatSer
 
     public int localPort() { return connector==null?-1:connector.getLocalPort(); }
     public boolean isPrivate(HttpServletRequest request) { return enabled && localPort()>0 && request.getLocalPort()==localPort(); }
-    public enum Permission { OWNER_CONTEXT, CATALOG_VALUES, DISCOVERY_EVENTS, CHAT_CONTEXT, CHAT_SNAPSHOT, RECOVERY_DELIVERY,
-        NOTIFICATIONS, RECORDING_SETTINGS }
+    public enum Permission { OWNER_CONTEXT, CATALOG_VALUES, DISCOVERY_EVENTS, CHAT_CONTEXT, CHAT_SNAPSHOT, CHAT_MODERATION,
+        RECOVERY_DELIVERY, NOTIFICATIONS, RECORDING_SETTINGS }
 
     public boolean permits(HttpServletRequest request,Permission permission) {
         if(!isPrivate(request) || java.util.Collections.list(request.getHeaders("X-Service-Name")).size()!=1
@@ -120,7 +120,7 @@ public class PrivateCoreListener implements WebServerFactoryCustomizer<TomcatSer
         if(permission==Permission.RECORDING_SETTINGS)
             return "streaming-recording-settings".equals(request.getHeader("X-Service-Name")) && recordingSettingsToken.length>0
                     && MessageDigest.isEqual(recordingSettingsToken,candidate);
-        if(permission==Permission.CHAT_CONTEXT || permission==Permission.CHAT_SNAPSHOT)
+        if(permission==Permission.CHAT_CONTEXT || permission==Permission.CHAT_SNAPSHOT || permission==Permission.CHAT_MODERATION)
             return "chat".equals(request.getHeader("X-Service-Name")) && chatToken.length>0 && MessageDigest.isEqual(chatToken,candidate);
         if(!"streaming".equals(request.getHeader("X-Service-Name"))) return false;
         boolean full=MessageDigest.isEqual(token,candidate);
@@ -128,7 +128,7 @@ public class PrivateCoreListener implements WebServerFactoryCustomizer<TomcatSer
         return switch(permission) {
             case OWNER_CONTEXT, DISCOVERY_EVENTS -> full;
             case CATALOG_VALUES -> full || catalogOnly;
-            case CHAT_CONTEXT, CHAT_SNAPSHOT, RECOVERY_DELIVERY, NOTIFICATIONS, RECORDING_SETTINGS -> false;
+            case CHAT_CONTEXT, CHAT_SNAPSHOT, CHAT_MODERATION, RECOVERY_DELIVERY, NOTIFICATIONS, RECORDING_SETTINGS -> false;
         };
     }
 }

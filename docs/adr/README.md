@@ -27,8 +27,9 @@ y cuáles fueron sustituidos. Las fechas conservan el momento de cada decisión.
 | [ADR-019](ADR-019-administracion-core.md) | Propuesta implementada | Administración Core, revocación transaccional y outbox de estado; aceptación transversal pendiente. |
 
 | [ADR-020](ADR-020-notificaciones-typescript-postgresql-smtp.md) | Aceptada para Notificaciones | Node.js 24/TypeScript, PostgreSQL propio, SMTP STARTTLS y Mailpit local; entrega e idempotencia durables. |
+| [ADR-021](ADR-021-chat-redis-postgresql-replay-moderacion.md) | Aceptada para Chat | Redis para el vivo y PostgreSQL propio para replay, bloqueos y retiros; outbox Redis Stream, mapping por `timelineStartMs` y moderación del propietario. |
 
-Chat conserva Go; ADR-010 describe su perfil efímero P1. La retención durable P2 rige por ADR-015; las herramientas pendientes de operación y despliegue se registran conforme
+Chat conserva Go; ADR-010 describe su perfil efímero P1 y ADR-021 su almacenamiento P2 (Redis + PostgreSQL); las herramientas pendientes de operación y despliegue se registran conforme
 a la [política ADR](../politica_ADR.md). Las alternativas candidatas requieren decisión del responsable.
 
 La [decisión de entrega durable de callbacks Media](../../services/streaming/docs/adr/0001-media-callback-delivery.md) documenta la persistencia, reintentos, DLQ y capacidad del adaptador de SPEC-04.

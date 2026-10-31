@@ -83,11 +83,33 @@ services:
       retries: 12
     restart: unless-stopped
 
+  # Chat P2 (ADR-021): copia durable para replay, bloqueos y retiros. Redis sigue sirviendo el vivo.
+  chat-pg:
+    image: postgres:18-alpine
+    entrypoint: ["/bin/sh", "/postgres-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tmp/p1-tls/server.crt", "-c", "ssl_key_file=/tmp/p1-tls/server.key"]
+    environment:
+      POSTGRES_DB: chat
+      POSTGRES_USER: chat
+      POSTGRES_PASSWORD: ${CHAT_DB_PASSWORD:?Run python3 infra/local/dev.py init}
+    volumes:
+      - chat-pg:/var/lib/postgresql
+      - ./infra/p1/postgres-tls.sh:/postgres-tls.sh:ro
+      - ${P1_STATE}/chat-pg.crt:/run/secrets/server.crt:ro
+      - ${P1_STATE}/chat-pg.key:/run/secrets/server.key:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chat -d chat"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
   chat:
     image: streaming-local-chat
     build: ./services/chat
     environment:
       CHAT_REDIS_URL: rediss://chat-db:6379/0
+      CHAT_DATABASE_URL: postgres://chat:${CHAT_DB_PASSWORD:?Run python3 infra/local/dev.py init}@chat-pg:5432/chat?sslmode=verify-full&sslrootcert=/run/secrets/ca.crt
       SSL_CERT_FILE: /run/secrets/ca.crt
       CHAT_ALLOWED_ORIGINS: ${WEB_ORIGIN:?Run init}
       CHAT_CORE_BASE_URL: https://core:8082
@@ -106,6 +128,8 @@ services:
       - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
     depends_on:
       chat-db:
+        condition: service_healthy
+      chat-pg:
         condition: service_healthy
     restart: unless-stopped
 
@@ -343,5 +367,6 @@ volumes:
   core-avatars:
   core-banners:
   chat-db:
+  chat-pg:
   live-db:
   notifications-db:

@@ -1,6 +1,6 @@
 # SPEC-05 — Chat, moderación y replay
 
-**Prioridad:** P2. **Responsable:** Chat. **Estado:** diseño para desarrollo.
+**Prioridad:** P2. **Responsable:** Chat. **Estado:** implementación inicial; aceptación pendiente.
 **RF:** RF-031…037, RF-082…083. **RNF:** RNF-013, 018…019, 022…032, 041…050.
 
 ## 1. Contexto y problema
@@ -11,8 +11,8 @@ El propietario modera mensajes y participantes desde su canal. [Alcance](../alca
 ## 2. Definición del componente
 
 Chat conserva su servicio Go, API y WebSocket. Posee mensajes, secuencias, deduplicación,
-cuota, bloqueos, supresiones e historial durable. El código P1 ofrece chat live y retención
-temporal; el archivo para replay y la moderación requieren implementación.
+cuota, bloqueos, supresiones e historial durable. Redis guarda el vivo y PostgreSQL propio
+(`chat-pg`) la copia durable para replay y moderación ([ADR-021](../adr/ADR-021-chat-redis-postgresql-replay-moderacion.md)).
 
 ## 3. Historia de usuario
 
@@ -60,30 +60,55 @@ Identidad del mensaje: `sessionId`, `messageId`, `userId`, `clientMessageId`, `s
 público, texto, timestamp UTC, `streamOffsetMs` y generaciones. Las supresiones tienen identidad
 y versión para impedir que una consulta o reentrega antigua reponga contenido retirado.
 
-El bloqueo identifica canal, cuenta, modalidad, vencimiento si es temporal y versión. La
-aceptación verifica el estado vigente, no solo un timer en memoria. La selección del almacén
-durable, el archivo y los límites de duración están pendientes del responsable.
+**Almacenes.** El script Redis que confirma el envío (dedupe, cuota, bloqueo, sequence) agrega
+el mensaje al stream `chat:archive`. El ACK sale tras ese script y Redis usa AOF con
+`appendfsync always`. Un archivador por réplica copia a PostgreSQL de forma idempotente y
+confirma la entrada solo después del commit. La sala viva expira 5 minutos tras el fin. El
+historial durable dura mientras exista un VOD de la sesión. Una sesión sin VOD se borra a los
+7 días de su último mensaje (`CHAT_UNLINKED_RETENTION`).
+
+**Retiro.** Un mensaje retirado conserva su fila y posición sin texto. Historial, frame
+`message.removed` y replay muestran el aviso "Mensaje eliminado por el moderador". Cada retiro
+incrementa `moderationVersion` de la sesión. Un `message.created` posterior no repone el texto.
+
+**Bloqueo.** El bloqueo identifica canal, cuenta, modalidad (`TEMPORARY` con `PT10M`, `PT1H`,
+`PT24H` o `P7D`; `PERMANENT` hasta su retiro), vencimiento y versión. Gana la última escritura.
+PostgreSQL registra el estado y Redis guarda una copia que vence en el mismo instante absoluto.
+El script de envío consulta esa copia, de modo que la aceptación verifica el estado vigente y no
+un timer en memoria. La cuenta bloqueada recibe `CHAT_BLOCKED` con `blockMode` y
+`blockedUntilUtc`, y la Web muestra hasta cuándo dura el bloqueo.
+
+**Borrado por usuario.** Retira los mensajes de la cuenta en la emisión indicada, hasta el
+sequence observado al aceptar la orden. Responde 202 con la operación terminada y su `statusUri`.
+
+**Mapping temporal.** `streamOffsetMs` es la posición del timeline de la sesión al autorizar el
+mensaje. VOD publica `timelineStartMs` en `vod.availability.changed.v1` y la posición en el video
+es `streamOffsetMs - timelineStartMs`. La grabación conserva los cortes de reconexión, así que los
+mensajes enviados durante un corte quedan en su lugar. Cambiar el mapping incrementa
+`vodVersion` e invalida los cursores (410). El replay entrega ventanas de hasta 300 000 ms y
+50 mensajes por página. La Web pide ventanas alineadas de 30 s y, al adelantar o retroceder,
+consulta la ventana de la nueva posición.
 
 Los schemas y operaciones `p2.chat.*` están en [contracts/p2.json](../../contracts/p2.json) y
-[HTTP/WS](../contratos_p2_http.md). Historial y message.created añaden moderationVersion; borrado
-e invalidación impiden restaurar contenido desde respuestas/eventos viejos. La selección del
-borrado por usuario está marcada en revisión P2-11. Replay exige acceso VOD y cursor ligado a
-ventana/mapping/moderación. Se consultan trabajos asíncronos por statusUri del dueño.
+[HTTP/WS](../contratos_p2_http.md). Las mutaciones exigen propietario confirmado por Core
+(`p2.chat.moderation-context`), Origin permitido, doble envío CSRF e `Idempotency-Key`.
 
 ## 8. Dependencias y contratos de integración
 
 | Dependencia | Contrato | Fallo |
 | --- | --- | --- |
-| Core | Sesión, suspensión, autor y propiedad del canal; cookie web o credencial móvil | Rechazar nuevas operaciones protegidas si no se puede autorizar |
+| Core | Sesión, suspensión, autor y propiedad del canal (`message-context`, `moderation-context`); cookie web o credencial móvil | Rechazar nuevas operaciones protegidas si no se puede autorizar |
 | Streaming | Estado/timeline actual por HTTP; ciclo de sesión por broker | Eventos no conceden permisos; fin cierra escritura |
-| VOD | Vínculo VOD–sesión, disponibilidad, mapping y eliminación | Replay no se sirve sin acceso válido al VOD |
+| VOD | `vod.availability.changed.v1` por broker (`chat.vod`): vínculo VOD–sesión, estado, `timelineStartMs` y eliminación; payload propuesto por Chat, en revisión de VOD | Replay solo para `PUBLISHED`; `DELETED` borra el historial sin otro VOD |
 | Gateway / clientes | WS, historial, moderación y consulta temporal | Error acotado y visible sin cortar video |
 
 ## 9. Decisiones y preguntas abiertas
 
-Bloqueo por canal, modalidades temporal/permanente, retiro manual, borrado opcional y replay
-durable están definidos. [P2-10 y P2-11](../decisiones_pendientes_p2.md) asignan mapping,
-persistencia, alcance del borrado por usuario y formato de duración al responsable de Chat.
+[P2-10 y P2-11](../decisiones_pendientes_p2.md) quedan resueltas en
+[ADR-021](../adr/ADR-021-chat-redis-postgresql-replay-moderacion.md). Queda abierta la
+ratificación del payload `vod.availability.changed.v1` por el responsable de VOD, junto con su
+publicación. Mientras VOD no lo publique no existe replay de punta a punta. La credencial Bearer
+móvil para moderar sigue P2-14.
 
 ## 10. Verificación
 
@@ -94,7 +119,9 @@ persistencia, alcance del borrado por usuario y formato de duración al responsa
 | RF-082; RNF-022/024/050 | Reinicio después de ENDED, seek/reconexión, supresión y limpieza |
 | RNF-025…032/041…049 | Credenciales por transporte, datos públicos, schemas y logs sin secretos |
 
-Son criterios por ejecutar; esta SPEC no registra resultados.
+Las pruebas de [services/chat](../../services/chat/README.md) cubren estos comportamientos con
+Redis simulado y PostgreSQL real. La aceptación de los CA exige además el stack integrado, la
+carga y un VOD real; esta SPEC no registra esos resultados.
 
 ## 11. Esfuerzo, riesgos y consecuencias
 

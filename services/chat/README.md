@@ -2,7 +2,10 @@
 
 Chat es el servicio Go que maneja salas, mensajes, historial y WebSocket. Redis guarda las
 secuencias, la deduplicación y la cuota global por cuenta, según
-[ADR-010](../../docs/adr/ADR-010-chat-go-redis-efimero.md).
+[ADR-010](../../docs/adr/ADR-010-chat-go-redis-efimero.md). Con `CHAT_DATABASE_URL`, PostgreSQL
+propio guarda la copia durable para replay, los bloqueos y los retiros
+([ADR-021](../../docs/adr/ADR-021-chat-redis-postgresql-replay-moderacion.md),
+[SPEC-05 P2](../../docs/spec-p2/spec_05_chat.md)).
 
 Cada mensaje nuevo necesita un contexto Core con identidad, autor y estado de la emisión.
 La sala se conserva durante la sesión y se elimina 5 minutos después del fin.
@@ -15,9 +18,11 @@ La sala se conserva durante la sesión y se elimina 5 minutos después del fin.
 | --- | --- |
 | `cmd/chat` | Arranque, listeners y apagado ordenado. |
 | `internal/chat` | Reglas de dominio: texto NFC 1–500, códigos estables, estado de sala, modelo de mensaje. |
-| `internal/store` | Único repositorio Redis: scripts atómicos de envío y de estado de sala, historial y lectura del Stream. |
-| `internal/core` | Cliente del contrato privado Core: `message-context` y snapshot de sesión. |
-| `internal/service` | Casos de uso: resolver sala, enviar, historial y eventos de sesión. |
+| `internal/store` | Único repositorio Redis: scripts atómicos de envío (con bloqueo y entrada de archivo) y de estado de sala, historial, retiros y lectura de los Streams. |
+| `internal/archive` | Único repositorio PostgreSQL: migraciones embebidas, archivo idempotente, retiros sin texto, bloqueos, operaciones, idempotencia, vínculos VOD y replay. |
+| `internal/core` | Cliente del contrato privado Core: `message-context`, `moderation-context` y snapshot de sesión. |
+| `internal/service` | Casos de uso: resolver sala, enviar, historial, eventos de sesión, moderación, replay, archivador y mantenimiento. |
+| `internal/broker` | Consumidores RabbitMQ `chat.lifecycle` y `chat.vod`, con reintentos y dead-letter. |
 | `internal/transport` | REST de historial, WebSocket, hub de distribución y `POST /internal/chat/session-events`. |
 
 ## Interfaces
@@ -26,7 +31,18 @@ Listener público (`CHAT_PUBLIC_ADDR`, 8085), encaminado por el proxy:
 
 - `GET /api/chat/sessions/{sessionId}/messages?limit=1..50`
 - `WS /realtime/chat/sessions/{sessionId}`. Origin exacto obligatorio; la cookie `stream_session` solo se usa para enviar.
-- `GET /healthz` y `GET /readyz` (Redis).
+- `GET /healthz` y `GET /readyz` (Redis y, con archivo, PostgreSQL).
+
+Con archivo (P2), además:
+
+- `GET /api/chat/vods/{vodId}/messages?fromMs&toMs[&limit&cursor]`: replay público de un VOD publicado.
+- `DELETE /api/chat/sessions/{sessionId}/messages/{messageId}`: retirar un mensaje.
+- `PUT|DELETE|GET /api/chat/channels/{channelId}/blocks/{userId}`: bloquear, desbloquear y consultar.
+- `POST /api/chat/channels/{channelId}/message-removals` y `GET .../moderation-operations/{operationId}`:
+  retirar los mensajes de una cuenta en una emisión.
+
+Las mutaciones exigen cookie `stream_session`, Origin permitido, `XSRF-TOKEN` = `X-XSRF-TOKEN` e
+`Idempotency-Key`. Core confirma la propiedad del canal en cada operación.
 
 Listener interno (`CHAT_INTERNAL_ADDR`, 8086), nunca publicado por el proxy:
 
@@ -54,6 +70,10 @@ Listener interno (`CHAT_INTERNAL_ADDR`, 8086), nunca publicado por el proxy:
 | `CHAT_READER_BLOCK` | `2s` | Espera máxima de cada lectura bloqueante del Stream de una sala. |
 | `CHAT_SESSION_COOKIE` | `stream_session` | Cookie de sesión Core. |
 | `CHAT_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error`. |
+| `CHAT_DATABASE_URL` | vacío | PostgreSQL de Chat (`postgres://…`). Vacío conserva el perfil P1 sin archivo ni moderación. |
+| `CHAT_UNLINKED_RETENTION` | `168h` | Historial durable de una sesión que nunca recibió un VOD, contado desde su último mensaje. |
+| `CHAT_ARCHIVE_CLAIM_IDLE` | `30s` | Tiempo tras el cual otra réplica reclama entradas de archivo no confirmadas. |
+| `CHAT_IDEMPOTENCY_RETENTION` | `24h` | Retención de los resultados de `Idempotency-Key`. |
 
 Redis debe correr con `appendonly yes`, `appendfsync always` y `maxmemory-policy noeviction`, como en
 [compose.chat.yaml](../../infra/local/compose.chat.yaml). Un Redis primario, sin Cluster.
@@ -64,6 +84,15 @@ Redis debe correr con `appendonly yes`, `appendfsync always` y `maxmemory-policy
 cd services/chat
 go test ./...            # Redis simulado con miniredis; no requiere Docker
 go run ./cmd/chat        # requiere las variables obligatorias y un Redis accesible
+```
+
+Pruebas contra PostgreSQL real del archivo y de las rutas de moderación/replay (el esquema
+`public` de esa base se borra al empezar; usar una base dedicada):
+
+```sh
+docker run -d --name chat-test-pg -e POSTGRES_USER=chat -e POSTGRES_PASSWORD=chat-test -e POSTGRES_DB=chat_test -p 127.0.0.1:55432:5432 postgres:18-alpine
+CHAT_TEST_DATABASE_URL="postgres://chat:chat-test@127.0.0.1:55432/chat_test?sslmode=disable" go test -tags integration ./internal/archive/ ./internal/transport/
+docker rm -f chat-test-pg
 ```
 
 Pruebas contra Redis real (la base indicada se vacía al empezar; nunca usar una con datos):
@@ -86,6 +115,6 @@ La [suite integrada P1](../../tests/integration/p1-domains/README.md) usa los pr
 
 ## Transporte P2 por RabbitMQ
 
-CHAT_EVENTS_TRANSPORT=http (por defecto) conserva recepción HTTP P1. Con amqp, CHAT_BROKER_URL y CHAT_BROKER_CA_FILE son obligatorios: consume chat.lifecycle y deshabilita su endpoint HTTP de eventos. Inbox y barrera P2 se persisten sin TTL en Redis, atómicos con el efecto. El historial/replay sigue pendiente de la evolución SPEC-05; el broker no cambia su retención P1.
+CHAT_EVENTS_TRANSPORT=http (por defecto) conserva recepción HTTP P1. Con amqp, CHAT_BROKER_URL y CHAT_BROKER_CA_FILE son obligatorios: consume chat.lifecycle y deshabilita su endpoint HTTP de eventos. Inbox y barrera P2 se persisten sin TTL en Redis, atómicos con el efecto, junto con el canal de la sesión. Con archivo también consume chat.vod (`vod.availability.changed.v1`, inbox en PostgreSQL) y una sala cuyo canal no llegó por el ciclo rechaza envíos con CHAT_UNAVAILABLE, porque no puede verificar bloqueos.
 
 Ver [perfil compartido](../../infra/broker/README.md) y [ADR-016](../../docs/adr/ADR-016-rabbitmq-eventos-p2.md).

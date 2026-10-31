@@ -1,0 +1,113 @@
+# ADR-021: Chat con Redis para el vivo y PostgreSQL propio para replay y moderación
+
+- Estado: aceptada para Chat
+- Fecha: 2026-10-28
+- Responsable: Chat
+- SPEC/contratos afectados: SPEC-05 P2, SPEC-03 P2 (`p2.chat.moderation-context`), SPEC-17;
+  `p2.chat.*`, `vod.availability.changed.v1`; resuelve P2-10 y P2-11.
+
+## Contexto
+
+[ADR-010](ADR-010-chat-go-redis-efimero.md) dejó el chat P1 en Redis, borrado 5 minutos
+después del fin. En P2, RF-082 pide reproducir el chat junto al VOD mientras exista, y RF-036,
+RF-037 y RF-083 piden retirar mensajes y bloquear cuentas por canal. Los bloqueos temporales
+deben vencer según el reloj del servidor y sobrevivir a reinicios (CA-03). Un mensaje retirado
+no puede volver a aparecer ni en el vivo ni en el replay (CA-04). El envío conserva la latencia
+de P1: el ACK sigue dependiendo solo de Redis.
+
+## Decisión
+
+1. **Dos almacenes, un solo dueño.** Redis 8 sigue siendo el almacén del vivo: cuota, dedupe,
+   sequence, historial reciente y fan-out por WebSocket, como en ADR-010. PostgreSQL 18 propio de
+   Chat (`chat-pg`, un componente de datos más) guarda la copia durable. Ningún otro servicio lo
+   lee y Chat no lee la base de Core.
+2. **Archivo asíncrono sin pérdida.** El mismo script Lua que confirma un mensaje agrega una
+   entrada al stream `chat:archive`. El ACK sale después del script, igual que en P1. Cada réplica
+   consume ese stream con el grupo `archiver`, inserta en PostgreSQL de forma idempotente y solo
+   entonces confirma y borra la entrada. Las entradas que deja una réplica caída se reclaman tras
+   `CHAT_ARCHIVE_CLAIM_IDLE` (30 s). El archivo no expira con la sala, así que borrar la sala
+   5 minutos después del fin no adelanta a la confirmación durable (CA-06).
+3. **Qué guarda PostgreSQL.** Sesión, canal, sequence, messageId, autor público (userId, handle,
+   nombre, avatar), texto, hora UTC del servidor, `streamOffsetMs` y generación. Un mensaje
+   retirado conserva su fila para mostrar el aviso "mensaje eliminado por el moderador", pero
+   **sin texto** (`text = NULL`). Si el retiro llega antes que el archivador, la fila se inserta
+   ya retirada y el archivador no la repone.
+4. **Sequence.** Lo sigue asignando Redis (`INCR` dentro del script). PostgreSQL usa
+   `(sessionId, sequence)` como clave primaria.
+5. **Retención.** La sala viva de Redis se conserva 5 minutos tras el fin (`CHAT_ENDED_RETENTION`).
+   En PostgreSQL el historial dura mientras exista un VOD vinculado a la sesión. Un evento
+   `DELETED` borra el historial cuando la sesión no tiene otro VOD vigente. Una sesión que nunca
+   recibió vínculo VOD se borra después de `CHAT_UNLINKED_RETENTION` (7 días) desde su último
+   mensaje.
+6. **Mapping temporal (P2-10).** `streamOffsetMs` es la posición del timeline de la sesión que
+   Core entrega al autorizar cada mensaje. VOD publica, en `vod.availability.changed.v1`,
+   `timelineStartMs`: la posición del timeline que corresponde al instante 0 del video. La
+   posición de un mensaje en el VOD es `streamOffsetMs - timelineStartMs`. La grabación conserva
+   los cortes de reconexión, y los mensajes enviados durante un corte también se guardan, así que
+   no hay tabla de huecos. Si VOD cambia el mapping, incrementa `vodVersion` y los cursores
+   anteriores responden 410.
+7. **Comunicación con VOD por broker.** Chat consume la suscripción `chat.vod` (RabbitMQ,
+   ADR-016) con inbox en PostgreSQL. Las versiones viejas se ignoran y `DELETED` es terminal. El
+   payload lo propone Chat y queda `review-required` hasta que lo ratifique quien es responsable
+   de VOD.
+8. **Replay.** `GET /api/chat/vods/{vodId}/messages?fromMs&toMs` devuelve como máximo
+   300 000 ms por ventana y 50 mensajes por página, con un cursor ligado a vodId, ventana y
+   `vodVersion`. Solo responde para VODs `PUBLISHED`. La Web pide ventanas alineadas de 30 s,
+   pide la siguiente cuando faltan 5 s y, al adelantar o retroceder, pide la ventana de la nueva
+   posición.
+9. **Moderación (P2-11).** Solo modera la cuenta propietaria del canal. Core lo confirma por
+   operación en `POST /internal/core/chat/moderation-context`, sin caché. Reglas:
+   - **Bloqueo por canal:** `TEMPORARY` con duración fija (`PT10M`, `PT1H`, `PT24H`, `P7D`) o
+     `PERMANENT` hasta su retiro manual. Ante cambios concurrentes gana la última escritura y
+     `version` crece en cada cambio.
+   - **Aplicación del bloqueo:** el registro vive en PostgreSQL y Redis guarda una copia que el
+     script de envío consulta, con `PXAT` en el mismo instante absoluto. El mantenimiento
+     periódico repone esa copia desde PostgreSQL.
+   - **Lo que ve la cuenta bloqueada:** el error `CHAT_BLOCKED`, con `blockMode` y
+     `blockedUntilUtc`.
+   - **Borrado por usuario:** abarca solo la emisión indicada, hasta el sequence observado al
+     aceptar la orden. Bloquear no borra mensajes.
+   - **Difusión del retiro:** cada retiro incrementa `moderationVersion` de la sesión y se
+     difunde con el frame `message.removed`.
+10. **Seguridad de las mutaciones.** Se exigen Origin permitido, el doble envío CSRF emitido por
+    Core (`XSRF-TOKEN` / `X-XSRF-TOKEN`) e `Idempotency-Key`, con resultado retenido 24 h en
+    PostgreSQL.
+
+## Opciones consideradas
+
+| Opción | Evaluación |
+| --- | --- |
+| Redis + PostgreSQL con outbox en Redis Stream | Elegida. Mantiene el ACK y la latencia de P1, persiste sin pérdida, permite consultas por ventana de tiempo e índices, y PostgreSQL ya se opera en el proyecto. |
+| Escribir en PostgreSQL antes del ACK | Duraría más cada envío y haría depender el vivo de PostgreSQL. Además la cuota, el dedupe y el sequence atómicos tendrían que repartirse entre dos almacenes. |
+| Volcar todo al terminar la emisión | Simple, pero el replay quedaría expuesto a la pérdida de Redis durante la emisión y un ENDED no observado retrasaría el archivo. |
+| Redis con persistencia larga | Redis no ofrece consultas temporales eficientes, la memoria crecería sin límite y la retención ligada a VOD sería frágil. |
+| MongoDB | Era candidato en ADR-003. Agrega otra tecnología de datos sin ventaja sobre PostgreSQL para estas consultas. |
+
+## Consecuencias
+
+- Un mensaje confirmado llega a PostgreSQL con un pequeño retraso. Si PostgreSQL cae, Chat sigue
+  aceptando mensajes en Redis y el archivo se acumula en `chat:archive` hasta recuperarse.
+  Moderación y replay responden `CHAT_UNAVAILABLE` (503) mientras tanto.
+- Con el ciclo por broker, una sala sin canal conocido rechaza envíos con `CHAT_UNAVAILABLE`,
+  porque sin canal no se puede verificar un bloqueo.
+- El perfil P1 sin `CHAT_DATABASE_URL` conserva el comportamiento de ADR-010.
+- El despliegue suma `chat-pg` con TLS, una contraseña generada por `dev.py init` y su volumen.
+- El payload de `vod.availability.changed.v1` queda pendiente de que lo ratifique quien es
+  responsable de VOD. Mientras VOD no lo publique, no hay replay de punta a punta.
+
+## Verificación
+
+- `go test ./...`: dominio, Redis (bloqueo, archivo, retiros) y broker (`decodeVod`).
+- `go test -tags integration` con PostgreSQL real: archivo idempotente, retiros sin texto,
+  bloqueos, idempotencia, vínculos VOD y replay. También las rutas HTTP/WS completas.
+- `CoreChatIT` para `moderation-context`, `contracts/check_p2.py` y las pruebas Web del módulo
+  chat.
+
+Falta medir carga, reinicio real de Redis y PostgreSQL en el stack, y el replay contra un VOD
+real. Esas mediciones pertenecen a la aceptación de SPEC-05.
+
+## Revisión
+
+Revisar si VOD propone otro mapping, si la carga medida exige escribir por lotes o separar el
+archivador, o si se adopta Redis Cluster, porque el script usa claves de varias ranuras. Revisa el
+responsable de Chat junto con VOD.

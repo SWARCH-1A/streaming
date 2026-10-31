@@ -37,6 +37,10 @@
   flex: 1;
   padding: 1rem;
 }
+.removed {
+  font-style: italic;
+  color: var(--color-muted);
+}
 .composer {
   padding: 1rem;
   background: #1f1f24;

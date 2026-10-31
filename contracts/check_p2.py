@@ -84,6 +84,10 @@ def validate_event_identity(value):
                 or value["sequence"] != payload["followVersion"]):
             raise ValueError("Follow aggregate/sequence do not match payload")
         return
+    if kind == "vod.availability.changed.v1":
+        if value["aggregateId"] != "vod:" + payload["vodId"] or value["sequence"] != payload["vodVersion"]:
+            raise ValueError("VOD aggregate/sequence do not match payload")
+        return
     if kind == "account.status.changed.v1":
         if value["aggregateId"] != "account:" + payload["userId"] or value["sequence"] != payload["accountVersion"]:
             raise ValueError("Account aggregate/sequence do not match payload")

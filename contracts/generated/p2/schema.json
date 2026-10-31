@@ -1224,6 +1224,331 @@
       "required": ["emailEnabled", "pushEnabled", "expectedVersion"],
       "type": "object"
     },
+    "P2ChatBlock": {
+      "additionalProperties": false,
+      "description": "version 0 means never blocked; lifting keeps and increments the version. active follows server time.",
+      "examples": [
+        {
+          "active": true,
+          "blockedAtUtc": "2026-10-28T20:00:00Z",
+          "channelId": "chn_fixture",
+          "duration": "PT1H",
+          "expiresAtUtc": "2026-10-28T21:00:00Z",
+          "mode": "TEMPORARY",
+          "userId": "usr_fixture",
+          "version": 1
+        },
+        {
+          "active": false,
+          "blockedAtUtc": null,
+          "channelId": "chn_fixture",
+          "duration": null,
+          "expiresAtUtc": null,
+          "mode": null,
+          "userId": "usr_fixture",
+          "version": 2
+        }
+      ],
+      "properties": {
+        "active": {"type": "boolean"},
+        "blockedAtUtc": {"format": "date-time", "pattern": "Z$", "type": ["string", "null"]},
+        "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "duration": {"enum": ["PT10M", "PT1H", "PT24H", "P7D", null]},
+        "expiresAtUtc": {"format": "date-time", "pattern": "Z$", "type": ["string", "null"]},
+        "mode": {"enum": ["TEMPORARY", "PERMANENT", null]},
+        "userId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "version": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"}
+      },
+      "required": ["channelId", "userId", "active", "mode", "duration", "expiresAtUtc", "blockedAtUtc", "version"],
+      "type": "object"
+    },
+    "P2ChatBlockCommand": {
+      "additionalProperties": false,
+      "description": "TEMPORARY requires one fixed duration; PERMANENT has no duration and lasts until removed. The server computes expiresAtUtc; the last write wins.",
+      "examples": [{"duration": "PT10M", "mode": "TEMPORARY"}, {"mode": "PERMANENT"}],
+      "properties": {"duration": {"enum": ["PT10M", "PT1H", "PT24H", "P7D", null]}, "mode": {"enum": ["TEMPORARY", "PERMANENT"]}},
+      "required": ["mode"],
+      "type": "object"
+    },
+    "P2ChatBlockedError": {
+      "additionalProperties": false,
+      "description": "ChatError variant for a blocked account; blockedUntilUtc is present only for TEMPORARY.",
+      "examples": [
+        {
+          "blockMode": "TEMPORARY",
+          "blockedUntilUtc": "2026-10-28T21:00:00Z",
+          "clientMessageId": "550e8400-e29b-41d4-a716-446655440000",
+          "code": "CHAT_BLOCKED",
+          "message": "Estás bloqueado en el chat de este canal hasta el 28/10/2026 21:00 UTC.",
+          "type": "error"
+        },
+        {
+          "blockMode": "PERMANENT",
+          "code": "CHAT_BLOCKED",
+          "message": "Estás bloqueado de forma permanente en el chat de este canal.",
+          "type": "error"
+        }
+      ],
+      "properties": {
+        "blockMode": {"enum": ["TEMPORARY", "PERMANENT"]},
+        "blockedUntilUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "clientMessageId": {"format": "uuid", "type": "string"},
+        "code": {"const": "CHAT_BLOCKED"},
+        "message": {"type": "string"},
+        "type": {"const": "error"}
+      },
+      "required": ["type", "code", "message", "blockMode"],
+      "type": "object"
+    },
+    "P2ChatHistory": {
+      "additionalProperties": false,
+      "description": "P2 shape of the P1 chat.history response (ChatHistory stays open to these fields). items and removedMessages cover the same sequence window.",
+      "examples": [
+        {
+          "items": [],
+          "moderationVersion": 1,
+          "removedMessages": [
+            {
+              "messageId": "msg_fixture",
+              "moderationVersion": 1,
+              "removedAtUtc": "2026-10-28T20:05:00Z",
+              "sequence": 7,
+              "sessionId": "ses_fixture"
+            }
+          ],
+          "roomStatus": "OPEN",
+          "sessionId": "ses_fixture",
+          "snapshotSequence": 7
+        }
+      ],
+      "properties": {
+        "items": {"items": {"$ref": "#/$defs/ChatMessage"}, "maxItems": 50, "type": "array"},
+        "moderationVersion": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "removedMessages": {"items": {"$ref": "#/$defs/P2ChatRemovedMessage"}, "maxItems": 50, "type": "array"},
+        "roomStatus": {"enum": ["OPEN", "NOT_OPEN", "READ_ONLY"]},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "snapshotSequence": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"}
+      },
+      "required": ["sessionId", "roomStatus", "snapshotSequence", "items", "moderationVersion", "removedMessages"],
+      "type": "object"
+    },
+    "P2ChatMessageRemovedFrame": {
+      "additionalProperties": false,
+      "description": "WebSocket frame. A removal is terminal: a later or replayed message.created never restores the text.",
+      "examples": [
+        {
+          "messageId": "msg_fixture",
+          "moderationVersion": 1,
+          "removedAtUtc": "2026-10-28T20:05:00Z",
+          "sequence": 7,
+          "sessionId": "ses_fixture",
+          "type": "message.removed"
+        }
+      ],
+      "properties": {
+        "messageId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "moderationVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "removedAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "type": {"const": "message.removed"}
+      },
+      "required": ["type", "messageId", "sessionId", "sequence", "moderationVersion", "removedAtUtc"],
+      "type": "object"
+    },
+    "P2ChatModerationContext": {
+      "additionalProperties": false,
+      "description": "Core confirms a current session whose account owns the channel. Chat requests one per moderation operation and never caches it.",
+      "examples": [{"authorizedAtUtc": "2026-10-28T20:00:00Z", "channelId": "chn_fixture", "userId": "usr_fixture"}],
+      "properties": {
+        "authorizedAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "userId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["userId", "channelId", "authorizedAtUtc"],
+      "type": "object"
+    },
+    "P2ChatModerationContextRequest": {
+      "additionalProperties": false,
+      "examples": [{"channelId": "chn_fixture"}],
+      "properties": {"channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}},
+      "required": ["channelId"],
+      "type": "object"
+    },
+    "P2ChatModerationOperation": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "channelId": "chn_fixture",
+          "completedAtUtc": "2026-10-28T20:06:00Z",
+          "createdAtUtc": "2026-10-28T20:06:00Z",
+          "moderationVersion": 2,
+          "operationId": "mop_fixture",
+          "removedCount": 3,
+          "scope": "SESSION",
+          "sessionId": "ses_fixture",
+          "status": "COMPLETED",
+          "statusUri": "/api/chat/channels/chn_fixture/moderation-operations/mop_fixture",
+          "targetUserId": "usr_fixture",
+          "upToSequence": 42
+        }
+      ],
+      "properties": {
+        "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "completedAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "createdAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "moderationVersion": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "operationId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "removedCount": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "scope": {"const": "SESSION"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "status": {"const": "COMPLETED"},
+        "statusUri": {"pattern": "^/api/chat/channels/[A-Za-z0-9_-]+/moderation-operations/[A-Za-z0-9_-]+$", "type": "string"},
+        "targetUserId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "upToSequence": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"}
+      },
+      "required": [
+        "operationId",
+        "channelId",
+        "sessionId",
+        "targetUserId",
+        "scope",
+        "upToSequence",
+        "removedCount",
+        "moderationVersion",
+        "status",
+        "createdAtUtc",
+        "completedAtUtc",
+        "statusUri"
+      ],
+      "type": "object"
+    },
+    "P2ChatRemoval": {
+      "additionalProperties": false,
+      "description": "Repeating a removal returns the original mark. The text is not kept.",
+      "examples": [
+        {
+          "channelId": "chn_fixture",
+          "messageId": "msg_fixture",
+          "moderationVersion": 1,
+          "removedAtUtc": "2026-10-28T20:05:00Z",
+          "sequence": 7,
+          "sessionId": "ses_fixture"
+        }
+      ],
+      "properties": {
+        "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "messageId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "moderationVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "removedAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["channelId", "messageId", "sessionId", "sequence", "moderationVersion", "removedAtUtc"],
+      "type": "object"
+    },
+    "P2ChatRemovalCommand": {
+      "additionalProperties": false,
+      "description": "Removes the account's messages of that broadcast only, up to the sequence observed when the order is accepted.",
+      "examples": [{"sessionId": "ses_fixture", "userId": "usr_fixture"}],
+      "properties": {
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "userId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["sessionId", "userId"],
+      "type": "object"
+    },
+    "P2ChatRemovedMessage": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "messageId": "msg_fixture",
+          "moderationVersion": 1,
+          "removedAtUtc": "2026-10-28T20:05:00Z",
+          "sequence": 7,
+          "sessionId": "ses_fixture"
+        }
+      ],
+      "properties": {
+        "messageId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "moderationVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "removedAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["messageId", "sessionId", "sequence", "moderationVersion", "removedAtUtc"],
+      "type": "object"
+    },
+    "P2ChatReplayItem": {
+      "additionalProperties": false,
+      "description": "A removed message keeps its place with text null so players show the moderator notice.",
+      "examples": [
+        {
+          "author": {"avatarUri": null, "displayName": "Fixture", "handle": "fixture", "userId": "usr_fixture"},
+          "messageId": "msg_fixture",
+          "removed": false,
+          "sequence": 7,
+          "serverCreatedAtUtc": "2026-10-28T20:00:01Z",
+          "text": "Hola",
+          "vodOffsetMs": 1000
+        }
+      ],
+      "properties": {
+        "author": {"$ref": "#/$defs/ChatAuthor"},
+        "messageId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "removed": {"type": "boolean"},
+        "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "serverCreatedAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "text": {"maxLength": 500, "minLength": 1, "type": ["string", "null"]},
+        "vodOffsetMs": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"}
+      },
+      "required": ["messageId", "sequence", "vodOffsetMs", "author", "text", "removed", "serverCreatedAtUtc"],
+      "type": "object"
+    },
+    "P2ChatReplayPage": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "fromMs": 0,
+          "items": [
+            {
+              "author": {"avatarUri": null, "displayName": "Fixture", "handle": "fixture", "userId": "usr_fixture"},
+              "messageId": "msg_fixture",
+              "removed": true,
+              "sequence": 7,
+              "serverCreatedAtUtc": "2026-10-28T20:00:01Z",
+              "text": null,
+              "vodOffsetMs": 1000
+            }
+          ],
+          "nextCursor": null,
+          "toMs": 30000,
+          "vodId": "vod_fixture"
+        }
+      ],
+      "properties": {
+        "fromMs": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "items": {"items": {"$ref": "#/$defs/P2ChatReplayItem"}, "maxItems": 50, "type": "array"},
+        "nextCursor": {"maxLength": 512, "minLength": 1, "type": ["string", "null"]},
+        "toMs": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "vodId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["vodId", "fromMs", "toMs", "items", "nextCursor"],
+      "type": "object"
+    },
+    "P2ChatReplayQuery": {
+      "additionalProperties": false,
+      "description": "Window [fromMs, toMs) in VOD time, at most 300000 ms. The cursor is bound to vodId, window and mapping version.",
+      "examples": [{"fromMs": 0, "toMs": 30000}, {"fromMs": 30000, "limit": 50, "toMs": 60000}],
+      "properties": {
+        "cursor": {"maxLength": 512, "minLength": 1, "type": "string"},
+        "fromMs": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "limit": {"default": 50, "maximum": 50, "minimum": 1, "type": "integer"},
+        "toMs": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": ["fromMs", "toMs"],
+      "type": "object"
+    },
     "P2DeliveryResult": {
       "additionalProperties": false,
       "examples": [{"attempt": 1, "deliveryId": "del_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "status": "DELIVERED"}],
@@ -1645,6 +1970,54 @@
         "occurredAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
         "payload": {"$ref": "#/$defs/P2StreamSessionChangedPayload"},
         "producer": {"const": "streaming"},
+        "schemaVersion": {"const": 1},
+        "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "producer",
+        "payload",
+        "correlationId"
+      ],
+      "type": "object"
+    },
+    "P2EventVodAvailabilityChanged": {
+      "additionalProperties": false,
+      "description": "Proposed by Chat as consumer; review-required until the VOD owner ratifies it.",
+      "examples": [
+        {
+          "aggregateId": "vod:vod_fixture",
+          "correlationId": "corr_fixture",
+          "eventId": "a38a5088-2178-444f-9ebd-a3a1dfbe7d02",
+          "eventType": "vod.availability.changed.v1",
+          "occurredAtUtc": "2026-10-28T20:00:00Z",
+          "payload": {
+            "channelId": "chn_fixture",
+            "durationMs": 3600000,
+            "sessionId": "ses_fixture",
+            "status": "PUBLISHED",
+            "timelineStartMs": 0,
+            "vodId": "vod_fixture",
+            "vodVersion": 2
+          },
+          "producer": "vod",
+          "schemaVersion": 1,
+          "sequence": 2
+        }
+      ],
+      "properties": {
+        "aggregateId": {"pattern": "^vod:[A-Za-z0-9_-]{1,64}$", "type": "string"},
+        "correlationId": {"pattern": "^[A-Za-z0-9_-]{1,128}$", "type": "string"},
+        "eventId": {"format": "uuid", "type": "string"},
+        "eventType": {"const": "vod.availability.changed.v1"},
+        "occurredAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "payload": {"$ref": "#/$defs/P2VodAvailabilityPayload"},
+        "producer": {"const": "vod"},
         "schemaVersion": {"const": 1},
         "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
       },
@@ -2108,6 +2481,32 @@
         "language": {"pattern": "^[a-z]{2,3}(-[A-Z][a-z]{3})?(-([A-Z]{2}|[0-9]{3}))?(?![\\s\\S])", "type": "string"}
       },
       "required": ["language", "label", "expectedMappingVersion"],
+      "type": "object"
+    },
+    "P2VodAvailabilityPayload": {
+      "additionalProperties": false,
+      "description": "timelineStartMs is the session timeline position (the streamOffsetMs of chat messages) shown at VOD time 0. DELETED is terminal for the vodId.",
+      "examples": [
+        {
+          "channelId": "chn_fixture",
+          "durationMs": 3600000,
+          "sessionId": "ses_fixture",
+          "status": "PUBLISHED",
+          "timelineStartMs": 0,
+          "vodId": "vod_fixture",
+          "vodVersion": 2
+        }
+      ],
+      "properties": {
+        "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "durationMs": {"maximum": 9007199254740991, "minimum": 0, "type": ["integer", "null"]},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "status": {"enum": ["PROCESSING", "PUBLISHED", "UNPUBLISHED", "SUSPENDED", "DELETED"]},
+        "timelineStartMs": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "vodId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "vodVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": ["vodId", "vodVersion", "channelId", "sessionId", "status", "timelineStartMs", "durationMs"],
       "type": "object"
     },
     "PlaybackCallback": {

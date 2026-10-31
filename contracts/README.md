@@ -43,6 +43,9 @@ es offline, comprueba referencias, ejemplos válidos/negativos, identidad/versio
 permisos, idempotencia y trazabilidad de las operaciones, además de detectar drift.
 El arranque RabbitMQ y los SDK de cada lenguaje se documentan en infra/broker/README.md y ADR-016.
 
+Chat añade moderación, replay y `p2.chat.moderation-context` en `p2.chat.*`, y propone el payload
+de `vod.availability.changed.v1` (review-required hasta que VOD lo ratifique; ADR-021).
+
 Administración añade listados y cambios de estado en `p2.admin.*`, y el evento
 `account.status.changed.v1`. Su aceptación transversal sigue pendiente de P2-17.
 

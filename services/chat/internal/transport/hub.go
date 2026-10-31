@@ -42,6 +42,11 @@ func (h *Hub) Join(ctx context.Context, sid string, c *client, ready func(lastSe
 	if err != nil {
 		return err
 	}
+	// Los retiros anteriores al chat.ready llegan en el historial (removedMessages).
+	modID, err := h.store.LastModID(ctx, sid)
+	if err != nil {
+		return err
+	}
 	room, err := h.store.Room(ctx, sid)
 	if err != nil {
 		return err
@@ -56,7 +61,7 @@ func (h *Hub) Join(ctx context.Context, sid string, c *client, ready func(lastSe
 		fctx, cancel := context.WithCancel(context.Background())
 		feed = &roomFeed{clients: map[*client]struct{}{}, cancel: cancel}
 		h.rooms[sid] = feed
-		go h.run(fctx, sid, last, room.Status)
+		go h.run(fctx, sid, last, modID, room.Status)
 	}
 	c.enqueue(ready(last))
 	feed.clients[c] = struct{}{}
@@ -104,10 +109,10 @@ func (h *Hub) broadcast(sid string, frame []byte) {
 	}
 }
 
-func (h *Hub) run(ctx context.Context, sid string, after int64, status chat.RoomStatus) {
+func (h *Hub) run(ctx context.Context, sid string, after int64, modID string, status chat.RoomStatus) {
 	backoff := 100 * time.Millisecond
 	for ctx.Err() == nil {
-		msgs, err := h.store.ReadAfter(ctx, sid, after, h.block, 100)
+		feed, err := h.store.ReadFeed(ctx, sid, after, modID, h.block, 100)
 		if err != nil {
 			if ctx.Err() != nil {
 				return
@@ -122,12 +127,16 @@ func (h *Hub) run(ctx context.Context, sid string, after int64, status chat.Room
 			continue
 		}
 		backoff = 100 * time.Millisecond
-		for _, m := range msgs {
+		for _, m := range feed.Messages {
 			if m.Sequence <= after {
 				continue
 			}
 			after = m.Sequence
 			h.broadcast(sid, mustJSON(createdFrame{Type: "message.created", Message: m}))
+		}
+		modID = feed.ModID
+		for _, removal := range feed.Removals {
+			h.broadcast(sid, mustJSON(removedFrame{Type: "message.removed", Removal: removal}))
 		}
 		// El estado viaja por evento/snapshot a Redis; se observa aquí para avisar READ_ONLY a todas
 		// las réplicas sin otro canal.

@@ -10,31 +10,53 @@ import type {
   MessageCreated,
   MessageSend,
 } from '@contracts/p1';
+import type {
+  P2ChatBlockedError,
+  P2ChatHistory,
+  P2ChatMessageRemovedFrame,
+  P2ChatRemovedMessage,
+} from '@contracts/p2';
 
 import { ActionLink } from '@/src/components/atoms/ActionLink';
 import { Button } from '@/src/components/atoms/Button';
 import { Textarea } from '@/src/components/atoms/Textarea';
 import { Notice } from '@/src/components/molecules/Notice';
+import { ModerationActions } from '@/src/modules/chat/components/ModerationActions';
 import { errorMessage, request } from '@/src/shared/api/http';
 import { codePointLength } from '@/src/shared/format';
 import { useSession } from '@/src/shell/session/useSession';
 
 import styles from './ChatPanel.module.css';
-import { hasGap, mergeMessages } from './mergeMessages';
+import { mergeMessages } from './mergeMessages';
+import { blockedNotice } from './moderationApi';
+import { mergeRemovals, timeline, timelineHasGap } from './timeline';
 import { validateMessage } from './validateMessage';
 
-type Frame = ChatReady | ChatStatus | MessageAccepted | MessageCreated | ChatError;
+type Frame =
+  ChatReady | ChatStatus | MessageAccepted | MessageCreated | ChatError | P2ChatMessageRemovedFrame;
 interface Room {
   messages: ChatMessage[];
+  removed: Map<string, P2ChatRemovedMessage>;
   status: ChatHistory['roomStatus'];
   connected: boolean;
   error: string;
   gap: boolean;
 }
-export function LiveChatPanel({ sessionId, readOnly }: { sessionId: string; readOnly: boolean }) {
+interface Props {
+  sessionId: string;
+  readOnly: boolean;
+  /** Canal de la sesión; con moderator=true muestra las acciones del propietario. */
+  channelId?: string;
+  moderator?: boolean;
+}
+export function LiveChatPanel({ sessionId, readOnly, channelId, moderator = false }: Props) {
   const { user } = useSession();
+  const [moderation, setModeration] = useState<{ text: string; tone: 'success' | 'error' } | null>(
+    null,
+  );
   const [room, setRoom] = useState<Room>({
     messages: [],
+    removed: new Map(),
     status: 'NOT_OPEN',
     connected: false,
     error: '',
@@ -55,29 +77,37 @@ export function LiveChatPanel({ sessionId, readOnly }: { sessionId: string; read
       timer: ReturnType<typeof setTimeout>,
       readyTimer: ReturnType<typeof setTimeout>;
     let messages: ChatMessage[] = [],
+      removed = new Map<string, P2ChatRemovedMessage>(),
       lastSequence = 0,
       lostHistory = false;
+    const gapNow = () => lostHistory || timelineHasGap(timeline(messages, removed));
     const abort = new AbortController();
     const apply = (changes: Partial<Room>) => {
       if (!disposed) setRoom((previous) => ({ ...previous, ...changes }));
     };
     async function backlog() {
-      const result = await request<ChatHistory>(
+      // ChatHistory P1 admite los campos P2 de moderación; un Chat P1 no los envía.
+      const result = await request<ChatHistory & Partial<P2ChatHistory>>(
         `/api/chat/sessions/${sessionId}/messages?limit=50`,
         { signal: abort.signal },
       );
       if (disposed) return;
       if (result.sessionId !== sessionId) throw new Error('Historial de otra sesión.');
-      const earliest = result.items[0]?.sequence ?? result.snapshotSequence + 1;
+      const removedNow = result.removedMessages ?? [];
+      const earliest = Math.min(
+        result.items[0]?.sequence ?? result.snapshotSequence + 1,
+        ...removedNow.map((item) => item.sequence),
+      );
       const unrecoverable = lastSequence > 0 && earliest > lastSequence + 1;
       lostHistory ||= unrecoverable;
+      removed = mergeRemovals(sessionId, removed, removedNow);
       messages = mergeMessages(sessionId, messages, result.items);
       lastSequence = Math.max(
         lastSequence,
         result.snapshotSequence,
         ...messages.map((item) => item.sequence),
       );
-      apply({ messages, status: result.roomStatus, gap: lostHistory || hasGap(messages) });
+      apply({ messages, removed, status: result.roomStatus, gap: gapNow() });
     }
     function connect() {
       if (disposed) return;
@@ -113,7 +143,7 @@ export function LiveChatPanel({ sessionId, readOnly }: { sessionId: string; read
               apply({
                 connected: true,
                 error: '',
-                gap: lostHistory || lastSequence < frame.lastSequence || hasGap(messages),
+                gap: lastSequence < frame.lastSequence || gapNow(),
               });
             } else if (!ready) throw new Error('Chat no confirmó suscripción.');
             else if (frame.type === 'message.created') {
@@ -121,7 +151,11 @@ export function LiveChatPanel({ sessionId, readOnly }: { sessionId: string; read
               if (frame.message.sequence > lastSequence + 1) await backlog();
               messages = mergeMessages(sessionId, messages, [frame.message]);
               lastSequence = Math.max(lastSequence, frame.message.sequence);
-              apply({ messages, gap: lostHistory || hasGap(messages) });
+              apply({ messages, gap: gapNow() });
+            } else if (frame.type === 'message.removed') {
+              if (frame.sessionId !== sessionId) throw new Error('Retiro de otra sesión.');
+              removed = mergeRemovals(sessionId, removed, [frame]);
+              apply({ removed, gap: gapNow() });
             } else if (frame.type === 'message.accepted') {
               if (frame.sessionId !== sessionId) throw new Error('ACK de otra sesión.');
               if (frame.clientMessageId === pendingRef.current?.clientMessageId) {
@@ -134,9 +168,15 @@ export function LiveChatPanel({ sessionId, readOnly }: { sessionId: string; read
               if (frame.sessionId !== sessionId) throw new Error('Estado de otra sesión.');
               apply({ status: frame.roomStatus });
             } else if (frame.type === 'error') {
-              setFailure(
-                `${frame.message} (${frame.code}${frame.retryAfterMs ? ` · espera ${frame.retryAfterMs} ms` : ''})`,
-              );
+              if (frame.code === 'CHAT_BLOCKED') {
+                // Rechazo terminal: reintentar no sirve hasta que venza el bloqueo; se conserva el texto.
+                pendingRef.current = null;
+                setPending(null);
+                setFailure(blockedNotice((frame as P2ChatBlockedError).blockedUntilUtc));
+              } else
+                setFailure(
+                  `${frame.message} (${frame.code}${frame.retryAfterMs ? ` · espera ${frame.retryAfterMs} ms` : ''})`,
+                );
               if (frame.code === 'AUTH_REQUIRED')
                 window.dispatchEvent(new Event('session-expired'));
             }
@@ -220,22 +260,36 @@ export function LiveChatPanel({ sessionId, readOnly }: { sessionId: string; read
             setAutoscroll(false);
         }}
       >
-        {room.messages.map((message) => (
-          <div key={message.sequence} className="stack">
-            <p>
-              <strong>{message.author.displayName}</strong>{' '}
-              <time dateTime={message.serverCreatedAtUtc}>
-                {new Date(message.serverCreatedAtUtc).toLocaleTimeString('es', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </time>
+        {timeline(room.messages, room.removed).map((entry) =>
+          entry.kind === 'removed' ? (
+            <p key={entry.sequence} className={styles.removed}>
+              Mensaje eliminado por el moderador
             </p>
-            <p>{message.text}</p>
-          </div>
-        ))}
+          ) : (
+            <div key={entry.sequence} className="stack">
+              <p>
+                <strong>{entry.message.author.displayName}</strong>{' '}
+                <time dateTime={entry.message.serverCreatedAtUtc}>
+                  {new Date(entry.message.serverCreatedAtUtc).toLocaleTimeString('es', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </time>
+              </p>
+              <p>{entry.message.text}</p>
+              {moderator && channelId && entry.message.author.userId !== user?.userId ? (
+                <ModerationActions
+                  channelId={channelId}
+                  message={entry.message}
+                  onResult={(text, tone) => setModeration({ text, tone })}
+                />
+              ) : null}
+            </div>
+          ),
+        )}
       </div>
       <div className={styles.composer}>
+        {moderation ? <Notice tone={moderation.tone}>{moderation.text}</Notice> : null}
         {room.error ? <Notice tone="error">{room.error}</Notice> : null}
         {room.gap ? (
           <Notice tone="warning">

@@ -22,6 +22,8 @@ public class PrivateCoreSecurity {
                 .authorizeHttpRequests(a->a
                         .requestMatchers(HttpMethod.POST,"/internal/core/chat/message-context")
                         .access((authentication,context)->new AuthorizationDecision(listener.permits(context.getRequest(),PrivateCoreListener.Permission.CHAT_CONTEXT)))
+                        .requestMatchers(HttpMethod.POST,"/internal/core/chat/moderation-context")
+                        .access((authentication,context)->new AuthorizationDecision(listener.permits(context.getRequest(),PrivateCoreListener.Permission.CHAT_MODERATION)))
                         .requestMatchers(HttpMethod.GET,"/internal/core/chat/sessions/*")
                         .access((authentication,context)->new AuthorizationDecision(listener.permits(context.getRequest(),PrivateCoreListener.Permission.CHAT_SNAPSHOT)))
                         .requestMatchers(HttpMethod.POST,"/internal/core/streaming/owner-context")

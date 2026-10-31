@@ -46,7 +46,7 @@ def run(args, **kwargs):
 
 def render_proxy():
     source = (ROOT / "infra/reverse-proxy/Caddyfile").read_text()
-    if source.count(":3000 {") != 1 or source.count("      import proxy_headers") != 8:
+    if source.count(":3000 {") != 1 or source.count("      import proxy_headers") != 9:
         raise RuntimeError("Review P1 TLS renderer after reverse-proxy structure changes")
     source = source.replace(":3000 {", "https://localhost:3443 {\n  tls /run/secrets/web.crt /run/secrets/web.key")
     source = source.replace("      transport http {\n        response_header_timeout 10s\n      }\n", "")
@@ -236,6 +236,9 @@ def main():
             notifications = runpy.run_path(str(ROOT / "infra/local/notifications_config.py"))
             env = notifications["initialize"](env, STATE, run)
             print("Notifications certificates, database and service credentials ready (emails visible at http://127.0.0.1:8025)")
+            chat = runpy.run_path(str(ROOT / "infra/local/chat_config.py"))
+            env = chat["initialize"](env, STATE, run)
+            print("Chat PostgreSQL certificate and credentials ready")
         if args.action=="build":
             build_args = ("--profile","tools","build") if args.broker else ("build",)
             command(env,*build_args,s3=args.s3,broker=args.broker,timeout=1800)
