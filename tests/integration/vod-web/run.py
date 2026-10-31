@@ -206,7 +206,7 @@ def main():
                     raise RuntimeError("Closure event was not routed")
                 wait(lambda: client.call(origin + "/api/vods/" + recording["vodId"])["processingState"] == "READY", "recording READY")
                 recordings.append(client.call(origin + "/api/vods/" + recording["vodId"]))
-            state = {"origin": origin, "prefix": prefix, "owner": account, "handle": handle, "password": password, "vods": recordings, "cookies": [{"name": c.name, "value": c.value, "domain": "127.0.0.1", "path": c.path, "secure": c.secure, "httpOnly": c.has_nonstandard_attr("HttpOnly"), "sameSite": "Lax"} for c in client.cookies]}
+            state = {"origin": origin, "prefix": prefix, "owner": account, "handle": handle, "password": password, "vods": recordings, "broker": {"url": broker_url, "authorization": broker_auth["Authorization"]}, "cookies": [{"name": c.name, "value": c.value, "domain": "127.0.0.1", "path": c.path, "secure": c.secure, "httpOnly": c.has_nonstandard_attr("HttpOnly"), "sameSite": "Lax"} for c in client.cookies]}
             state_file = temp / "browser.json"
             state_file.write_text(json.dumps(state), encoding="utf-8")
             print("Real fixture ready: HTTPS, Core, VOD, PostgreSQL, S3, RabbitMQ, Media and 2 x 64s recordings", flush=True)
