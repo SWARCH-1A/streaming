@@ -105,6 +105,15 @@ consultas de contexto y reconstrucción continúan síncronas.
 `P2WatchScreen`: emisión esencial, canal y rendiciones. `P2VodScreen`: VOD esencial, canal y mapping.
 Los agregados no contienen una conexión WS, historial completo ni bytes de video.
 
+En `P2WatchScreen` la emisión pública y, si existe `sessionId`, su sesión son esenciales y deben
+coincidir en emisión, canal y generación; si no, 503. `session` es null sin sesión. Las rendiciones
+solo se consultan con emisión y sesión PLAYABLE; en otro caso la sección es `EMPTY`. Un canal
+confirmado inexistente, incluido el de un propietario suspendido, da 404 a toda la pantalla; un
+fallo de Core deja `channel` UNAVAILABLE. Las lecturas de Streaming y Discovery no llevan identidad;
+Core y VOD reciben solo `stream_session` o Authorization de la solicitud en curso. Como Core solo
+introspecta Bearer en rutas públicas, una credencial presentada en watch se comprueba con
+`profile.self`: 401/403 se devuelven a toda la pantalla y nunca se trata como visitante.
+
 Una sección contiene una sola alternativa:
 
 ```json

@@ -15,6 +15,13 @@ La [prueba de infraestructura RabbitMQ](../../infra/broker/README.md#contratos-y
 comprueba arranque, TLS, ACL, entrega durable y operaciones de DLQ en un entorno desechable.
 La verificación de sus consumidores de negocio se acredita por separado en SPEC-17.
 
+[Borde del Gateway](p2-gateway-edge/run.py) (SPEC-16) ejecuta el Caddyfile real en un contenedor
+desechable frente a upstreams simulados: tabla de rutas, `/internal`, headers falsificados,
+Range/206, subrutas VOD, streaming con cancelación, Upgrade/cierre y backpressure WS. Solo Docker.
+[Gateway en el stack local](p2-gateway/run.py) (SPEC-16) recorre las pantallas por HTTPS con una
+fuente RTMPS real, HLS, Range de VOD, WS de chat, credencial revocada y concurrencia; informa la
+latencia por pantalla y guarda las respuestas para `contracts/check_p2.py --public --payload`.
+
 [Replay de chat](p2-chat-replay/run.py) (SPEC-05, SPEC-14) recorre el stack local levantado con
 `python3 infra/local/dev.py up`: fuente RTMPS real con un corte de reconexión, chat por WebSocket,
 retiro del propietario, captura nativa, procesamiento/publicación/eliminación del VOD y

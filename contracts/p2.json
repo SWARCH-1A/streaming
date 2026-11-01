@@ -4162,6 +4162,215 @@
         }
       ]
     },
+    "P2RenditionsSection": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "AVAILABLE"
+            },
+            "data": {
+              "$ref": "#/$defs/P2Renditions"
+            }
+          },
+          "required": [
+            "status",
+            "data"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "EMPTY"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "UNAVAILABLE",
+                "DENIED"
+              ]
+            },
+            "error": {
+              "$ref": "#/$defs/P2SectionError"
+            }
+          },
+          "required": [
+            "status",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "P2WatchScreen": {
+      "type": "object",
+      "properties": {
+        "stream": {
+          "$ref": "#/$defs/PublicStream"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PublicSession"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "channel": {
+          "$ref": "#/$defs/P2ChannelSection"
+        },
+        "renditions": {
+          "$ref": "#/$defs/P2RenditionsSection"
+        },
+        "meta": {
+          "$ref": "#/$defs/P2ScreenMeta"
+        }
+      },
+      "required": [
+        "stream",
+        "session",
+        "channel",
+        "renditions",
+        "meta"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "stream": {
+            "streamId": "str_fixture",
+            "channelId": "chn_fixture",
+            "sessionId": "ses_fixture",
+            "streamGeneration": 1,
+            "title": "Conversación",
+            "category": {
+              "id": "cat_00000000000000000000000000000001",
+              "name": "Conversación"
+            },
+            "tags": [],
+            "status": "LIVE",
+            "availability": "PLAYABLE",
+            "statusFresh": true,
+            "metadataVersion": 1,
+            "sessionVersion": 1,
+            "viewerCount": 1,
+            "countVersion": 1,
+            "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+          },
+          "session": {
+            "sessionId": "ses_fixture",
+            "streamId": "str_fixture",
+            "channelId": "chn_fixture",
+            "streamGeneration": 1,
+            "status": "LIVE",
+            "availability": "PLAYABLE",
+            "playbackUrl": "/hls/ses_fixture/index.m3u8",
+            "timelinePositionMs": 1000,
+            "timelineSampledAtUtc": "2026-10-08T20:00:00Z",
+            "metadataVersion": 1,
+            "sessionVersion": 1,
+            "viewerCount": 1,
+            "countVersion": 1,
+            "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+          },
+          "channel": {
+            "status": "AVAILABLE",
+            "data": {
+              "channel": {
+                "channelId": "chn_fixture",
+                "ownerUserId": "usr_fixture",
+                "description": "",
+                "bannerUri": null,
+                "channelVersion": 0
+              },
+              "handle": "fixture_01",
+              "profile": {
+                "userId": "usr_fixture",
+                "displayName": "Fixture",
+                "bio": "",
+                "avatarUri": null,
+                "updatedAtUtc": "2026-10-08T20:00:00Z",
+                "profileVersion": 0
+              },
+              "stream": null,
+              "streamStatusFresh": true,
+              "availability": "OFFLINE"
+            }
+          },
+          "renditions": {
+            "status": "AVAILABLE",
+            "data": {
+              "sessionId": "ses_fixture",
+              "renditions": [
+                {
+                  "renditionId": "rend_720",
+                  "width": 1280,
+                  "height": 720,
+                  "bitrateBps": 2500000,
+                  "videoCodec": "avc1",
+                  "audioCodec": "mp4a"
+                }
+              ],
+              "masterPlaylistUri": "/hls/ses_fixture/master.m3u8"
+            }
+          },
+          "meta": {
+            "partial": false,
+            "requestId": "req_fixture"
+          }
+        },
+        {
+          "stream": {
+            "streamId": "str_fixture",
+            "channelId": "chn_fixture",
+            "sessionId": null,
+            "streamGeneration": 1,
+            "title": "Conversación",
+            "category": {
+              "id": "cat_00000000000000000000000000000001",
+              "name": "Conversación"
+            },
+            "tags": [],
+            "status": "OFFLINE",
+            "availability": "OFFLINE",
+            "statusFresh": true,
+            "metadataVersion": 1,
+            "sessionVersion": null,
+            "viewerCount": null,
+            "countVersion": null,
+            "viewerCountObservedAtUtc": null
+          },
+          "session": null,
+          "channel": {
+            "status": "UNAVAILABLE",
+            "error": {
+              "code": "CHANNEL_UNAVAILABLE",
+              "retryable": true,
+              "requestId": "req_fixture"
+            }
+          },
+          "renditions": {
+            "status": "EMPTY"
+          },
+          "meta": {
+            "partial": true,
+            "requestId": "req_fixture"
+          }
+        }
+      ]
+    },
     "P2ContentRemoval": {
       "type": "object",
       "properties": {
@@ -5755,6 +5964,165 @@
         "mode": "TEMPORARY",
         "duration": "PT5M"
       }
+    },
+    {
+      "schema": "P2WatchScreen",
+      "value": {
+        "stream": {
+          "streamId": "str_fixture",
+          "channelId": "chn_fixture",
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1,
+          "title": "Conversación",
+          "category": {
+            "id": "cat_00000000000000000000000000000001",
+            "name": "Conversación"
+          },
+          "tags": [],
+          "status": "LIVE",
+          "availability": "PLAYABLE",
+          "statusFresh": true,
+          "metadataVersion": 1,
+          "sessionVersion": 1,
+          "viewerCount": 1,
+          "countVersion": 1,
+          "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+        },
+        "session": {
+          "sessionId": "ses_fixture",
+          "streamId": "str_fixture",
+          "channelId": "chn_fixture",
+          "streamGeneration": 1,
+          "status": "LIVE",
+          "availability": "PLAYABLE",
+          "playbackUrl": "/hls/ses_fixture/index.m3u8",
+          "timelinePositionMs": 1000,
+          "timelineSampledAtUtc": "2026-10-08T20:00:00Z",
+          "metadataVersion": 1,
+          "sessionVersion": 1,
+          "viewerCount": 1,
+          "countVersion": 1,
+          "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+        },
+        "channel": {
+          "status": "AVAILABLE",
+          "data": {
+            "channel": {
+              "channelId": "chn_fixture",
+              "ownerUserId": "usr_fixture",
+              "description": "",
+              "bannerUri": null,
+              "channelVersion": 0
+            },
+            "handle": "fixture_01",
+            "profile": {
+              "userId": "usr_fixture",
+              "displayName": "Fixture",
+              "bio": "",
+              "avatarUri": null,
+              "updatedAtUtc": "2026-10-08T20:00:00Z",
+              "profileVersion": 0
+            },
+            "stream": null,
+            "streamStatusFresh": true,
+            "availability": "OFFLINE"
+          }
+        },
+        "renditions": {
+          "status": "UNAVAILABLE",
+          "data": {
+            "sessionId": "ses_fixture",
+            "renditions": [
+              {
+                "renditionId": "rend_720",
+                "width": 1280,
+                "height": 720,
+                "bitrateBps": 2500000,
+                "videoCodec": "avc1",
+                "audioCodec": "mp4a"
+              }
+            ],
+            "masterPlaylistUri": "/hls/ses_fixture/master.m3u8"
+          },
+          "error": {
+            "code": "STREAM_RENDITIONS_UNAVAILABLE",
+            "retryable": true,
+            "requestId": "req_fixture"
+          }
+        },
+        "meta": {
+          "partial": false,
+          "requestId": "req_fixture"
+        }
+      },
+      "public": true
+    },
+    {
+      "schema": "P2WatchScreen",
+      "value": {
+        "session": {
+          "sessionId": "ses_fixture",
+          "streamId": "str_fixture",
+          "channelId": "chn_fixture",
+          "streamGeneration": 1,
+          "status": "LIVE",
+          "availability": "PLAYABLE",
+          "playbackUrl": "/hls/ses_fixture/index.m3u8",
+          "timelinePositionMs": 1000,
+          "timelineSampledAtUtc": "2026-10-08T20:00:00Z",
+          "metadataVersion": 1,
+          "sessionVersion": 1,
+          "viewerCount": 1,
+          "countVersion": 1,
+          "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+        },
+        "channel": {
+          "status": "AVAILABLE",
+          "data": {
+            "channel": {
+              "channelId": "chn_fixture",
+              "ownerUserId": "usr_fixture",
+              "description": "",
+              "bannerUri": null,
+              "channelVersion": 0
+            },
+            "handle": "fixture_01",
+            "profile": {
+              "userId": "usr_fixture",
+              "displayName": "Fixture",
+              "bio": "",
+              "avatarUri": null,
+              "updatedAtUtc": "2026-10-08T20:00:00Z",
+              "profileVersion": 0
+            },
+            "stream": null,
+            "streamStatusFresh": true,
+            "availability": "OFFLINE"
+          }
+        },
+        "renditions": {
+          "status": "AVAILABLE",
+          "data": {
+            "sessionId": "ses_fixture",
+            "renditions": [
+              {
+                "renditionId": "rend_720",
+                "width": 1280,
+                "height": 720,
+                "bitrateBps": 2500000,
+                "videoCodec": "avc1",
+                "audioCodec": "mp4a"
+              }
+            ],
+            "masterPlaylistUri": "/hls/ses_fixture/master.m3u8"
+          }
+        },
+        "meta": {
+          "partial": false,
+          "requestId": "req_fixture"
+        }
+      },
+      "public": true
     }
   ],
   "operations": [
@@ -7478,6 +7846,38 @@
       "request": null,
       "responses": {
         "200": "P2ChannelScreen",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "410": "Error",
+        "413": "Error",
+        "422": "Error",
+        "503": "Error",
+        "504": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Read; no automatic command retry",
+      "recovery": "Retry within caller deadline; commands use the original key; failures remain observable.",
+      "spec": "SPEC-16",
+      "traceability": "docs/spec-p2/spec_16_gateway.md",
+      "visibility": "public",
+      "limits": "Bounded JSON 16 KiB; pages 20 by default and 50 maximum; private streamed objects use their size/hash inventory.",
+      "requiredHeaders": [],
+      "status": "implemented"
+    },
+    {
+      "id": "p2.gateway.watch",
+      "method": "GET",
+      "path": "/api/screens/watch/{streamId}",
+      "provider": "gateway",
+      "consumer": "Web / Mobile",
+      "owner": "gateway",
+      "auth": "public",
+      "request": null,
+      "responses": {
+        "200": "P2WatchScreen",
         "400": "Error",
         "401": "Error",
         "403": "Error",

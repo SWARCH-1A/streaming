@@ -103,7 +103,12 @@ class Profiles(unittest.TestCase):
     def test_local_subnet_avoids_existing_docker_networks(self):
         local = module("local")
         with patch.dict(os.environ, {}, clear=True), patch.object(local, "run", side_effect=["network-id", '[{"IPAM":{"Config":null}},{"IPAM":{"Config":[{"Subnet":"192.168.240.0/24"}]}}]']):
-            self.assertEqual(local.local_network(), {"LOCAL_SUBNET": "192.168.241.0/24", "LOCAL_PROXY_IP": "192.168.241.2", "LOCAL_DYNAMIC_RANGE": "192.168.241.128/25"})
+            self.assertEqual(local.local_network(), {"LOCAL_SUBNET": "192.168.241.0/24", "LOCAL_PROXY_IP": "192.168.241.2", "LOCAL_DYNAMIC_RANGE": "192.168.241.128/25",
+                                                     "LOCAL_GATEWAY_IP": "192.168.241.3"})
+        # SPEC-16: the Gateway gets a static address distinct from the proxy and outside the dynamic range.
+        self.assertEqual(local.gateway_ip("192.168.240.0/24", "192.168.240.3"), "192.168.240.4")
+        with self.assertRaisesRegex(RuntimeError, "static address"):
+            local.gateway_ip("192.168.240.0/30", "192.168.240.1")
         for invalid in ("192.168.240.0", "192.168.240.1", "192.168.240.255", "192.168.241.2", "192.168.240.130"):
             with patch.dict(os.environ, {"LOCAL_SUBNET": "192.168.240.0/24", "LOCAL_PROXY_IP": invalid}):
                 with self.assertRaisesRegex(RuntimeError, "usable address"):
