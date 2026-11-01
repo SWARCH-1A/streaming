@@ -32,7 +32,8 @@ services:
       CORE_RECOVERY_ENABLED: ${CORE_RECOVERY_ENABLED:-false}
       CORE_RECOVERY_ENCRYPTION_KEY: ${CORE_RECOVERY_ENCRYPTION_KEY:-}
       CORE_RECOVERY_SERVICE_TOKEN: ${CORE_RECOVERY_SERVICE_TOKEN:-}
-      CORE_TRUSTED_PROXIES: ${LOCAL_PROXY_IP:?Run init}
+      # Caddy and the Gateway forward the observed client address; nobody else is trusted (SPEC-16).
+      CORE_TRUSTED_PROXIES: ${LOCAL_PROXY_IP:?Run init},${LOCAL_GATEWAY_IP:?Run init}
       CORE_SECURE_COOKIE: "true"
       CORE_PUBLIC_TLS_ENABLED: "true"
       CORE_PUBLIC_TLS_KEYSTORE: /run/secrets/core-internal.p12
@@ -373,7 +374,7 @@ services:
     networks:
       default:
         ipv4_address: ${LOCAL_PROXY_IP:?Run init}
-    depends_on: [core, chat, live, media-server, notifications, web]
+    depends_on: [core, chat, live, media-server, notifications, vod, gateway, web]
     restart: unless-stopped
 
   gateway:
@@ -386,11 +387,15 @@ services:
       GATEWAY_VOD_TOKEN: ${VOD_GATEWAY_SERVICE_TOKEN:?Run init}
       GATEWAY_TLS_CERT_FILE: /run/secrets/gateway.crt
       GATEWAY_TLS_KEY_FILE: /run/secrets/gateway.key
+      GATEWAY_TRUSTED_PROXIES: ${LOCAL_PROXY_IP:?Run init}
       SSL_CERT_FILE: /run/secrets/ca.crt
     volumes:
       - ${P1_STATE}/gateway.crt:/run/secrets/gateway.crt:ro
       - ${P1_STATE}/gateway.key:/run/secrets/gateway.key:ro
       - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    networks:
+      default:
+        ipv4_address: ${LOCAL_GATEWAY_IP:?Run init}
     depends_on: [core, vod, live]
     restart: unless-stopped
 

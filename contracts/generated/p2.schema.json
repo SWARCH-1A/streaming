@@ -2807,6 +2807,28 @@
       "required": ["sessionId", "renditions", "masterPlaylistUri"],
       "type": "object"
     },
+    "P2RenditionsSection": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {"data": {"$ref": "#/$defs/P2Renditions"}, "status": {"const": "AVAILABLE"}},
+          "required": ["status", "data"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {"status": {"const": "EMPTY"}},
+          "required": ["status"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {"error": {"$ref": "#/$defs/P2SectionError"}, "status": {"enum": ["UNAVAILABLE", "DENIED"]}},
+          "required": ["status", "error"],
+          "type": "object"
+        }
+      ]
+    },
     "P2ReplayMessage": {
       "additionalProperties": false,
       "properties": {
@@ -3423,6 +3445,123 @@
           "type": "object"
         }
       ]
+    },
+    "P2WatchScreen": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "channel": {
+            "data": {
+              "availability": "OFFLINE",
+              "channel": {
+                "bannerUri": null,
+                "channelId": "chn_fixture",
+                "channelVersion": 0,
+                "description": "",
+                "ownerUserId": "usr_fixture"
+              },
+              "handle": "fixture_01",
+              "profile": {
+                "avatarUri": null,
+                "bio": "",
+                "displayName": "Fixture",
+                "profileVersion": 0,
+                "updatedAtUtc": "2026-10-08T20:00:00Z",
+                "userId": "usr_fixture"
+              },
+              "stream": null,
+              "streamStatusFresh": true
+            },
+            "status": "AVAILABLE"
+          },
+          "meta": {"partial": false, "requestId": "req_fixture"},
+          "renditions": {
+            "data": {
+              "masterPlaylistUri": "/hls/ses_fixture/master.m3u8",
+              "renditions": [
+                {
+                  "audioCodec": "mp4a",
+                  "bitrateBps": 2500000,
+                  "height": 720,
+                  "renditionId": "rend_720",
+                  "videoCodec": "avc1",
+                  "width": 1280
+                }
+              ],
+              "sessionId": "ses_fixture"
+            },
+            "status": "AVAILABLE"
+          },
+          "session": {
+            "availability": "PLAYABLE",
+            "channelId": "chn_fixture",
+            "countVersion": 1,
+            "metadataVersion": 1,
+            "playbackUrl": "/hls/ses_fixture/index.m3u8",
+            "sessionId": "ses_fixture",
+            "sessionVersion": 1,
+            "status": "LIVE",
+            "streamGeneration": 1,
+            "streamId": "str_fixture",
+            "timelinePositionMs": 1000,
+            "timelineSampledAtUtc": "2026-10-08T20:00:00Z",
+            "viewerCount": 1,
+            "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+          },
+          "stream": {
+            "availability": "PLAYABLE",
+            "category": {"id": "cat_00000000000000000000000000000001", "name": "Conversación"},
+            "channelId": "chn_fixture",
+            "countVersion": 1,
+            "metadataVersion": 1,
+            "sessionId": "ses_fixture",
+            "sessionVersion": 1,
+            "status": "LIVE",
+            "statusFresh": true,
+            "streamGeneration": 1,
+            "streamId": "str_fixture",
+            "tags": [],
+            "title": "Conversación",
+            "viewerCount": 1,
+            "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+          }
+        },
+        {
+          "channel": {
+            "error": {"code": "CHANNEL_UNAVAILABLE", "requestId": "req_fixture", "retryable": true},
+            "status": "UNAVAILABLE"
+          },
+          "meta": {"partial": true, "requestId": "req_fixture"},
+          "renditions": {"status": "EMPTY"},
+          "session": null,
+          "stream": {
+            "availability": "OFFLINE",
+            "category": {"id": "cat_00000000000000000000000000000001", "name": "Conversación"},
+            "channelId": "chn_fixture",
+            "countVersion": null,
+            "metadataVersion": 1,
+            "sessionId": null,
+            "sessionVersion": null,
+            "status": "OFFLINE",
+            "statusFresh": true,
+            "streamGeneration": 1,
+            "streamId": "str_fixture",
+            "tags": [],
+            "title": "Conversación",
+            "viewerCount": null,
+            "viewerCountObservedAtUtc": null
+          }
+        }
+      ],
+      "properties": {
+        "channel": {"$ref": "#/$defs/P2ChannelSection"},
+        "meta": {"$ref": "#/$defs/P2ScreenMeta"},
+        "renditions": {"$ref": "#/$defs/P2RenditionsSection"},
+        "session": {"anyOf": [{"$ref": "#/$defs/PublicSession"}, {"type": "null"}]},
+        "stream": {"$ref": "#/$defs/PublicStream"}
+      },
+      "required": ["stream", "session", "channel", "renditions", "meta"],
+      "type": "object"
     },
     "PlaybackCallback": {
       "additionalProperties": false,

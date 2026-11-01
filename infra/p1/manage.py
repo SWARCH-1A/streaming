@@ -88,7 +88,18 @@ def local_network():
     dynamic_range = list(subnet.subnets(prefixlen_diff=1))[1]
     if proxy_ip not in subnet or proxy_ip in dynamic_range or proxy_ip in (subnet.network_address, subnet.broadcast_address, subnet.network_address + 1):
         raise RuntimeError("LOCAL_PROXY_IP must be a usable address in the private IPv4 LOCAL_SUBNET")
-    return {"LOCAL_SUBNET": str(subnet), "LOCAL_PROXY_IP": str(proxy_ip), "LOCAL_DYNAMIC_RANGE": str(dynamic_range)}
+    return {"LOCAL_SUBNET": str(subnet), "LOCAL_PROXY_IP": str(proxy_ip), "LOCAL_DYNAMIC_RANGE": str(dynamic_range),
+            "LOCAL_GATEWAY_IP": gateway_ip(subnet, proxy_ip)}
+
+
+def gateway_ip(subnet, proxy_ip):
+    """Fixed Gateway address in the static half: Core trusts it to forward the client address (SPEC-16)."""
+    subnet, proxy_ip = ipaddress.ip_network(subnet), ipaddress.ip_address(proxy_ip)
+    dynamic_range = list(subnet.subnets(prefixlen_diff=1))[1]
+    candidate = next(subnet.network_address + offset for offset in range(3, 16) if subnet.network_address + offset != proxy_ip)
+    if candidate in dynamic_range:
+        raise RuntimeError("LOCAL_SUBNET has no static address left for the Gateway")
+    return str(candidate)
 
 
 def initialize():
@@ -154,6 +165,9 @@ def environment():
         if not re.fullmatch(r"[A-Z_0-9]+",key): raise RuntimeError("Invalid environment key")
         env[key] = value
     if env.get("P1_STATE") != str(STATE): raise RuntimeError("State path differs from the selected profile")
+    if "LOCAL_SUBNET" in env and "LOCAL_GATEWAY_IP" not in env:
+        # States initialized before SPEC-16 derive the same fixed address instead of re-running init.
+        env["LOCAL_GATEWAY_IP"] = gateway_ip(env["LOCAL_SUBNET"], env["LOCAL_PROXY_IP"])
     https_port, _ = configured_ports(env)
     if env["WEB_ORIGIN"]!="https://localhost:"+https_port:raise RuntimeError("Origin and HTTPS port differ; keep the initialized ports")
     return env
