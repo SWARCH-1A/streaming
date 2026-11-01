@@ -50,6 +50,9 @@ func (s *Server) PublicHandler() http.Handler {
 	mux.HandleFunc("GET /realtime/chat/sessions/{sessionId}", s.handleRealtime)
 	mux.HandleFunc("GET /healthz", s.handleLive)
 	mux.HandleFunc("GET /readyz", s.handleReady)
+	if s.svc.P2Enabled() {
+		s.mountP2(mux)
+	}
 	return s.withRequestID(mux)
 }
 
@@ -80,13 +83,14 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 		limit = n
 	}
 	ctx := core.WithRequestID(r.Context(), requestID(r))
-	status, snapshot, msgs, cerr := s.svc.History(ctx, sid, limit)
+	status, view, cerr := s.svc.HistoryView(ctx, sid, limit)
 	if cerr != nil {
 		s.writeError(w, r, httpStatus(cerr.Code), cerr)
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	writeJSON(w, http.StatusOK, historyResponse{SessionID: sid, RoomStatus: status, SnapshotSequence: snapshot, Items: msgs})
+	writeJSON(w, http.StatusOK, historyResponse{SessionID: sid, RoomStatus: status, SnapshotSequence: view.SnapshotSequence,
+		Items: view.Items, ModerationVersion: view.ModerationVersion, RemovedMessages: view.Removed})
 }
 
 func (s *Server) handleSessionEvent(w http.ResponseWriter, r *http.Request) {
@@ -191,13 +195,20 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 // httpStatus traduce códigos de contrato para respuestas previas al Upgrade y REST.
 func httpStatus(code string) int {
 	switch code {
-	case chat.CodeSessionNotFound:
+	case chat.CodeSessionNotFound, chat.CodeChannelNotFound, chat.CodeMessageNotFound, chat.CodeVodNotFound,
+		chat.CodeOperationNotFound:
 		return http.StatusNotFound
-	case chat.CodeChatNotOpen:
+	case chat.CodeChatNotOpen, chat.CodeIdempotencyConflict:
 		return http.StatusConflict
 	case chat.CodeAuthRequired:
 		return http.StatusUnauthorized
-	case chat.CodeValidation:
+	case chat.CodeChannelForbidden, chat.CodeCSRFInvalid, chat.CodeOriginNotAllowed:
+		return http.StatusForbidden
+	case chat.CodeCannotBlockOwner:
+		return http.StatusUnprocessableEntity
+	case chat.CodeCursorExpired:
+		return http.StatusGone
+	case chat.CodeValidation, chat.CodeIdempotencyRequired:
 		return http.StatusBadRequest
 	default:
 		return http.StatusServiceUnavailable

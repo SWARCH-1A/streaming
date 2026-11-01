@@ -65,8 +65,11 @@ func (g gateway) removal(w http.ResponseWriter, r *http.Request) {
 	request.Header.Set("X-Service-Name", "gateway")
 	request.Header.Set("X-Service-Token", os.Getenv("GATEWAY_VOD_TOKEN"))
 	request.Header.Set("X-Session-Credential", credential)
-	request.Header.Set("Idempotency-Key", r.Header.Get("Idempotency-Key"))
-	request.Header.Set("X-Request-ID", correlation(r))
+	if key := r.Header.Get("Idempotency-Key"); key != "" {
+		request.Header.Set("Idempotency-Key", key)
+	}
+	g.forwarding(r, request)
+	// Commands are forwarded once: a lost response is recovered by the caller with the same key (CA-07).
 	response, e := g.client.Do(request)
 	if e != nil {
 		gatewayError(w, r, 503, "VOD_UNAVAILABLE")

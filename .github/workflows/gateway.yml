@@ -1,0 +1,62 @@
+name: Gateway
+
+on:
+  push:
+    branches: [main, develop]
+    paths: ['services/gateway/**', 'infra/reverse-proxy/Caddyfile', 'tests/integration/p2-gateway-edge/**', 'contracts/p2.json', 'contracts/generated/graphql-queries.json', '.github/workflows/gateway.yml']
+  pull_request:
+    paths: ['services/gateway/**', 'infra/reverse-proxy/Caddyfile', 'tests/integration/p2-gateway-edge/**', 'contracts/p2.json', 'contracts/generated/graphql-queries.json', '.github/workflows/gateway.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: gateway-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  aggregation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: services/gateway/go.mod
+          cache: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r contracts/requirements.txt
+      - name: Format, vet and race-checked tests
+        working-directory: services/gateway
+        env:
+          GATEWAY_SCREEN_SAMPLES: ${{ runner.temp }}/screens
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          mkdir -p "$GATEWAY_SCREEN_SAMPLES"
+          go test -count=1 -race ./...
+      - name: Gateway output validates against contracts/p2.json
+        working-directory: contracts
+        run: |
+          shopt -s nullglob
+          samples=("$RUNNER_TEMP"/screens/*.json)
+          test "${#samples[@]}" -gt 0
+          for sample in "${samples[@]}"; do
+            python check_p2.py --public --payload "$(basename "$sample" | cut -d. -f1)" "$sample"
+          done
+      - run: docker build -f services/gateway/Dockerfile -t streaming-gateway-ci .
+  edge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python tests/integration/p2-gateway-edge/run.py

@@ -64,12 +64,13 @@ La respuesta no contiene stack, SQL, secretos ni información privada de otra cu
 | `p2.vod.delete` | DELETE `/api/vods/{vodId}` | VOD | — | 202 P2Accepted | session |
 | `p2.vod.timeline` | GET `/api/vods/{vodId}/timeline` | VOD | — | 200 P2Timeline | public |
 | `p2.vod.media` | GET `/vod-media/{vodId}/{assetPath}` | VOD | — | 200 Binary, 206 Binary | public |
-| `p2.chat.replay` | GET `/api/chat/vods/{vodId}/messages` | Chat | —; query P2ReplayQuery | 200 P2ReplayPage | public |
-| `p2.chat.delete-message` | DELETE `/api/chat/sessions/{sessionId}/messages/{messageId}` | Chat | — | 200 P2ModerationResult | session |
-| `p2.chat.block` | PUT `/api/chat/channels/{channelId}/blocks/{userId}` | Chat | P2BlockCommand | 200 P2Block | session |
-| `p2.chat.unblock` | DELETE `/api/chat/channels/{channelId}/blocks/{userId}` | Chat | — | 200 P2Block | session |
-| `p2.chat.block-get` | GET `/api/chat/channels/{channelId}/blocks/{userId}` | Chat | — | 200 P2Block | session |
-| `p2.chat.delete-user-messages` | POST `/api/chat/channels/{channelId}/message-removals` | Chat | P2DeleteMessages | 202 P2ModerationResult | session |
+| `p2.chat.replay` | GET `/api/chat/vods/{vodId}/messages` | Chat | —; query P2ReplayQuery | 200 P2ReplayPage | public-if-readable |
+| `p2.chat.delete-message` | DELETE `/api/chat/sessions/{sessionId}/messages/{messageId}` | Chat | — | 200 P2ChatRemoval | session |
+| `p2.chat.block` | PUT `/api/chat/channels/{channelId}/blocks/{userId}` | Chat | P2ChatBlockCommand | 200 P2ChatBlock | session |
+| `p2.chat.unblock` | DELETE `/api/chat/channels/{channelId}/blocks/{userId}` | Chat | — | 200 P2ChatBlock | session |
+| `p2.chat.block-get` | GET `/api/chat/channels/{channelId}/blocks/{userId}` | Chat | — | 200 P2ChatBlock | session |
+| `p2.chat.delete-user-messages` | POST `/api/chat/channels/{channelId}/message-removals` | Chat | P2ChatRemovalCommand | 202 P2ChatModerationOperation | session |
+| `p2.chat.moderation-context` | POST `/internal/core/chat/moderation-context` | Core | P2ChatModerationContextRequest | 200 P2ChatModerationContext | service:chat |
 | `p2.notifications.list` | GET `/api/notifications` | Notificaciones | —; query P2PageQuery | 200 P2NotificationPage | session |
 | `p2.notifications.read` | PUT `/api/notifications/{notificationId}/read` | Notificaciones | — | 200 P2Notification | session |
 | `p2.notifications.preferences-get` | GET `/api/notifications/preferences` | Notificaciones | — | 200 P2Preferences | session |
@@ -88,9 +89,9 @@ La respuesta no contiene stack, SQL, secretos ni información privada de otra cu
 | `p2.admin.channels` | GET `/api/admin/channels` | Core | —; query P2PageQuery | 200 P2ChannelAdminPage | administrator |
 | `p2.admin.account-status` | PUT `/api/admin/users/{userId}/status` | Core | P2AccountStatusCommand | 200 P2AccountAdmin | administrator |
 | `p2.admin.content-removal` | POST `/api/admin/content-removals` | Gateway | P2RemovalCommand | 202 P2Accepted | administrator |
-| `p2.chat.history` | GET `/api/chat/sessions/{sessionId}/messages` | Chat | — | 200 P2ChatHistory | public |
+| `chat.history` (P1, ampliada) | GET `/api/chat/sessions/{sessionId}/messages` | Chat | — | 200 ChatHistory con forma P2ChatHistory | public |
 | `p2.vod.operation-status` | GET `/api/vods/operations/{operationId}` | VOD | — | 200 P2OperationStatus | session |
-| `p2.chat.operation-status` | GET `/api/chat/channels/{channelId}/moderation-operations/{operationId}` | Chat | — | 200 P2OperationStatus | session |
+| `p2.chat.operation-status` | GET `/api/chat/channels/{channelId}/moderation-operations/{operationId}` | Chat | — | 200 P2ChatModerationOperation | session |
 | `p2.streaming.operation-status` | GET `/api/streams/operations/{operationId}` | Streaming | — | 200 P2OperationStatus | session |
 | `p2.recording.preference-internal` | GET `/internal/core/channels/{channelId}/vod-settings` | Core | — | 200 P2Autopublish | service:streaming-recording-settings |
 
@@ -103,6 +104,15 @@ consultas de contexto y reconstrucción continúan síncronas.
 `P2ChannelScreen`: canal esencial, live, vods y follow. `P2ExploreScreen`: Discovery y VOD.
 `P2WatchScreen`: emisión esencial, canal y rendiciones. `P2VodScreen`: VOD esencial, canal y mapping.
 Los agregados no contienen una conexión WS, historial completo ni bytes de video.
+
+En `P2WatchScreen` la emisión pública y, si existe `sessionId`, su sesión son esenciales y deben
+coincidir en emisión, canal y generación; si no, 503. `session` es null sin sesión. Las rendiciones
+solo se consultan con emisión y sesión PLAYABLE; en otro caso la sección es `EMPTY`. Un canal
+confirmado inexistente, incluido el de un propietario suspendido, da 404 a toda la pantalla; un
+fallo de Core deja `channel` UNAVAILABLE. Las lecturas de Streaming y Discovery no llevan identidad;
+Core y VOD reciben solo `stream_session` o Authorization de la solicitud en curso. Como Core solo
+introspecta Bearer en rutas públicas, una credencial presentada en watch se comprueba con
+`profile.self`: 401/403 se devuelven a toda la pantalla y nunca se trata como visitante.
 
 Una sección contiene una sola alternativa:
 
@@ -200,26 +210,41 @@ larga. `assetPath` se resuelve contra el inventario del VOD, sin traversal ni UR
 
 ## Chat, bloqueos y replay
 
-Bloqueo por canal: TEMPORARY exige expiresAtUtc futuro según servidor; PERMANENT no acepta
-vencimiento. El retiro es explícito y no borra mensajes. Límites de duración y selección del
-borrado por usuario siguen en P2-11. `P2DeleteMessages` propone SESSION/CHANNEL y corte de secuencia;
-está marcado review-required, no es una política de alcance aceptada.
+Las reglas están en [ADR-024](adr/ADR-024-chat-redis-postgresql-replay-moderacion.md).
 
-Replay exige fromMs < toMs y limit 1..50. El cursor se liga a vodId, ventana, mappingVersion y
-moderación; si el mapping cambió se invalida y se pide una ventana nueva. Los mensajes suprimidos
-no vuelven a aparecer. Los huecos conocidos se compactan y los mensajes se agrupan en la unión manteniendo secuencia
-original (ADR-022). `p2.chat.replay` conserva estado contract-only hasta la entrega durable de Chat.
+**Bloqueo por canal.** `TEMPORARY` exige una duración fija (`PT10M`, `PT1H`, `PT24H`, `P7D`) y
+el servidor calcula `expiresAtUtc`. `PERMANENT` no admite duración. Gana la última escritura y
+`version` crece en cada cambio. Retirar el bloqueo no borra mensajes, y bloquearse a uno mismo
+devuelve 422. Solo modera la cuenta propietaria, confirmada por Core en cada operación
+(`p2.chat.moderation-context`); un tercero recibe 403 `CHANNEL_FORBIDDEN`.
+
+**Seguridad de las mutaciones.** Requieren cookie de sesión, Origin permitido, doble envío CSRF
+(`XSRF-TOKEN` = `X-XSRF-TOKEN`) e `Idempotency-Key` UUID con resultado retenido 24 h.
+
+**Borrado por usuario.** `P2ChatRemovalCommand` abarca solo la emisión indicada, que debe
+pertenecer al canal, hasta el sequence observado al aceptar la orden. Responde 202 con la
+operación `COMPLETED` y su `statusUri`.
+
+**Replay.** Exige 0 ≤ fromMs < toMs, una ventana de hasta 300 000 ms del video y limit 1..50 (20
+por defecto); un parámetro desconocido o repetido es 400. En cada página Chat pide a VOD
+`p2.vod.replay-context` con la credencial del espectador (cookie o un Bearer; ambos a la vez es
+401). Un VOD que esa credencial no puede leer es 404; si VOD no responde, 503
+`REPLAY_UNAVAILABLE` y el video sigue. Los huecos conocidos se compactan y los mensajes se agrupan
+en la unión manteniendo la secuencia original (ADR-022). Los mensajes retirados no se entregan. El
+cursor se liga a vodId, ventana y `mappingVersion` y avanza por `sequence`; si el mapping cambió
+responde 410 y se pide la ventana sin cursor. Un cursor de otra ventana es 400.
 
 WebSocket mantiene `/realtime/chat/sessions/{sessionId}`. Navegador: cookie y Origin permitido;
 nativo: Authorization Bearer en Upgrade, sin token en query ni Origin inventado. Identidades
 contradictorias en cookie/Bearer se rechazan. La autenticación del Upgrade no sustituye la
 verificación de cada mensaje nuevo mediante contexto Core.
 
-Se conservan ready/status/send/accepted/error de P1. `P2MessageCreated` añade moderationVersion;
-`P2ChatHistory` también. `message.deleted` identifica mensaje/secuencia/versión sin texto;
-`messages.invalidated` identifica operación y versión para volver a consultar la ventana.
-El cliente descarta historia/respuestas anteriores a una invalidación y no restaura tombstones
-al recibir eventos atrasados. La recuperación de una ventana se prueba junto con live/replay.
+Se conservan ready/status/send/accepted/created/error de P1. El historial añade
+`moderationVersion` y `removedMessages` (`P2ChatHistory`): las marcas de los mensajes retirados
+dentro de la misma ventana. El frame `message.removed` (`P2ChatMessageRemovedFrame`) identifica
+mensaje, secuencia y versión, sin texto. El retiro es terminal y el cliente no repone el texto al
+recibir un `message.created` atrasado. Un envío bloqueado recibe `error` con `CHAT_BLOCKED`,
+`blockMode` y, si es temporal, `blockedUntilUtc` (`P2ChatBlockedError`).
 
 ## Notificaciones y administración
 

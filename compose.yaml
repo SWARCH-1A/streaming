@@ -32,7 +32,8 @@ services:
       CORE_RECOVERY_ENABLED: ${CORE_RECOVERY_ENABLED:-false}
       CORE_RECOVERY_ENCRYPTION_KEY: ${CORE_RECOVERY_ENCRYPTION_KEY:-}
       CORE_RECOVERY_SERVICE_TOKEN: ${CORE_RECOVERY_SERVICE_TOKEN:-}
-      CORE_TRUSTED_PROXIES: ${LOCAL_PROXY_IP:?Run init}
+      # Caddy and the Gateway forward the observed client address; nobody else is trusted (SPEC-16).
+      CORE_TRUSTED_PROXIES: ${LOCAL_PROXY_IP:?Run init},${LOCAL_GATEWAY_IP:?Run init}
       CORE_SECURE_COOKIE: "true"
       CORE_PUBLIC_TLS_ENABLED: "true"
       CORE_PUBLIC_TLS_KEYSTORE: /run/secrets/core-internal.p12
@@ -84,11 +85,33 @@ services:
       retries: 12
     restart: unless-stopped
 
+  # Chat P2 (ADR-024): copia durable para replay, bloqueos y retiros. Redis sigue sirviendo el vivo.
+  chat-pg:
+    image: postgres:18-alpine
+    entrypoint: ["/bin/sh", "/postgres-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tmp/p1-tls/server.crt", "-c", "ssl_key_file=/tmp/p1-tls/server.key"]
+    environment:
+      POSTGRES_DB: chat
+      POSTGRES_USER: chat
+      POSTGRES_PASSWORD: ${CHAT_DB_PASSWORD:?Run python3 infra/local/dev.py init}
+    volumes:
+      - chat-pg:/var/lib/postgresql
+      - ./infra/p1/postgres-tls.sh:/postgres-tls.sh:ro
+      - ${P1_STATE}/chat-pg.crt:/run/secrets/server.crt:ro
+      - ${P1_STATE}/chat-pg.key:/run/secrets/server.key:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chat -d chat"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
   chat:
     image: streaming-local-chat
     build: ./services/chat
     environment:
       CHAT_REDIS_URL: rediss://chat-db:6379/0
+      CHAT_DATABASE_URL: postgres://chat:${CHAT_DB_PASSWORD:?Run python3 infra/local/dev.py init}@chat-pg:5432/chat?sslmode=verify-full&sslrootcert=/run/secrets/ca.crt
       SSL_CERT_FILE: /run/secrets/ca.crt
       CHAT_ALLOWED_ORIGINS: ${WEB_ORIGIN:?Run init}
       CHAT_CORE_BASE_URL: https://core:8082
@@ -101,12 +124,18 @@ services:
       CHAT_INTERNAL_TLS_CERT_FILE: /run/secrets/chat.crt
       CHAT_INTERNAL_TLS_KEY_FILE: /run/secrets/chat.key
       CHAT_ENDED_RETENTION: 5m
+      # Replay (ADR-022/024): VOD autoriza la lectura y entrega el timeline por su listener privado.
+      CHAT_VOD_BASE_URL: https://vod:8099
+      CHAT_VOD_CA_FILE: /run/secrets/ca.crt
+      CHAT_VOD_SERVICE_TOKEN: ${VOD_CHAT_SERVICE_TOKEN:?Run init}
     volumes:
       - ${P1_STATE}/chat.crt:/run/secrets/chat.crt:ro
       - ${P1_STATE}/chat.key:/run/secrets/chat.key:ro
       - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
     depends_on:
       chat-db:
+        condition: service_healthy
+      chat-pg:
         condition: service_healthy
     restart: unless-stopped
 
@@ -345,7 +374,7 @@ services:
     networks:
       default:
         ipv4_address: ${LOCAL_PROXY_IP:?Run init}
-    depends_on: [core, chat, live, media-server, notifications, web]
+    depends_on: [core, chat, live, media-server, notifications, vod, gateway, web]
     restart: unless-stopped
 
   gateway:
@@ -358,11 +387,15 @@ services:
       GATEWAY_VOD_TOKEN: ${VOD_GATEWAY_SERVICE_TOKEN:?Run init}
       GATEWAY_TLS_CERT_FILE: /run/secrets/gateway.crt
       GATEWAY_TLS_KEY_FILE: /run/secrets/gateway.key
+      GATEWAY_TRUSTED_PROXIES: ${LOCAL_PROXY_IP:?Run init}
       SSL_CERT_FILE: /run/secrets/ca.crt
     volumes:
       - ${P1_STATE}/gateway.crt:/run/secrets/gateway.crt:ro
       - ${P1_STATE}/gateway.key:/run/secrets/gateway.key:ro
       - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    networks:
+      default:
+        ipv4_address: ${LOCAL_GATEWAY_IP:?Run init}
     depends_on: [core, vod, live]
     restart: unless-stopped
 
@@ -506,6 +539,7 @@ volumes:
   core-avatars:
   core-banners:
   chat-db:
+  chat-pg:
   live-db:
   notifications-db:
   vod-db:

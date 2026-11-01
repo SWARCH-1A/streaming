@@ -41,7 +41,7 @@ class P2ContractsTest(unittest.TestCase):
     def test_pending_interfaces_keep_their_owner_decisions(self):
         pending = {item["id"]: item["blockedBy"] for item in self.additions["pendingInterfaces"]}
         self.assertEqual(pending["watch-parties"], ["P2-01", "P2-02", "P2-03"])
-        self.assertEqual(pending["chat-durable-replay"], ["P2-10"])
+        self.assertNotIn("chat-durable-replay", pending)  # Chat implementa el replay (ADR-024)
 
 
 if __name__ == "__main__":

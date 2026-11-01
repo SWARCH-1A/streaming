@@ -12,6 +12,7 @@ import (
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"streaming/chat/internal/archive"
 	"streaming/chat/internal/chat"
 	"streaming/chat/internal/store"
 )
@@ -20,14 +21,80 @@ type EventStore interface {
 	ApplyBrokerEvent(context.Context, string, string, string, chat.SessionState) (store.ApplyResult, error)
 }
 
+// VodApplier registra el vínculo VOD–sesión de forma durable.
+type VodApplier interface {
+	ApplyVodEvent(context.Context, string, string, archive.VodLink) (archive.VodOutcome, error)
+}
+
+// handler procesa una entrega; cause vacío significa confirmada.
+type handler func(ctx context.Context, d amqp.Delivery) (cause string, permanent bool)
+
 type Consumer struct {
 	address string
 	tls     *tls.Config
-	store   EventStore
+	queue   string
+	handle  handler
 	log     *slog.Logger
 }
 
+// New consume chat.lifecycle: el ciclo de sesión de Streaming.
 func New(address, caFile string, st EventStore, log *slog.Logger) (*Consumer, error) {
+	c, err := dial(address, caFile, log)
+	if err != nil {
+		return nil, err
+	}
+	c.queue = "chat.lifecycle"
+	c.handle = func(ctx context.Context, delivery amqp.Delivery) (string, bool) {
+		event, state, fingerprint, validation := decode(delivery.Body)
+		if validation != nil || delivery.ContentType != "application/json" {
+			return "INVALID_EVENT", true
+		}
+		work, cancel := context.WithTimeout(ctx, 3*time.Second)
+		result, applyErr := st.ApplyBrokerEvent(work, event.EventID, fingerprint, event.stateFingerprint, state)
+		cancel()
+		if applyErr != nil {
+			return "STORE_UNAVAILABLE", false
+		}
+		if result == store.EventConflict {
+			return "EVENT_ID_CONFLICT", true
+		}
+		occurred, _ := utc(event.OccurredAtUTC)
+		c.log.Info("broker consumido", "consumer", c.queue, "eventId", event.EventID,
+			"correlationId", event.CorrelationID, "outcome", result, "ageMs", max(0, time.Since(occurred).Milliseconds()))
+		return "", false
+	}
+	return c, nil
+}
+
+// NewVod consume chat.vod: disponibilidad y vínculo de VODs publicados por VOD.
+func NewVod(address, caFile string, svc VodApplier, log *slog.Logger) (*Consumer, error) {
+	c, err := dial(address, caFile, log)
+	if err != nil {
+		return nil, err
+	}
+	c.queue = "chat.vod"
+	c.handle = func(ctx context.Context, delivery amqp.Delivery) (string, bool) {
+		event, link, fingerprint, validation := decodeVod(delivery.Body)
+		if validation != nil || delivery.ContentType != "application/json" {
+			return "INVALID_EVENT", true
+		}
+		work, cancel := context.WithTimeout(ctx, 3*time.Second)
+		result, applyErr := svc.ApplyVodEvent(work, event.EventID, fingerprint, link)
+		cancel()
+		if applyErr != nil {
+			return "STORE_UNAVAILABLE", false
+		}
+		if result == archive.VodConflict {
+			return "EVENT_ID_CONFLICT", true
+		}
+		c.log.Info("broker consumido", "consumer", c.queue, "eventId", event.EventID,
+			"correlationId", event.CorrelationID, "outcome", result)
+		return "", false
+	}
+	return c, nil
+}
+
+func dial(address, caFile string, log *slog.Logger) (*Consumer, error) {
 	uri, err := url.Parse(address)
 	if err != nil || uri.Scheme != "amqps" || uri.Hostname() == "" {
 		return nil, errors.New("CHAT_BROKER_URL debe usar AMQPS")
@@ -43,14 +110,14 @@ func New(address, caFile string, st EventStore, log *slog.Logger) (*Consumer, er
 	if !roots.AppendCertsFromPEM(ca) {
 		return nil, errors.New("CA de broker inválida")
 	}
-	return &Consumer{address: address, tls: &tls.Config{RootCAs: roots, ServerName: uri.Hostname(), MinVersion: tls.VersionTLS12}, store: st, log: log}, nil
+	return &Consumer{address: address, tls: &tls.Config{RootCAs: roots, ServerName: uri.Hostname(), MinVersion: tls.VersionTLS12}, log: log}, nil
 }
 
 func (c *Consumer) Run(ctx context.Context) {
 	for ctx.Err() == nil {
 		// Error strings from the AMQP library may contain connection information.
 		if err := c.consume(ctx); err != nil && ctx.Err() == nil {
-			c.log.Warn("broker no disponible", "consumer", "chat.lifecycle")
+			c.log.Warn("broker no disponible", "consumer", c.queue)
 		}
 		select {
 		case <-ctx.Done():
@@ -90,7 +157,7 @@ func (c *Consumer) consume(ctx context.Context) error {
 		return err
 	}
 	returns := publisher.NotifyReturn(make(chan amqp.Return, 1))
-	deliveries, err := channel.Consume("chat.lifecycle", "", false, false, false, false, nil)
+	deliveries, err := channel.Consume(c.queue, "", false, false, false, false, nil)
 	if err != nil {
 		return err
 	}
@@ -102,24 +169,7 @@ func (c *Consumer) consume(ctx context.Context) error {
 			if !ok {
 				return errors.New("consumer stopped")
 			}
-			cause, permanent := "", false
-			event, state, fingerprint, validation := decode(delivery.Body)
-			if validation != nil || delivery.ContentType != "application/json" {
-				cause, permanent = "INVALID_EVENT", true
-			} else {
-				work, cancel := context.WithTimeout(ctx, 3*time.Second)
-				result, applyErr := c.store.ApplyBrokerEvent(work, event.EventID, fingerprint, event.stateFingerprint, state)
-				cancel()
-				if applyErr != nil {
-					cause = "STORE_UNAVAILABLE"
-				} else if result == store.EventConflict {
-					cause, permanent = "EVENT_ID_CONFLICT", true
-				} else {
-					occurred, _ := utc(event.OccurredAtUTC)
-					c.log.Info("broker consumido", "consumer", "chat.lifecycle", "eventId", event.EventID,
-						"correlationId", event.CorrelationID, "outcome", result, "ageMs", max(0, time.Since(occurred).Milliseconds()))
-				}
-			}
+			cause, permanent := c.handle(ctx, delivery)
 			if cause != "" {
 				if err = c.retain(ctx, publisher, returns, delivery, cause, permanent); err != nil {
 					return err
@@ -150,12 +200,12 @@ func (c *Consumer) retain(ctx context.Context, publisher *amqp.Channel, returns 
 		attempt = 0
 	}
 	dead := permanent || attempt >= 3
-	exchange, key := "chat.lifecycle.dead", "failed"
+	exchange, key := c.queue+".dead", "failed"
 	if !dead {
-		exchange = "chat.lifecycle.retry"
+		exchange = c.queue + ".retry"
 		key = strconv.Itoa([]int{1, 5, 30}[attempt])
 	}
-	headers["x-p2-consumer"] = "chat.lifecycle"
+	headers["x-p2-consumer"] = c.queue
 	headers["x-p2-cause"] = cause
 	headers["x-p2-attempt"] = int32(attempt + 1)
 	if _, ok := headers["x-p2-first-failure"]; !ok {
@@ -183,6 +233,6 @@ func (c *Consumer) retain(ctx context.Context, publisher *amqp.Channel, returns 
 		return errors.New("retry/DLQ unroutable")
 	default:
 	}
-	c.log.Warn("broker entrega fallida", "consumer", "chat.lifecycle", "cause", cause, "attempt", attempt+1, "deadLetter", dead)
+	c.log.Warn("broker entrega fallida", "consumer", c.queue, "cause", cause, "attempt", attempt+1, "deadLetter", dead)
 	return nil
 }
