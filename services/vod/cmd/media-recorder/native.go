@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"streaming/vod/internal/vod"
+	"strings"
 	"time"
 )
 
@@ -137,9 +138,13 @@ func (r *recorder) captureNative(src source) error {
 				return nil
 			}
 			previous, exists := s.Renditions["rend_source"]
-			if exists && (previous.Width != rendition.Width || previous.Height != rendition.Height || previous.Codecs() != rendition.Codecs()) {
-				r.mu.Unlock()
-				return r.nativeFailure(src.Start.SessionID, "CAPTURE_NATIVE_RENDITION_CHANGED")
+			if exists {
+				var same bool
+				if previous, same = sameNativeRendition(previous, rendition); !same {
+					r.mu.Unlock()
+					return r.nativeFailure(src.Start.SessionID, "CAPTURE_NATIVE_RENDITION_CHANGED")
+				}
+				s.Renditions["rend_source"] = previous
 			}
 			if !exists {
 				s.Renditions["rend_source"] = rendition
@@ -189,13 +194,15 @@ func (r *recorder) nativeFailure(session, code string) error {
 func probeNative(ctx context.Context, file string, size, duration int64) (vod.Rendition, error) {
 	budget, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	raw, e := exec.CommandContext(budget, "ffprobe", "-v", "error", "-protocol_whitelist", "file,crypto,data", "-show_entries", "stream=codec_type,codec_name,width,height", "-of", "json", file).Output()
+	raw, e := exec.CommandContext(budget, "ffprobe", "-v", "error", "-protocol_whitelist", "file,crypto,data", "-show_entries", "stream=codec_type,codec_name,profile,level,width,height", "-of", "json", file).Output()
 	var result struct {
 		Streams []struct {
-			Type   string `json:"codec_type"`
-			Codec  string `json:"codec_name"`
-			Width  int    `json:"width"`
-			Height int    `json:"height"`
+			Type    string `json:"codec_type"`
+			Codec   string `json:"codec_name"`
+			Profile string `json:"profile"`
+			Level   int    `json:"level"`
+			Width   int    `json:"width"`
+			Height  int    `json:"height"`
 		} `json:"streams"`
 	}
 	r := vod.Rendition{RenditionID: "rend_source", Bitrate: size * 8000 / duration}
@@ -209,10 +216,11 @@ func probeNative(ctx context.Context, file string, size, duration int64) (vod.Re
 			video++
 			r.Width = stream.Width
 			r.Height = stream.Height
-			if stream.Codec != "h264" {
+			codec, ok := avcCodec(stream.Profile, stream.Level)
+			if stream.Codec != "h264" || !ok {
 				return r, fmt.Errorf("unsupported native video")
 			}
-			r.VideoCodec = "avc1"
+			r.VideoCodec = codec
 		case "audio":
 			audio++
 			if stream.Codec != "aac" {
@@ -226,6 +234,28 @@ func probeNative(ctx context.Context, file string, size, duration int64) (vod.Re
 		return r, fmt.Errorf("native streams invalid")
 	}
 	return r, nil
+}
+
+// sameNativeRendition reports whether next keeps the stored rendition's format. Checkpoints written
+// before avcCodec stored a bare "avc1"; that legacy value matches any H.264 string and is upgraded so
+// an unfinished recording survives the recorder upgrade.
+func sameNativeRendition(previous, next vod.Rendition) (vod.Rendition, bool) {
+	if previous.VideoCodec == "avc1" && strings.HasPrefix(next.VideoCodec, "avc1.") {
+		previous.VideoCodec = next.VideoCodec
+	}
+	return previous, previous.Width == next.Width && previous.Height == next.Height && previous.Codecs() == next.Codecs()
+}
+
+// avcCodec builds the RFC 6381 string (avc1.PPCCLL) that browsers require in CODECS; a bare
+// "avc1" is rejected by MediaSource.isTypeSupported and hls.js drops the variant.
+func avcCodec(profile string, level int) (string, bool) {
+	ids := map[string]string{"Constrained Baseline": "42c0", "Baseline": "4200", "Main": "4d40", "Extended": "5800",
+		"High": "6400", "High 10": "6e00", "High 4:2:2": "7a00", "High 4:4:4 Predictive": "f400"}
+	id, ok := ids[profile]
+	if !ok || level < 10 || level > 62 {
+		return "", false
+	}
+	return fmt.Sprintf("avc1.%s%02x", id, level), true
 }
 func (r *recorder) cleanupNative(s *state) error {
 	if r.nativeDir == "" || !vod.ValidID(s.Start.SessionID) {

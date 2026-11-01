@@ -37,6 +37,10 @@
   flex: 1;
   padding: 1rem;
 }
+.removed {
+  font-style: italic;
+  color: var(--color-muted);
+}
 .composer {
   padding: 1rem;
   background: #1f1f24;
@@ -63,4 +67,26 @@
 .error {
   color: var(--color-error);
   margin-top: 0.5rem;
+}
+.time {
+  font-size: 0.6875rem;
+  color: var(--color-muted);
+}
+.message {
+  display: grid;
+  gap: 0.125rem;
+  margin-bottom: 0.75rem;
+}
+.body {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+}
+.moderated {
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 0.5rem;
+}
+.moderated > .body {
+  grid-column: 1;
+  grid-row: 1;
 }

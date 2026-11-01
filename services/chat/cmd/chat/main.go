@@ -1,5 +1,6 @@
 // Command chat inicia el servicio Chat: listener público (historial y WebSocket) y listener interno
-// (session-events). Redis es el único almacén.
+// (session-events). Redis guarda el vivo; con CHAT_DATABASE_URL, PostgreSQL guarda el archivo para
+// replay, los bloqueos y los retiros (ADR-024).
 package main
 
 import (
@@ -10,17 +11,20 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 
+	"streaming/chat/internal/archive"
 	"streaming/chat/internal/broker"
 	"streaming/chat/internal/config"
 	"streaming/chat/internal/core"
 	"streaming/chat/internal/service"
 	"streaming/chat/internal/store"
 	"streaming/chat/internal/transport"
+	"streaming/chat/internal/vod"
 )
 
 func main() {
@@ -68,12 +72,50 @@ func main() {
 		}
 	}
 	svc := service.New(coreClient, st, log, cfg.AuthBudget)
+	ready := st.Ping
+	var vodEvents *broker.Consumer
+	if cfg.DatabaseURL != "" {
+		db, err := openArchive(cfg.DatabaseURL)
+		if err != nil {
+			log.Error("PostgreSQL de Chat", "err", err)
+			os.Exit(1)
+		}
+		defer db.Close()
+		opts := service.P2Options{
+			Archive: db, Moderators: coreClient,
+			UnlinkedRetention: cfg.UnlinkedRetention, IdempotencyRetention: cfg.IdempotencyRetention,
+		}
+		if cfg.VodBaseURL != "" {
+			vods, err := vod.New(vod.Config{
+				BaseURL: cfg.VodBaseURL, ServiceToken: cfg.VodServiceToken, CAFile: cfg.VodCAFile,
+				DevelopmentHTTP: cfg.VodDevelopmentHTTP, ConnectTimeout: cfg.VodConnect, RequestTimeout: cfg.VodTimeout,
+			})
+			if err != nil {
+				log.Error("cliente VOD", "err", err)
+				os.Exit(1)
+			}
+			opts.Vods = vods
+		}
+		svc.EnableP2(opts)
+		ready = func(ctx context.Context) error {
+			if err := st.Ping(ctx); err != nil {
+				return err
+			}
+			return db.Ping(ctx)
+		}
+		if cfg.EventsTransport == "amqp" {
+			if vodEvents, err = broker.NewVod(cfg.BrokerURL, cfg.BrokerCAFile, svc, log); err != nil {
+				log.Error("configuración de broker inválida", "err", err)
+				os.Exit(1)
+			}
+		}
+	}
 	hub := transport.NewHub(st, log, cfg.ReaderBlock)
 	srv := transport.NewServer(transport.Config{
 		AllowedOrigins: cfg.AllowedOrigins, SessionCookie: cfg.SessionCookie,
 		EventsProducer: cfg.EventsProducer, EventsToken: cfg.EventsToken,
 		EventsTransport: cfg.EventsTransport,
-	}, svc, hub, st.Ping, log)
+	}, svc, hub, ready, log)
 
 	public := &http.Server{Addr: cfg.PublicAddr, Handler: srv.PublicHandler(), ReadHeaderTimeout: 5 * time.Second, TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12}}
 	internal := &http.Server{Addr: cfg.InternalAddr, Handler: srv.InternalHandler(), ReadHeaderTimeout: 5 * time.Second, TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12}}
@@ -93,7 +135,8 @@ func main() {
 		}
 		errc <- internal.ListenAndServe()
 	}()
-	log.Info("chat iniciado", "public", cfg.PublicAddr, "internal", cfg.InternalAddr, "internalTLS", cfg.InternalTLSCert != "")
+	log.Info("chat iniciado", "public", cfg.PublicAddr, "internal", cfg.InternalAddr, "internalTLS", cfg.InternalTLSCert != "",
+		"archive", svc.P2Enabled())
 
 	stop, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -101,6 +144,14 @@ func main() {
 	defer stopSweep()
 	if lifecycle != nil {
 		go lifecycle.Run(sweepCtx)
+	}
+	if vodEvents != nil {
+		go vodEvents.Run(sweepCtx)
+	}
+	if svc.P2Enabled() {
+		host, _ := os.Hostname()
+		go svc.RunArchiver(sweepCtx, host+"-"+strconv.Itoa(os.Getpid()), cfg.ArchiveClaimIdle)
+		go svc.MaintainP2(sweepCtx)
 	}
 	// Un ENDED que nunca llegó dejaría la sala sin TTL; el barrido lo recupera por snapshot.
 	go func() {
@@ -112,6 +163,9 @@ func main() {
 				return
 			case <-ticker.C:
 				svc.ReconcileUnendedRooms(sweepCtx)
+				if svc.P2Enabled() {
+					svc.MaintainP2(sweepCtx)
+				}
 			}
 		}
 	}()
@@ -129,4 +183,28 @@ func main() {
 	_ = public.Shutdown(ctx)
 	_ = internal.Shutdown(ctx)
 	log.Info("chat detenido")
+}
+
+// openArchive conecta y migra la base de Chat; reintenta mientras PostgreSQL arranca.
+func openArchive(url string) (*archive.DB, error) {
+	var last error
+	for attempt := 0; attempt < 30; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		db, err := archive.Open(ctx, url)
+		if err == nil {
+			if err = db.Ping(ctx); err == nil {
+				err = db.Migrate(ctx)
+			}
+			if err != nil {
+				db.Close()
+			}
+		}
+		cancel()
+		if err == nil {
+			return db, nil
+		}
+		last = err
+		time.Sleep(2 * time.Second)
+	}
+	return nil, last
 }

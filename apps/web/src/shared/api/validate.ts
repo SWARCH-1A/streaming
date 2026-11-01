@@ -38,6 +38,7 @@ export function validateFrame(frame: unknown): void {
     'chat.status': 'ChatStatus',
     'message.accepted': 'MessageAccepted',
     'message.created': 'MessageCreated',
+    'message.removed': 'P2ChatMessageRemovedFrame',
     error: 'ChatError',
   };
   const type = (frame as { type?: unknown } | null)?.type;

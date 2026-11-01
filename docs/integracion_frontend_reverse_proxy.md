@@ -28,7 +28,7 @@ de solicitudes deben descartar respuestas tardías y cerrar conexiones anteriore
 | Tráfico | Destino / comportamiento |
 | --- | --- |
 | Navegación web | Servidor SSR; respuesta HTML y recursos de Web |
-| Agregados de pantalla | Gateway consulta Core, Streaming, Chat, VOD y Notificaciones según la vista |
+| Agregados de pantalla | Gateway consulta Core, Streaming y VOD según la vista; Chat y Notificaciones conservan sus APIs |
 | Identidad, perfil, canal, catálogo y Discovery | Core; se conservan permisos y semántica de las APIs existentes |
 | Emisión, configuración, estado y leases | Streaming; la ruta de streams de canal tiene precedencia sobre el prefijo Canales |
 | Chat y moderación | Chat; lectura inicial, mensajes y acciones autorizadas |
@@ -57,8 +57,10 @@ Upgrade Chat están implementados bajo los contratos de SPEC-01/19 y ADR-021; el
 entre servicios no es una sesión móvil. La ausencia de Origin de un cliente nativo debe tratarse
 por ese contrato, sin debilitar las verificaciones web. No enviar tokens en query strings ni logs.
 
-Gateway sobrescribe headers de IP reenviada y elimina los de credenciales privadas aportados
-por el público. Los servicios verifican siempre sus rutas internas. La autorización por mensaje,
+Caddy sobrescribe headers de IP reenviada y elimina los de credenciales privadas aportados
+por el público. El Gateway solo copia una lista explícita de headers y reenvía la dirección
+observada únicamente si su par es un proxy de confianza; Core confía solo en Caddy y el Gateway,
+así las cuotas por IP siguen siendo por cliente. Los servicios verifican siempre sus rutas internas. La autorización por mensaje,
 propiedad y bloqueo pertenece a Core/Streaming/Chat, no a una decisión cacheada del Gateway.
 
 ## Fallos y experiencia

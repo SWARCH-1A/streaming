@@ -29,8 +29,9 @@ y cuáles fueron sustituidos. Las fechas conservan el momento de cada decisión.
 | [ADR-021](ADR-021-cliente-mobile-nativo.md) | Aceptada para implementación inicial | Cliente KMP/Compose Android/iOS, Ktor, reproductores y credenciales nativas; integración por APIs públicas. |
 | [ADR-022](ADR-022-vod-go-postgresql-minio.md) | Aceptada para VOD | Go/PostgreSQL/MinIO, escritor VOD y entrega Media, compactación/mapping, permisos60s y pistas SPEC-22. |
 | [ADR-023](ADR-023-gateway-go-caddy.md) | Aceptada para integración VOD | Agregación Go, transporte Caddy, fallos parciales y presupuesto JSON3s. |
+| [ADR-024](ADR-024-chat-redis-postgresql-replay-moderacion.md) | Aceptada para Chat | Redis para el vivo y PostgreSQL propio para replay, bloqueos y retiros; outbox Redis Stream y moderación del propietario. |
 
-Chat conserva Go; ADR-010 describe su perfil efímero P1. La retención durable P2 rige por ADR-015; las herramientas pendientes de operación y despliegue se registran conforme
+Chat conserva Go; ADR-010 describe su perfil efímero P1 y ADR-024 su almacenamiento P2 (Redis + PostgreSQL); las herramientas pendientes de operación y despliegue se registran conforme
 a la [política ADR](../politica_ADR.md). Las alternativas candidatas requieren decisión del responsable.
 
 La [decisión de entrega durable de callbacks Media](../../services/streaming/docs/adr/0001-media-callback-delivery.md) documenta la persistencia, reintentos, DLQ y capacidad del adaptador de SPEC-04.

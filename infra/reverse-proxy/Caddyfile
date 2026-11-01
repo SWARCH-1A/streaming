@@ -46,6 +46,14 @@
     reverse_proxy @chat_history {$CHAT_UPSTREAM:http://chat:8085} {
       import proxy_headers
     }
+    # SPEC-05 P2: replay, retiros y bloqueos; Chat valida método, sesión, CSRF y propietario.
+    @chat_p2 {
+      method GET PUT POST DELETE
+      path_regexp chat_p2 ^/api/chat/(vods/[A-Za-z0-9_-]+/messages|sessions/[A-Za-z0-9_-]+/messages/[A-Za-z0-9_-]+|channels/[A-Za-z0-9_-]+/(blocks/[A-Za-z0-9_-]+|message-removals|moderation-operations/[A-Za-z0-9_-]+))$
+    }
+    reverse_proxy @chat_p2 {$CHAT_UPSTREAM:http://chat:8085} {
+      import proxy_headers
+    }
     @chat_ws {
       method GET
       path_regexp chat_ws ^/realtime/chat/sessions/[A-Za-z0-9_-]+$

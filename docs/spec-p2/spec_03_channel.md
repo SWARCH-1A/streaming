@@ -66,6 +66,10 @@ sin Cookie ni Origin usan Bearer validado y mantienen Idempotency-Key y autoriza
 `p2.channels.*`, `p2.recording.preference-*` y evento `channel.follow.changed.v1`.
 Notificaciones consume relación/destinatarios según [SPEC-20](spec_20_notifications.md);
 Gateway compone VOD/seguimiento en [SPEC-16](spec_16_gateway.md).
+Chat pide `p2.chat.moderation-context` (listener privado, servicio `chat`) antes de cada operación
+de moderación. Canales responde el `userId` solo si la sesión es vigente y la cuenta es
+propietaria del canal; si no, responde 401, 403 `CHANNEL_FORBIDDEN` o 404. Bloqueos y retiros
+siguen en Chat ([SPEC-05](spec_05_chat.md)).
 
 ## 9. Decisiones y preguntas abiertas
 

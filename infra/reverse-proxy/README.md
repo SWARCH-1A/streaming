@@ -1,7 +1,9 @@
-# Reverse proxy P1
+# Reverse proxy y entrada del API Gateway
 
-Caddy enruta Web SSR y las APIs, WebSocket y HLS, según
-[ADR-013](../../docs/adr/ADR-013-web-integrada-caddy-hls.md).
+Caddy es la entrada pública: enruta Web SSR y las APIs, WebSocket y HLS, según
+[ADR-013](../../docs/adr/ADR-013-web-integrada-caddy-hls.md), y envía `/api/screens/*` y
+`/api/admin/content-removals` al Gateway de agregación ([ADR-023](../../docs/adr/ADR-023-gateway-go-caddy.md),
+[SPEC-16](../../docs/spec-p2/spec_16_gateway.md)).
 La [tabla de rutas](../../docs/integracion_frontend_reverse_proxy.md) indica el servicio
 responsable de cada path.
 
@@ -15,6 +17,7 @@ La instalación HTTPS está en el Compose raíz; SPEC-13 define su aceptación y
 | Streaming | imagen services/streaming | 8080; /health/ready (no expuesto por proxy) |
 | Chat | imagen services/chat | 8085; /readyz (no expuesto por proxy) |
 | Adaptador Media | dentro de Streaming P1 | 8888; entrega HLS según availability |
+| Gateway | imagen services/gateway | 8097; `/api/screens/*` y retirada administrativa |
 | MediaMTX | imagen infra/media | 1935 TCP RTMP; no es ruta HTTP del proxy |
 
 compose.web-dev.yaml se incluye junto con los proveedores. Construye `web-ssr` con el Dockerfile Web y monta Caddyfile; no requiere `dist`.
@@ -26,6 +29,9 @@ La [prueba reproducible](../../tests/integration/p1-domains/README.md) arranca t
 establece CORE_TRUSTED_PROXIES a la IP real del proxy. Si esa IP cambia, hay que actualizar Core;
 no confiar en todo el bridge ni aceptar X-Forwarded-For arbitrario. Caddy reemplaza forwarding con
 el socket observado y elimina X-Service-Name/X-Service-Token/X-Session-Credential/Forwarded públicos.
+En la instalación local el Gateway también tiene IP fija: acepta X-Forwarded-For solo de Caddy
+(`GATEWAY_TRUSTED_PROXIES`) y Core confía en ambas direcciones. La [prueba de borde](../../tests/integration/p2-gateway-edge/run.py)
+ejecuta este Caddyfile frente a upstreams simulados y comprueba rutas, headers, Range, cancelación y WS.
 Core aplica esa resolución a cuotas de Accounts y Discovery; las pruebas unitarias cubren spoofing.
 
 Solo GET/POST exactos channels/{id}/streams van a Streaming antes del prefijo Channels Core.

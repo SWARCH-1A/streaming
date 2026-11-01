@@ -109,6 +109,30 @@ func (c *Client) MessageContext(ctx context.Context, credential, sessionID, clie
 	return out, nil
 }
 
+// ModerationContext es la respuesta de POST /internal/core/chat/moderation-context: Core confirma
+// que la sesión del usuario es vigente y que es propietario del canal.
+type ModerationContext struct {
+	UserID          string    `json:"userId"`
+	ChannelID       string    `json:"channelId"`
+	AuthorizedAtUTC time.Time `json:"authorizedAtUtc"`
+}
+
+// ModerationContext pide una autorización nueva por operación de moderación; no se cachea.
+func (c *Client) ModerationContext(ctx context.Context, credential, channelID string) (ModerationContext, *chat.Error) {
+	if credential == "" {
+		return ModerationContext{}, chat.Fail(chat.CodeAuthRequired)
+	}
+	body, _ := json.Marshal(map[string]string{"channelId": channelID})
+	var out ModerationContext
+	if err := c.do(ctx, http.MethodPost, "/internal/core/chat/moderation-context", body, credential, &out); err != nil {
+		return ModerationContext{}, err
+	}
+	if out.UserID == "" || out.ChannelID != channelID {
+		return ModerationContext{}, chat.Fail(chat.CodeCoreUnavailable)
+	}
+	return out, nil
+}
+
 // Snapshot obtiene el estado autoritativo de la sesión para abrir o reconciliar una sala.
 func (c *Client) Snapshot(ctx context.Context, sessionID string) (SessionSnapshot, *chat.Error) {
 	var out SessionSnapshot
@@ -172,7 +196,7 @@ func mapError(status int, raw []byte) *chat.Error {
 	case "SERVICE_UNAUTHORIZED", "SERVICE_AUTH_REQUIRED":
 		return chat.Fail(chat.CodeCoreUnavailable)
 	case chat.CodeStreamingUnavailable, chat.CodeTimelineUnavailable, chat.CodeAuthRequired,
-		chat.CodeChatNotOpen, chat.CodeChatReadOnly:
+		chat.CodeChatNotOpen, chat.CodeChatReadOnly, chat.CodeChannelForbidden, chat.CodeChannelNotFound:
 		return chat.Fail(env.Code)
 	}
 	switch status {

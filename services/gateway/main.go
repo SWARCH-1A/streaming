@@ -6,54 +6,132 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 )
+
+// screenBudget bounds a complete screen, including dependent reads (ADR-023).
+const screenBudget = 3 * time.Second
+
+// maxUpstreamBody bounds one internal JSON read; the gateway never buffers media.
+const maxUpstreamBody = 2 << 20
 
 type gateway struct {
 	core, vod, live string
 	client          *http.Client
+	proxies         trustedProxies
+	queriesFile     string
+	budget          time.Duration // zero means screenBudget
 }
+
 type section struct {
 	Status string `json:"status"`
 	Data   any    `json:"data,omitempty"`
 	Error  any    `json:"error,omitempty"`
 }
 
+type requestIDKey struct{}
+
+var (
+	requestIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
+	resourceID       = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
+	channelHandle    = regexp.MustCompile(`^[A-Za-z0-9_]{4,25}$`)
+)
+
 func failure(code, requestID string) section {
 	return section{Status: "UNAVAILABLE", Error: map[string]any{"code": code, "retryable": true, "requestId": requestID}}
 }
-func (g gateway) read(ctx context.Context, r *http.Request, base, path string) (json.RawMessage, int) {
-	request, e := http.NewRequestWithContext(ctx, "GET", base+path, nil)
-	if e != nil {
-		return nil, 503
+
+// withRequestID fixes the correlation id once, before any concurrent internal read starts.
+func withRequestID(r *http.Request) *http.Request {
+	value := r.Header.Get("X-Request-ID")
+	if !requestIDPattern.MatchString(value) {
+		raw := make([]byte, 16)
+		_, _ = rand.Read(raw)
+		value = "req_" + hex.EncodeToString(raw)
 	}
-	for _, name := range []string{"Cookie", "Authorization", "X-Request-ID"} {
-		if v := r.Header.Get(name); v != "" {
-			request.Header.Set(name, v)
+	return r.WithContext(context.WithValue(r.Context(), requestIDKey{}, value))
+}
+
+func correlation(r *http.Request) string {
+	if value, ok := r.Context().Value(requestIDKey{}).(string); ok {
+		return value
+	}
+	if value := r.Header.Get("X-Request-ID"); requestIDPattern.MatchString(value) {
+		return value
+	}
+	return "gateway"
+}
+
+// sessionCookie keeps only the session credential; other public cookies never reach the domains.
+func sessionCookie(r *http.Request) string {
+	if cookie, e := r.Cookie("stream_session"); e == nil && cookie.Value != "" {
+		return (&http.Cookie{Name: cookie.Name, Value: cookie.Value}).String()
+	}
+	return ""
+}
+
+func presentsIdentity(r *http.Request) bool {
+	return sessionCookie(r) != "" || r.Header.Get("Authorization") != ""
+}
+
+// read performs one internal GET. Only an explicit allow-list of public headers is forwarded:
+// identity (when requested), correlation and the observed client address. X-Service-* and any
+// other client-supplied private header are never copied.
+func (g gateway) read(ctx context.Context, r *http.Request, base, path string, identity bool) (json.RawMessage, int) {
+	request, e := http.NewRequestWithContext(ctx, http.MethodGet, base+path, nil)
+	if e != nil {
+		return nil, http.StatusServiceUnavailable
+	}
+	if identity {
+		if cookie := sessionCookie(r); cookie != "" {
+			request.Header.Set("Cookie", cookie)
+		}
+		if bearer := r.Header.Get("Authorization"); bearer != "" {
+			request.Header.Set("Authorization", bearer)
 		}
 	}
+	g.forwarding(r, request)
 	request.Header.Set("Accept", "application/json")
 	res, e := g.client.Do(request)
 	if e != nil {
-		return nil, 503
+		return nil, transportStatus(ctx, e)
 	}
 	defer res.Body.Close()
-	if res.StatusCode != 200 {
+	if res.StatusCode != http.StatusOK {
+		_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, 64<<10))
 		return nil, res.StatusCode
 	}
-	raw, e := io.ReadAll(io.LimitReader(res.Body, 2<<20))
-	if e != nil || !json.Valid(raw) {
-		return nil, 503
+	raw, e := io.ReadAll(io.LimitReader(res.Body, maxUpstreamBody+1))
+	if e != nil {
+		return nil, transportStatus(ctx, e)
 	}
-	return raw, 200
+	if len(raw) > maxUpstreamBody || !json.Valid(raw) {
+		return nil, http.StatusServiceUnavailable
+	}
+	return raw, http.StatusOK
 }
+
+// forwarding propagates correlation and the client address reconstructed by trusted proxies.
+func (g gateway) forwarding(r *http.Request, request *http.Request) {
+	request.Header.Set("X-Request-ID", correlation(r))
+	if client := g.proxies.forwardedFor(r); client != "" {
+		request.Header.Set("X-Forwarded-For", client)
+	}
+}
+
+func transportStatus(ctx context.Context, e error) int {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(e, context.DeadlineExceeded) {
+		return http.StatusGatewayTimeout
+	}
+	return http.StatusServiceUnavailable
+}
+
 func available(raw json.RawMessage) section {
 	var page struct {
 		Items []any `json:"items"`
@@ -63,244 +141,110 @@ func available(raw json.RawMessage) section {
 	}
 	return section{Status: "AVAILABLE", Data: raw}
 }
+
 func normalizedStatus(status int) int {
 	switch status {
-	case 400, 401, 403, 404, 410, 422, 429:
+	case 400, 401, 403, 404, 410, 422, 429, 504:
 		return status
-	case 504:
-		return 504
 	default:
-		return 503
+		return http.StatusServiceUnavailable
 	}
 }
-func correlation(r *http.Request) string {
-	value := r.Header.Get("X-Request-ID")
-	if regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`).MatchString(value) {
-		return value
-	}
-	raw := make([]byte, 16)
-	_, _ = rand.Read(raw)
-	value = "req_" + hex.EncodeToString(raw)
-	r.Header.Set("X-Request-ID", value)
-	return value
-}
-func (g gateway) serve(w http.ResponseWriter, r *http.Request) {
-	correlation(r)
-	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
-	defer cancel()
-	w.Header().Set("Cache-Control", "no-store, private")
-	w.Header().Set("Content-Type", "application/json")
-	result := map[string]any{}
-	status := 200
-	partial := false
-	switch {
-	case strings.HasPrefix(r.URL.Path, "/api/screens/vods/"):
-		id := r.PathValue("vodId")
-		if id == "" || strings.ContainsAny(id, "/%?#") {
-			status = 404
-			break
-		}
-		var raw, timeline json.RawMessage
-		var code, timelineCode int
-		var wg sync.WaitGroup
-		wg.Add(2)
-		go func() { defer wg.Done(); raw, code = g.read(ctx, r, g.vod, "/api/vods/"+id) }()
-		go func() { defer wg.Done(); timeline, timelineCode = g.read(ctx, r, g.vod, "/api/vods/"+id+"/timeline") }()
-		wg.Wait()
-		if code != 200 {
-			status = code
-			break
-		}
-		if timelineCode != 200 {
-			status = timelineCode
-			break
-		}
-		var v struct {
-			ChannelID string `json:"channelId"`
-		}
-		if json.Unmarshal(raw, &v) != nil || v.ChannelID == "" {
-			status = 503
-			break
-		}
-		channel, c := g.read(ctx, r, g.core, "/api/channels/"+url.PathEscape(v.ChannelID))
-		result["vod"] = raw
-		result["mapping"] = timeline
-		if c == 200 {
-			result["channel"] = available(channel)
-		} else {
-			result["channel"] = failure("CHANNEL_UNAVAILABLE", correlation(r))
-			partial = true
-		}
-	case strings.HasPrefix(r.URL.Path, "/api/screens/channels/"):
-		channel, code := g.read(ctx, r, g.core, "/api/channels/by-handle/"+url.PathEscape(r.PathValue("handle")))
-		if code != 200 {
-			status = code
-			break
-		}
-		var c struct {
-			Channel struct {
-				ID string `json:"channelId"`
-			} `json:"channel"`
-			Stream json.RawMessage `json:"stream"`
-		}
-		if json.Unmarshal(channel, &c) != nil || c.Channel.ID == "" {
-			status = 503
-			break
-		}
-		result["channel"] = channel
-		var vods, follow json.RawMessage
-		var vc, fc int
-		var wg sync.WaitGroup
-		wg.Add(2)
-		go func() {
-			defer wg.Done()
-			vods, vc = g.read(ctx, r, g.vod, "/api/vods?channelId="+url.QueryEscape(c.Channel.ID))
-		}()
-		go func() {
-			defer wg.Done()
-			follow, fc = g.read(ctx, r, g.core, "/api/channels/"+url.PathEscape(c.Channel.ID)+"/followers/me")
-		}()
-		wg.Wait()
-		if vc == 200 {
-			result["vods"] = available(vods)
-		} else {
-			result["vods"] = failure("VOD_UNAVAILABLE", correlation(r))
-			partial = true
-		}
-		if fc == 200 {
-			result["follow"] = available(follow)
-		} else if fc == 401 {
-			_, sessionErr := r.Cookie("stream_session")
-			if sessionErr == nil || r.Header.Get("Authorization") != "" {
-				status = 401
-				break
-			}
-			result["follow"] = section{Status: "DENIED", Error: map[string]any{"code": "SESSION_REQUIRED", "retryable": false, "requestId": correlation(r)}}
-		} else {
-			result["follow"] = failure("FOLLOW_UNAVAILABLE", correlation(r))
-			partial = true
-		}
-		if len(c.Stream) > 0 && string(c.Stream) != "null" {
-			result["live"] = available(c.Stream)
-		} else {
-			result["live"] = section{Status: "EMPTY"}
-		}
-	case r.URL.Path == "/api/screens/explore":
-		// Discovery and VOD have distinct cursors. This aggregate carries the VOD page plus public live metadata.
-		q := r.URL.Query()
-		vquery := url.Values{}
-		for _, key := range []string{"title", "channelId", "categoryId", "tagId", "limit", "cursor"} {
-			if q.Has(key) {
-				vquery[key] = q[key]
-			}
-		}
-		var raw, live json.RawMessage
-		var code, liveCode int
-		var wg sync.WaitGroup
-		wg.Add(2)
-		go func() { defer wg.Done(); raw, code = g.read(ctx, r, g.vod, "/api/vods?"+vquery.Encode()) }()
-		go func() { defer wg.Done(); live, liveCode = g.discovery(ctx, r) }()
-		wg.Wait()
-		if code == 401 {
-			status = 401
-			break
-		}
-		if code == 200 {
-			result["vods"] = available(raw)
-		} else {
-			result["vods"] = failure("VOD_UNAVAILABLE", correlation(r))
-			partial = true
-		}
 
-		if liveCode == 200 {
-			result["discovery"] = available(live)
-		} else {
-			result["discovery"] = failure("DISCOVERY_UNAVAILABLE", correlation(r))
-			partial = true
-		}
-	default:
-		status = 404
+func writeJSON(w http.ResponseWriter, status int, value any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store, private")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(value)
+}
+
+func screenError(w http.ResponseWriter, r *http.Request, status int) {
+	status = normalizedStatus(status)
+	code := "SCREEN_UNAVAILABLE"
+	message := "La pantalla no está disponible."
+	switch status {
+	case 400, 422:
+		code, message = "VALIDATION_ERROR", "La consulta no es válida."
+	case 401:
+		code, message = "SESSION_INVALID", "La sesión no es válida."
+	case 403:
+		code, message = "FORBIDDEN", "No tienes acceso a esta pantalla."
+	case 404:
+		code, message = "NOT_FOUND", "El recurso no existe o no está disponible."
+	case 410:
+		code, message = "CURSOR_INVALID", "El cursor caducó; vuelve a consultar sin cursor."
+	case 429:
+		code, message = "RATE_LIMITED", "Demasiadas solicitudes."
+	case 504:
+		code = "SCREEN_TIMEOUT"
 	}
-	if status != 200 {
-		w.WriteHeader(normalizedStatus(status))
-		_ = json.NewEncoder(w).Encode(map[string]any{"code": "SCREEN_UNAVAILABLE", "message": "La pantalla no está disponible.", "requestId": correlation(r)})
-		return
-	}
+	writeJSON(w, status, map[string]any{"code": code, "message": message, "requestId": correlation(r)})
+}
+
+func writeScreen(w http.ResponseWriter, r *http.Request, result map[string]any, partial bool) {
 	result["meta"] = map[string]any{"partial": partial, "requestId": correlation(r)}
-	_ = json.NewEncoder(w).Encode(result)
+	writeJSON(w, http.StatusOK, result)
 }
-func (g gateway) discovery(ctx context.Context, r *http.Request) (json.RawMessage, int) {
-	rawQueries, e := os.ReadFile(env("GATEWAY_QUERIES_FILE", "/app/graphql-queries.json"))
-	if e != nil {
-		return nil, 503
-	}
-	var queries []struct {
-		Name  string `json:"name"`
-		Query string `json:"query"`
-	}
-	if json.Unmarshal(rawQueries, &queries) != nil {
-		return nil, 503
-	}
-	query := ""
-	for _, q := range queries {
-		if q.Name == "LiveStreams" {
-			query = q.Query
+
+// screen applies the request id, the total budget and the private cache policy to a handler.
+func (g gateway) screen(handler func(context.Context, http.ResponseWriter, *http.Request)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		r = withRequestID(r)
+		budget := g.budget
+		if budget <= 0 {
+			budget = screenBudget
 		}
+		ctx, cancel := context.WithTimeout(r.Context(), budget)
+		defer cancel()
+		handler(ctx, w, r)
 	}
-	if query == "" {
-		return nil, 503
-	}
-	variables := map[string]any{"limit": 12}
-	for _, field := range []string{"categoryId", "tagId"} {
-		if value := r.URL.Query().Get(field); value != "" {
-			variables[field] = value
-		}
-	}
-	if value := r.URL.Query().Get("title"); value != "" {
-		variables["q"] = value
-	}
-	payload, _ := json.Marshal(map[string]any{"query": query, "variables": variables})
-	body := string(payload)
-	request, e := http.NewRequestWithContext(ctx, "POST", g.core+"/api/discovery/graphql", strings.NewReader(body))
-	if e != nil {
-		return nil, 503
-	}
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("X-Request-ID", correlation(r))
-	res, e := g.client.Do(request)
-	if e != nil {
-		return nil, 503
-	}
-	defer res.Body.Close()
-	raw, e := io.ReadAll(io.LimitReader(res.Body, 1<<20))
-	if e != nil || res.StatusCode != 200 {
-		return nil, 503
-	}
-	var data struct {
-		Data   json.RawMessage `json:"data"`
-		Errors []any           `json:"errors"`
-	}
-	if json.Unmarshal(raw, &data) != nil || len(data.Errors) > 0 || len(data.Data) == 0 {
-		return nil, 503
-	}
-	return data.Data, 200
 }
+
 func env(key, value string) string {
 	if v := os.Getenv(key); v != "" {
 		return strings.TrimRight(v, "/")
 	}
 	return value
 }
-func main() {
-	g := gateway{env("GATEWAY_CORE_URL", "https://core:8081"), env("GATEWAY_VOD_URL", "https://vod:8098"), env("GATEWAY_STREAMING_URL", "https://live:8080"), &http.Client{Timeout: 3 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
+
+func (g gateway) routes() *http.ServeMux {
 	mux := http.NewServeMux()
-	for _, p := range []string{"GET /api/screens/vods/{vodId}", "GET /api/screens/channels/{handle}", "GET /api/screens/explore"} {
-		mux.HandleFunc(p, g.serve)
+	mux.HandleFunc("GET /api/screens/channels/{handle}", g.screen(g.channelScreen))
+	mux.HandleFunc("GET /api/screens/watch/{streamId}", g.screen(g.watchScreen))
+	mux.HandleFunc("GET /api/screens/vods/{vodId}", g.screen(g.vodScreen))
+	mux.HandleFunc("GET /api/screens/explore", g.screen(g.exploreScreen))
+	mux.HandleFunc("POST /api/admin/content-removals", func(w http.ResponseWriter, r *http.Request) { g.removal(w, withRequestID(r)) })
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+	// Published paths with another method answer 405 instead of falling through to 404.
+	for _, path := range []string{"/api/screens/channels/{handle}", "/api/screens/watch/{streamId}", "/api/screens/vods/{vodId}", "/api/screens/explore", "/api/admin/content-removals"} {
+		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			r = withRequestID(r)
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"code": "METHOD_NOT_ALLOWED", "message": "Método no permitido.", "requestId": correlation(r)})
+		})
 	}
-	mux.HandleFunc("POST /api/admin/content-removals", g.removal)
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) })
-	s := &http.Server{Addr: ":8097", Handler: mux, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second}
-	var e error
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		r = withRequestID(r)
+		writeJSON(w, http.StatusNotFound, map[string]any{"code": "NOT_FOUND", "message": "Ruta no encontrada.", "requestId": correlation(r)})
+	})
+	return mux
+}
+
+func main() {
+	proxies, e := parseTrustedProxies(os.Getenv("GATEWAY_TRUSTED_PROXIES"))
+	if e != nil {
+		os.Stderr.WriteString("invalid GATEWAY_TRUSTED_PROXIES\n")
+		os.Exit(2)
+	}
+	g := gateway{
+		core:        env("GATEWAY_CORE_URL", "https://core:8081"),
+		vod:         env("GATEWAY_VOD_URL", "https://vod:8098"),
+		live:        env("GATEWAY_STREAMING_URL", "https://live:8080"),
+		client:      &http.Client{Timeout: screenBudget, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
+		proxies:     proxies,
+		queriesFile: env("GATEWAY_QUERIES_FILE", "/app/graphql-queries.json"),
+	}
+	s := &http.Server{Addr: ":8097", Handler: g.routes(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second,
+		WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 32 << 10}
 	if os.Getenv("GATEWAY_DEVELOPMENT_HTTP") == "true" {
 		e = s.ListenAndServe()
 	} else {

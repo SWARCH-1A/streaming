@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { P2ReplayMessage, P2ReplayPage, P2Vod } from '@contracts/p2';
 
-import { Button } from '@/src/components/atoms/Button';
 import { Notice } from '@/src/components/molecules/Notice';
+import { ReplayChatPanel } from '@/src/modules/chat/entry';
 import { errorMessage, request } from '@/src/shared/api/http';
 
 import { duration } from './format';
+import styles from './VodPage.module.css';
 import { VodPlayer } from './VodPlayer';
 
 export function VodPage({ vod }: { vod: P2Vod }) {
@@ -16,6 +17,7 @@ export function VodPage({ vod }: { vod: P2Vod }) {
   const [pending, setPending] = useState(false);
   const [chatError, setChatError] = useState('');
   const [retry, setRetry] = useState(0);
+  const [position, setPosition] = useState(0);
   const cursor = pages.at(-1);
   useEffect(() => {
     if (window.from < 0 || window.from >= vod.durationMs) return;
@@ -32,15 +34,19 @@ export function VodPage({ vod }: { vod: P2Vod }) {
             setChatError('La versión del video cambió. Vuelve a abrir la grabación.');
             return;
           }
+          // Al avanzar se conservan las ventanas anteriores, como el historial de un chat en vivo. La
+          // primera página de una ventana reemplaza lo que había de esa ventana: un mensaje retirado
+          // después de cargarlo desaparece al refrescarla.
+          const to = Math.min(vod.durationMs, window.from + 10000);
           setMessages((previous) =>
-            cursor
-              ? [
-                  ...previous.filter(
-                    (item) => !page.items.some((next) => next.messageId === item.messageId),
-                  ),
-                  ...page.items,
-                ]
-              : page.items,
+            [
+              ...previous.filter((item) =>
+                cursor
+                  ? !page.items.some((next) => next.messageId === item.messageId)
+                  : item.mediaOffsetMs < window.from || item.mediaOffsetMs >= to,
+              ),
+              ...page.items,
+            ].slice(-500),
           );
           setNextCursor(page.nextCursor);
           setChatError('');
@@ -61,62 +67,53 @@ export function VodPage({ vod }: { vod: P2Vod }) {
   return (
     <main className="stack">
       <h1>{vod.title}</h1>
-      <p>
-        {duration(vod.durationMs)} ·{' '}
-        {vod.publicationState === 'DRAFT' ? 'Vista previa privada' : 'Grabación publicada'}
-      </p>
-      {vod.processingState === 'READY' ? (
-        <VodPlayer
-          vod={vod}
-          onPosition={(ms, grant) => {
-            const from = Math.floor(ms / 10000) * 10000;
-            if (window.from !== from || window.grant !== grant) {
-              setPending(true);
-              setMessages([]);
-              setPages([]);
-              setNextCursor(null);
-              setWindow({ from, grant });
-            }
-          }}
-        />
-      ) : (
-        <Notice>La grabación todavía no está lista para reproducirse.</Notice>
-      )}
-      <p>{vod.description}</p>
-      <section aria-label="Chat de la grabación">
-        <h2>Chat de la grabación</h2>
-        {chatError ? (
-          <Notice tone="warning">
-            {chatError} El video puede continuar.{' '}
-            <Button
-              onClick={() => {
-                setPending(true);
-                setRetry((value) => value + 1);
+      <div className={styles.layout}>
+        <div className="stack">
+          {vod.processingState === 'READY' ? (
+            <VodPlayer
+              vod={vod}
+              onPosition={(ms, grant) => {
+                setPosition(ms);
+                const from = Math.floor(ms / 10000) * 10000;
+                if (window.from !== from || window.grant !== grant) {
+                  // Reproducción continua: siguiente ventana. Un salto reinicia el historial.
+                  const forward = from === window.from + 10000 || from === window.from;
+                  setPending(true);
+                  if (!forward) setMessages([]);
+                  setPages([]);
+                  setNextCursor(null);
+                  setWindow({ from, grant });
+                }
               }}
-            >
-              Reintentar chat
-            </Button>
-          </Notice>
-        ) : (
-          messages.map((message) => (
-            <p key={message.messageId}>
-              {message.author.displayName}: {message.text}
-            </p>
-          ))
-        )}
-        {pending ? <p role="status">Cargando chat…</p> : null}
-        {nextCursor ? (
-          <Button
-            disabled={pending}
-            onClick={() => {
-              setPending(true);
-              setPages((previous) => [...previous, nextCursor]);
-            }}
-          >
-            Cargar más mensajes de este momento
-          </Button>
-        ) : null}
-      </section>
+            />
+          ) : (
+            <Notice>La grabación todavía no está lista para reproducirse.</Notice>
+          )}
+          <p>
+            {duration(vod.durationMs)} ·{' '}
+            {vod.publicationState === 'DRAFT' ? 'Vista previa privada' : 'Grabación publicada'}
+          </p>
+          <p>{vod.description}</p>
+        </div>
+        <ReplayChatPanel
+          messages={messages}
+          positionMs={position}
+          pending={pending}
+          error={chatError}
+          onRetry={() => {
+            setPending(true);
+            setRetry((value) => value + 1);
+          }}
+          onMore={
+            nextCursor
+              ? () => {
+                  setPending(true);
+                  setPages((previous) => [...previous, nextCursor]);
+                }
+              : undefined
+          }
+        />
+      </div>
     </main>
   );
 }

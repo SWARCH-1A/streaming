@@ -26,6 +26,7 @@ type Service struct {
 	log    *slog.Logger
 	budget time.Duration // máximo entre pedir contexto e intentar persistir
 	now    func() time.Time
+	p2     *P2Options // nil conserva el perfil P1 sin archivo ni moderación
 }
 
 func New(c CoreAPI, s *store.Store, log *slog.Logger, authBudget time.Duration) *Service {
@@ -93,6 +94,23 @@ func (s *Service) History(ctx context.Context, sid string, limit int) (chat.Room
 	return status, snapshot, msgs, nil
 }
 
+// HistoryView es History con las marcas de retiro y la versión de moderación de la sala.
+func (s *Service) HistoryView(ctx context.Context, sid string, limit int) (chat.RoomStatus, store.HistoryView, *chat.Error) {
+	status, cerr := s.ResolveRoom(ctx, sid, false)
+	if cerr != nil {
+		return "", store.HistoryView{}, cerr
+	}
+	if status == chat.RoomNotOpen {
+		return "", store.HistoryView{}, chat.Fail(chat.CodeChatNotOpen)
+	}
+	view, err := s.store.HistoryView(ctx, sid, limit)
+	if err != nil {
+		s.log.Error("leer historial", "sessionId", sid, "err", err)
+		return "", store.HistoryView{}, chat.Fail(chat.CodeChatUnavailable)
+	}
+	return status, view, nil
+}
+
 // Send procesa un message.send. Un contexto Core por intento; dedupe antes de permiso; cuota y
 // persistencia atómicas antes del ACK. Devuelve fresh=true solo cuando creó un mensaje nuevo.
 func (s *Service) Send(ctx context.Context, sid, credential, clientMessageID, rawText string) (chat.Ack, bool, *chat.Error) {
@@ -138,6 +156,20 @@ func (s *Service) Send(ctx context.Context, sid, credential, clientMessageID, ra
 	if mc.TimelinePositionMs != nil {
 		offset = *mc.TimelinePositionMs
 	}
+	// P2: el canal de la sala decide qué bloqueos aplican y acompaña la entrada del archivo. Sin
+	// canal conocido no se puede verificar un bloqueo, así que el envío se rechaza.
+	var channel string
+	if s.p2 != nil {
+		room, err := s.store.Room(ctx, sid)
+		if err != nil {
+			s.log.Error("leer sala", "sessionId", sid, "err", err)
+			return chat.Ack{}, false, chat.Fail(chat.CodeChatUnavailable)
+		}
+		channel = room.ChannelID
+		if channel == "" && writeAllowed {
+			writeAllowed, denial = false, chat.CodeChatUnavailable
+		}
+	}
 	msg := chat.Message{
 		MessageID: "msg_" + uuid.Must(uuid.NewV7()).String(),
 		SessionID: sid,
@@ -155,7 +187,7 @@ func (s *Service) Send(ctx context.Context, sid, credential, clientMessageID, ra
 		"persistAttemptMs", time.Since(started).Milliseconds())
 	res, err := s.store.Accept(ctx, store.AcceptInput{
 		SessionID: sid, UserID: mc.UserID, ClientMessageID: clientMessageID,
-		TextHash: chat.TextFingerprint(text), WriteAllowed: writeAllowed, DenialCode: denial, Message: msg,
+		TextHash: chat.TextFingerprint(text), WriteAllowed: writeAllowed, DenialCode: denial, ChannelID: channel, Message: msg,
 	})
 	if err != nil {
 		s.log.Error("persistir mensaje", "sessionId", sid, "err", err)
@@ -168,6 +200,8 @@ func (s *Service) Send(ctx context.Context, sid, credential, clientMessageID, ra
 		return res.Ack, false, nil
 	case store.Conflict:
 		return chat.Ack{}, false, chat.Fail(chat.CodeMessageIDConflict)
+	case store.Blocked:
+		return chat.Ack{}, false, chat.BlockedError(res.BlockedUntil)
 	case store.RateLimited:
 		e := chat.Fail(chat.CodeRateLimited)
 		e.RetryAfter = res.RetryAfter

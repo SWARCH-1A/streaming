@@ -6,10 +6,17 @@
 //	chat:{sid}:room   hash   estado de sala (status, generation, version, availability)
 //	chat:{sid}:seq    string último sequence asignado
 //	chat:{sid}:dedupe hash   userId|clientMessageId -> textHash|sequence|messageId|createdAtMs
-//	chat:{sid}:msgs   stream mensajes con ID 0-<sequence>; historial y outbox de distribución
+//	chat:{sid}:msgs    stream mensajes con ID 0-<sequence>; historial y outbox de distribución
+//	chat:{sid}:ids     hash   messageId -> sequence, para moderar por ID
+//	chat:{sid}:removed hash   messageId -> marca de retiro (sin texto)
+//	chat:{sid}:mod     stream retiros para difundirlos a todas las réplicas
+//	chat:{sid}:modver  string última moderationVersion de la sala
 //
-// Claves globales: chat:quota:{userId} (ventana de 1000 ms) y chat:inbox:{eventId} (dedupe de eventos).
-// Al terminar la sesión todas las claves de la sala expiran tras la retención configurada.
+// Claves globales: chat:quota:{userId} (ventana de 1000 ms), chat:inbox:{eventId} (dedupe de eventos),
+// chat:block:{channelId}:{userId} (copia de aplicación de un bloqueo; PostgreSQL es la fuente) y
+// chat:archive (stream con grupo archiver: outbox hacia PostgreSQL, ADR-024).
+// Al terminar la sesión todas las claves de la sala expiran tras la retención configurada; el
+// archivo es independiente y solo se borra una entrada después de confirmarla en PostgreSQL.
 package store
 
 import (
@@ -41,12 +48,33 @@ type Store struct {
 
 func New(rdb redis.UniversalClient, opts Options) *Store { return &Store{rdb: rdb, opts: opts} }
 
-func roomKey(sid string) string   { return "chat:{" + sid + "}:room" }
-func seqKey(sid string) string    { return "chat:{" + sid + "}:seq" }
-func dedupeKey(sid string) string { return "chat:{" + sid + "}:dedupe" }
-func msgsKey(sid string) string   { return "chat:{" + sid + "}:msgs" }
-func quotaKey(uid string) string  { return "chat:quota:" + uid }
-func inboxKey(eid string) string  { return "chat:inbox:" + eid }
+func roomKey(sid string) string    { return "chat:{" + sid + "}:room" }
+func seqKey(sid string) string     { return "chat:{" + sid + "}:seq" }
+func dedupeKey(sid string) string  { return "chat:{" + sid + "}:dedupe" }
+func msgsKey(sid string) string    { return "chat:{" + sid + "}:msgs" }
+func idsKey(sid string) string     { return "chat:{" + sid + "}:ids" }
+func removedKey(sid string) string { return "chat:{" + sid + "}:removed" }
+func modKey(sid string) string     { return "chat:{" + sid + "}:mod" }
+func modverKey(sid string) string  { return "chat:{" + sid + "}:modver" }
+func quotaKey(uid string) string   { return "chat:quota:" + uid }
+func inboxKey(eid string) string   { return "chat:inbox:" + eid }
+func blockKey(cid, uid string) string {
+	return "chat:block:" + cid + ":" + uid
+}
+
+// ArchiveStream y ArchiveGroup forman el outbox hacia PostgreSQL.
+const (
+	ArchiveStream = "chat:archive"
+	ArchiveGroup  = "archiver"
+)
+
+// noBlockKey se usa cuando la sala no conoce su canal (perfil P1): nunca se escribe.
+const noBlockKey = "chat:block:-"
+
+// roomKeys son todas las claves que expiran con la sala; la primera es el estado.
+func roomKeys(sid string) []string {
+	return []string{roomKey(sid), seqKey(sid), dedupeKey(sid), msgsKey(sid), idsKey(sid), removedKey(sid), modKey(sid), modverKey(sid)}
+}
 
 // Ping comprueba disponibilidad para readiness.
 func (s *Store) Ping(ctx context.Context) error { return s.rdb.Ping(ctx).Err() }
@@ -61,6 +89,7 @@ type AcceptInput struct {
 	TextHash        string
 	WriteAllowed    bool
 	DenialCode      string
+	ChannelID       string       // canal de la sala; vacío en P1 omite bloqueos y archivo
 	Message         chat.Message // sin Sequence; lo asigna el script
 }
 
@@ -72,13 +101,15 @@ const (
 	Conflict
 	Denied
 	RateLimited
+	Blocked
 )
 
 type AcceptResult struct {
-	Outcome    Outcome
-	Ack        chat.Ack
-	DenialCode string
-	RetryAfter time.Duration
+	Outcome      Outcome
+	Ack          chat.Ack
+	DenialCode   string
+	RetryAfter   time.Duration
+	BlockedUntil *time.Time // nil con Blocked significa permanente
 }
 
 var acceptScript = redis.NewScript(`
@@ -89,18 +120,26 @@ if prev then
 end
 if ARGV[3] ~= '1' then return {'DENIED', ARGV[4]} end
 if redis.call('HGET', KEYS[1], 'status') == 'READ_ONLY' then return {'DENIED', 'CHAT_READ_ONLY'} end
+local block = redis.call('GET', KEYS[6])
+if block then block = string.match(block, '^([^|]+)') end
+if block and (block == 'PERMANENT' or (block ~= 'LIFTED' and tonumber(block) > tonumber(ARGV[10]))) then return {'BLOCKED', block} end
 if not redis.call('SET', KEYS[5], '1', 'PX', ARGV[8], 'NX') then
   return {'RATE_LIMITED', tostring(redis.call('PTTL', KEYS[5]))}
 end
 local seq = redis.call('INCR', KEYS[2])
 redis.call('XADD', KEYS[4], '0-' .. seq, 'm', ARGV[7])
+redis.call('HSET', KEYS[7], ARGV[5], seq)
+if ARGV[9] ~= '' then
+  redis.call('XADD', KEYS[8], '*', 'c', ARGV[9], 's', seq, 'm', ARGV[7])
+end
 local rec = ARGV[2] .. '|' .. seq .. '|' .. ARGV[5] .. '|' .. ARGV[6]
 redis.call('HSET', KEYS[3], ARGV[1], rec)
 return {'ACCEPTED', rec}
 `)
 
 // Accept busca primero un resultado previo (aunque writeAllowed=false), luego exige permiso, sala no
-// terminada y cuota, y finalmente asigna sequence y guarda mensaje+dedupe+entrega antes del ACK.
+// terminada, ausencia de bloqueo y cuota, y finalmente asigna sequence y guarda mensaje+dedupe+entrega
+// y la entrada del archivo antes del ACK. PostgreSQL recibe la copia en segundo plano.
 func (s *Store) Accept(ctx context.Context, in AcceptInput) (AcceptResult, error) {
 	payload, err := json.Marshal(in.Message)
 	if err != nil {
@@ -110,11 +149,16 @@ func (s *Store) Accept(ctx context.Context, in AcceptInput) (AcceptResult, error
 	if in.WriteAllowed {
 		allowed = "1"
 	}
-	keys := []string{roomKey(in.SessionID), seqKey(in.SessionID), dedupeKey(in.SessionID), msgsKey(in.SessionID), quotaKey(in.UserID)}
+	block := noBlockKey
+	if in.ChannelID != "" {
+		block = blockKey(in.ChannelID, in.UserID)
+	}
+	keys := []string{roomKey(in.SessionID), seqKey(in.SessionID), dedupeKey(in.SessionID), msgsKey(in.SessionID),
+		quotaKey(in.UserID), block, idsKey(in.SessionID), ArchiveStream}
 	raw, err := acceptScript.Run(ctx, s.rdb, keys,
 		in.UserID+"|"+in.ClientMessageID, in.TextHash, allowed, in.DenialCode,
 		in.Message.MessageID, in.Message.ServerCreatedAtUTC.UnixMilli(), payload,
-		chat.QuotaWindow.Milliseconds(),
+		chat.QuotaWindow.Milliseconds(), in.ChannelID, time.Now().UnixMilli(),
 	).Slice()
 	if err != nil {
 		return AcceptResult{}, err
@@ -135,6 +179,14 @@ func (s *Store) Accept(ctx context.Context, in AcceptInput) (AcceptResult, error
 		return AcceptResult{Outcome: Conflict}, nil
 	case "DENIED":
 		return AcceptResult{Outcome: Denied, DenialCode: raw[1].(string)}, nil
+	case "BLOCKED":
+		res := AcceptResult{Outcome: Blocked}
+		if v := raw[1].(string); v != "PERMANENT" {
+			ms, _ := strconv.ParseInt(v, 10, 64)
+			until := time.UnixMilli(ms).UTC()
+			res.BlockedUntil = &until
+		}
+		return res, nil
 	case "RATE_LIMITED":
 		ms, _ := strconv.ParseInt(raw[1].(string), 10, 64)
 		if ms <= 0 {
@@ -166,36 +218,295 @@ func parseDedupeRecord(rec, sid, cmid string) (chat.Ack, error) {
 
 // ---- Lectura ----
 
-// History devuelve los últimos limit mensajes en sequence ascendente y el sequence observado en la
-// misma lectura atómica (snapshotSequence).
+// HistoryView es una lectura atómica de la ventana reciente: mensajes vigentes y marcas de los
+// retirados dentro de la misma ventana de sequence.
+type HistoryView struct {
+	SnapshotSequence  int64
+	ModerationVersion int64
+	Items             []chat.Message
+	Removed           []chat.Removal
+}
+
+// History devuelve los últimos limit mensajes vigentes en sequence ascendente y el sequence observado
+// en la misma lectura atómica (snapshotSequence).
 func (s *Store) History(ctx context.Context, sid string, limit int) (int64, []chat.Message, error) {
-	var seqCmd *redis.StringCmd
+	view, err := s.HistoryView(ctx, sid, limit)
+	return view.SnapshotSequence, view.Items, err
+}
+
+// HistoryView lee las últimas limit entradas; una entrada retirada se devuelve solo como marca.
+func (s *Store) HistoryView(ctx context.Context, sid string, limit int) (HistoryView, error) {
+	var seqCmd, modverCmd *redis.StringCmd
 	var rangeCmd *redis.XMessageSliceCmd
+	var removedCmd *redis.MapStringStringCmd
 	_, err := s.rdb.TxPipelined(ctx, func(p redis.Pipeliner) error {
 		seqCmd = p.Get(ctx, seqKey(sid))
 		rangeCmd = p.XRevRangeN(ctx, msgsKey(sid), "+", "-", int64(limit))
+		removedCmd = p.HGetAll(ctx, removedKey(sid))
+		modverCmd = p.Get(ctx, modverKey(sid))
 		return nil
 	})
 	if err != nil && !errors.Is(err, redis.Nil) {
-		return 0, nil, err
+		return HistoryView{}, err
 	}
-	snapshot, err := seqCmd.Int64()
-	if err != nil && !errors.Is(err, redis.Nil) {
-		return 0, nil, err
+	var view HistoryView
+	if view.SnapshotSequence, err = seqCmd.Int64(); err != nil && !errors.Is(err, redis.Nil) {
+		return HistoryView{}, err
+	}
+	if view.ModerationVersion, err = modverCmd.Int64(); err != nil && !errors.Is(err, redis.Nil) {
+		return HistoryView{}, err
 	}
 	entries, err := rangeCmd.Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
-		return 0, nil, err
+		return HistoryView{}, err
 	}
-	msgs := make([]chat.Message, 0, len(entries))
+	removed, err := removedCmd.Result()
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return HistoryView{}, err
+	}
+	view.Items = make([]chat.Message, 0, len(entries))
+	view.Removed = []chat.Removal{}
 	for i := len(entries) - 1; i >= 0; i-- {
 		m, err := decodeEntry(entries[i])
 		if err != nil {
-			return 0, nil, err
+			return HistoryView{}, err
 		}
-		msgs = append(msgs, m)
+		if raw, ok := removed[m.MessageID]; ok {
+			var r chat.Removal
+			if err := json.Unmarshal([]byte(raw), &r); err != nil {
+				return HistoryView{}, fmt.Errorf("marca de retiro ilegible: %w", err)
+			}
+			view.Removed = append(view.Removed, r)
+			continue
+		}
+		view.Items = append(view.Items, m)
 	}
-	return snapshot, msgs, nil
+	return view, nil
+}
+
+// MessageByID devuelve un mensaje de la sala viva; found=false si no existe o la sala ya expiró.
+func (s *Store) MessageByID(ctx context.Context, sid, messageID string) (chat.Message, bool, error) {
+	seq, err := s.rdb.HGet(ctx, idsKey(sid), messageID).Result()
+	if errors.Is(err, redis.Nil) {
+		return chat.Message{}, false, nil
+	}
+	if err != nil {
+		return chat.Message{}, false, err
+	}
+	entries, err := s.rdb.XRange(ctx, msgsKey(sid), "0-"+seq, "0-"+seq).Result()
+	if err != nil || len(entries) == 0 {
+		return chat.Message{}, false, err
+	}
+	m, err := decodeEntry(entries[0])
+	return m, err == nil, err
+}
+
+// MessagesByAuthor recorre la sala viva y devuelve los mensajes de userID con sequence <= upTo.
+func (s *Store) MessagesByAuthor(ctx context.Context, sid, userID string, upTo int64) ([]chat.Message, error) {
+	var out []chat.Message
+	start := "-"
+	end := "0-" + strconv.FormatInt(upTo, 10)
+	for {
+		entries, err := s.rdb.XRangeN(ctx, msgsKey(sid), start, end, 500).Result()
+		if err != nil {
+			return nil, err
+		}
+		for _, e := range entries {
+			m, err := decodeEntry(e)
+			if err != nil {
+				return nil, err
+			}
+			if m.Author.UserID == userID {
+				out = append(out, m)
+			}
+		}
+		if len(entries) < 500 {
+			return out, nil
+		}
+		start = "(" + entries[len(entries)-1].ID
+	}
+}
+
+// removeScript marca retiros en la sala viva y los difunde. Si la sala ya expiró no escribe nada:
+// el retiro durable vive en PostgreSQL. Las claves heredan la retención restante de la sala.
+var removeScript = redis.NewScript(`
+local ttl = redis.call('PTTL', KEYS[1])
+if ttl == -2 then return 0 end
+local added = 0
+for i = 2, #ARGV, 2 do
+  if redis.call('HSETNX', KEYS[2], ARGV[i], ARGV[i + 1]) == 1 then
+    redis.call('XADD', KEYS[3], '*', 'r', ARGV[i + 1])
+    added = added + 1
+  end
+end
+local current = tonumber(redis.call('GET', KEYS[4]) or '0')
+if tonumber(ARGV[1]) > current then redis.call('SET', KEYS[4], ARGV[1]) end
+if ttl > 0 then
+  for k = 2, 4 do redis.call('PEXPIRE', KEYS[k], ttl) end
+end
+return added
+`)
+
+// ApplyRemovals refleja en la sala viva retiros ya confirmados en PostgreSQL. Es idempotente.
+func (s *Store) ApplyRemovals(ctx context.Context, sid string, moderationVersion int64, removals []chat.Removal) error {
+	if len(removals) == 0 {
+		return nil
+	}
+	args := []any{moderationVersion}
+	for _, r := range removals {
+		raw, err := json.Marshal(r)
+		if err != nil {
+			return err
+		}
+		args = append(args, r.MessageID, raw)
+	}
+	return removeScript.Run(ctx, s.rdb, []string{seqKey(sid), removedKey(sid), modKey(sid), modverKey(sid)}, args...).Err()
+}
+
+// La copia de un bloqueo es "estado|versión": PERMANENT, el vencimiento en ms o LIFTED. La versión
+// es la de PostgreSQL y solo crece, así que una escritura con versión vieja (un mantenimiento con una
+// foto anterior) nunca deshace una decisión más nueva.
+var setBlockScript = redis.NewScript(`
+local cur = redis.call('GET', KEYS[1])
+if cur and tonumber(string.match(cur, '|(%d+)$') or '0') >= tonumber(ARGV[2]) then return 0 end
+if ARGV[3] == '' then redis.call('SET', KEYS[1], ARGV[1] .. '|' .. ARGV[2])
+else redis.call('SET', KEYS[1], ARGV[1] .. '|' .. ARGV[2], 'PXAT', ARGV[3]) end
+return 1
+`)
+
+var dropBlockScript = redis.NewScript(`
+local cur = redis.call('GET', KEYS[1])
+if not cur then return 0 end
+if string.match(cur, '^LIFTED|') then return 0 end
+if tonumber(string.match(cur, '|(%d+)$') or '0') > tonumber(ARGV[1]) then return 0 end
+return redis.call('DEL', KEYS[1])
+`)
+
+// liftedTTL mantiene la marca de retiro más que cualquier pasada de mantenimiento en curso.
+const liftedTTL = time.Hour
+
+func (s *Store) putBlock(ctx context.Context, channelID, userID, state string, version int64, at *time.Time) error {
+	pxat := ""
+	if at != nil {
+		pxat = strconv.FormatInt(at.UnixMilli(), 10)
+	}
+	return setBlockScript.Run(ctx, s.rdb, []string{blockKey(channelID, userID)}, state, version, pxat).Err()
+}
+
+// SetBlock copia un bloqueo vigente (versión de PostgreSQL) a Redis para que el script de envío lo
+// aplique. Un bloqueo temporal vence en Redis en el mismo instante absoluto que en PostgreSQL.
+func (s *Store) SetBlock(ctx context.Context, channelID, userID string, until *time.Time, version int64) error {
+	if until == nil {
+		return s.putBlock(ctx, channelID, userID, "PERMANENT", version, nil)
+	}
+	if !until.After(time.Now()) {
+		return s.LiftBlock(ctx, channelID, userID, version)
+	}
+	return s.putBlock(ctx, channelID, userID, strconv.FormatInt(until.UnixMilli(), 10), version, until)
+}
+
+// LiftBlock reemplaza la copia por una marca de retiro con la versión del retiro.
+func (s *Store) LiftBlock(ctx context.Context, channelID, userID string, version int64) error {
+	expires := time.Now().Add(liftedTTL)
+	return s.putBlock(ctx, channelID, userID, "LIFTED", version, &expires)
+}
+
+// BlockIDs lista las copias de bloqueos en la forma channelId:userId.
+func (s *Store) BlockIDs(ctx context.Context) ([]string, error) {
+	var ids []string
+	iter := s.rdb.Scan(ctx, 0, "chat:block:*", 200).Iterator()
+	for iter.Next(ctx) {
+		if key := iter.Val(); key != noBlockKey {
+			ids = append(ids, strings.TrimPrefix(key, "chat:block:"))
+		}
+	}
+	return ids, iter.Err()
+}
+
+// DropStaleBlock borra la copia de un bloqueo que ya no rige si su versión no supera la leída en
+// PostgreSQL; una copia más nueva (escrita después de esa lectura) se conserva.
+func (s *Store) DropStaleBlock(ctx context.Context, channelID, userID string, version int64) error {
+	return dropBlockScript.Run(ctx, s.rdb, []string{blockKey(channelID, userID)}, version).Err()
+}
+
+// ---- Archivo hacia PostgreSQL ----
+
+// ArchiveEntry es un mensaje confirmado pendiente de copiar a PostgreSQL.
+type ArchiveEntry struct {
+	ID        string
+	ChannelID string
+	Message   chat.Message
+	Invalid   bool // entrada ilegible: se confirma sin escribir para no bloquear el archivo
+}
+
+// EnsureArchiveGroup crea el grupo de consumo del archivo si no existe.
+func (s *Store) EnsureArchiveGroup(ctx context.Context) error {
+	err := s.rdb.XGroupCreateMkStream(ctx, ArchiveStream, ArchiveGroup, "0").Err()
+	if err != nil && strings.Contains(err.Error(), "BUSYGROUP") {
+		return nil
+	}
+	return err
+}
+
+// ReadArchive entrega entradas nuevas a este consumidor; las no confirmadas quedan pendientes.
+func (s *Store) ReadArchive(ctx context.Context, consumer string, count int64, block time.Duration) ([]ArchiveEntry, error) {
+	res, err := s.rdb.XReadGroup(ctx, &redis.XReadGroupArgs{
+		Group: ArchiveGroup, Consumer: consumer, Streams: []string{ArchiveStream, ">"}, Count: count, Block: block,
+	}).Result()
+	if errors.Is(err, redis.Nil) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var out []ArchiveEntry
+	for _, st := range res {
+		for _, e := range st.Messages {
+			out = append(out, decodeArchive(e))
+		}
+	}
+	return out, nil
+}
+
+// ClaimArchive recupera entradas que otro consumidor leyó y no confirmó en minIdle (p. ej. se cayó).
+func (s *Store) ClaimArchive(ctx context.Context, consumer string, minIdle time.Duration, count int64) ([]ArchiveEntry, error) {
+	msgs, _, err := s.rdb.XAutoClaim(ctx, &redis.XAutoClaimArgs{
+		Stream: ArchiveStream, Group: ArchiveGroup, Consumer: consumer, MinIdle: minIdle, Start: "0-0", Count: count,
+	}).Result()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ArchiveEntry, 0, len(msgs))
+	for _, e := range msgs {
+		out = append(out, decodeArchive(e))
+	}
+	return out, nil
+}
+
+// AckArchive confirma y borra entradas ya escritas en PostgreSQL.
+func (s *Store) AckArchive(ctx context.Context, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	_, err := s.rdb.TxPipelined(ctx, func(p redis.Pipeliner) error {
+		p.XAck(ctx, ArchiveStream, ArchiveGroup, ids...)
+		p.XDel(ctx, ArchiveStream, ids...)
+		return nil
+	})
+	return err
+}
+
+func decodeArchive(e redis.XMessage) ArchiveEntry {
+	raw, _ := e.Values["m"].(string)
+	channel, _ := e.Values["c"].(string)
+	seqRaw, _ := e.Values["s"].(string)
+	var m chat.Message
+	seq, err := strconv.ParseInt(seqRaw, 10, 64)
+	if json.Unmarshal([]byte(raw), &m) != nil || err != nil || seq < 1 || channel == "" {
+		return ArchiveEntry{ID: e.ID, Invalid: true}
+	}
+	m.Sequence = seq
+	return ArchiveEntry{ID: e.ID, ChannelID: channel, Message: m}
 }
 
 // LastSequence es el último sequence asignado en la sala (0 si no hay mensajes).
@@ -205,6 +516,58 @@ func (s *Store) LastSequence(ctx context.Context, sid string) (int64, error) {
 		return 0, nil
 	}
 	return n, err
+}
+
+// Feed es lo que el hub difunde de una sala: mensajes nuevos y retiros nuevos.
+type Feed struct {
+	Messages []chat.Message
+	Removals []chat.Removal
+	ModID    string // último ID leído del stream de retiros
+}
+
+// ReadFeed espera a la vez mensajes con sequence > after y retiros posteriores a modAfter.
+func (s *Store) ReadFeed(ctx context.Context, sid string, after int64, modAfter string, block time.Duration, count int64) (Feed, error) {
+	feed := Feed{ModID: modAfter}
+	res, err := s.rdb.XRead(ctx, &redis.XReadArgs{
+		Streams: []string{msgsKey(sid), modKey(sid), "0-" + strconv.FormatInt(after, 10), modAfter},
+		Count:   count,
+		Block:   block,
+	}).Result()
+	if errors.Is(err, redis.Nil) {
+		return feed, nil
+	}
+	if err != nil {
+		return feed, err
+	}
+	for _, st := range res {
+		for _, e := range st.Messages {
+			if st.Stream == modKey(sid) {
+				var r chat.Removal
+				raw, _ := e.Values["r"].(string)
+				if err := json.Unmarshal([]byte(raw), &r); err != nil {
+					return feed, fmt.Errorf("retiro %s ilegible: %w", e.ID, err)
+				}
+				feed.Removals = append(feed.Removals, r)
+				feed.ModID = e.ID
+				continue
+			}
+			m, err := decodeEntry(e)
+			if err != nil {
+				return feed, err
+			}
+			feed.Messages = append(feed.Messages, m)
+		}
+	}
+	return feed, nil
+}
+
+// LastModID es el último retiro difundido de la sala ("0-0" si no hay).
+func (s *Store) LastModID(ctx context.Context, sid string) (string, error) {
+	res, err := s.rdb.XRevRangeN(ctx, modKey(sid), "+", "-", 1).Result()
+	if err != nil || len(res) == 0 {
+		return "0-0", err
+	}
+	return res[0].ID, nil
 }
 
 // ReadAfter bloquea hasta block esperando mensajes con sequence mayor que after. Es la lectura del
@@ -252,22 +615,42 @@ func decodeEntry(e redis.XMessage) (chat.Message, error) {
 // ---- Estado de sala ----
 
 // Room devuelve el estado local conocido; Known=false si nunca se recibió o ya expiró.
+// El canal se lee del registro de ciclo P2, que no expira con la sala.
 func (s *Store) Room(ctx context.Context, sid string) (chat.Room, error) {
-	vals, err := s.rdb.HMGet(ctx, roomKey(sid), "status", "generation", "version").Result()
+	var roomCmd *redis.SliceCmd
+	var channelCmd *redis.StringCmd
+	_, err := s.rdb.TxPipelined(ctx, func(p redis.Pipeliner) error {
+		roomCmd = p.HMGet(ctx, roomKey(sid), "status", "generation", "version")
+		channelCmd = p.HGet(ctx, lifecycleKey(sid), "channel")
+		return nil
+	})
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return chat.Room{}, err
+	}
+	vals, err := roomCmd.Result()
 	if err != nil {
 		return chat.Room{}, err
 	}
+	channel, _ := channelCmd.Result()
 	status, ok := vals[0].(string)
 	if !ok {
-		return chat.Room{}, nil
+		return chat.Room{ChannelID: channel}, nil
 	}
 	gen, _ := strconv.ParseInt(fmt.Sprint(vals[1]), 10, 64)
 	ver, _ := strconv.ParseInt(fmt.Sprint(vals[2]), 10, 64)
-	return chat.Room{Known: true, Status: chat.RoomStatus(status), StreamGeneration: gen, SessionVersion: ver}, nil
+	return chat.Room{Known: true, Status: chat.RoomStatus(status), StreamGeneration: gen, SessionVersion: ver, ChannelID: channel}, nil
 }
 
+func lifecycleKey(sid string) string { return "chat:p2:lifecycle:{" + sid + "}" }
+
 // applyLua aplica generación/versión mayores; READ_ONLY es terminal y arranca la retención de la sala.
+// keysFrom(a) toma las claves de sala desde KEYS[a] hasta el final del bloque de sala.
 const applyLua = `
+local function keysFrom(a, b)
+  local out = {}
+  for i = a, b do out[#out + 1] = KEYS[i] end
+  return out
+end
 local function apply(room, others, gen, ver, status, avail, retentionMs, idleMs, nowMs)
   local cur = redis.call('HMGET', room, 'status', 'generation', 'version')
   if cur[1] == 'READ_ONLY' then return 'STALE' end
@@ -288,7 +671,7 @@ end
 `
 
 var applyStateScript = redis.NewScript(applyLua + `
-return apply(KEYS[1], {KEYS[2], KEYS[3], KEYS[4]}, tonumber(ARGV[1]), tonumber(ARGV[2]), ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7])
+return apply(KEYS[1], keysFrom(2, 8), tonumber(ARGV[1]), tonumber(ARGV[2]), ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7])
 `)
 
 var applyEventScript = redis.NewScript(applyLua + `
@@ -298,7 +681,7 @@ if prev then
   return 'CONFLICT'
 end
 redis.call('SET', KEYS[1], ARGV[8], 'PX', ARGV[9])
-return apply(KEYS[2], {KEYS[3], KEYS[4], KEYS[5]}, tonumber(ARGV[1]), tonumber(ARGV[2]), ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7])
+return apply(KEYS[2], keysFrom(3, 9), tonumber(ARGV[1]), tonumber(ARGV[2]), ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7])
 `)
 
 // ApplyResult describe el efecto de un estado sobre la sala.
@@ -319,8 +702,7 @@ func (s *Store) stateArgs(st chat.SessionState) []any {
 // ApplyState reconcilia la sala con un snapshot.
 func (s *Store) ApplyState(ctx context.Context, st chat.SessionState) (ApplyResult, error) {
 	sid := st.SessionID
-	res, err := applyStateScript.Run(ctx, s.rdb,
-		[]string{roomKey(sid), seqKey(sid), dedupeKey(sid), msgsKey(sid)}, s.stateArgs(st)...).Text()
+	res, err := applyStateScript.Run(ctx, s.rdb, roomKeys(sid), s.stateArgs(st)...).Text()
 	return ApplyResult(res), err
 }
 
@@ -351,7 +733,7 @@ func (s *Store) UnendedRooms(ctx context.Context) ([]string, error) {
 // ExpireRoom inicia la retención de todas las claves de una sala cuya sesión ya no existe.
 func (s *Store) ExpireRoom(ctx context.Context, sid string) error {
 	_, err := s.rdb.TxPipelined(ctx, func(p redis.Pipeliner) error {
-		for _, k := range []string{roomKey(sid), seqKey(sid), dedupeKey(sid), msgsKey(sid)} {
+		for _, k := range roomKeys(sid) {
 			p.PExpire(ctx, k, s.opts.EndedRetention)
 		}
 		return nil
@@ -364,8 +746,7 @@ func (s *Store) ExpireRoom(ctx context.Context, sid string) error {
 func (s *Store) ApplyEvent(ctx context.Context, eventID, fingerprint string, st chat.SessionState) (ApplyResult, error) {
 	sid := st.SessionID
 	args := append(s.stateArgs(st), fingerprint, s.opts.InboxTTL.Milliseconds())
-	res, err := applyEventScript.Run(ctx, s.rdb,
-		[]string{inboxKey(eventID), roomKey(sid), seqKey(sid), dedupeKey(sid), msgsKey(sid)}, args...).Text()
+	res, err := applyEventScript.Run(ctx, s.rdb, append([]string{inboxKey(eventID)}, roomKeys(sid)...), args...).Text()
 	return ApplyResult(res), err
 }
 
@@ -377,7 +758,7 @@ if previous then
   if previous == ARGV[8] then return 'DUPLICATE' end
   return 'CONFLICT'
 end
-local state = redis.call('HMGET', KEYS[6], 'generation', 'version', 'status', 'fingerprint')
+local state = redis.call('HMGET', KEYS[10], 'generation', 'version', 'status', 'fingerprint')
 local gen, ver = tonumber(ARGV[1]), tonumber(ARGV[2])
 if state[1] then
   local cg, cv = tonumber(state[1]), tonumber(state[2])
@@ -392,18 +773,17 @@ if state[1] then
   end
   if state[3] == 'READ_ONLY' then return 'CONFLICT' end
 end
-local result = apply(KEYS[2], {KEYS[3], KEYS[4], KEYS[5]}, gen, ver, ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7])
-redis.call('HSET', KEYS[6], 'generation', gen, 'version', ver, 'status', ARGV[3], 'fingerprint', ARGV[9])
+local result = apply(KEYS[2], keysFrom(3, 9), gen, ver, ARGV[3], ARGV[4], ARGV[5], ARGV[6], ARGV[7])
+redis.call('HSET', KEYS[10], 'generation', gen, 'version', ver, 'status', ARGV[3], 'fingerprint', ARGV[9])
+if ARGV[10] ~= '' then redis.call('HSET', KEYS[10], 'channel', ARGV[10]) end
 redis.call('SET', KEYS[1], ARGV[8])
 return result
 `)
 
 func (s *Store) ApplyBrokerEvent(ctx context.Context, eventID, fingerprint, stateFingerprint string, st chat.SessionState) (ApplyResult, error) {
 	sid := st.SessionID
-	args := append(s.stateArgs(st), fingerprint, stateFingerprint)
-	result, err := applyBrokerEventScript.Run(ctx, s.rdb, []string{
-		"chat:p2:inbox:chat.lifecycle:" + eventID, roomKey(sid), seqKey(sid), dedupeKey(sid), msgsKey(sid),
-		"chat:p2:lifecycle:{" + sid + "}",
-	}, args...).Text()
+	args := append(s.stateArgs(st), fingerprint, stateFingerprint, st.ChannelID)
+	keys := append([]string{"chat:p2:inbox:chat.lifecycle:" + eventID}, roomKeys(sid)...)
+	result, err := applyBrokerEventScript.Run(ctx, s.rdb, append(keys, lifecycleKey(sid)), args...).Text()
 	return ApplyResult(result), err
 }

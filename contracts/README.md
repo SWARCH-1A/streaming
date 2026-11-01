@@ -46,6 +46,9 @@ El arranque RabbitMQ y los SDK de cada lenguaje se documentan en infra/broker/RE
 `media.recording-binding.v1` amplía la respuesta204 de `media.auth` con el schema ejecutable
 `P2MediaRecordingBinding`; no duplica la ruta ni modifica los artefactos P1.
 
+Chat añade moderación y `p2.chat.moderation-context` en `p2.chat.*`; consume
+`vod.availability.changed.v1` y `p2.vod.replay-context` definidos por VOD (ADR-022).
+
 Administración añade listados y cambios de estado en `p2.admin.*`, y el evento
 `account.status.changed.v1`. Su aceptación transversal sigue pendiente de P2-17.
 

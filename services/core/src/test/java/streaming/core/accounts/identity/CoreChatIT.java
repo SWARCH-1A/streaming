@@ -108,6 +108,27 @@ class CoreChatIT {
         assertThat(after.get("writeAllowed").asBoolean()).isFalse();assertThat(after.get("denialCode").asText()).isEqualTo("CHAT_READ_ONLY");
         accounts.logout(login.credential());assertThat(call(privateBase(),CONTEXT,"chat",TOKEN,login.credential(),body()).statusCode()).isEqualTo(401);
     }
+    @Test void moderationContextConfirmsOnlyTheChannelOwner() throws Exception {
+        String path="/internal/core/chat/moderation-context";
+        String ownerHandle="mod_"+UUID.randomUUID().toString().substring(0,8),otherHandle="oth_"+UUID.randomUUID().toString().substring(0,8);
+        var owner=accounts.register(UUID.randomUUID(),ownerHandle+"@example.test",ownerHandle,"fixture integration password","127.13.0.1");
+        accounts.register(UUID.randomUUID(),otherHandle+"@example.test",otherHandle,"fixture integration password","127.13.0.2");
+        String ownerLogin=accounts.login(ownerHandle,"fixture integration password","127.14.0.1").credential();
+        String otherLogin=accounts.login(otherHandle,"fixture integration password","127.14.0.2").credential();
+        String channel=json.writeValueAsString(Map.of("channelId",owner.channelId()));
+        var ok=call(privateBase(),path,"chat",TOKEN,ownerLogin,channel);
+        assertThat(ok.statusCode()).isEqualTo(200);assertThat(ok.headers().firstValue("Cache-Control")).contains("no-store");
+        var body=json.readTree(ok.body());
+        assertThat(body.get("userId").asText()).isEqualTo(owner.userId());assertThat(body.get("channelId").asText()).isEqualTo(owner.channelId());
+        assertThat(ok.body()).doesNotContain(ownerLogin,TOKEN);
+        assertThat(json.readTree(call(privateBase(),path,"chat",TOKEN,otherLogin,channel).body()).get("code").asText()).isEqualTo("CHANNEL_FORBIDDEN");
+        assertThat(call(privateBase(),path,"chat",TOKEN,otherLogin,channel).statusCode()).isEqualTo(403);
+        assertThat(call(privateBase(),path,"chat",TOKEN,null,channel).statusCode()).isEqualTo(401);
+        assertThat(call(privateBase(),path,"chat",TOKEN,ownerLogin,"{\"channelId\":\"chn_missing\"}").statusCode()).isEqualTo(404);
+        assertThat(call(privateBase(),path,"chat",TOKEN,ownerLogin,"{\"channelId\":\"a\",\"extra\":1}").statusCode()).isEqualTo(400);
+        assertThat(call(privateBase(),path,"streaming",STREAMING,ownerLogin,channel).statusCode()).isEqualTo(401);
+        assertThat(call("http://localhost:"+publicPort,path,"chat",TOKEN,ownerLogin,channel).statusCode()).isEqualTo(404);
+    }
     @Test void upstreamFailureReturnsCorrelatedSafe503() throws Exception {
         state.set("UNAVAILABLE");var r=call(privateBase(),"/internal/core/chat/sessions/ses_a","chat",TOKEN,null,null);
         assertThat(r.statusCode()).isEqualTo(503);assertThat(json.readTree(r.body()).get("code").asText()).isEqualTo("STREAMING_UNAVAILABLE");
