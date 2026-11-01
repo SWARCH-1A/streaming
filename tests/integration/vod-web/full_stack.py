@@ -33,6 +33,15 @@ def free_port():
         return sock.getsockname()[1]
 
 
+def isolate_images(services, project):
+    images = {service["image"]: project + ":" + service["image"].replace(":", "-").replace("/", "-")
+              for service in services.values() if "build" in service}
+    for service in services.values():
+        # Initializers without a build also use the image built by their provider.
+        if service.get("image") in images:
+            service["image"] = images[service["image"]]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--browser", required=True, choices=("subtitles.mjs", "administration.mjs"))
@@ -64,13 +73,11 @@ def main():
                 if value.get("external"):
                     raise RuntimeError("Disposable runner must not attach external resources")
                 value["name"] = project + "_" + name
+        isolate_images(config["services"], project)
         for name, service in config["services"].items():
             service.pop("container_name", None)
             service.pop("ports", None)
             service["restart"] = "no"
-            if "build" in service:
-                # Same source image (e.g. VOD and recorder) keeps the same isolated tag.
-                service["image"] = project + ":" + service["image"].replace(":", "-").replace("/", "-")
         proxy_port = int(env["P1_HTTPS_PORT"])
         config["services"]["proxy"]["ports"] = [{"target": 3443, "published": str(proxy_port), "host_ip": "127.0.0.1", "protocol": "tcp"}]
         broker_port = free_port()

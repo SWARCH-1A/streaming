@@ -16,6 +16,18 @@ def load():
 
 
 class ReplayConfigurationTest(unittest.TestCase):
+    def test_initializer_uses_its_provider_isolated_image(self):
+        spec = importlib.util.spec_from_file_location("test_full_runner", Path(__file__).with_name("full_stack.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        services = {"minio": {"build": ".", "image": "local-minio"},
+                    "minio-init": {"image": "local-minio"},
+                    "database": {"image": "postgres:18-alpine"}}
+        module.isolate_images(services, "fixture")
+        self.assertEqual(services["minio-init"]["image"], "fixture:local-minio")
+        self.assertEqual(services["minio"]["image"], services["minio-init"]["image"])
+        self.assertEqual(services["database"]["image"], "postgres:18-alpine")
+
     def test_second_recording_requires_existing_config_and_explicit_key_rotation(self):
         module = load()
         owner = Mock()
