@@ -1,13 +1,12 @@
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { fixture as f } from './fixture.mjs';
 import { randomUUID } from 'node:crypto';
 import { replayAvailable, replayDenied } from './replay_checks.mjs';
 
 const require = createRequire(new URL('../../../apps/web/package.json', import.meta.url));
 const { chromium, expect } = require('@playwright/test');
 const { default: AxeBuilder } = require('@axe-core/playwright');
-const f = JSON.parse(readFileSync(process.env.VOD_WEB_FIXTURE, 'utf8'));
 if (!/^https:\/\/(127\.0\.0\.1|localhost):\d+$/.test(f.origin) || !/^streaming-vod-web-[a-f0-9]{10}$/.test(f.prefix)) throw new Error('Use run.py or full_stack.py');
 const container = (role) => f.containers?.[role] ?? f.prefix + '-' + role;
 const browser = await chromium.launch();
