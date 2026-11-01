@@ -8,6 +8,7 @@ import { errorMessage, request } from '@/src/shared/api/http';
 import { useResource } from '@/src/shared/api/useResource';
 
 import styles from './AdministrationPage.module.css';
+import { VodRemoval } from './VodRemoval';
 
 export function AdministrationPage() {
   const [cursor, setCursor] = useState('');
@@ -172,6 +173,7 @@ export function AdministrationPage() {
           </div>
         </form>
       ) : null}
+      <VodRemoval />
       <h2>Canales</h2>
       {channels.loading ? <p role="status">Cargando canales…</p> : null}
       {channels.error ? <p role="alert">{channels.error}</p> : null}
