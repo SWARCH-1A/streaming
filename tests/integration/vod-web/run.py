@@ -73,6 +73,7 @@ def main():
     parser.add_argument("--browser", required=True, help="Browser entry relative to this folder (subtitles.mjs or administration.mjs, when present)")
     parser.add_argument("--skip-build", action="store_true", help="Use images already built from this exact checkout")
     args = parser.parse_args()
+    subprocess.run(["node", str(Path(__file__).with_name("check-scripts.mjs"))], cwd=ROOT, check=True)
     browser_script = Path(__file__).with_name(args.browser).resolve()
     if not browser_script.is_file():
         raise RuntimeError("Browser test entry not found")

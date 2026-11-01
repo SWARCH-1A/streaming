@@ -51,6 +51,10 @@ def main():
     node = shutil.which("node") or shutil.which("node.exe")
     if not node:
         raise RuntimeError("Node is required (Windows node.exe is supported in WSL)")
+    preflight = Path(__file__).with_name("check-scripts.mjs")
+    if node.endswith(".exe"):
+        preflight = subprocess.check_output(["wslpath", "-w", str(preflight)], text=True).strip()
+    subprocess.run([node, str(preflight)], cwd=ROOT, check=True)
     os.environ["P1_PROFILE"] = "local"
     # Do not inherit personal ports or network selections.
     for key in ("P1_HTTPS_PORT", "P1_RTMPS_PORT", "LOCAL_SUBNET", "LOCAL_PROXY_IP", "LOCAL_GATEWAY_IP"):
