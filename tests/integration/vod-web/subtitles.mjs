@@ -1,12 +1,11 @@
 import { createRequire } from 'node:module';
-import { readFileSync } from 'node:fs';
+import { fixture } from './fixture.mjs';
 import { randomUUID } from 'node:crypto';
 import { replayAvailable, replayWithVideo } from './replay_checks.mjs';
 
 const require = createRequire(new URL('../../../apps/web/package.json', import.meta.url));
 const { chromium, expect } = require('@playwright/test');
 const { default: AxeBuilder } = require('@axe-core/playwright');
-const fixture = JSON.parse(readFileSync(process.env.VOD_WEB_FIXTURE, 'utf8'));
 if (!/^https:\/\/(127\.0\.0\.1|localhost):\d+$/.test(fixture.origin) || !/^streaming-vod-web-[a-f0-9]{10}$/.test(fixture.prefix)) throw new Error('Use run.py or full_stack.py');
 const browser = await chromium.launch();
 const vtt = (language) => `WEBVTT\n\n00:00.000 --> 00:30.000\n${language} primera parte\n\n00:30.000 --> 01:04.000\n${language} segunda parte\n`;
