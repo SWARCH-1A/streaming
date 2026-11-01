@@ -113,8 +113,10 @@ def main():
                 if node.endswith(".exe"):
                     return subprocess.check_output(["wslpath", "-w", str(path)], text=True).strip()
                 return str(path)
-            subprocess.run([node, node_path(script)], cwd=ROOT,
-                           env={**os.environ, "VOD_WEB_FIXTURE": node_path(state_file)}, check=True)
+            browser_env = {**os.environ, "VOD_WEB_FIXTURE": node_path(state_file)}
+            if node.endswith(".exe"):
+                browser_env["WSLENV"] = ":".join(filter(None, [os.environ.get("WSLENV"), "VOD_WEB_FIXTURE"]))
+            subprocess.run([node, node_path(script)], cwd=ROOT, env=browser_env, check=True)
             print("PASS full-stack browser scenario with real RTMPS, replay and isolated persistence", flush=True)
         except BaseException:
             if started:
