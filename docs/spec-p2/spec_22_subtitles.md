@@ -126,6 +126,8 @@ python contracts/webvtt.py tests/contracts/fixtures/subtitles/education-es.vtt -
 node tests/contracts/test_subtitle_schemas.mjs
 # Core, VOD, Gateway, Web, SQL, S3, RabbitMQ y Media reales; Docker/OpenSSL/Chromium.
 python tests/integration/vod-web/run.py --browser subtitles.mjs
+# Linux/WSL: captura RTMPS nativa y replay Chat con el Compose actual, en proyecto desechable.
+python3 tests/integration/vod-web/full_stack.py --browser subtitles.mjs
 ```
 
 El número recibido por el checker es dato de prueba; el proveedor lo obtiene de su propia
@@ -137,6 +139,10 @@ los mismos bytes y duración; ambos rechazan duraciones fuera del rango entero s
 El runner [Web integrado](../../tests/integration/vod-web/README.md) verifica por separado
 el navegador con dos grabaciones sintéticas de 64 segundos y dos idiomas. Los resultados deben
 atribuirse al commit realmente ejecutado; tener el runner no acredita que haya pasado.
+Su modo `full_stack.py` incorpora captura RTMPS, mensajes reales, reconexión y replay durable
+de SPEC-05. Comprueba el callback de posición/permiso, mensajes sobre la línea temporal del VOD,
+seek y continuidad del vídeo ante caída de Chat. El Gateway y el panel lateral existentes se
+conservan; no se añade otra API ni se declara completa la aceptación transversal.
 Móvil, lector de pantalla, contraste visual y multicalidad real conservan aceptación pendiente.
 
 ## 10. Decisiones, dependencias y costo

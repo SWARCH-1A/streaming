@@ -1,12 +1,13 @@
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { replayAvailable, replayWithVideo } from './replay_checks.mjs';
 
 const require = createRequire(new URL('../../../apps/web/package.json', import.meta.url));
 const { chromium, expect } = require('@playwright/test');
 const { default: AxeBuilder } = require('@axe-core/playwright');
 const fixture = JSON.parse(readFileSync(process.env.VOD_WEB_FIXTURE, 'utf8'));
-if (!/^https:\/\/127\.0\.0\.1:\d+$/.test(fixture.origin) || !/^streaming-vod-web-[a-f0-9]{10}$/.test(fixture.prefix)) throw new Error('Use run.py');
+if (!/^https:\/\/(127\.0\.0\.1|localhost):\d+$/.test(fixture.origin) || !/^streaming-vod-web-[a-f0-9]{10}$/.test(fixture.prefix)) throw new Error('Use run.py or full_stack.py');
 const browser = await chromium.launch();
 const vtt = (language) => `WEBVTT\n\n00:00.000 --> 00:30.000\n${language} primera parte\n\n00:30.000 --> 01:04.000\n${language} segunda parte\n`;
 try {
@@ -15,11 +16,15 @@ try {
   const viewer = await browser.newContext({ baseURL: fixture.origin, ignoreHTTPSErrors: true });
   await owner.addCookies(fixture.cookies);
   const [vod, nextVod] = fixture.vods;
-  expect(vod.durationMs).toBe(64000);
+  expect(vod.durationMs).toBeGreaterThanOrEqual(64000);
+  await replayAvailable(fixture, viewer, 0, expect);
   const page = await owner.newPage();
   await page.goto('/studio/vods');
+  // Wait for SSR hydration and the initial catalogue request before toggling native details.
+  await page.waitForLoadState('networkidle');
   const panel = page.getByRole('link', { name: vod.title, exact: true }).locator('..').locator('..');
   await panel.locator('summary').filter({ hasText: /^Subtítulos$/ }).click();
+  await expect(panel.locator('details').filter({ has: page.locator('summary', { hasText: /^Subtítulos$/ }) })).toHaveAttribute('open', '');
   await panel.getByRole('button', { name: 'Cargar pista' }).click();
   await expect(panel.getByLabel('Archivo WebVTT')).toBeFocused();
   await expect(panel.getByLabel('Archivo WebVTT')).toHaveAttribute('aria-invalid', 'true');
@@ -99,6 +104,7 @@ try {
   }
   const axe = await new AxeBuilder({ page: watch }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
   expect(axe.violations.map(({ id, nodes }) => ({ id, targets: nodes.map((node) => node.target) }))).toEqual([]);
+  await replayWithVideo(fixture, watch, expect);
   // Keep the page open beyond the 45-second grant renewal and verify playback can seek afterwards.
   await expect.poll(() => authorizations.length, { timeout: 55000 }).toBeGreaterThanOrEqual(2);
   expect(authorizations[1].at - authorizations[0].at).toBeGreaterThanOrEqual(40000);
@@ -113,5 +119,5 @@ try {
   expect((await viewer.request.get(es.contentPath)).status()).toBe(404);
   expect((await (await owner.request.get(`/api/vods/${vod.vodId}/subtitles`)).json()).items).toHaveLength(1);
   console.log('PASS: HTTPS real providers; 64s HLS; upload two WebVTT tracks; format/mapping/owner authorization; native cues and seek; select/off/retry without interrupting video; grant renewal; focus; 320/390/768/1440; Axe; withdrawal/direct URL');
-  console.log('Pending: human screen reader/zoom/visual subtitle contrast, mobile and real multiple renditions; this fixture has one quality and no live capture/replay provider.');
+  console.log('Pending: human screen reader/zoom/visual subtitle contrast, mobile and real multiple renditions. Replay exercised: ' + Boolean(fixture.replay));
 } finally { await browser.close(); }

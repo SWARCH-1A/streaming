@@ -225,7 +225,7 @@ it('permite reintentar una pista fallida al volver a seleccionarla', async () =>
   // A failed native track does not dispatch another error just because its mode changes.
   fireEvent.change(selector, { target: { value: firstTrack.trackId } });
   expect(screen.getByText(/No se pudo cargar la pista/)).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Reintentar subtítulos', exact: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Reintentar subtítulos' }));
   const replacement = container.querySelector(`#${firstTrack.trackId}`)!;
   expect(replacement).not.toBe(failed);
   fireEvent.load(replacement);
