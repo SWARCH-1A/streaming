@@ -56,7 +56,7 @@ func timestamp(s string) (int64, bool) {
 }
 func ValidateWebVTT(raw []byte, duration int64) error {
 	bad := func() error { return Fail(422, "SUBTITLE_FORMAT_INVALID") }
-	if len(raw) == 0 || len(raw) > 1<<20 || !utf8.Valid(raw) {
+	if duration <= 0 || duration > 9007199254740991 || len(raw) == 0 || len(raw) > 1<<20 || !utf8.Valid(raw) {
 		return bad()
 	}
 	text := strings.TrimPrefix(string(raw), "\ufeff")

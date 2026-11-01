@@ -1,4 +1,4 @@
-import type { P2Vod } from '@contracts/p2';
+import type { P2SubtitlePage, P2SubtitleTrack, P2Vod } from '@contracts/p2';
 import schema from '@contracts/p2/schema.json';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -38,6 +38,14 @@ vi.mock('@/src/shared/api/http', () => ({
   request: vi.fn(() => Promise.resolve({ items: [], nextCursor: null })),
 }));
 const vod = schema.$defs.P2Vod.examples[0] as P2Vod;
+const firstTrack = {
+  ...(schema.$defs.P2SubtitleTrack.examples[0] as P2SubtitleTrack),
+  vodId: vod.vodId,
+  mappingVersion: vod.mappingVersion,
+  trackId: 'trk_first',
+  label: 'Español',
+};
+const secondTrack = { ...firstTrack, trackId: 'trk_second', label: 'English', language: 'en' };
 const pause = vi.fn();
 beforeEach(() => {
   vi.mocked(request).mockReset();
@@ -133,3 +141,163 @@ it('permite consultar las siguientes páginas de pistas sin reiniciar el video',
   expect(hls.attach).toHaveBeenCalledOnce();
   expect(screen.queryByRole('button', { name: 'Cargar más pistas' })).not.toBeInTheDocument();
 });
+
+it('selecciona, cambia y desactiva pistas sin perder posición, calidad o foco', async () => {
+  vi.mocked(request).mockResolvedValue({ items: [firstTrack, secondTrack], nextCursor: null });
+  render(<VodPlayer vod={vod} />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(10);
+  });
+  act(() => hls.parsed?.());
+  const video = screen.getByLabelText<HTMLVideoElement>(vod.title);
+  const textTracks = [firstTrack, secondTrack].map((item) => ({
+    id: item.trackId,
+    mode: 'disabled',
+  }));
+  Object.defineProperty(video, 'textTracks', { value: textTracks });
+  const selector = screen.getByRole('combobox', { name: 'Subtítulos' });
+  selector.focus();
+  video.currentTime = 42;
+  fireEvent.change(selector, { target: { value: firstTrack.trackId } });
+  expect(textTracks.map((item) => item.mode)).toEqual(['showing', 'disabled']);
+  fireEvent.change(screen.getByRole('combobox', { name: 'Calidad' }), { target: { value: '1' } });
+  fireEvent.change(selector, { target: { value: secondTrack.trackId } });
+  expect(textTracks.map((item) => item.mode)).toEqual(['disabled', 'showing']);
+  fireEvent.timeUpdate(video);
+  fireEvent.loadedData(video);
+  expect(selector).toHaveValue(secondTrack.trackId);
+  fireEvent.change(selector, { target: { value: '' } });
+  expect(textTracks.map((item) => item.mode)).toEqual(['disabled', 'disabled']);
+  expect(selector).toHaveFocus();
+  expect(video.currentTime).toBe(42);
+  expect(hls.selected).toBe(1);
+  expect(hls.attach).toHaveBeenCalledOnce();
+  expect(hls.load).toHaveBeenCalledOnce();
+});
+
+it('reintenta la página fallida aunque haya una pista seleccionada', async () => {
+  vi.mocked(request)
+    .mockResolvedValueOnce({ items: [firstTrack], nextCursor: 'next-page' })
+    .mockRejectedValueOnce(new Error('fixture-unavailable'))
+    .mockResolvedValueOnce({ items: [secondTrack], nextCursor: null });
+  const { container } = render(<VodPlayer vod={vod} />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(10);
+  });
+  const selector = screen.getByRole('combobox', { name: 'Subtítulos' });
+  fireEvent.change(selector, { target: { value: firstTrack.trackId } });
+  const first = container.querySelector(`#${firstTrack.trackId}`);
+  const video = screen.getByLabelText<HTMLVideoElement>(vod.title);
+  video.currentTime = 42;
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Cargar más pistas' }));
+    await vi.advanceTimersByTimeAsync(1);
+  });
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar listado de subtítulos' }));
+    await vi.advanceTimersByTimeAsync(1);
+  });
+  expect(request).toHaveBeenCalledTimes(3);
+  expect(vi.mocked(request).mock.calls.at(-1)?.[0]).toBe(
+    `/api/vods/${vod.vodId}/subtitles?cursor=next-page`,
+  );
+  expect(screen.getByRole('option', { name: 'English · en' })).toBeInTheDocument();
+  expect(selector).toHaveValue(firstTrack.trackId);
+  expect(container.querySelector(`#${firstTrack.trackId}`)).toBe(first);
+  expect(video.currentTime).toBe(42);
+  expect(hls.attach).toHaveBeenCalledOnce();
+  expect(hls.load).toHaveBeenCalledOnce();
+  expect(screen.queryByText('No se pudieron consultar los subtítulos.')).not.toBeInTheDocument();
+});
+
+it('permite reintentar una pista fallida al volver a seleccionarla', async () => {
+  vi.mocked(request).mockResolvedValue({ items: [firstTrack, secondTrack], nextCursor: null });
+  const { container } = render(<VodPlayer vod={vod} />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(10);
+  });
+  const selector = screen.getByRole('combobox', { name: 'Subtítulos' });
+  fireEvent.change(selector, { target: { value: firstTrack.trackId } });
+  const failed = container.querySelector(`#${firstTrack.trackId}`)!;
+  fireEvent.error(failed);
+  fireEvent.change(selector, { target: { value: secondTrack.trackId } });
+  expect(screen.queryByText(/No se pudo cargar la pista/)).not.toBeInTheDocument();
+  // A failed native track does not dispatch another error just because its mode changes.
+  fireEvent.change(selector, { target: { value: firstTrack.trackId } });
+  expect(screen.getByText(/No se pudo cargar la pista/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Reintentar subtítulos', exact: true }));
+  const replacement = container.querySelector(`#${firstTrack.trackId}`)!;
+  expect(replacement).not.toBe(failed);
+  fireEvent.load(replacement);
+  expect(selector).toHaveValue(firstTrack.trackId);
+  expect(screen.queryByText(/No se pudo cargar la pista/)).not.toBeInTheDocument();
+  expect(hls.attach).toHaveBeenCalledOnce();
+  expect(hls.load).toHaveBeenCalledOnce();
+  expect(hls.stop).not.toHaveBeenCalled();
+});
+
+it('ignora eventos tardíos de una pista deseleccionada y permite reintentar sin cortar HLS', async () => {
+  vi.mocked(request).mockResolvedValue({ items: [firstTrack, secondTrack], nextCursor: null });
+  const { container } = render(<VodPlayer vod={vod} />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(10);
+  });
+  const selector = screen.getByRole('combobox', { name: 'Subtítulos' });
+  fireEvent.change(selector, { target: { value: firstTrack.trackId } });
+  const first = container.querySelector(`#${firstTrack.trackId}`)!;
+  fireEvent.change(selector, { target: { value: secondTrack.trackId } });
+  fireEvent.error(first);
+  fireEvent.load(first);
+  expect(selector).toHaveValue(secondTrack.trackId);
+  expect(screen.queryByText(/No se pudo cargar la pista/)).not.toBeInTheDocument();
+  const failed = container.querySelector(`#${secondTrack.trackId}`)!;
+  fireEvent.error(failed);
+  fireEvent.click(screen.getByRole('button', { name: 'Reintentar subtítulos' }));
+  expect(container.querySelector(`#${secondTrack.trackId}`)).not.toBe(failed);
+  expect(selector).toHaveValue(secondTrack.trackId);
+  expect(hls.attach).toHaveBeenCalledOnce();
+  expect(hls.load).toHaveBeenCalledOnce();
+  expect(hls.stop).not.toHaveBeenCalled();
+  expect(pause).not.toHaveBeenCalled();
+  fireEvent.change(selector, { target: { value: '' } });
+  fireEvent.error(container.querySelector(`#${secondTrack.trackId}`)!);
+  expect(screen.queryByText(/No se pudo cargar la pista/)).not.toBeInTheDocument();
+});
+
+it.each(['vod', 'mapping'])(
+  'descarta selección y respuestas tardías al cambiar %s',
+  async (change) => {
+    let oldResponse: (page: P2SubtitlePage) => void = () => {};
+    vi.mocked(request)
+      .mockResolvedValueOnce({ items: [firstTrack], nextCursor: 'old-cursor' })
+      .mockImplementationOnce(
+        () =>
+          new Promise<P2SubtitlePage>((resolve) => {
+            oldResponse = resolve;
+          }),
+      )
+      .mockResolvedValueOnce({ items: [], nextCursor: null });
+    const { rerender } = render(<VodPlayer vod={vod} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Subtítulos' }), {
+      target: { value: firstTrack.trackId },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Cargar más pistas' }));
+    const next =
+      change === 'vod'
+        ? { ...vod, vodId: 'vod_next', playbackPath: '/vod-media/vod_next/master.m3u8' }
+        : { ...vod, mappingVersion: vod.mappingVersion + 1 };
+    rerender(<VodPlayer vod={next} />);
+    await act(async () => {
+      oldResponse({ items: [secondTrack], nextCursor: null });
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    expect(screen.getByRole('combobox', { name: 'Subtítulos' })).toHaveValue('');
+    expect(screen.queryByRole('option', { name: 'Español · es' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'English · en' })).not.toBeInTheDocument();
+    expect(hls.destroy).toHaveBeenCalledOnce();
+    expect(hls.attach).toHaveBeenCalledTimes(2);
+  },
+);

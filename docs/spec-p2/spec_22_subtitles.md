@@ -83,9 +83,9 @@ retirar bytes ya descargados. P2-17 debe acordar propagación y vigencia de auto
 
 ## 7. Controles de reproductor y accesibilidad
 
-RF-064/065 se implementarán con un control «Subtítulos», opción «Desactivados» y nombres/idiomas
+Web implementa RF-064/065 con un control «Subtítulos», opción «Desactivados» y nombres/idiomas
 de pistas reales. Inicialmente desactivados; la elección se mantiene durante seek y cambio de
-calidad del mismo VOD. Al cambiar VOD, se descarta su trackId anterior. Web usará texto de pista
+calidad del mismo VOD. Al cambiar VOD o mappingVersion, se descarta su trackId anterior. Web usa texto de pista
 como tal, nunca innerHTML de contenido cargado; móvil necesita un adaptador probado del mismo perfil.
 
 Teclado: foco visible, selección sin pérdida de foco, Escape al cerrar menú y retorno al control.
@@ -93,6 +93,13 @@ Nombre, idioma y selección deben ser accesibles; loading/error se anuncian sin 
 por una región aria-live. Un error al cargar una pista muestra un aviso y permite reintentar o
 desactivar; no pausa ni reinicia HLS. Se descartan respuestas tardías de pistas ya deseleccionadas.
 No se simulan subtítulos cuando no existen. Contraste y tamaño se comprueban sobre vídeo real.
+
+El formulario asocia ayudas de idioma/formato/tamaño y errores con sus campos; enfoca el primer
+campo inválido. Cada botón de retirada identifica nombre e idioma de la pista. Al desaparecer
+ese botón, el foco vuelve al encabezado desplegable «Subtítulos». Una respuesta de retirada
+incierta conserva la clave idempotente al reintentar. Los eventos nativos de carga/error de una
+pista se escuchan en el propio elemento; un error tardío de otra pista no reemplaza la selección.
+El reintento vuelve a cargar las pistas sin desmontar el motor HLS ni cambiar la posición.
 
 ## 8. Criterios de aceptación
 
@@ -117,13 +124,20 @@ python -m unittest discover -s tests/contracts -p 'test_*.py'
 python contracts/webvtt.py tests/contracts/fixtures/subtitles/education-es.vtt --duration-ms 12000
 # Tras instalar las dependencias Web; también se ejecuta en CI Web.
 node tests/contracts/test_subtitle_schemas.mjs
+# Core, VOD, Gateway, Web, SQL, S3, RabbitMQ y Media reales; Docker/OpenSSL/Chromium.
+python tests/integration/vod-web/run.py --browser subtitles.mjs
 ```
 
-El número recibido por el checker es dato de prueba; el proveedor lo obtendrá de su propia
+El número recibido por el checker es dato de prueba; el proveedor lo obtiene de su propia
 duración validada, nunca del archivo/cliente. `services/vod` implementa persistencia/permisos,
 validación del mismo perfil y limpieza; Web permite carga/selección/retirada. La integración Go con
-PostgreSQL/MinIO comprueba carga privada y Range real de WebVTT. La prueba audiovisual sigue pendiente. Los ejemplos de dos idiomas prueban offsets iguales, no sincronía
-perceptual con un vídeo que no se ha reproducido. No cerrar SPEC-22 con esta evidencia aislada.
+PostgreSQL/MinIO comprueba carga privada y Range real de WebVTT. El corpus de
+`services/vod/internal/vod/testdata/webvtt-profile.json` se verifica con Go y Python sobre
+los mismos bytes y duración; ambos rechazan duraciones fuera del rango entero seguro del contrato.
+El runner [Web integrado](../../tests/integration/vod-web/README.md) verifica por separado
+el navegador con dos grabaciones sintéticas de 64 segundos y dos idiomas. Los resultados deben
+atribuirse al commit realmente ejecutado; tener el runner no acredita que haya pasado.
+Móvil, lector de pantalla, contraste visual y multicalidad real conservan aceptación pendiente.
 
 ## 10. Decisiones, dependencias y costo
 
