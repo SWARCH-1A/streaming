@@ -111,12 +111,22 @@ func (g gateway) watchScreen(ctx context.Context, w http.ResponseWriter, r *http
 	var session, channel, renditions json.RawMessage
 	sessionCode, renditionsCode := http.StatusOK, 0
 	var channelCode int
+	identityCode := http.StatusOK
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		channel, channelCode = g.read(ctx, r, g.core, "/api/channels/"+url.PathEscape(stream.ChannelID), true)
 	}()
+	if presentsIdentity(r) {
+		// Every other watch read is public, and Core only introspects Bearer credentials on public
+		// routes: a presented cookie is checked with an authenticated read so it is never ignored (CA-03).
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, identityCode = g.read(ctx, r, g.core, "/api/profile/me", true)
+		}()
+	}
 	if sessionID != "" {
 		wg.Add(1)
 		go func() {
@@ -132,6 +142,11 @@ func (g gateway) watchScreen(ctx context.Context, w http.ResponseWriter, r *http
 		}
 	}
 	wg.Wait()
+	if identityCode == http.StatusUnauthorized || identityCode == http.StatusForbidden {
+		// An invalid, expired or revoked credential is never downgraded to an anonymous viewer.
+		screenError(w, r, identityCode)
+		return
+	}
 	if channelCode == http.StatusNotFound || (channelCode == http.StatusUnauthorized && presentsIdentity(r)) {
 		screenError(w, r, channelCode)
 		return

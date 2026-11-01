@@ -25,6 +25,7 @@ const (
 	vodPageEmpty     = `{"items":[],"nextCursor":null}`
 	followFixture    = `{"channelId":"chn_fixture","following":true,"followVersion":1,"followedAtUtc":"2026-10-26T18:00:00Z"}`
 	vodFixture       = `{"sessionId":"ses_fixture","streamId":"str_fixture","channelId":"chn_fixture","streamGeneration":1,"title":"Clase grabada","description":"","categoryId":"cat_fixture","tagIds":[],"vodId":"vod_fixture","processingState":"READY","publicationState":"PUBLISHED","restriction":"NONE","version":2,"mappingVersion":1,"durationMs":1000,"renditions":[{"renditionId":"rend_720","width":1280,"height":720,"bitrateBps":2500000,"videoCodec":"avc1","audioCodec":"mp4a"}],"playbackPath":"/vod-media/vod_fixture/master.m3u8","createdAtUtc":"2026-10-29T12:00:00Z"}`
+	profileFixture   = `{"userId":"usr_fan","displayName":"Fan","bio":"","avatarUri":null,"updatedAtUtc":"2026-10-08T20:00:00Z","profileVersion":0}`
 	timelineFixture  = `{"vodId":"vod_fixture","sessionId":"ses_fixture","mappingVersion":1,"durationMs":1000,"gapPolicy":"COMPACT_NEAREST_SEAM","intervals":[{"sourceGeneration":1,"sessionStartMs":0,"mediaStartMs":0,"durationMs":1000}]}`
 )
 
@@ -91,6 +92,7 @@ func newFixture() *fixture {
 		core: routeMap{
 			"GET /api/channels/by-handle/fixture_01":     reply(200, channelFixture),
 			"GET /api/channels/chn_fixture":              reply(200, channelFixture),
+			"GET /api/profile/me":                        reply(200, profileFixture),
 			"GET /api/channels/chn_fixture/followers/me": reply(200, followFixture),
 			"POST /api/discovery/graphql":                reply(200, `{"data":{"streams":{"items":[],"nextCursor":null}}}`),
 		},
@@ -322,6 +324,36 @@ func TestWatchScreenComposesStreamSessionChannelAndRenditions(t *testing.T) {
 		if request := f.log.find(path); request == nil || request.Header.Get("Cookie") != "" || request.Header.Get("Authorization") != "" {
 			t.Fatal("public Streaming reads must not carry identity", path)
 		}
+	}
+}
+
+// CA-03: Core only introspects Bearer on public routes, so the watch aggregate validates a presented
+// cookie through an authenticated read instead of serving a revoked session as a visitor.
+func TestWatchScreenRejectsRevokedCookie(t *testing.T) {
+	f := newFixture()
+	f.core["GET /api/profile/me"] = reply(401, `{"code":"AUTH_REQUIRED"}`)
+	response, _, body := get(t, f.server(t), "/api/screens/watch/str_fixture", map[string]string{"Cookie": "stream_session=revoked"})
+	if response.StatusCode != 401 {
+		t.Fatal(response.StatusCode, string(body))
+	}
+	if request := f.log.find("/api/profile/me"); request == nil || request.Header.Get("Cookie") != "stream_session=revoked" {
+		t.Fatal("the presented cookie was not validated by Core")
+	}
+}
+
+func TestWatchScreenIdentityCheckOnlyWhenPresented(t *testing.T) {
+	f := newFixture()
+	if response, _, body := get(t, f.server(t), "/api/screens/watch/str_fixture", nil); response.StatusCode != 200 {
+		t.Fatal(response.StatusCode, string(body))
+	}
+	if f.log.find("/api/profile/me") != nil {
+		t.Fatal("anonymous viewers must not trigger an identity read")
+	}
+	// An identity read that cannot complete keeps the public screen: it carries no per-user data.
+	f = newFixture()
+	f.core["GET /api/profile/me"] = reply(503, `{}`)
+	if response, _, body := get(t, f.server(t), "/api/screens/watch/str_fixture", map[string]string{"Cookie": "stream_session=alice"}); response.StatusCode != 200 {
+		t.Fatal(response.StatusCode, string(body))
 	}
 }
 

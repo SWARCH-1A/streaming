@@ -262,6 +262,8 @@ def main():
     _, before, _ = anon.call(watch)
     assert before["renditions"]["status"] == "EMPTY" and before["channel"]["status"] == "AVAILABLE", before
     save("P2WatchScreen", "before-source", before)
+    anonymous_with(revoked)(watch, 401)
+    print("PASS CA-03 watch screen: a revoked cookie gets 401 although every section is public", flush=True)
     ingest_key = config.get("streamKey") or config["ingestUrl"].rsplit("/", 1)[1]
     publisher = Publisher(ingest_key)
     try:

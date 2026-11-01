@@ -16,7 +16,8 @@ supresión de headers privados; este proceso solo recibe lo que Caddy le enruta:
 Las consultas independientes son concurrentes, con presupuesto total de 3s (504 al agotarse) y
 cancelación de las lecturas internas. Cuerpos internos acotados a 2MiB; respuestas `no-store, private`.
 Hacia Core/VOD solo se copian `stream_session` y Authorization; Streaming y Discovery no reciben
-identidad. Ningún header `X-Service-*`, `X-Session-Credential` ni `Forwarded` del cliente se reenvía.
+identidad. En watch, una credencial presentada se valida con `GET /api/profile/me` (401 si Core la
+rechaza), porque sus demás lecturas son públicas. Ningún header `X-Service-*`, `X-Session-Credential` ni `Forwarded` del cliente se reenvía.
 
 Variables: `GATEWAY_CORE_URL`, `GATEWAY_VOD_URL`, `GATEWAY_STREAMING_URL` (upstreams privados),
 `GATEWAY_TRUSTED_PROXIES` (IP/CIDR separados por coma cuyo X-Forwarded-For se acepta; en local, la

@@ -63,7 +63,9 @@ Authorization (hacia Core/VOD), requestId válido y la dirección del cliente. E
 de X-Forwarded-For solo si el par es un proxy de `GATEWAY_TRUSTED_PROXIES`; Core confía únicamente
 en las IP fijas de Caddy y del Gateway. En `watch`, emisión y sesión son esenciales y coherentes; las
 rendiciones se piden solo si ambas están PLAYABLE; un canal confirmado inexistente o suspendido
-oculta la pantalla con 404.
+oculta la pantalla con 404. Como todas sus secciones son públicas y Core solo introspecta Bearer en
+rutas públicas, una credencial presentada se comprueba en paralelo con `GET /api/profile/me`; si
+Core la rechaza, la pantalla da 401 (CA-03).
 
 ## 8. Dependencias y contratos de integración
 
