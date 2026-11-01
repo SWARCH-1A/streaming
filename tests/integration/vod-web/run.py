@@ -158,7 +158,7 @@ def main():
                 "STREAMING_MEDIA_ADAPTER_SERVICE_TOKEN": secret(), "VOD_CAPTURE_TOKEN": capture,
                 "RECORDER_BROKER_URL": f"amqps://streaming:{passwords['streaming']}@broker:5671/streaming-p2",
                 "RECORDER_SPOOL": "/tmp/recordings", "RECORDER_NATIVE_DIR": "/tmp/native",
-            }, extra=("--entrypoint", "media-recorder"))
+            }, extra=("--entrypoint", "media-recorder", "--no-healthcheck"))
             start("vod", images["vod"], {
                 **{"VOD_S3_" + key: value for key, value in s3.items()},
                 "VOD_DATABASE_URL": f"postgres://fixture:{dbpass}@vod-db:5432/vod_test?sslmode=disable", "VOD_CORE_URL": "http://core:8082", "VOD_CORE_TOKEN": coretoken,
