@@ -85,7 +85,7 @@ existente. Mantiene el envelope ante fallo y reintenta tras 30 segundos.
 `/internal/core/access-context` está implementado y VOD consume los cambios de estado por
 versión, conservando restricciones locales. Gateway implementa `/api/admin/content-removals`
 para `resourceType=VOD` y delega la mutación al proveedor VOD. Las retiradas de otros tipos y
-el corte transversal de emisiones/Chat/replay siguen pendientes de aceptación; no se anuncia
+el corte transversal de emisiones/Chat siguen pendientes de aceptación; no se anuncia
 RF-078/079 completo por disponer del recorrido VOD.
 
 ### Consola de retirada VOD
@@ -125,7 +125,8 @@ SPEC-04/05/14/16 ejecutan corte, bloqueo, acceso y enrutamiento.
 
 P2-17 conserva la aceptación transversal de propagación, interrupción y recuperación de autoridad
 caída. El mecanismo VOD está definido en ADR-022; falta acreditar junto con Streaming y Chat
-el corte de emisiones y replay, las retiradas de otros tipos y sus plazos. No se ofrecen URLs
+el corte de emisiones, las retiradas de otros tipos y sus plazos. Chat ya implementa replay
+durable y consulta permisos en VOD; su verificación integrada se registra por separado. No se ofrecen URLs
 S3 públicas permanentes como sustituto de autorización revocable.
 
 ## 10. Verificación
@@ -139,13 +140,19 @@ Core, Gateway, VOD, Web, PostgreSQL, MinIO, RabbitMQ y entrega de medios en un e
 
 ```sh
 python tests/integration/vod-web/run.py --browser administration.mjs
+# Linux/WSL, con captura RTMPS y replay Chat reales:
+python3 tests/integration/vod-web/full_stack.py --browser administration.mjs
 ```
 
 El escenario verifica la consola, CSRF/rol, conflicto de versión, respuesta perdida e idempotencia,
 restricción de manifiestos/pistas/segmentos, suspensión/reactivación, evento atrasado, reinicio
 de VOD y caída de Core. Su existencia no acredita una ejecución aprobada: los resultados se
-atribuyen al commit probado. La fixture no levanta Streaming live ni Chat; no cierra sus criterios,
-ni sustituye observación humana de teclado, contraste, zoom y tecnología asistiva.
+atribuyen al commit probado. El modo reducido no levanta Streaming live ni Chat. El modo
+`full_stack.py` crea dos capturas nativas con mensajes y comprueba las URLs de replay antes y
+después de retirada, suspensión/reactivación, evento atrasado, reinicio y fallo de autoridad.
+La retransmisión de comandos del Gateway se conserva: cada intento se reenvía una vez y la
+consola repite la misma clave y cuerpo ante una respuesta incierta. Esto no sustituye la aceptación
+del corte live ni la observación humana de teclado, contraste, zoom y tecnología asistiva.
 
 ## 11. Esfuerzo, riesgos y consecuencias
 

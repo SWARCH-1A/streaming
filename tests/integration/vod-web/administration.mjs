@@ -2,12 +2,14 @@ import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { replayAvailable, replayDenied } from './replay_checks.mjs';
 
 const require = createRequire(new URL('../../../apps/web/package.json', import.meta.url));
 const { chromium, expect } = require('@playwright/test');
 const { default: AxeBuilder } = require('@axe-core/playwright');
 const f = JSON.parse(readFileSync(process.env.VOD_WEB_FIXTURE, 'utf8'));
-if (!/^https:\/\/127\.0\.0\.1:\d+$/.test(f.origin) || !/^streaming-vod-web-[a-f0-9]{10}$/.test(f.prefix)) throw new Error('Use run.py');
+if (!/^https:\/\/(127\.0\.0\.1|localhost):\d+$/.test(f.origin) || !/^streaming-vod-web-[a-f0-9]{10}$/.test(f.prefix)) throw new Error('Use run.py or full_stack.py');
+const container = (role) => f.containers?.[role] ?? f.prefix + '-' + role;
 const browser = await chromium.launch();
 try {
   const owner = await browser.newContext({ baseURL: f.origin, ignoreHTTPSErrors: true });
@@ -15,6 +17,8 @@ try {
   const visitor = await browser.newContext({ baseURL: f.origin, ignoreHTTPSErrors: true });
   await owner.addCookies(f.cookies);
   const [removedVod, publicVod] = f.vods;
+  await replayAvailable(f, visitor, 0, expect);
+  await replayAvailable(f, visitor, 1, expect);
   async function mutate(context, path, data, method = 'POST', key = randomUUID()) {
     const csrf = await (await context.request.get('/api/identity/csrf')).json();
     return context.request.fetch(path, { method, data, headers: { Origin: f.origin, [csrf.headerName]: csrf.token, 'Idempotency-Key': key } });
@@ -25,7 +29,7 @@ try {
   expect(registration.status()).toBe(201);
   const actor = await registration.json();
   // Explicit Core-owned administrative provisioning, never public role assignment.
-  execFileSync('docker', ['exec', '-i', f.prefix + '-core-db', 'psql', '-U', 'fixture', '-d', 'core', '-v', 'target_user=' + actor.userId],
+  execFileSync('docker', ['exec', '-i', container('core-db'), 'psql', '-U', f.dbUser ?? 'fixture', '-d', 'core', '-v', 'target_user=' + actor.userId],
     { input: readFileSync(new URL('../../../services/core/scripts/provision-admin.sql', import.meta.url)), stdio: ['pipe', 'pipe', 'pipe'] });
   expect((await mutate(admin, '/api/identity/sessions', { login: handle, password })).status()).toBe(200);
   const tracks = [];
@@ -70,10 +74,12 @@ try {
   await page.getByLabel('Motivo de la retirada').fill('Retirada verificada con proveedores reales');
   await page.getByRole('checkbox', { name: 'Confirmo la retirada de esta grabación.' }).check();
   const keys = [];
+  const bodies = [];
   let accepted;
   // Lose only the first response AFTER the provider really accepted the command.
   await page.route('**/api/admin/content-removals', async (route) => {
     keys.push(route.request().headers()['idempotency-key']);
+    bodies.push(route.request().postData());
     const response = await route.fetch();
     expect(response.status()).toBe(202);
     accepted = await response.json();
@@ -88,10 +94,12 @@ try {
   await expect(page.getByText(/Retirada aceptada/)).toBeVisible();
   expect(keys).toHaveLength(2);
   expect(keys[0]).toBe(keys[1]);
+  expect(bodies[0]).toBe(bodies[1]);
   await expect(page.getByLabel('Resultado de la retirada')).toBeFocused();
   expect((await visitor.request.get(removedVod.playbackPath)).status()).toBe(404);
   expect((await visitor.request.get(tracks[0].contentPath)).status()).toBe(404);
   expect((await visitor.request.get(`/api/vods/${removedVod.vodId}`)).status()).toBe(404);
+  await replayDenied(f, visitor, 0, expect);
   await page.getByRole('button', { name: 'Consultar estado de la retirada' }).click();
   await expect(page.getByText(/El replay se gestiona en Chat/)).toBeVisible();
   expect((await admin.request.get(accepted.statusUri)).status()).toBe(200);
@@ -102,19 +110,27 @@ try {
   await assertAccessible();
 
   // A fresh grant permits actual media before suspension. Its lifetime is 60 seconds.
-  expect((await visitor.request.get(publicVod.playbackPath)).status()).toBe(200);
-  const segment = `/vod-media/${publicVod.vodId}/rend_fixture/1/0.ts`;
+  const manifest = await visitor.request.get(publicVod.playbackPath);
+  expect(manifest.status()).toBe(200);
+  const firstUri = (text) => text.split(/\r?\n/).find((line) => line.trim() && !line.startsWith('#'));
+  const variantUrl = new URL(firstUri(await manifest.text()), new URL(publicVod.playbackPath, f.origin)).href;
+  const variant = await visitor.request.get(variantUrl);
+  expect(variant.status()).toBe(200);
+  const segment = new URL(firstUri(await variant.text()), variantUrl).href;
   expect((await visitor.request.get(segment)).status()).toBe(200);
   const userPath = `/api/admin/users/${f.owner.userId}/status`;
   expect((await mutate(admin, userPath, { status: 'SUSPENDED', expectedVersion: 0, reason: 'Fixture suspension' }, 'PUT')).status()).toBe(200);
   expect((await owner.request.get('/api/profile/me')).status()).toBe(401);
   expect((await visitor.request.get(publicVod.playbackPath)).status()).toBe(404);
   expect((await visitor.request.get(tracks[1].contentPath)).status()).toBe(404);
+  await replayDenied(f, visitor, 1, expect);
   await expect.poll(async () => (await visitor.request.get(segment)).status(), { timeout: 15000 }).toBe(404);
   expect((await mutate(admin, userPath, { status: 'ACTIVE', expectedVersion: 1, reason: 'Fixture reactivation' }, 'PUT')).status()).toBe(200);
   await expect.poll(async () => (await visitor.request.get(publicVod.playbackPath)).status(), { timeout: 15000 }).toBe(200);
   expect((await visitor.request.get(removedVod.playbackPath)).status()).toBe(404);
   expect((await visitor.request.get(tracks[0].contentPath)).status()).toBe(404);
+  await replayAvailable(f, visitor, 1, expect);
+  await replayDenied(f, visitor, 0, expect);
   expect((await owner.request.get('/api/profile/me')).status()).toBe(401);
 
   async function accountQueue(name = 'vod.account') {
@@ -128,7 +144,7 @@ try {
     const queue = await accountQueue();
     return queue.messages_ready === 0 && queue.messages_unacknowledged === 0 && (queue.message_stats?.ack ?? 0) >= 2;
   }, { timeout: 30000 }).toBe(true);
-  execFileSync('docker', ['stop', f.prefix + '-vod'], { stdio: 'pipe' });
+  execFileSync('docker', ['stop', container('vod')], { stdio: 'pipe' });
   const beforeStale = await accountQueue();
   const failedQueues = ['vod.account.retry.1', 'vod.account.retry.5', 'vod.account.retry.30', 'vod.account.dlq'];
   const beforeFailures = await Promise.all(failedQueues.map(accountQueue));
@@ -140,7 +156,7 @@ try {
     await expect.poll(async () => (await accountQueue()).messages_ready, { timeout: 30000 }).toBe(1);
   } finally {
     // The database and broker survive this consumer process restart.
-    execFileSync('docker', ['start', f.prefix + '-vod'], { stdio: 'pipe' });
+    execFileSync('docker', ['start', container('vod')], { stdio: 'pipe' });
   }
   await expect.poll(async () => {
     const queue = await accountQueue();
@@ -157,14 +173,17 @@ try {
   expect((await visitor.request.get(segment)).status()).toBe(200);
   expect((await visitor.request.get(removedVod.playbackPath)).status()).toBe(404);
   // Lost authority does not grant new protected resources. Existing segment grants expire.
-  execFileSync('docker', ['stop', f.prefix + '-core'], { stdio: 'pipe' });
+  await replayAvailable(f, visitor, 1, expect);
+  await replayDenied(f, visitor, 0, expect);
+  execFileSync('docker', ['stop', container('core')], { stdio: 'pipe' });
   try {
     expect((await visitor.request.get(publicVod.playbackPath)).status()).toBe(503);
     expect((await visitor.request.get(tracks[1].contentPath)).status()).toBe(503);
     await expect.poll(async () => (await visitor.request.get(segment)).status(), { timeout: 70000, intervals: [1000, 3000, 5000] }).toBe(401);
-  } finally { execFileSync('docker', ['start', f.prefix + '-core'], { stdio: 'pipe' }); }
+    if (f.replay) expect((await visitor.request.get(`/api/chat/vods/${publicVod.vodId}/messages?fromMs=0&toMs=10000`)).status()).toBe(503);
+  } finally { execFileSync('docker', ['start', container('core')], { stdio: 'pipe' }); }
   await expect.poll(async () => (await visitor.request.get(publicVod.playbackPath)).status(), { timeout: 60000 }).toBe(200);
   expect((await visitor.request.get(removedVod.playbackPath)).status()).toBe(404);
   console.log('PASS: real HTTPS Web/Core/Gateway/VOD/S3/AMQP; role and CSRF; lookup/version conflict; accepted removal and idempotent lost response; status/focus/Axe/responsive; direct manifest/track/segment access; suspension, reactivation, stale event and VOD restart; Core outage and 60s grant expiry; retired content stays retired.');
-  console.log('Pending: live source cutoff, other resource types, replay provider and human assistive/visual acceptance.');
+  console.log('Pending: live source cutoff, other resource types and human assistive/visual acceptance. Replay exercised: ' + Boolean(f.replay));
 } finally { await browser.close(); }
