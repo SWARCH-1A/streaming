@@ -213,6 +213,21 @@ def media_offset(timeline, session_ms):
     return timeline["durationMs"] - 1
 
 
+def prepare_stream(owner, channel_id, category_id, existing=False):
+    title = "Replay de chat E2E " + secrets.token_hex(3)
+    _, config = owner.call(f"/api/channels/{channel_id}/streams", "POST",
+                          {"title": title, "categoryId": category_id, "tagIds": []},
+                          {"Idempotency-Key": str(uuid.uuid4())}, 200 if existing else 201)
+    if existing:
+        assert not config.get("streamKey"), "existing configuration must not reveal its secret"
+        owner.mutate(f"/api/streams/{config['streamId']}", "PATCH", {"title": title})
+        # Previous fixture ended the session. Rotate explicitly; never assume POST returns a key twice.
+        _, key = owner.mutate(f"/api/streams/{config['streamId']}/ingest-keys/rotate")
+        assert key["streamId"] == config["streamId"]
+        return config, key["streamKey"]
+    return config, config["streamKey"]
+
+
 def main(keep=False, minimum_seconds=0, existing_owner=None):
     if TLS is None:
         raise RuntimeError("Call configure before running the replay scenario")
@@ -239,10 +254,7 @@ def main(keep=False, minimum_seconds=0, existing_owner=None):
     # Draft first: the replay must follow VOD readability before and after publication.
     owner.mutate(f"/api/channels/{channel_id}/vod-settings", "PUT", {"enabled": False, "expectedVersion": settings["version"]})
     _, catalog = anon.call("/api/taxonomy")
-    _, config = owner.call(f"/api/channels/{channel_id}/streams", "POST",
-                           {"title": "Replay de chat E2E " + secrets.token_hex(3), "categoryId": catalog["categories"][0]["id"], "tagIds": []},
-                           {"Idempotency-Key": str(uuid.uuid4())}, 201)
-    ingest_key = config.get("streamKey") or config["ingestUrl"].rsplit("/", 1)[1]
+    config, ingest_key = prepare_stream(owner, channel_id, catalog["categories"][0]["id"], bool(existing_owner))
     publisher = Publisher(ingest_key)
     sockets = []
     try:
