@@ -26,14 +26,22 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[3]
 STATE = ROOT / "infra/p1/.state-local"
-ENV = dict(line.split("=", 1) for line in (STATE / "environment.env").read_text().splitlines() if "=" in line)
-ORIGIN = ENV["WEB_ORIGIN"]
-CA = STATE / "ca.crt"
-TLS = ssl.create_default_context(cafile=str(CA))
-# Python >= 3.13 also demands keyUsage on the local CA; chain and hostname are still verified.
-TLS.verify_flags &= ~getattr(ssl, "VERIFY_X509_STRICT", 0)
 PROJECT = "streaming-local"
 NETWORK = PROJECT + "_default"
+LIVE_IMAGE = "streaming-local-live"
+ORIGIN = CA = TLS = None
+
+
+def configure(state=STATE, project=PROJECT, network=None, origin=None, live_image=LIVE_IMAGE):
+    """Explicit fixture configuration; importing never reads the personal installation."""
+    global STATE, PROJECT, NETWORK, ORIGIN, CA, TLS, LIVE_IMAGE
+    STATE, PROJECT = Path(state).resolve(), project
+    NETWORK, LIVE_IMAGE = network or project + "_default", live_image
+    env = dict(line.split("=", 1) for line in (STATE / "environment.env").read_text().splitlines() if "=" in line)
+    ORIGIN, CA = origin or env["WEB_ORIGIN"], STATE / "ca.crt"
+    TLS = ssl.create_default_context(cafile=str(CA))
+    # Local CA predates Python's strict keyUsage requirement; chain/host stay verified.
+    TLS.verify_flags &= ~getattr(ssl, "VERIFY_X509_STRICT", 0)
 
 
 class Client:
@@ -183,7 +191,7 @@ class Publisher:
     def start(self):
         self.name = "chat-replay-e2e-" + secrets.token_hex(4)
         docker("run", "-d", "--rm", "--name", self.name, "--network", NETWORK, "-v", f"{CA}:/run/ca.crt:ro",
-               "--entrypoint", "ffmpeg", "streaming-local-live", "-hide_banner", "-loglevel", "error",
+               "--entrypoint", "ffmpeg", LIVE_IMAGE, "-hide_banner", "-loglevel", "error",
                "-re", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=30", "-f", "lavfi", "-i", "sine=frequency=880:sample_rate=48000",
                "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency", "-g", "30", "-pix_fmt", "yuv420p",
                "-c:a", "aac", "-b:a", "96k", "-tls_verify", "1", "-ca_file", "/run/ca.crt",
@@ -205,24 +213,34 @@ def media_offset(timeline, session_ms):
     return timeline["durationMs"] - 1
 
 
-def main(keep=False):
+def main(keep=False, minimum_seconds=0, existing_owner=None):
+    if TLS is None:
+        raise RuntimeError("Call configure before running the replay scenario")
     anon, owner, fan = Client(), Client(), Client()
     password = "Ficticia-" + secrets.token_urlsafe(12)
     handles = {}
+    account = None
     for role, client in (("owner", owner), ("fan", fan)):
+        if role == "owner" and existing_owner:
+            owner, account, password = existing_owner["client"], existing_owner["owner"], existing_owner["password"]
+            handles[role] = existing_owner["handle"]
+            continue
         handle = "chre2e_" + role[0] + secrets.token_hex(4)
-        client.mutate("/api/identity/registrations", body={"email": handle + "@example.test", "handle": handle, "password": password}, expect=201)
+        _, registered = client.mutate("/api/identity/registrations", body={"email": handle + "@example.test", "handle": handle, "password": password}, expect=201)
+        if role == "owner":
+            account = registered
         client.mutate("/api/identity/sessions", body={"login": handle, "password": password})
         handles[role] = handle
     _, channel = owner.call("/api/channels/by-handle/" + handles["owner"])
     channel_id = channel["channel"]["channelId"]
     _, settings = owner.call(f"/api/channels/{channel_id}/vod-settings")
-    assert settings["enabled"], "autopublish is enabled by default"
+    if not existing_owner:
+        assert settings["enabled"], "autopublish is enabled by default"
     # Draft first: the replay must follow VOD readability before and after publication.
     owner.mutate(f"/api/channels/{channel_id}/vod-settings", "PUT", {"enabled": False, "expectedVersion": settings["version"]})
     _, catalog = anon.call("/api/taxonomy")
     _, config = owner.call(f"/api/channels/{channel_id}/streams", "POST",
-                           {"title": "Replay de chat E2E", "categoryId": catalog["categories"][0]["id"], "tagIds": []},
+                           {"title": "Replay de chat E2E " + secrets.token_hex(3), "categoryId": catalog["categories"][0]["id"], "tagIds": []},
                            {"Idempotency-Key": str(uuid.uuid4())}, 201)
     ingest_key = config.get("streamKey") or config["ingestUrl"].rsplit("/", 1)[1]
     publisher = Publisher(ingest_key)
@@ -230,6 +248,7 @@ def main(keep=False):
     try:
         publisher.start()
         live = eventually(lambda: anon.call("/api/streams/" + config["streamId"])[1], lambda v: v["availability"] == "PLAYABLE", 90)
+        media_started = time.monotonic()
         sid = live["sessionId"]
         print("PASS RTMPS source is PLAYABLE", flush=True)
         fan_ws, owner_ws = Socket("/realtime/chat/sessions/" + sid, fan.credential()), Socket("/realtime/chat/sessions/" + sid, owner.credential())
@@ -273,6 +292,9 @@ def main(keep=False):
         removed = sent["dos (será retirado)"]["messageId"]
         owner.mutate(f"/api/chat/sessions/{sid}/messages/{removed}", "DELETE")
         print("PASS owner removed a message", flush=True)
+        # Allow the native recorder to collect enough playable media, excluding the cut.
+        while time.monotonic() - media_started < minimum_seconds + 12:
+            time.sleep(1)
         owner.call("/api/streams/sessions/" + sid, "DELETE", expect=204)
         publisher.stop()
         eventually(lambda: anon.call("/api/streams/sessions/" + sid)[1], lambda v: v["status"] == "ENDED", 30)
@@ -337,7 +359,8 @@ def main(keep=False):
 
         if keep:
             print(f"KEEP published VOD for manual review: {ORIGIN}/vod/{vod_id} (channel {handles['owner']})", flush=True)
-            return
+            return {"client": owner, "owner": account, "handle": handles["owner"], "password": password,
+                    "vod": vod, "messages": page["items"], "timeline": timeline}
         _, current = owner.call(f"/api/me/vods/{vod_id}")
         owner.mutate(f"/api/vods/{vod_id}", "DELETE", headers={"If-Match": f'"{current["version"]}"'}, expect=202)
         eventually(lambda: anon.call(window, expect=None)[0], lambda v: v == 404, 60)
@@ -353,5 +376,14 @@ def main(keep=False):
 
 
 if __name__ == "__main__":
-    import sys
-    main(keep="--keep" in sys.argv[1:])
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--state", type=Path, default=STATE)
+    parser.add_argument("--project", default=PROJECT)
+    parser.add_argument("--network")
+    parser.add_argument("--origin")
+    parser.add_argument("--live-image", default=LIVE_IMAGE)
+    parser.add_argument("--keep", action="store_true")
+    args = parser.parse_args()
+    configure(args.state, args.project, args.network, args.origin, args.live_image)
+    main(keep=args.keep)
