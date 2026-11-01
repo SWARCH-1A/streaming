@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { fixture as f } from './fixture.mjs';
 import { randomUUID } from 'node:crypto';
 import { replayAvailable, replayDenied } from './replay_checks.mjs';
