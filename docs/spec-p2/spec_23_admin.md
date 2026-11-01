@@ -1,6 +1,6 @@
 # SPEC-23 — Administración, suspensión y retirada
 
-**Prioridad:** P2. **Responsable:** Administración / dueños de dominio. **Estado:** incremento Core/Web implementado; aceptación integrada pendiente.
+**Prioridad:** P2. **Responsable:** Administración / dueños de dominio. **Estado:** Core/Web y retirada VOD implementados; aceptación transversal pendiente.
 **RF:** RF-076…079. **RNF:** RNF-022…032, 038, 041…050.
 
 ## 1. Contexto y problema
@@ -81,9 +81,36 @@ comprueba bajo bloqueo tanto contraseña vigente como estado ACTIVE. Solo Admini
 puede reactivar; las sesiones antiguas no reaparecen tras la reactivación.
 
 El outbox se habilita con CORE_EVENTS_TRANSPORT=amqp, usando la configuración RabbitMQ
-existente. Mantiene el envelope ante fallo y reintenta tras 30 segundos. No hay un consumidor
-integrado de suspensión acreditado todavía. `/api/admin/content-removals` y
-`/internal/core/access-context` siguen pendientes; no se anuncia RF-078/079 completo.
+existente. Mantiene el envelope ante fallo y reintenta tras 30 segundos.
+`/internal/core/access-context` está implementado y VOD consume los cambios de estado por
+versión, conservando restricciones locales. Gateway implementa `/api/admin/content-removals`
+para `resourceType=VOD` y delega la mutación al proveedor VOD. Las retiradas de otros tipos y
+el corte transversal de emisiones/Chat siguen pendientes de aceptación; no se anuncia
+RF-078/079 completo por disponer del recorrido VOD.
+
+### Consola de retirada VOD
+
+La sección de `/admin` consulta un VOD publicado por su identificador mediante su API pública;
+no incorpora un catálogo administrativo de grabaciones privadas. Muestra el título y conserva
+la versión devuelta por el proveedor. El administrador introduce un motivo de hasta 500 caracteres
+y confirma antes de enviar el comando con CSRF e Idempotency-Key.
+
+Un conflicto requiere consultar de nuevo; el foco vuelve al identificador, y una nueva consulta
+obtiene la versión vigente. Una respuesta incierta por red o fallo de servicio conserva la misma
+clave y cuerpo, bloquea su edición y permite repetir la operación sin duplicarla. La autorización
+de rol y estado permanece en los proveedores; ocultar controles no concede ni revoca permisos.
+
+La respuesta 202 significa retirada aceptada y acceso restringido, no limpieza física terminada.
+La UI permite consultar la operación VOD y distingue PENDING, RUNNING, FAILED y COMPLETED.
+Un fallo de limpieza no republica el contenido; el replay continúa siendo responsabilidad de Chat.
+Ayudas, errores, estados y recuperación del foco forman parte de la aceptación de accesibilidad.
+
+Para VOD, [ADR-022](../adr/ADR-022-vod-go-postgresql-minio.md) fija autorización Core por
+manifiesto, permisos firmados de 60 segundos y renovación Web a los 45 segundos. Los eventos
+por versión invalidan permisos ante suspensión; las nuevas entregas también comprueban la
+restricción local. El retraso de un evento no equivale a revocación instantánea: un permiso
+vigente tiene esa ventana acotada. Si Core no responde, no se concede un permiso nuevo.
+Reactivar la cuenta no restaura sesiones anteriores ni contenido retirado o eliminado.
 
 La provisión se describe en el [README Core](../../services/core/README.md). La decisión
 está en [ADR-019](../adr/ADR-019-administracion-core.md).
@@ -96,15 +123,36 @@ SPEC-04/05/14/16 ejecutan corte, bloqueo, acceso y enrutamiento.
 
 ## 9. Decisiones y preguntas abiertas
 
-P2-17: plazo de propagación, interrupción de reproducción y recuperación de autoridad caída.
-El mecanismo concreto debe ratificarse entre Core/Gateway/Streaming/VOD antes de cerrar RF-079;
-la ausencia de decisión no permite anunciar acceso revocable por una URL S3 pública.
+P2-17 conserva la aceptación transversal de propagación, interrupción y recuperación de autoridad
+caída. El mecanismo VOD está definido en ADR-022; falta acreditar junto con Streaming y Chat
+el corte de emisiones, las retiradas de otros tipos y sus plazos. Chat ya implementa replay
+durable y consulta permisos en VOD; su verificación integrada se registra por separado. No se ofrecen URLs
+S3 públicas permanentes como sustituto de autorización revocable.
 
 ## 10. Verificación
 
 Ejecutar rol válido/inválido, concurrencia, evento viejo, consumidor detenido y Core caído.
 Suspender mientras hay live/VOD/replay activos; solicitar cada recurso directo y comprobar
 rechazo. Reactivar una mezcla de borradores/publicados/retirados/eliminados y comparar estados.
+
+La prueba [Web VOD con proveedores reales](../../tests/integration/vod-web/README.md) prepara
+Core, Gateway, VOD, Web, PostgreSQL, MinIO, RabbitMQ y entrega de medios en un entorno desechable:
+
+```sh
+python tests/integration/vod-web/run.py --browser administration.mjs
+# Linux/WSL, con captura RTMPS y replay Chat reales:
+python3 tests/integration/vod-web/full_stack.py --browser administration.mjs
+```
+
+El escenario verifica la consola, CSRF/rol, conflicto de versión, respuesta perdida e idempotencia,
+restricción de manifiestos/pistas/segmentos, suspensión/reactivación, evento atrasado, reinicio
+de VOD y caída de Core. Su existencia no acredita una ejecución aprobada: los resultados se
+atribuyen al commit probado. El modo reducido no levanta Streaming live ni Chat. El modo
+`full_stack.py` crea dos capturas nativas con mensajes y comprueba las URLs de replay antes y
+después de retirada, suspensión/reactivación, evento atrasado, reinicio y fallo de autoridad.
+La retransmisión de comandos del Gateway se conserva: cada intento se reenvía una vez y la
+consola repite la misma clave y cuerpo ante una respuesta incierta. Esto no sustituye la aceptación
+del corte live ni la observación humana de teclado, contraste, zoom y tecnología asistiva.
 
 ## 11. Esfuerzo, riesgos y consecuencias
 
