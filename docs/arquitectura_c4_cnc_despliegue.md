@@ -78,7 +78,7 @@ Streaming conserva su proceso Rust y Chat su proceso Go. VOD y Notificaciones so
 independientes. VOD usa Go/PostgreSQL/MinIO (ADR-022), Notificaciones TypeScript/PostgreSQL/SMTP
 (ADR-020), y Gateway Go con Caddy (ADR-023). Cuentas publica trabajos de recuperación y ofrece contratos privados
 de entrega; su consumidor y SMTP pertenecen a Notificaciones y están pendientes (ADR-017).
-Web usa TypeScript y móvil Kotlin. Watch parties y subtítulos requieren concretar su SPEC y
+Web usa TypeScript y móvil Kotlin. Watch parties es un módulo de Core (ADR-025) y no añade proceso; los subtítulos requieren concretar su SPEC y
 ubicación funcional antes de atribuirles un nuevo proceso.
 
 ## Despliegue

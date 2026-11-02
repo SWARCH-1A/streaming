@@ -54,6 +54,13 @@ La respuesta no contiene stack, SQL, secretos ni información privada de otra cu
 | `p2.access.context` | POST `/internal/core/access-context` | Core | P2AccessRequest | 200 P2AccessContext | service:limited-operation |
 | `p2.recording.preference-get` | GET `/api/channels/{channelId}/vod-settings` | Core | — | 200 P2Autopublish | session |
 | `p2.recording.preference-put` | PUT `/api/channels/{channelId}/vod-settings` | Core | P2AutopublishUpdate | 200 P2Autopublish | session |
+| `p2.watch-parties.create` | POST `/api/watch-parties` | Core | P2WatchPartyCreate | 201 P2WatchParty | session |
+| `p2.watch-parties.get` | GET `/api/watch-parties/{partyId}` | Core | — | 200 P2WatchParty | session |
+| `p2.watch-parties.join` | POST `/api/watch-parties/join` | Core | P2WatchPartyJoin | 200 P2WatchParty | session |
+| `p2.watch-parties.add-source` | POST `/api/watch-parties/{partyId}/streams` | Core | P2WatchPartySourceAdd | 201 P2WatchParty | session |
+| `p2.watch-parties.remove-source` | DELETE `/api/watch-parties/{partyId}/streams/{streamId}` | Core | — | 200 P2WatchParty | session |
+| `p2.watch-parties.rotate-code` | POST `/api/watch-parties/{partyId}/access-code/rotate` | Core | — | 200 P2WatchParty | session |
+| `p2.watch-parties.close` | POST `/api/watch-parties/{partyId}/close` | Core | — | 200 P2WatchParty | session |
 | `p2.streaming.renditions` | GET `/api/streams/sessions/{sessionId}/renditions` | Streaming | — | 200 P2Renditions | public |
 | `p2.vod.list` | GET `/api/vods` | VOD | —; query P2VodQuery | 200 P2VodPage | public |
 | `p2.vod.mine` | GET `/api/me/vods` | VOD | —; query P2VodQuery | 200 P2VodPage | session |
@@ -272,9 +279,18 @@ Las operaciones administrativas requieren rol provisionado y motivo; accountVers
 resuelven concurrencia. La retirada se enruta al dominio según resourceType. El Gateway no confirma
 aceptación si ese dominio no la persistió. Suspensión no borra datos ni republica al reactivar.
 
+## Watch parties
+
+Salas privadas en Core ([SPEC-21](spec-p2/spec_21_watch_party.md), [ADR-025](adr/ADR-025-watch-parties-en-core.md)). La sesión es la de Core (cookie y CSRF web, o Bearer nativo) y toda mutación lleva `Idempotency-Key` (`400 IDEMPOTENCY_KEY_REQUIRED` o `IDEMPOTENCY_KEY_INVALID`).
+Crear devuelve `201 P2WatchParty` con `accessCode` una sola vez; el resto de lecturas lo devuelve nulo y el servidor solo guarda su SHA-256. Entrar (`POST /api/watch-parties/join`) exige cuenta y código: un código malformado o desconocido y una sala ajena responden igual, `404 WATCH_PARTY_NOT_FOUND`. Solo el propietario añade, retira, rota el código y cierra; un miembro recibe `403 WATCH_PARTY_FORBIDDEN`.
+
+Una sala admite hasta 4 fuentes (`409 WATCH_PARTY_FULL`), sin duplicados (`409 STREAM_ALREADY_IN_PARTY`), y solo se añade una emisión `LIVE`, `PLAYABLE` y fresca de un canal publicado (`409 STREAM_NOT_LIVE`, `404 STREAM_NOT_FOUND`); si Streaming no responde, añadir falla con `503 STREAMING_UNAVAILABLE`. Una sala `CLOSED` responde `409 WATCH_PARTY_CLOSED` a todo cambio, no lista fuentes y no entrega sesiones.
+
+`P2WatchPartySource.state` (`PLAYABLE`, `RECONNECTING`, `OFFLINE`, `ENDED`, `SUSPENDED`, `UNKNOWN`) se lee de Streaming en cada consulta, en paralelo y con plazo propio. Solo `PLAYABLE` trae `sessionId`; un estado no fresco o sin respuesta es `UNKNOWN` y nunca se presenta como en vivo. Un canal suspendido deja de publicarse: su fuente pasa a `SUSPENDED` sin canal ni metadatos y el resto conserva su estado. Repetir una mutación con la misma clave devuelve la sala sin repetir el efecto ni mostrar otra vez el código (el propietario lo rota si lo perdió); la misma clave con otra carga responde `409 IDEMPOTENCY_CONFLICT`. La retención es de 24 horas.
+
 ## Interfaces aún bloqueadas
 
-Watch parties requiere cerrar P2-01…03. `contracts/p2.json.pendingInterfaces` conserva dependencias reales.
+Con Watch parties cerrada por ADR-025, `contracts/p2.json.pendingInterfaces` queda sin entradas.
 Subtítulos tiene proveedor VOD y controles Web; quedan pendientes reproducción audiovisual y móvil.
 P2-10/11/17 identifican la aceptación pendiente de Chat y propagación transversal; las tablas de diseño por sí solas
 no demuestran schemas completos ni endpoints disponibles.

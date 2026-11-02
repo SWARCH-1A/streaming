@@ -6,9 +6,9 @@ un ADR. Las fechas de trabajo se organizan en Plane; el cierre de código es el 
 
 | ID | Responsable | Pregunta o resultado necesario | Momento de cierre |
 | --- | --- | --- | --- |
-| P2-01 | Watch parties | ¿Las salas son públicas, privadas o accesibles por enlace? ¿Quién puede entrar, crear y modificar? | Antes de implementar permisos y acceso |
-| P2-02 | Watch parties | ¿Cuántas emisiones admite una sala, cómo se disponen y qué ocurre al finalizar una fuente o salir el creador? | Antes de implementar sala y reproductores |
-| P2-03 | Watch parties | ¿Se requiere sincronización entre participantes, chat propio, invitaciones o mezcla audiovisual? ¿Cuál es el ciclo de vida y cierre de la sala? RF-046…051 exigen varios streams visibles, no fijan esas extensiones. | Antes de cerrar la SPEC funcional |
+| P2-01 | Watch parties | **Resuelta por el responsable** ([ADR-025](adr/ADR-025-watch-parties-en-core.md), propuesta): sala privada con código de acceso; entra quien tiene cuenta y código, crea cualquier usuario con sesión y solo el propietario modifica. | Cerrada; revisión de integración pendiente |
+| P2-02 | Watch parties | **Resuelta** (ADR-025): hasta 4 fuentes sin duplicados, rejilla del cliente; una fuente terminada o suspendida conserva su estado real hasta que el propietario la retire; la sala no depende del propietario ni caduca sola. | Cerrada; revisión de integración pendiente |
+| P2-03 | Watch parties | **Resuelta** (ADR-025): sin sincronía, chat propio, invitaciones nominales ni mezcla audiovisual; la invitación es el código o su enlace. Ciclo `OPEN` → `CLOSED`, terminal y solo del propietario. | Cerrada; revisión de integración pendiente |
 | P2-04 | Subtítulos / accesibilidad | Definido por alcance: solo VOD, archivos preparados por propietario; rutas VOD en SPEC-22. Proveedor y permisos implementados en VOD; aceptación integrada de reproductores pendiente. | Revisión de interfaces antes de integrar |
 | P2-05 | Subtítulos / accesibilidad | Perfil propuesto p2-webvtt-text-v1, carga manual UTF-8; formato, límites, idioma y mapping definidos en SPEC-22/ADR-018 y comprobados offline. Perfil conservado por VOD/Web en ADR-022; reproducción audiovisual y móvil pendientes. | Antes de aceptar controles del player |
 | P2-06 | Gateway | **Resuelta:** Go1.26/HTTP estándar para agregación, Caddy TLS/HTTP/WS/HLS, presupuesto JSON3s y dirección de cliente vía proxies de confianza ([ADR-023](adr/ADR-023-gateway-go-caddy.md)). Agregados canal/watch/VOD/exploración implementados y CA-01…07 verificados en local (SPEC-16 §10); adopción watch por SSR/móvil y carga sostenida pendientes. | Antes de integrar SSR y móvil |
@@ -27,7 +27,7 @@ un ADR. Las fechas de trabajo se organizan en Plane; el cierre de código es el 
 
 ## Límite de la definición
 
-Las políticas de watch parties quedan a cargo de sus responsables. Subtítulos tiene alcance VOD
+Las políticas de watch parties las cerró su responsable en ADR-025 y su aceptación integrada sigue pendiente (SPEC-21). Subtítulos tiene alcance VOD
 y perfil de SPEC-22 implementados en VOD y Web; aceptación audiovisual/móvil pendiente.
 Las tecnologías de Gateway/VOD y Notificaciones están registradas en ADR-023/022/020.
 Cuentas entrega publicación y contratos privados de recuperación (ADR-017). RabbitMQ está

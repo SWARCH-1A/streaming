@@ -14,6 +14,7 @@ import streaming.core.accounts.profile.application.ProfileException;
 import streaming.core.channels.application.ChannelException;
 import streaming.core.security.RequestAuditFilter;
 import streaming.core.taxonomy.application.TaxonomyException;
+import streaming.core.watchparty.application.WatchPartyException;
 
 @RestControllerAdvice
 public class CoreErrorHandler {
@@ -34,6 +35,10 @@ public class CoreErrorHandler {
     }
     @ExceptionHandler(ChannelException.class)
     ResponseEntity<ErrorBody> channel(ChannelException error,HttpServletRequest request) {
+        return response(error.status(),error.code(),error.getMessage(),request);
+    }
+    @ExceptionHandler(WatchPartyException.class)
+    ResponseEntity<ErrorBody> watchParty(WatchPartyException error,HttpServletRequest request) {
         return response(error.status(),error.code(),error.getMessage(),request);
     }
     @ExceptionHandler(TaxonomyException.class)

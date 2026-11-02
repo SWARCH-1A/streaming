@@ -2,10 +2,12 @@ import { NavLink } from 'react-router';
 
 import { Badge } from '@/src/components/atoms/Badge';
 import { Icon } from '@/src/components/atoms/Icon';
+import { useSession } from '@/src/shell/session/useSession';
 
 import styles from './Sidebar.module.css';
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+  const { user } = useSession();
   return (
     <aside className={styles.sidebar}>
       <div className={styles.top}>
@@ -33,6 +35,12 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <NavLink to="/studio/vods" onClick={onNavigate}>
             Mis grabaciones
           </NavLink>
+          {user ? (
+            <NavLink to="/watch-parties" onClick={onNavigate}>
+              <Icon name="grid" size={18} />
+              Salas conjuntas
+            </NavLink>
+          ) : null}
           <NavLink to="/notifications" onClick={onNavigate}>
             <Icon name="bell" size={18} />
             Notificaciones

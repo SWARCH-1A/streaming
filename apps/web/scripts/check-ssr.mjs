@@ -100,7 +100,8 @@ try {
   assert.match(html, /Inicia sesión para seguir/);
   assert.doesNotMatch(html, />Siguiendo</);
   assert.ok(requests.every((r) => !r.cookie));
-  for (const path of ['/admin', '/notifications', '/studio', '/profile']) {
+  const room = '/watch-parties/wp_00000000000000000000000000000001';
+  for (const path of ['/admin', '/notifications', '/studio', '/profile', '/watch-parties', room]) {
     const denied = await fetch(base + path, { redirect: 'manual' });
     assert.equal(denied.status, 302);
     assert.equal(denied.headers.get('location'), '/login');
@@ -150,12 +151,28 @@ try {
       path === '/admin' ? /<h1[^>]*>Administración<\/h1>/ : /<h1>Notificaciones<\/h1>/,
     );
   }
+  // Watch parties (SPEC-21): the shell renders on the server; the room itself loads in the browser.
+  for (const [path, heading] of [
+    ['/watch-parties', /<h1>Salas de visualización conjunta<\/h1>/],
+    ['/watch-parties/join', /<h1>Unirme a una sala<\/h1>/],
+  ]) {
+    const page = await fetch(base + path, { headers });
+    assert.equal(page.status, 200);
+    assert.equal(page.headers.get('cache-control'), 'no-store, private');
+    const html = await page.text();
+    assert.match(html, heading);
+    assert.doesNotMatch(html, /fixture-credential|accessCode/);
+  }
+  const roomPage = await fetch(base + room, { headers });
+  assert.equal(roomPage.status, 200);
+  assert.equal(roomPage.headers.get('cache-control'), 'no-store, private');
+  assert.ok(requests.every((r) => !r.path.startsWith('/api/watch-parties')));
   for (const path of ['/channels/missing', '/missing'])
     assert.equal((await fetch(base + path)).status, 404);
   const again = await (await fetch(base + '/channels/fixture_01')).text();
   assert.doesNotMatch(again, /usr_fan|fixture-credential|>Siguiendo</);
   console.log(
-    'PASS SSR: channel/watch HTML, public Streaming isolation, partial failure, session consistency, administration/notifications and 404',
+    'PASS SSR: channel/watch HTML, public Streaming isolation, partial failure, session consistency, administration/notifications, watch parties and 404',
   );
 } finally {
   const closed = once(server, 'exit');

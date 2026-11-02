@@ -29,7 +29,7 @@ de solicitudes deben descartar respuestas tardías y cerrar conexiones anteriore
 | --- | --- |
 | Navegación web | Servidor SSR; respuesta HTML y recursos de Web |
 | Agregados de pantalla | Gateway consulta Core, Streaming y VOD según la vista; Chat y Notificaciones conservan sus APIs |
-| Identidad, perfil, canal, catálogo y Discovery | Core; se conservan permisos y semántica de las APIs existentes |
+| Identidad, perfil, canal, catálogo, Discovery y watch parties (`/api/watch-parties`) | Core; se conservan permisos y semántica de las APIs existentes |
 | Emisión, configuración, estado y leases | Streaming; la ruta de streams de canal tiene precedencia sobre el prefijo Canales |
 | Chat y moderación | Chat; lectura inicial, mensajes y acciones autorizadas |
 | WebSocket chat | Upgrade retransmitido; sin buffering ni envoltorio JSON del Gateway |

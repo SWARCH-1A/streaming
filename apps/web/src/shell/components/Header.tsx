@@ -37,6 +37,7 @@ export function Header({ onMenu, menuOpen = false }: { onMenu: () => void; menuO
           { to: '/', label: 'Explorar' },
           { to: '/search', label: 'Canales' },
           { to: '/studio', label: 'Estudio' },
+          ...(user ? [{ to: '/watch-parties', label: 'Salas' }] : []),
           ...(import.meta.env.DEV
             ? [{ to: '/design-system/components', label: 'Componentes' }]
             : []),

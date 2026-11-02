@@ -23,7 +23,7 @@ una sección falle. Como equipo, necesitamos contratos que permitan desarrollar 
 
 Incluye SSR React Router, móvil KMP/Compose, entrada Gateway, agregación por pantalla, HTTP
 síncrono y broker único, VOD/replay, seguimiento, recuperación, notificaciones, administración
-y las capacidades de watch parties/subtítulos por definir por sus responsables. Excluye pagos,
+las watch parties (SPEC-21, ADR-025) y los subtítulos por definir por sus responsables. Excluye pagos,
 suscripciones de pago, premium y emisión desde cámara móvil.
 
 ## 5. Requisitos funcionales
@@ -32,7 +32,7 @@ Cada RF del [catálogo](../catalogo_requisitos.md) tiene dueño en el [mapa](../
 RF-038…045 quedan fuera de P2. Los contratos de seguimiento/recuperación permanecen en Core;
 Notificaciones recibe trabajos y resuelve medios. RF-079 afecta autorización y disponibilidad
 de canal, live, VOD y replay. Watch parties/subtítulos mantienen RF-046…051 y RF-063…065 sin
-fijar sus políticas pendientes como decisiones aceptadas.
+fijar sus políticas como decisiones aceptadas hasta la revisión de integración.
 
 ## 6. Criterios de aceptación
 

@@ -82,7 +82,7 @@
     reverse_proxy @screens {$GATEWAY_UPSTREAM:http://gateway:8097} {
       import proxy_headers
     }
-    @core path /api/admin/* /api/identity/* /api/profile/* /api/channels/* /api/me/* /api/taxonomy /api/discovery/graphql
+    @core path /api/admin/* /api/identity/* /api/profile/* /api/channels/* /api/me/* /api/taxonomy /api/discovery/graphql /api/watch-parties /api/watch-parties/*
     reverse_proxy @core {$CORE_UPSTREAM:http://core:8081} {
       import proxy_headers
       transport http {

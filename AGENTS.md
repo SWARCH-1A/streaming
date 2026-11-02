@@ -3,7 +3,7 @@
 ## Alcance y lectura
 
 Trabaja en las responsabilidades asignadas por el usuario. Los módulos son accounts, channels,
-streaming, taxonomy, discovery, chat, vod, notifications, accessibility e integration; Core agrupa accounts, channels, taxonomy y discovery; streaming es servicio Rust independiente.
+streaming, taxonomy, discovery, watchparty, chat, vod, notifications, accessibility e integration; Core agrupa accounts, channels, taxonomy, discovery y watchparty; streaming es servicio Rust independiente.
 Identity y Profile son responsabilidades internas de accounts. Una tarea global de arquitectura o
 consolidación explícitamente autorizada puede cambiar el mapa, contratos y módulos afectados.
 Si el alcance no permite identificar una responsabilidad, pide aclaración antes de editar código.
@@ -22,6 +22,7 @@ docs/ es la definición vigente. Usa exclusivamente MCP de Plane y proyecto STRE
 | streaming | Streaming Rust: emisión, cupos, clock, leases y proyección pública; contrato Media | SPEC-04 P2 | src/modules/streaming |
 | taxonomy | Core: categorías y etiquetas | SPEC-06 | src/modules/taxonomy |
 | discovery | Core: consultas y GraphQL | SPEC-07 P2 | src/modules/discovery |
+| watchparty | Core: salas de visualización conjunta, acceso por código y fuentes | SPEC-21 P2 | src/modules/watchparty |
 | chat | Chat: mensajes durables, cuota, secuencia, moderación y replay | SPEC-05 P2 | src/modules/chat |
 | vod | VOD: biblioteca, metadatos, publicación y referencias S3 | SPEC-14 P2 | Ubicación por definir |
 | notifications | Notificaciones: bandeja, preferencias e intentos por medio | SPEC-20 P2 | Ubicación por definir |

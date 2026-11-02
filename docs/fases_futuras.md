@@ -2,7 +2,7 @@
 
 Pagos, suscripciones de pago y premium (RF-038…RF-045) quedan fuera de P2. Las demás
 capacidades del catálogo forman parte de la entrega definida en [alcance P2](alcance_p2.md).
-Las preguntas de watch parties, subtítulos y tecnologías nuevas están en
+Las preguntas de subtítulos y tecnologías nuevas están en
 [decisiones pendientes](decisiones_pendientes_p2.md).
 
 ## Monetización

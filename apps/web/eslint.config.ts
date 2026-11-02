@@ -16,6 +16,7 @@ const modules = [
   'notifications',
   'streaming',
   'taxonomy',
+  'watchparty',
 ];
 
 export default tseslint.config(
