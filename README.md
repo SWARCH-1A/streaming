@@ -36,7 +36,7 @@ para levantar **trece contenedores**:
 
 | Servicio | Función |
 | --- | --- |
-| `core` | Java/Spring: cuentas, perfiles, canales, catálogo y Discovery |
+| `core` | Java/Spring: cuentas, perfiles, canales, catálogo, Discovery y watch parties |
 | `core-db` | PostgreSQL de Core |
 | `chat` | Go: mensajes, historial y WebSocket |
 | `chat-db` | Redis con AOF: mensajes, secuencia y cuota |

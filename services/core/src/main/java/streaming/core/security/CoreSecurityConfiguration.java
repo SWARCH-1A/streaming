@@ -48,13 +48,17 @@ public class CoreSecurityConfiguration {
                             "/api/profile/avatars/**","/api/channels/by-handle/*","/api/channels/by-owner/*","/api/channels/*",
                             "/api/channels/csrf","/api/channels/banners/*","/api/taxonomy",
                             "/api/channels/*/followers/me","/api/me/followed-channels","/api/channels/*/vod-settings",
+                            "/api/watch-parties/*",
                             "/actuator/health","/actuator/health/**","/actuator/info").permitAll()
                     .requestMatchers(HttpMethod.POST,"/api/identity/registrations","/api/identity/sessions","/api/identity/mobile-sessions",
                             "/api/identity/recovery-requests","/api/identity/recoveries/confirm",
-                            "/api/profile/me/avatar-uploads","/api/channels/*/banner-uploads","/api/discovery/graphql").permitAll()
+                            "/api/profile/me/avatar-uploads","/api/channels/*/banner-uploads","/api/discovery/graphql",
+                            "/api/watch-parties","/api/watch-parties/join","/api/watch-parties/*/streams",
+                            "/api/watch-parties/*/access-code/rotate","/api/watch-parties/*/close").permitAll()
                     .requestMatchers(HttpMethod.PATCH,"/api/profile/me","/api/channels/*").permitAll()
                     .requestMatchers(HttpMethod.PUT,"/api/channels/*/followers/me","/api/channels/*/vod-settings").permitAll()
-                    .requestMatchers(HttpMethod.DELETE,"/api/identity/sessions/current","/api/identity/mobile-sessions/current","/api/channels/*/followers/me").permitAll()
+                    .requestMatchers(HttpMethod.DELETE,"/api/identity/sessions/current","/api/identity/mobile-sessions/current","/api/channels/*/followers/me",
+                            "/api/watch-parties/*/streams/*").permitAll()
                     .anyRequest().denyAll())
             .exceptionHandling(e->e.accessDeniedHandler((request,response,error)-> {
                 response.setStatus(403); response.setCharacterEncoding(java.nio.charset.StandardCharsets.UTF_8);

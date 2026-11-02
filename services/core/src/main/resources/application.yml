@@ -15,7 +15,7 @@ spring:
     username: ${CORE_DB_USER:core}
     password: ${CORE_DB_PASSWORD}
   flyway:
-    schemas: core,identity,profile,channels,taxonomy,discovery
+    schemas: core,identity,profile,channels,taxonomy,discovery,watchparty
     default-schema: core
   servlet:
     multipart:
@@ -87,3 +87,9 @@ discovery:
     burst: 20
     window-max: 600
     window: PT60S
+watchparty:
+  # Public Streaming read GET /api/streams/{streamId} (no credentials); it is the authority of every source state.
+  # Empty disables the lookups (sources are UNKNOWN and adding one fails with 503) instead of pointing at a wrong host.
+  streaming-base-url: ${WATCHPARTY_STREAMING_BASE_URL:}
+  streaming-connect-timeout: PT1S
+  streaming-read-timeout: PT2S

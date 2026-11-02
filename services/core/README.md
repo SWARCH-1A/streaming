@@ -23,6 +23,7 @@ Código bajo `src/main/java/streaming/core`:
 - `channels`: creación inicial transaccional, edición propia, portadas y bootstrap público por handle/owner, con vistas SQL públicas de Cuentas.
 - `taxonomy`: catálogo público activo/versionado, semilla SQL, tombstones y validación local de IDs.
 - `discovery`: GraphQL público (`streams`, `channels`), inbox/proyección SQL de los snapshots públicos de Streaming y reconstrucción desde su corte consistente ([ADR-008](../../docs/adr/ADR-008-descubrimiento-en-core.md)).
+- `watchparty`: salas privadas de visualización conjunta con hasta 4 fuentes de Streaming, acceso por código, estado honesto por fuente, suspensión y comandos idempotentes ([ADR-025](../../docs/adr/ADR-025-watch-parties-en-core.md)); ver su [README](src/main/java/streaming/core/watchparty/README.md).
 - `streaming`: documentación de frontera; control de emisiones en el [servicio Rust](../streaming/README.md). Los contextos privados owner/catálogo están implementados en Core; el contexto Chat compone identidad/perfil locales con estado/timeline actual Streaming.
 - `security`, `api`: infraestructura común, sin orquestación de casos de uso de dominio.
 
@@ -101,6 +102,7 @@ del listener, reintentos privados y recuperación del outbox sobre PostgreSQL de
 | CORE_STREAMING_CONSUMER_TOKEN | Secreto de 32+ caracteres enviado como `Authorization: Bearer` a las lecturas privadas; mismo valor que `STREAMING_CORE_CONSUMER_TOKEN` en Streaming. Sin él no hay reconstrucción. Nunca se registra |
 | CORE_STREAMING_DEVELOPMENT_HTTP | `false`; `true` permite HTTP solo en desarrollo aislado |
 | CHAT_CORE_SERVICE_TOKEN | Credencial distinta de las dos Streaming; habilita solo message-context y snapshot Chat en el listener privado |
+| WATCHPARTY_STREAMING_BASE_URL | URL base de la lectura pública de Streaming `GET /api/streams/{streamId}` (sin credenciales) que usa Watch parties para el estado de cada fuente. Vacía (default) deshabilita la lectura: las fuentes quedan `UNKNOWN` y añadir una responde 503. En el stack local, `https://live:8080` |
 | DISCOVERY_RECONCILE_INTERVAL | Duración ISO-8601 de inicio a inicio entre cortes completos; default `PT4S`. Streaming conserva cada corte un día: súbela si el volumen preocupa, sabiendo que la ausencia de una configuración solo se confirma con un corte de menos de 5 s (continua mientras un corte tarde menos de un segundo; si no, esos canales quedan `UNKNOWN` en parte del ciclo) |
 | CORE_TRUSTED_PROXIES | CIDR separados por coma de los reverse proxies cuyo `X-Forwarded-For` se acepta (de derecha a izquierda). Vacío (default) usa siempre la IP del socket; una lista mal formada impide arrancar |
 
@@ -238,7 +240,7 @@ Streaming real.
 ## Base nueva e historiales anteriores
 
 `db/migration/V1__core.sql` es el baseline de una **base nueva**. El historial Flyway se ubica en
-schema `core`; las tablas tienen schemas `identity`, `profile`, `channels` y `taxonomy`.
+schema `core`; las tablas tienen schemas `identity`, `profile`, `channels` y `taxonomy` (más `discovery` y `watchparty`).
 `V2__channel_editing_and_banners.sql` amplía la descripción a 500 caracteres y agrega clave/permisos
 de portada; se aplica tanto a bases nuevas como a una base Core con V1 sin modificar su checksum.
 `V5__discovery.sql` agrega el schema `discovery` (proyección, recepción, conflictos, estado de reconciliación y
@@ -271,6 +273,9 @@ BrokerRepositoryBoundaryTest comprueba la dependencia de esos puertos. BrokerEve
 PostgreSQL desechable para verificar dedupe, versiones, conflictos, concurrencia y rollback de inbox
 y efectos ante un fallo SQL posterior a insertar o actualizar ciclo/proyección. Se ejecutan con
 las suites Unit/Integration anteriores.
+
+`V12__watchparty.sql` agrega el schema `watchparty` (salas, miembros, fuentes y resultados de `Idempotency-Key`); se aplica sobre V11 sin
+modificar migraciones anteriores y `WatchPartyMigrationIT` comprueba la conservación de datos y checksums.
 
 V8__broker_lifecycle_conflicts.sql amplía los motivos de conflicto de Discovery con
 LIFECYCLE_CONFLICT, conservando los de P1. Se aplica sobre V7 sin modificar migraciones anteriores;

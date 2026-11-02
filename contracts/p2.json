@@ -1,7 +1,7 @@
 {
   "version": 2,
   "extends": "p1.json",
-  "coverage": "P2 lifecycle, Discovery, recovery, follow, notifications, mobile auth, administration, live renditions, VOD recording/library/timeline/private media and subtitles contracts, chat moderation contracts.",
+  "coverage": "P2 lifecycle, Discovery, recovery, follow, notifications, mobile auth, administration, live renditions, VOD recording/library/timeline/private media and subtitles contracts, chat moderation contracts, watch parties.",
   "schemas": {
     "P2StreamSessionChangedPayload": {
       "type": "object",
@@ -5241,6 +5241,474 @@
           "authorizedAtUtc": "2026-10-28T20:00:00Z"
         }
       ]
+    },
+    "P2WatchPartyCreate": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "title"
+      ],
+      "additionalProperties": false,
+      "description": "Title is trimmed by Core and cannot be blank or contain control characters; it is counted in code points.",
+      "examples": [
+        {
+          "title": "Maratón de prueba"
+        }
+      ]
+    },
+    "P2WatchPartyJoin": {
+      "type": "object",
+      "properties": {
+        "accessCode": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        }
+      },
+      "required": [
+        "accessCode"
+      ],
+      "additionalProperties": false,
+      "description": "Opaque 256-bit access code in base64url without padding. A malformed or unknown code is indistinguishable from a missing room.",
+      "examples": [
+        {
+          "accessCode": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ"
+        }
+      ]
+    },
+    "P2WatchPartySourceAdd": {
+      "type": "object",
+      "properties": {
+        "streamId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      },
+      "required": [
+        "streamId"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "streamId": "str_fixture"
+        }
+      ]
+    },
+    "P2WatchPartyChannel": {
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "handle": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 25
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "avatarUri": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "channelId",
+        "handle",
+        "displayName",
+        "avatarUri"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "channelId": "chn_fixture",
+          "handle": "fixture",
+          "displayName": "Canal de prueba",
+          "avatarUri": null
+        }
+      ]
+    },
+    "P2WatchPartyOwner": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "handle": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 4,
+          "maxLength": 25
+        },
+        "displayName": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "avatarUri": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "userId",
+        "handle",
+        "displayName",
+        "avatarUri"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "userId": "usr_fixture",
+          "handle": "fixture",
+          "displayName": "Cuenta de prueba",
+          "avatarUri": null
+        }
+      ]
+    },
+    "P2WatchPartySource": {
+      "type": "object",
+      "properties": {
+        "streamId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "sessionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "addedAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "state": {
+          "enum": [
+            "PLAYABLE",
+            "RECONNECTING",
+            "OFFLINE",
+            "ENDED",
+            "SUSPENDED",
+            "UNKNOWN"
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 100
+        },
+        "category": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 100
+        },
+        "viewerCount": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "statusFresh": {
+          "type": "boolean"
+        },
+        "channel": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/P2WatchPartyChannel"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "streamId",
+        "sessionId",
+        "addedAtUtc",
+        "state",
+        "title",
+        "category",
+        "viewerCount",
+        "statusFresh",
+        "channel"
+      ],
+      "additionalProperties": false,
+      "description": "Only PLAYABLE carries a sessionId: an ended, offline, unknown or suspended source, or any source of a closed room, has none and cannot be consumed from the room. SUSPENDED also hides its channel and metadata. UNKNOWN means Streaming did not answer or its state is not fresh; it is never presented as live.",
+      "examples": [
+        {
+          "streamId": "str_fixture",
+          "sessionId": "ses_fixture",
+          "addedAtUtc": "2026-10-30T18:00:00Z",
+          "state": "PLAYABLE",
+          "title": "Conversación",
+          "category": "Conversación",
+          "viewerCount": 3,
+          "statusFresh": true,
+          "channel": {
+            "channelId": "chn_fixture",
+            "handle": "fixture",
+            "displayName": "Canal de prueba",
+            "avatarUri": null
+          }
+        },
+        {
+          "streamId": "str_suspended",
+          "sessionId": null,
+          "addedAtUtc": "2026-10-30T18:01:00Z",
+          "state": "SUSPENDED",
+          "title": null,
+          "category": null,
+          "viewerCount": null,
+          "statusFresh": false,
+          "channel": null
+        }
+      ]
+    },
+    "P2WatchParty": {
+      "type": "object",
+      "properties": {
+        "partyId": {
+          "type": "string",
+          "pattern": "^wp_[0-9a-f]{32}$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "status": {
+          "enum": [
+            "OPEN",
+            "CLOSED"
+          ]
+        },
+        "partyVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "maxSources": {
+          "const": 4
+        },
+        "memberCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "isOwner": {
+          "type": "boolean"
+        },
+        "accessCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{43}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "owner": {
+          "$ref": "#/$defs/P2WatchPartyOwner"
+        },
+        "sources": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/P2WatchPartySource"
+          }
+        },
+        "createdAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "updatedAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "closedAtUtc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "pattern": "Z$"
+        }
+      },
+      "required": [
+        "partyId",
+        "title",
+        "status",
+        "partyVersion",
+        "maxSources",
+        "memberCount",
+        "isOwner",
+        "accessCode",
+        "owner",
+        "sources",
+        "createdAtUtc",
+        "updatedAtUtc",
+        "closedAtUtc"
+      ],
+      "additionalProperties": false,
+      "description": "accessCode is non-null only in the response that creates or rotates it (the first time); a replay with the same Idempotency-Key returns the same room without it and the owner rotates the code to get a new one. partyVersion increases with every effective change.",
+      "examples": [
+        {
+          "partyId": "wp_00000000000000000000000000000001",
+          "title": "Maratón de prueba",
+          "status": "OPEN",
+          "partyVersion": 2,
+          "maxSources": 4,
+          "memberCount": 2,
+          "isOwner": false,
+          "accessCode": null,
+          "owner": {
+            "userId": "usr_fixture",
+            "handle": "fixture",
+            "displayName": "Cuenta de prueba",
+            "avatarUri": null
+          },
+          "sources": [
+            {
+              "streamId": "str_fixture",
+              "sessionId": "ses_fixture",
+              "addedAtUtc": "2026-10-30T18:00:00Z",
+              "state": "PLAYABLE",
+              "title": "Conversación",
+              "category": "Conversación",
+              "viewerCount": 3,
+              "statusFresh": true,
+              "channel": {
+                "channelId": "chn_fixture",
+                "handle": "fixture",
+                "displayName": "Canal de prueba",
+                "avatarUri": null
+              }
+            },
+            {
+              "streamId": "str_suspended",
+              "sessionId": null,
+              "addedAtUtc": "2026-10-30T18:01:00Z",
+              "state": "SUSPENDED",
+              "title": null,
+              "category": null,
+              "viewerCount": null,
+              "statusFresh": false,
+              "channel": null
+            }
+          ],
+          "createdAtUtc": "2026-10-30T17:59:00Z",
+          "updatedAtUtc": "2026-10-30T18:01:00Z",
+          "closedAtUtc": null
+        },
+        {
+          "partyId": "wp_00000000000000000000000000000001",
+          "title": "Maratón de prueba",
+          "status": "OPEN",
+          "partyVersion": 0,
+          "maxSources": 4,
+          "memberCount": 1,
+          "isOwner": true,
+          "accessCode": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ",
+          "owner": {
+            "userId": "usr_fixture",
+            "handle": "fixture",
+            "displayName": "Cuenta de prueba",
+            "avatarUri": null
+          },
+          "sources": [],
+          "createdAtUtc": "2026-10-30T17:59:00Z",
+          "updatedAtUtc": "2026-10-30T17:59:00Z",
+          "closedAtUtc": null
+        },
+        {
+          "partyId": "wp_00000000000000000000000000000001",
+          "title": "Maratón de prueba",
+          "status": "CLOSED",
+          "partyVersion": 3,
+          "maxSources": 4,
+          "memberCount": 2,
+          "isOwner": false,
+          "accessCode": null,
+          "owner": {
+            "userId": "usr_fixture",
+            "handle": "fixture",
+            "displayName": "Cuenta de prueba",
+            "avatarUri": null
+          },
+          "sources": [
+            {
+              "streamId": "str_fixture",
+              "sessionId": null,
+              "addedAtUtc": "2026-10-30T18:00:00Z",
+              "state": "UNKNOWN",
+              "title": "Conversación",
+              "category": "Conversación",
+              "viewerCount": 3,
+              "statusFresh": true,
+              "channel": {
+                "channelId": "chn_fixture",
+                "handle": "fixture",
+                "displayName": "Canal de prueba",
+                "avatarUri": null
+              }
+            }
+          ],
+          "createdAtUtc": "2026-10-30T17:59:00Z",
+          "updatedAtUtc": "2026-10-30T18:05:00Z",
+          "closedAtUtc": "2026-10-30T18:05:00Z"
+        }
+      ]
     }
   },
   "events": [
@@ -6123,6 +6591,202 @@
         }
       },
       "public": true
+    },
+    {
+      "schema": "P2WatchPartyCreate",
+      "value": {
+        "title": ""
+      }
+    },
+    {
+      "schema": "P2WatchPartyCreate",
+      "value": {
+        "title": "Sala",
+        "ownerUserId": "usr_other"
+      }
+    },
+    {
+      "schema": "P2WatchPartyJoin",
+      "value": {
+        "accessCode": "short"
+      }
+    },
+    {
+      "schema": "P2WatchPartySourceAdd",
+      "value": {
+        "streamId": "str_fixture",
+        "sessionId": "ses_fixture"
+      }
+    },
+    {
+      "schema": "P2WatchParty",
+      "value": {
+        "partyId": "wp_00000000000000000000000000000001",
+        "title": "Maratón de prueba",
+        "status": "OPEN",
+        "partyVersion": 2,
+        "maxSources": 4,
+        "memberCount": 2,
+        "isOwner": false,
+        "accessCode": null,
+        "owner": {
+          "userId": "usr_fixture",
+          "handle": "fixture",
+          "displayName": "Cuenta de prueba",
+          "avatarUri": null
+        },
+        "sources": [
+          {
+            "streamId": "str_fixture",
+            "sessionId": "ses_fixture",
+            "addedAtUtc": "2026-10-30T18:00:00Z",
+            "state": "PLAYABLE",
+            "title": "Conversación",
+            "category": "Conversación",
+            "viewerCount": 3,
+            "statusFresh": true,
+            "channel": {
+              "channelId": "chn_fixture",
+              "handle": "fixture",
+              "displayName": "Canal de prueba",
+              "avatarUri": null
+            }
+          },
+          {
+            "streamId": "str_fixture",
+            "sessionId": "ses_fixture",
+            "addedAtUtc": "2026-10-30T18:00:00Z",
+            "state": "PLAYABLE",
+            "title": "Conversación",
+            "category": "Conversación",
+            "viewerCount": 3,
+            "statusFresh": true,
+            "channel": {
+              "channelId": "chn_fixture",
+              "handle": "fixture",
+              "displayName": "Canal de prueba",
+              "avatarUri": null
+            }
+          },
+          {
+            "streamId": "str_fixture",
+            "sessionId": "ses_fixture",
+            "addedAtUtc": "2026-10-30T18:00:00Z",
+            "state": "PLAYABLE",
+            "title": "Conversación",
+            "category": "Conversación",
+            "viewerCount": 3,
+            "statusFresh": true,
+            "channel": {
+              "channelId": "chn_fixture",
+              "handle": "fixture",
+              "displayName": "Canal de prueba",
+              "avatarUri": null
+            }
+          },
+          {
+            "streamId": "str_fixture",
+            "sessionId": "ses_fixture",
+            "addedAtUtc": "2026-10-30T18:00:00Z",
+            "state": "PLAYABLE",
+            "title": "Conversación",
+            "category": "Conversación",
+            "viewerCount": 3,
+            "statusFresh": true,
+            "channel": {
+              "channelId": "chn_fixture",
+              "handle": "fixture",
+              "displayName": "Canal de prueba",
+              "avatarUri": null
+            }
+          },
+          {
+            "streamId": "str_fixture",
+            "sessionId": "ses_fixture",
+            "addedAtUtc": "2026-10-30T18:00:00Z",
+            "state": "PLAYABLE",
+            "title": "Conversación",
+            "category": "Conversación",
+            "viewerCount": 3,
+            "statusFresh": true,
+            "channel": {
+              "channelId": "chn_fixture",
+              "handle": "fixture",
+              "displayName": "Canal de prueba",
+              "avatarUri": null
+            }
+          }
+        ],
+        "createdAtUtc": "2026-10-30T17:59:00Z",
+        "updatedAtUtc": "2026-10-30T18:01:00Z",
+        "closedAtUtc": null
+      }
+    },
+    {
+      "schema": "P2WatchParty",
+      "value": {
+        "partyId": "wp_00000000000000000000000000000001",
+        "title": "Maratón de prueba",
+        "status": "OPEN",
+        "partyVersion": 2,
+        "maxSources": 4,
+        "memberCount": 2,
+        "isOwner": false,
+        "accessCode": null,
+        "owner": {
+          "userId": "usr_fixture",
+          "handle": "fixture",
+          "displayName": "Cuenta de prueba",
+          "avatarUri": null
+        },
+        "sources": [
+          {
+            "streamId": "str_fixture",
+            "sessionId": "ses_fixture",
+            "addedAtUtc": "2026-10-30T18:00:00Z",
+            "state": "PLAYABLE",
+            "title": "Conversación",
+            "category": "Conversación",
+            "viewerCount": 3,
+            "statusFresh": true,
+            "channel": {
+              "channelId": "chn_fixture",
+              "handle": "fixture",
+              "displayName": "Canal de prueba",
+              "avatarUri": null
+            }
+          },
+          {
+            "streamId": "str_suspended",
+            "sessionId": null,
+            "addedAtUtc": "2026-10-30T18:01:00Z",
+            "state": "SUSPENDED",
+            "title": null,
+            "category": null,
+            "viewerCount": null,
+            "statusFresh": false,
+            "channel": null
+          }
+        ],
+        "createdAtUtc": "2026-10-30T17:59:00Z",
+        "updatedAtUtc": "2026-10-30T18:01:00Z",
+        "closedAtUtc": null,
+        "accessCodeHash": "0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    },
+    {
+      "schema": "P2WatchPartySource",
+      "value": {
+        "streamId": "str_suspended",
+        "sessionId": null,
+        "addedAtUtc": "2026-10-30T18:01:00Z",
+        "state": "PAUSED",
+        "title": null,
+        "category": null,
+        "viewerCount": null,
+        "statusFresh": false,
+        "channel": null
+      }
     }
   ],
   "operations": [
@@ -8210,20 +8874,205 @@
       ],
       "semantics": "read",
       "status": "implemented"
+    },
+    {
+      "id": "p2.watch-parties.create",
+      "method": "POST",
+      "path": "/api/watch-parties",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core / Watch parties",
+      "auth": "opaque session via cookie or Bearer; browser CSRF on mutations",
+      "timeoutMs": 5000,
+      "spec": "SPEC-21",
+      "traceability": "docs/spec-p2/spec_21_watch_party.md",
+      "visibility": "public",
+      "request": "P2WatchPartyCreate",
+      "responses": {
+        "201": "P2WatchParty",
+        "400": "Error",
+        "401": "Error",
+        "409": "Error",
+        "503": "Error"
+      },
+      "idempotency": "Idempotency-Key UUID bound to principal, operation and fingerprint; replay the same result for 24 h (without the access code); different payload 409",
+      "recovery": "Repeat with the same key to recover the room; if the code was lost, the owner rotates it.",
+      "limits": "Any authenticated user may create. Title 1-100 code points. The access code appears only in this response.",
+      "requiredHeaders": [
+        "Idempotency-Key"
+      ]
+    },
+    {
+      "id": "p2.watch-parties.get",
+      "method": "GET",
+      "path": "/api/watch-parties/{partyId}",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core / Watch parties",
+      "auth": "opaque session via cookie or Bearer; browser CSRF on mutations",
+      "timeoutMs": 5000,
+      "spec": "SPEC-21",
+      "traceability": "docs/spec-p2/spec_21_watch_party.md",
+      "visibility": "public",
+      "request": null,
+      "responses": {
+        "200": "P2WatchParty",
+        "401": "Error",
+        "404": "Error",
+        "503": "Error"
+      },
+      "idempotency": "Safe read",
+      "recovery": "Retry freely; poll to refresh source states.",
+      "limits": "Cache-Control: no-store. Owner and members only; anyone else, and a malformed ID, gets 404. Streaming states are read in parallel.",
+      "requiredHeaders": []
+    },
+    {
+      "id": "p2.watch-parties.join",
+      "method": "POST",
+      "path": "/api/watch-parties/join",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core / Watch parties",
+      "auth": "opaque session via cookie or Bearer; browser CSRF on mutations",
+      "timeoutMs": 5000,
+      "spec": "SPEC-21",
+      "traceability": "docs/spec-p2/spec_21_watch_party.md",
+      "visibility": "public",
+      "request": "P2WatchPartyJoin",
+      "responses": {
+        "200": "P2WatchParty",
+        "400": "Error",
+        "401": "Error",
+        "404": "Error",
+        "409": "Error",
+        "503": "Error"
+      },
+      "idempotency": "Idempotency-Key UUID bound to principal, operation and fingerprint; replay the same result for 24 h (without the access code); different payload 409",
+      "recovery": "Repeat with the same Idempotency-Key and payload; a conflict means the room changed, so read it again.",
+      "limits": "Requires an account and the access code. Joining twice keeps one membership. A closed room answers 409.",
+      "requiredHeaders": [
+        "Idempotency-Key"
+      ]
+    },
+    {
+      "id": "p2.watch-parties.add-source",
+      "method": "POST",
+      "path": "/api/watch-parties/{partyId}/streams",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core / Watch parties",
+      "auth": "opaque session via cookie or Bearer; browser CSRF on mutations",
+      "timeoutMs": 5000,
+      "spec": "SPEC-21",
+      "traceability": "docs/spec-p2/spec_21_watch_party.md",
+      "visibility": "public",
+      "request": "P2WatchPartySourceAdd",
+      "responses": {
+        "201": "P2WatchParty",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "503": "Error"
+      },
+      "idempotency": "Idempotency-Key UUID bound to principal, operation and fingerprint; replay the same result for 24 h (without the access code); different payload 409",
+      "recovery": "Repeat with the same Idempotency-Key and payload; a conflict means the room changed, so read it again.",
+      "limits": "Owner only. At most 4 sources and no duplicates. Only a PLAYABLE stream whose channel is active; Streaming is the authority and an unanswered read fails closed (503).",
+      "requiredHeaders": [
+        "Idempotency-Key"
+      ]
+    },
+    {
+      "id": "p2.watch-parties.remove-source",
+      "method": "DELETE",
+      "path": "/api/watch-parties/{partyId}/streams/{streamId}",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core / Watch parties",
+      "auth": "opaque session via cookie or Bearer; browser CSRF on mutations",
+      "timeoutMs": 5000,
+      "spec": "SPEC-21",
+      "traceability": "docs/spec-p2/spec_21_watch_party.md",
+      "visibility": "public",
+      "request": null,
+      "responses": {
+        "200": "P2WatchParty",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "503": "Error"
+      },
+      "idempotency": "Idempotency-Key UUID bound to principal, operation and fingerprint; replay the same result for 24 h (without the access code); different payload 409",
+      "recovery": "Repeat with the same Idempotency-Key and payload; a conflict means the room changed, so read it again.",
+      "limits": "Owner only. Removing a stream that is not in the room succeeds without changing it.",
+      "requiredHeaders": [
+        "Idempotency-Key"
+      ]
+    },
+    {
+      "id": "p2.watch-parties.rotate-code",
+      "method": "POST",
+      "path": "/api/watch-parties/{partyId}/access-code/rotate",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core / Watch parties",
+      "auth": "opaque session via cookie or Bearer; browser CSRF on mutations",
+      "timeoutMs": 5000,
+      "spec": "SPEC-21",
+      "traceability": "docs/spec-p2/spec_21_watch_party.md",
+      "visibility": "public",
+      "request": null,
+      "responses": {
+        "200": "P2WatchParty",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "503": "Error"
+      },
+      "idempotency": "Idempotency-Key UUID bound to principal, operation and fingerprint; replay the same result for 24 h (without the access code); different payload 409",
+      "recovery": "Repeat with the same key returns the room without a code; use a new key to obtain another code.",
+      "limits": "Owner only. The previous code stops working; current members keep their access. The new code appears only here.",
+      "requiredHeaders": [
+        "Idempotency-Key"
+      ]
+    },
+    {
+      "id": "p2.watch-parties.close",
+      "method": "POST",
+      "path": "/api/watch-parties/{partyId}/close",
+      "provider": "Core",
+      "consumer": "Web",
+      "owner": "Core / Watch parties",
+      "auth": "opaque session via cookie or Bearer; browser CSRF on mutations",
+      "timeoutMs": 5000,
+      "spec": "SPEC-21",
+      "traceability": "docs/spec-p2/spec_21_watch_party.md",
+      "visibility": "public",
+      "request": null,
+      "responses": {
+        "200": "P2WatchParty",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "404": "Error",
+        "409": "Error",
+        "503": "Error"
+      },
+      "idempotency": "Idempotency-Key UUID bound to principal, operation and fingerprint; replay the same result for 24 h (without the access code); different payload 409",
+      "recovery": "Repeat with the same Idempotency-Key and payload; a conflict means the room changed, so read it again.",
+      "limits": "Owner only and terminal: afterwards nobody can join or change the room and no source carries a sessionId. Closing a closed room returns it unchanged.",
+      "requiredHeaders": [
+        "Idempotency-Key"
+      ]
     }
   ],
   "retiredP1Operations": [],
-  "pendingInterfaces": [
-    {
-      "id": "watch-parties",
-      "blockedBy": [
-        "P2-01",
-        "P2-02",
-        "P2-03"
-      ],
-      "traceability": "docs/spec-p2/spec_21_watch_party.md"
-    }
-  ],
+  "pendingInterfaces": [],
   "subtitleProfile": {
     "id": "p2-webvtt-text-v1",
     "status": "contract-only",

@@ -36,8 +36,8 @@ SPEC-15 verifica recorridos entre componentes, sin reemplazar sus definiciones p
 
 [Alcance](../alcance_p2.md) y [catálogo](../catalogo_requisitos.md) fijan las funciones.
 [Decisiones pendientes](../decisiones_pendientes_p2.md) asigna las políticas y tecnologías aún
-abiertas. Watch parties y subtítulos tienen SPEC y operaciones requeridas; sus firmas definitivas
-siguen bloqueadas por las políticas que debe elegir su responsable.
+abiertas. Watch parties cerró sus políticas en [ADR-025](../adr/ADR-025-watch-parties-en-core.md) y publica sus operaciones; subtítulos tiene SPEC y operaciones
+requeridas, con firmas definitivas sujetas a las políticas que elija su responsable.
 
 Las [SPEC P1](../spec-p1/README.md) conservan exclusivamente el perfil de la primera entrega.
 Para las responsabilidades ampliadas rige una sola definición vigente: la SPEC P2 del mismo ID.

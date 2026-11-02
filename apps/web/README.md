@@ -76,16 +76,18 @@ SSR y no sustituye el proxy. Axe/teclado complementan la revisión con lector de
 
 ## Rutas y comportamiento
 
-| Ruta                                                  | Fuente                                                                                        |
-| ----------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| / y /search?q=…&category=…&tag=…                      | Consultas GraphQL generadas de Discovery y Taxonomy dinámico; ranking/cursor/AND en servidor. |
-| /channels/:handle                                     | Bootstrap Core, casing canónico y estado UNKNOWN si Streaming falla.                          |
-| /watch/:streamId                                      | Streaming autoritativo, canal Core por ID, HLS y Chat real por sessionId.                     |
-| /login y /register                                    | Cookie HttpOnly/CSRF; registro crea cuenta/perfil/canal y login es separado.                  |
-| /profile                                              | Sesión requerida, perfil y avatar con upload multipart Core.                                  |
-| /studio/channel                                       | Sesión requerida, descripción y portada con upload multipart Core.                            |
-| /studio                                               | Configuración/metadata, clave de creación/rotación solo en memoria, stop y monitor real.      |
-| /design-system, /design-system/components, /prototype | Biblioteca visual disponible solo con `pnpm dev`; producción muestra página no encontrada.    |
+| Ruta                                                          | Fuente                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| / y /search?q=…&category=…&tag=…                              | Consultas GraphQL generadas de Discovery y Taxonomy dinámico; ranking/cursor/AND en servidor.                                                                                                                                              |
+| / y /search (sección Grabaciones)                             | Búsqueda VOD por título, categoría y etiqueta con el agregado `/api/screens/explore` del Gateway; su fallo no afecta a la sección en vivo.                                                                                                 |
+| /watch-parties y /watch-parties/:partyId; /watch-parties/join | Sesión requerida; `/watch-parties/join` es pública para explicar cómo continuar sin sesión. Salas de hasta 4 fuentes (SPEC-21): crear, unirse con código en el fragmento del enlace, sondeo cada 5 s y un `HlsPlayer` por fuente PLAYABLE. |
+| /channels/:handle                                             | Bootstrap Core, casing canónico y estado UNKNOWN si Streaming falla.                                                                                                                                                                       |
+| /watch/:streamId                                              | Streaming autoritativo, canal Core por ID, HLS y Chat real por sessionId.                                                                                                                                                                  |
+| /login y /register                                            | Cookie HttpOnly/CSRF; registro crea cuenta/perfil/canal y login es separado.                                                                                                                                                               |
+| /profile                                                      | Sesión requerida, perfil y avatar con upload multipart Core.                                                                                                                                                                               |
+| /studio/channel                                               | Sesión requerida, descripción y portada con upload multipart Core.                                                                                                                                                                         |
+| /studio                                                       | Configuración/metadata, clave de creación/rotación solo en memoria, stop y monitor real.                                                                                                                                                   |
+| /design-system, /design-system/components, /prototype         | Biblioteca visual disponible solo con `pnpm dev`; producción muestra página no encontrada.                                                                                                                                                 |
 
 La identidad visible es Vault tv. El logo local se importa desde `public/brand/vault-tv.png` y
 conserva sus proporciones; los tokens Dark Cinema Broadcast definen contraste, foco y estados.

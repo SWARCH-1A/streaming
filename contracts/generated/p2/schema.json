@@ -3446,6 +3446,213 @@
         }
       ]
     },
+    "P2WatchParty": {
+      "additionalProperties": false,
+      "description": "accessCode is non-null only in the response that creates or rotates it (the first time); a replay with the same Idempotency-Key returns the same room without it and the owner rotates the code to get a new one. partyVersion increases with every effective change.",
+      "examples": [
+        {
+          "accessCode": null,
+          "closedAtUtc": null,
+          "createdAtUtc": "2026-10-30T17:59:00Z",
+          "isOwner": false,
+          "maxSources": 4,
+          "memberCount": 2,
+          "owner": {"avatarUri": null, "displayName": "Cuenta de prueba", "handle": "fixture", "userId": "usr_fixture"},
+          "partyId": "wp_00000000000000000000000000000001",
+          "partyVersion": 2,
+          "sources": [
+            {
+              "addedAtUtc": "2026-10-30T18:00:00Z",
+              "category": "Conversación",
+              "channel": {"avatarUri": null, "channelId": "chn_fixture", "displayName": "Canal de prueba", "handle": "fixture"},
+              "sessionId": "ses_fixture",
+              "state": "PLAYABLE",
+              "statusFresh": true,
+              "streamId": "str_fixture",
+              "title": "Conversación",
+              "viewerCount": 3
+            },
+            {
+              "addedAtUtc": "2026-10-30T18:01:00Z",
+              "category": null,
+              "channel": null,
+              "sessionId": null,
+              "state": "SUSPENDED",
+              "statusFresh": false,
+              "streamId": "str_suspended",
+              "title": null,
+              "viewerCount": null
+            }
+          ],
+          "status": "OPEN",
+          "title": "Maratón de prueba",
+          "updatedAtUtc": "2026-10-30T18:01:00Z"
+        },
+        {
+          "accessCode": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ",
+          "closedAtUtc": null,
+          "createdAtUtc": "2026-10-30T17:59:00Z",
+          "isOwner": true,
+          "maxSources": 4,
+          "memberCount": 1,
+          "owner": {"avatarUri": null, "displayName": "Cuenta de prueba", "handle": "fixture", "userId": "usr_fixture"},
+          "partyId": "wp_00000000000000000000000000000001",
+          "partyVersion": 0,
+          "sources": [],
+          "status": "OPEN",
+          "title": "Maratón de prueba",
+          "updatedAtUtc": "2026-10-30T17:59:00Z"
+        },
+        {
+          "accessCode": null,
+          "closedAtUtc": "2026-10-30T18:05:00Z",
+          "createdAtUtc": "2026-10-30T17:59:00Z",
+          "isOwner": false,
+          "maxSources": 4,
+          "memberCount": 2,
+          "owner": {"avatarUri": null, "displayName": "Cuenta de prueba", "handle": "fixture", "userId": "usr_fixture"},
+          "partyId": "wp_00000000000000000000000000000001",
+          "partyVersion": 3,
+          "sources": [
+            {
+              "addedAtUtc": "2026-10-30T18:00:00Z",
+              "category": "Conversación",
+              "channel": {"avatarUri": null, "channelId": "chn_fixture", "displayName": "Canal de prueba", "handle": "fixture"},
+              "sessionId": null,
+              "state": "UNKNOWN",
+              "statusFresh": true,
+              "streamId": "str_fixture",
+              "title": "Conversación",
+              "viewerCount": 3
+            }
+          ],
+          "status": "CLOSED",
+          "title": "Maratón de prueba",
+          "updatedAtUtc": "2026-10-30T18:05:00Z"
+        }
+      ],
+      "properties": {
+        "accessCode": {"anyOf": [{"pattern": "^[A-Za-z0-9_-]{43}$", "type": "string"}, {"type": "null"}]},
+        "closedAtUtc": {"format": "date-time", "pattern": "Z$", "type": ["string", "null"]},
+        "createdAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "isOwner": {"type": "boolean"},
+        "maxSources": {"const": 4},
+        "memberCount": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "owner": {"$ref": "#/$defs/P2WatchPartyOwner"},
+        "partyId": {"pattern": "^wp_[0-9a-f]{32}$", "type": "string"},
+        "partyVersion": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "sources": {"items": {"$ref": "#/$defs/P2WatchPartySource"}, "maxItems": 4, "type": "array"},
+        "status": {"enum": ["OPEN", "CLOSED"]},
+        "title": {"maxLength": 100, "minLength": 1, "type": "string"},
+        "updatedAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"}
+      },
+      "required": [
+        "partyId",
+        "title",
+        "status",
+        "partyVersion",
+        "maxSources",
+        "memberCount",
+        "isOwner",
+        "accessCode",
+        "owner",
+        "sources",
+        "createdAtUtc",
+        "updatedAtUtc",
+        "closedAtUtc"
+      ],
+      "type": "object"
+    },
+    "P2WatchPartyChannel": {
+      "additionalProperties": false,
+      "examples": [{"avatarUri": null, "channelId": "chn_fixture", "displayName": "Canal de prueba", "handle": "fixture"}],
+      "properties": {
+        "avatarUri": {"type": ["string", "null"]},
+        "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "displayName": {"maxLength": 100, "minLength": 1, "type": "string"},
+        "handle": {"maxLength": 25, "minLength": 4, "type": "string"}
+      },
+      "required": ["channelId", "handle", "displayName", "avatarUri"],
+      "type": "object"
+    },
+    "P2WatchPartyCreate": {
+      "additionalProperties": false,
+      "description": "Title is trimmed by Core and cannot be blank or contain control characters; it is counted in code points.",
+      "examples": [{"title": "Maratón de prueba"}],
+      "properties": {"title": {"maxLength": 100, "minLength": 1, "type": "string"}},
+      "required": ["title"],
+      "type": "object"
+    },
+    "P2WatchPartyJoin": {
+      "additionalProperties": false,
+      "description": "Opaque 256-bit access code in base64url without padding. A malformed or unknown code is indistinguishable from a missing room.",
+      "examples": [{"accessCode": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ"}],
+      "properties": {"accessCode": {"pattern": "^[A-Za-z0-9_-]{43}$", "type": "string"}},
+      "required": ["accessCode"],
+      "type": "object"
+    },
+    "P2WatchPartyOwner": {
+      "additionalProperties": false,
+      "examples": [{"avatarUri": null, "displayName": "Cuenta de prueba", "handle": "fixture", "userId": "usr_fixture"}],
+      "properties": {
+        "avatarUri": {"type": ["string", "null"]},
+        "displayName": {"maxLength": 100, "minLength": 1, "type": ["string", "null"]},
+        "handle": {"maxLength": 25, "minLength": 4, "type": ["string", "null"]},
+        "userId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["userId", "handle", "displayName", "avatarUri"],
+      "type": "object"
+    },
+    "P2WatchPartySource": {
+      "additionalProperties": false,
+      "description": "Only PLAYABLE carries a sessionId: an ended, offline, unknown or suspended source, or any source of a closed room, has none and cannot be consumed from the room. SUSPENDED also hides its channel and metadata. UNKNOWN means Streaming did not answer or its state is not fresh; it is never presented as live.",
+      "examples": [
+        {
+          "addedAtUtc": "2026-10-30T18:00:00Z",
+          "category": "Conversación",
+          "channel": {"avatarUri": null, "channelId": "chn_fixture", "displayName": "Canal de prueba", "handle": "fixture"},
+          "sessionId": "ses_fixture",
+          "state": "PLAYABLE",
+          "statusFresh": true,
+          "streamId": "str_fixture",
+          "title": "Conversación",
+          "viewerCount": 3
+        },
+        {
+          "addedAtUtc": "2026-10-30T18:01:00Z",
+          "category": null,
+          "channel": null,
+          "sessionId": null,
+          "state": "SUSPENDED",
+          "statusFresh": false,
+          "streamId": "str_suspended",
+          "title": null,
+          "viewerCount": null
+        }
+      ],
+      "properties": {
+        "addedAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "category": {"maxLength": 100, "type": ["string", "null"]},
+        "channel": {"anyOf": [{"$ref": "#/$defs/P2WatchPartyChannel"}, {"type": "null"}]},
+        "sessionId": {
+          "anyOf": [{"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}, {"type": "null"}]
+        },
+        "state": {"enum": ["PLAYABLE", "RECONNECTING", "OFFLINE", "ENDED", "SUSPENDED", "UNKNOWN"]},
+        "statusFresh": {"type": "boolean"},
+        "streamId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "title": {"maxLength": 100, "type": ["string", "null"]},
+        "viewerCount": {"anyOf": [{"maximum": 9007199254740991, "minimum": 0, "type": "integer"}, {"type": "null"}]}
+      },
+      "required": ["streamId", "sessionId", "addedAtUtc", "state", "title", "category", "viewerCount", "statusFresh", "channel"],
+      "type": "object"
+    },
+    "P2WatchPartySourceAdd": {
+      "additionalProperties": false,
+      "examples": [{"streamId": "str_fixture"}],
+      "properties": {"streamId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}},
+      "required": ["streamId"],
+      "type": "object"
+    },
     "P2WatchScreen": {
       "additionalProperties": false,
       "examples": [

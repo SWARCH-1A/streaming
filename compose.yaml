@@ -48,6 +48,8 @@ services:
       CORE_STREAMING_CONSUMER_TOKEN: ${CORE_STREAMING_CONSUMER_TOKEN:?Run init}
       CORE_STREAMING_BASE_URL: https://live:8091
       CORE_STREAMING_DEVELOPMENT_HTTP: "false"
+      # Watch parties read each source from Streaming's public listener (no credentials); TLS is trusted through the local CA.
+      WATCHPARTY_STREAMING_BASE_URL: https://live:8080
       CHAT_CORE_SERVICE_TOKEN: ${CHAT_CORE_SERVICE_TOKEN:?Run init}
       CORE_VOD_SERVICE_TOKEN: ${CORE_VOD_SERVICE_TOKEN:?Run init}
       CORE_NOTIFICATIONS_SERVICE_TOKEN: ${CORE_NOTIFICATIONS_SERVICE_TOKEN:?Run python3 infra/local/dev.py init}

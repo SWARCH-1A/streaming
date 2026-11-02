@@ -11,6 +11,7 @@ import { FormField } from '@/src/components/molecules/FormField';
 import { Notice } from '@/src/components/molecules/Notice';
 import { Panel } from '@/src/components/molecules/Panel';
 import { StreamPreview } from '@/src/modules/discovery/components/StreamPreview';
+import { VodSection } from '@/src/modules/discovery/VodSection';
 import { useCatalog } from '@/src/modules/taxonomy/entry';
 import { request } from '@/src/shared/api/http';
 import { useResource } from '@/src/shared/api/useResource';
@@ -248,6 +249,13 @@ export function DiscoveryPage({ search = false }: { search?: boolean }) {
           ) : null}
         </section>
       ) : null}
+      <VodSection
+        key={JSON.stringify([q, categoryId, tagId])}
+        q={q}
+        categoryId={categoryId}
+        tagId={tagId}
+        taxonomy={catalog.data}
+      />
     </div>
   );
 }

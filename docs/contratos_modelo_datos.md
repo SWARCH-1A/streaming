@@ -81,8 +81,8 @@ de sesión aunque falte video; copiar ese offset sin mapping no acredita sincron
 
 Cada interfaz declara esquema neutral, permisos, correlación, errores y presupuesto de tiempo.
 La tabla conserva las rutas HTTP base. Las operaciones nuevas de móvil, agregación, VOD, moderación y notificaciones están en
-[contratos HTTP P2](contratos_p2_http.md). Watch parties/subtítulos requieren cerrar las políticas
-y schemas señalados en sus SPEC; no tienen rutas definitivas mientras esas decisiones sigan abiertas.
+[contratos HTTP P2](contratos_p2_http.md). Watch parties ([SPEC-21](spec-p2/spec_21_watch_party.md), ADR-025) publica sus siete operaciones en esos contratos; las rutas de subtítulos
+siguen las políticas y schemas de su SPEC.
 
 | Interfaz | Proveedor / consumidor | Semántica y fallo |
 | --- | --- | --- |
@@ -799,8 +799,8 @@ Ambas fuentes se validan con `contracts/generate.py --check`; los consumidores u
 los artefactos derivados de `contracts/generated/`.
 
 Los contratos generados P1 no incluyen agregados SSR, login móvil, broker, VOD, moderación,
-notificaciones, watch parties ni pistas P2. La ampliación estructural vive en [contracts/p2.json](../contracts/p2.json); `contracts/check_p2.py`
+notificaciones ni pistas P2, y tampoco watch parties. La ampliación estructural vive en [contracts/p2.json](../contracts/p2.json); `contracts/check_p2.py`
 valida fuentes y ejemplos sin modificar derivados. La cobertura ejecutable actual contiene
 el registro de nueve eventos, tres payloads de ciclo/Discovery/recuperación y las cuatro operaciones
-de recuperación; el resto permanece pendiente. Watch parties/subtítulos y firmas en revisión
+de recuperación; el resto permanece pendiente. Las siete operaciones de watch parties están en `p2.json`. Los subtítulos y las firmas en revisión
 requieren las decisiones indicadas en su registro. No editar derivados manualmente.

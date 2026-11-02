@@ -15,7 +15,7 @@ Los requisitos de pagos/premium RF-038…045 quedan fuera de la entrega.
 | RF-017…026 | [SPEC-04](spec-p2/spec_04_stream.md) | CA-07…09 y máquina base: inicio, estado, reconexión, metadata, stop y leases |
 | RF-027…030 | [SPEC-04](spec-p2/spec_04_stream.md) | CA-01…03: calidades reales, un cupo y selección manual/automática |
 | RF-031…037 | [SPEC-05](spec-p2/spec_05_chat.md) | CA-01…04/08: mensajes, cuota, orden, supresión y bloqueo flexible |
-| RF-046…051 | [SPEC-21](spec-p2/spec_21_watch_party.md) | CA-01…07: políticas por cerrar, permisos, varias fuentes y recuperación |
+| RF-046…051 | [SPEC-21](spec-p2/spec_21_watch_party.md) | CA-01…07: políticas cerradas (ADR-025), permisos, varias fuentes y recuperación |
 | RF-052…055 | [SPEC-20](spec-p2/spec_20_notifications.md) | CA-01…09: bandeja, leído, preferencias y entrega por medio |
 | RF-056…062 | [SPEC-14](spec-p2/spec_14_vod.md) | CA-01…09: grabación, publicación, reproducción, edición, borrado y duración |
 | RF-063…065 | [SPEC-22](spec-p2/spec_22_subtitles.md) | CA-01…07: política/formato pendientes, pistas reales y controles |
@@ -64,7 +64,7 @@ Los requisitos de pagos/premium RF-038…045 quedan fuera de la entrega.
 | P2-I-12 | Cuenta suspendida → Core → Streaming/Chat/VOD → Gateway | Sesiones revocadas, consumidores atrasados, URL directa de cada asset y autoridad caída | Administración / todos los proveedores |
 | P2-I-13 | DELETE VOD → retirada → limpieza S3/Chat/pistas | Trabajo repetido/fallido, índice/cierre atrasado y reactivación sin republicar | VOD / Chat / Subtítulos |
 | P2-I-14 | Navegación SSR → Gateway → agregado → hidratación | Dos usuarios concurrentes, sección caída, cancelación y cinco segundos completos | Web / Gateway |
-| P2-I-15 | Watch party con fuentes reales | Después de P2-01…03: roles/acceso, límites, salida y fuente terminada/suspendida | Watch parties |
+| P2-I-15 | Watch party con fuentes reales | Con P2-01…03 cerradas (ADR-025): roles/acceso, límite de 4, salida y fuente terminada/suspendida, con varias reproducciones reales y sus leases | Watch parties |
 | P2-I-16 | Pista → contenido → player | Después de P2-04…05: validación, idioma, seek, calidad y restricción por URL directa | Subtítulos / Players |
 | P2-I-17 | Checkout limpio → despliegue → reinicio → restauración | Volúmenes, datos/objetos, broker/DLQ, proveedores externos y mínimos académicos reales | Integración |
 

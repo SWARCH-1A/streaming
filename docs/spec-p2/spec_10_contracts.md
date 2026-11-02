@@ -26,7 +26,7 @@ lo produce/consume, qué errores admite y cómo reintentarlo.
 ## 4. Alcance
 
 Schemas JSON, ejemplos válidos/negativos, inventario HTTP/WS/eventos, versiones y reglas
-semánticas; referencias entre SPEC y contratos. Las APIs de watch parties/subtítulos quedan
+semánticas; referencias entre SPEC y contratos. Las APIs de watch parties (ADR-025) están publicadas; las de subtítulos quedan
 bloqueadas hasta cerrar sus políticas, sin rutas ficticias consideradas listas.
 
 ## 5. Requisitos funcionales

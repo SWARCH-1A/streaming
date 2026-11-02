@@ -192,7 +192,7 @@ Si el usuario no sube una imagen, se muestra el recurso predeterminado.
 - Web usa React Router SSR y móvil KMP con Compose Multiplatform. HLS y WebSocket se ejecutan en el cliente.
 - El Gateway compone datos por pantalla y preserva fallos parciales; cada servicio conserva reglas y datos de negocio.
 - El perfil de carga de P1 se conserva como referencia de regresión. La aceptación integrada de P2 incluye los recorridos y fallos de [SPEC-15](spec-p2/spec_15_int.md).
-- Las políticas de watch parties, subtítulos y las tecnologías nuevas se cierran por sus responsables en [decisiones pendientes](decisiones_pendientes_p2.md).
+- Las políticas de subtítulos y las tecnologías nuevas se cierran por sus responsables en [decisiones pendientes](decisiones_pendientes_p2.md); las de watch parties están en [ADR-025](adr/ADR-025-watch-parties-en-core.md).
 
 ## Fuera de P2
 

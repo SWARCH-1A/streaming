@@ -87,6 +87,11 @@
 .details {
   min-width: 0;
 }
+/* WCAG 2.2 2.5.8: the title link must be at least 24 px tall, as in the shared StreamCard. */
+.details > a:first-child {
+  display: block;
+  min-height: 24px;
+}
 .details h3 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -114,4 +119,10 @@
 
 .filters > button {
   margin-left: auto;
+}
+
+.vods {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  gap: 1rem;
 }
