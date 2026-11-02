@@ -15,6 +15,7 @@ interface Polled<T> {
  * definitive "gone" answer (401/403/404) clears it. `enabled=false` stops the loop, and `until` stops it
  * after a read that reached a terminal state (a closed room never changes again). A read that was already in
  * flight when `replace` applied a command's answer is discarded, so older data never overwrites newer data.
+ * `initial` (the room the server already rendered) is shown at once and the first read waits one interval.
  */
 export function usePolling<T>(
   key: string,
@@ -22,6 +23,7 @@ export function usePolling<T>(
   interval: number,
   enabled = true,
   until?: (data: T) => boolean,
+  initial?: T,
 ) {
   const loader = useRef(load);
   const finished = useRef(until);
@@ -29,7 +31,14 @@ export function usePolling<T>(
     loader.current = load;
     finished.current = until;
   });
-  const [state, setState] = useState<Polled<T>>({ key, data: null, error: null, loading: true });
+  const [state, setState] = useState<Polled<T>>({
+    key,
+    data: initial ?? null,
+    error: null,
+    loading: initial === undefined,
+  });
+  // The server already read this state: the first poll is one interval away, not immediate.
+  const skipFirst = useRef(initial !== undefined);
   const [revision, setRevision] = useState(0);
   // Bumped by `replace`: a read started before it describes a state the command already moved past.
   const epoch = useRef(0);
@@ -63,7 +72,12 @@ export function usePolling<T>(
           void read();
         }, interval);
     }
-    void read();
+    if (skipFirst.current) {
+      skipFirst.current = false;
+      timer = setTimeout(() => {
+        void read();
+      }, interval);
+    } else void read();
     return () => {
       controller.abort();
       clearTimeout(timer);

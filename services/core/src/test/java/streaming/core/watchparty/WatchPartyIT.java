@@ -254,6 +254,37 @@ class WatchPartyIT {
         assertThat(jdbc.sql("SELECT party_version FROM watchparty.parties").query(Long.class).single()).isEqualTo(1);
     }
 
+    @Test void concurrentRetriesOfTheSameAddWithTheSameKeyAllSucceedAndAddItOnce() throws Exception {
+        var owner=user("owner_01").login();
+        String stream=stream("str_a",user("caster_02"),"PLAYABLE");
+        STREAMING_REPLIES.put(stream,new Reply(200,live(stream,channelOf(stream),"PLAYABLE"),150));
+        String party=createParty(owner,"Final").get("partyId").textValue();
+        String key=UUID.randomUUID().toString();
+
+        List<HttpResponse<String>> results=concurrently(5,i->owner.send("POST","/api/watch-parties/"+party+"/streams",Map.of("streamId",stream),true,key));
+
+        // Neither STREAM_ALREADY_IN_PARTY nor WATCH_PARTY_FULL: a retry of a command that succeeded is its recorded success.
+        assertThat(results).allSatisfy(r->assertThat(r.statusCode()).as(r.body()).isEqualTo(201));
+        assertThat(count("watchparty.party_streams")).isEqualTo(1);
+        assertThat(jdbc.sql("SELECT party_version FROM watchparty.parties").query(Long.class).single()).isEqualTo(1);
+    }
+
+    @Test void concurrentRetriesOfTheAddThatFillsTheRoomAllSucceed() throws Exception {
+        var owner=user("owner_01").login();
+        List<String> ids=new ArrayList<>();
+        for(int i=0;i<4;i++) ids.add(stream("str_"+i,user("caster_0"+(i+2)),"PLAYABLE"));
+        String party=createParty(owner,"Final").get("partyId").textValue();
+        for(String id:ids.subList(0,3)) assertThat(owner.send("POST","/api/watch-parties/"+party+"/streams",Map.of("streamId",id),true).statusCode()).isEqualTo(201);
+        String fourth=ids.get(3);
+        STREAMING_REPLIES.put(fourth,new Reply(200,live(fourth,channelOf(fourth),"PLAYABLE"),150));
+        String key=UUID.randomUUID().toString();
+
+        List<HttpResponse<String>> results=concurrently(4,i->owner.send("POST","/api/watch-parties/"+party+"/streams",Map.of("streamId",fourth),true,key));
+
+        assertThat(results).allSatisfy(r->assertThat(r.statusCode()).as(r.body()).isEqualTo(201));
+        assertThat(count("watchparty.party_streams")).isEqualTo(4);
+    }
+
     @Test void theSameStreamMayBeInDifferentParties() throws Exception {
         var owner=user("owner_01").login();
         String stream=stream("str_a",user("caster_02"),"PLAYABLE");

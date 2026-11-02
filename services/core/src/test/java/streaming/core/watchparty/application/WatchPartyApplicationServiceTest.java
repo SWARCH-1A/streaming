@@ -395,6 +395,40 @@ class WatchPartyApplicationServiceTest {
         verify(store,never()).addStream(anyString(),anyString(),anyString(),any());
     }
 
+    @Test void anOverlappingRetryRejectedEarlyBecauseTheFirstOneCommittedGetsTheRecordedOutcome() {
+        var recorded=Optional.of(new Operation(sha256("ADD|"+PARTY+"|"+STREAM),PARTY));
+        // First look (before the checks): nothing recorded yet. After the early rejection: the first request has committed.
+        when(store.operation(eq("usr_owner"),eq(sha256(KEY.toString())),any())).thenReturn(Optional.empty(),recorded);
+        when(store.find(PARTY)).thenReturn(Optional.of(party(PARTY,"OPEN",1)));
+        when(store.hasStream(PARTY,STREAM)).thenReturn(true);   // already in the room: the first request added it
+        when(store.streams(PARTY)).thenReturn(List.of(new PartyStream(STREAM,"chn_1",T0)));
+        when(streams.findAll(List.of(STREAM))).thenReturn(Map.of(STREAM,Lookup.found(snapshot("LIVE","PLAYABLE",true,1,"ses_1"))));
+        when(channels.byChannelId("chn_1")).thenReturn(Optional.of(card("chn_1","usr_c1","caster_02")));
+
+        PartyView view=service.addStream(OWNER,KEY,PARTY,body("streamId",STREAM));
+
+        assertThat(view.sources()).hasSize(1);
+        verify(streams,never()).find(anyString());
+        verify(store,never()).addStream(anyString(),anyString(),anyString(),any());
+    }
+
+    @Test void theCapacityRaceOfAnOverlappingRetryAlsoGetsTheRecordedOutcome() {
+        var recorded=Optional.of(new Operation(sha256("ADD|"+PARTY+"|"+STREAM),PARTY));
+        when(store.operation(eq("usr_owner"),eq(sha256(KEY.toString())),any())).thenReturn(Optional.empty(),recorded);
+        when(store.find(PARTY)).thenReturn(Optional.of(party(PARTY,"OPEN",4)));
+        when(store.countStreams(PARTY)).thenReturn(4);          // the first request added the fourth one
+        when(store.streams(PARTY)).thenReturn(List.of());
+
+        assertThat(service.addStream(OWNER,KEY,PARTY,body("streamId",STREAM)).partyVersion()).isEqualTo(4);
+        verifyNoInteractions(streams);
+    }
+
+    @Test void aRejectionWithNoRecordedOutcomeIsStillAnError() {
+        when(store.find(PARTY)).thenReturn(Optional.of(party(PARTY,"OPEN",2)));
+        when(store.hasStream(PARTY,STREAM)).thenReturn(true);
+        assertConflict(()->service.addStream(OWNER,KEY,PARTY,body("streamId",STREAM)),"STREAM_ALREADY_IN_PARTY");
+    }
+
     @Test void theLimitAndDuplicatesAreCheckedAgainUnderTheRowLockToSurviveRaces() {
         openPartyForOwner();
         when(streams.find(STREAM)).thenReturn(Lookup.found(snapshot("LIVE","PLAYABLE",true,1,"ses_1")));

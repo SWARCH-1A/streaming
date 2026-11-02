@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as Http from '@/src/shared/api/http';
 import { HttpError, request } from '@/src/shared/api/http';
 
-import { hideCode } from './codeVault';
+import { hideCode, peekCode, revealCode } from './codeVault';
 import { WatchPartyRoom } from './WatchPartyRoom';
 
 vi.mock('@/src/shared/api/http', async (importOriginal) => ({
@@ -51,11 +51,14 @@ const id = member.partyId;
 function error(status: number, code: string) {
   return new HttpError(status, { code, message: 'servidor', requestId: 'req_test' });
 }
-function mount() {
+function mount(initial?: P2WatchParty | null) {
   return render(
     <MemoryRouter initialEntries={[`/watch-parties/${id}`]}>
       <Routes>
-        <Route path="/watch-parties/:partyId" element={<WatchPartyRoom />} />
+        <Route
+          path="/watch-parties/:partyId"
+          element={<WatchPartyRoom initial={initial ?? null} />}
+        />
       </Routes>
     </MemoryRouter>,
   );
@@ -90,6 +93,42 @@ afterEach(() => {
 });
 
 describe('sala de visualización conjunta', () => {
+  it('con los datos que el servidor ya renderizó pinta la sala al instante y sondea después', async () => {
+    vi.useFakeTimers();
+    serve(() => ({ ...member, title: 'Actualizada' }));
+    mount(member);
+    // Sin esperar a ninguna lectura: el HTML del servidor ya trae el título, el canal y el estado de cada fuente.
+    expect(screen.getByRole('heading', { level: 1, name: member.title })).toBeInTheDocument();
+    expect(screen.getByText(`Reproductor ${member.sources[0]?.sessionId}`)).toBeInTheDocument();
+    expect(screen.queryByText('Cargando sala…')).not.toBeInTheDocument();
+    expect(request).not.toHaveBeenCalled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('heading', { level: 1, name: 'Actualizada' })).toBeInTheDocument();
+  });
+
+  it('una sala que el servidor ya entregó cerrada no vuelve a sondearse', async () => {
+    vi.useFakeTimers();
+    serve(() => closed);
+    mount(closed);
+    expect(screen.getByText('CERRADA')).toBeInTheDocument();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30000);
+    });
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it('los datos iniciales de otra sala no se muestran en esta', async () => {
+    serve(() => member);
+    mount({ ...closed, partyId: 'wp_' + 'e'.repeat(32) });
+    expect(screen.queryByText('CERRADA')).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { level: 1, name: member.title }),
+    ).toBeInTheDocument();
+  });
+
   it('un miembro ve la sala y sus fuentes, pero no los controles del propietario', async () => {
     serve(() => member);
     mount();
@@ -224,6 +263,20 @@ describe('sala de visualización conjunta', () => {
       ([, o]) => (o as { headers: Record<string, string> }).headers['Idempotency-Key'],
     );
     expect(first).not.toBe(second);
+  });
+
+  it('tras una rotación repetida el código viejo deja de ofrecerse, también en la memoria de la pestaña', async () => {
+    const stale = 'v'.repeat(43);
+    revealCode(id, stale);
+    serve((_path, options) => (options.method === 'POST' ? { ...owner, accessCode: null } : owner));
+    mount();
+    const panel = await screen.findByRole('region', { name: 'Código de acceso' });
+    expect(within(panel).getByLabelText('Código')).toHaveValue(stale);
+    await userEvent.click(await screen.findByRole('button', { name: 'Rotar código de acceso' }));
+    expect(await screen.findByText(/no se puede volver a mostrar/)).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Código de acceso' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Copiar/ })).not.toBeInTheDocument();
+    expect(peekCode(id)).toBeNull();
   });
 
   it('una repetición idempotente de la rotación explica que el código no puede volver a mostrarse', async () => {

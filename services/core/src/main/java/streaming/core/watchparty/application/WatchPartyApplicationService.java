@@ -96,16 +96,17 @@ public class WatchPartyApplicationService {
         authorize(principal,current,true);
         Optional<Party> replay=replayed(principal,key,request);
         if(replay.isPresent()) return view(replay.get(),principal,null,Map.of());
-        if(current.closed()) throw closed();
-        // Cheap pre-checks avoid a remote call that cannot succeed; the same rules are re-checked under the row lock.
-        if(parties.hasStream(id,streamId)) throw duplicate();
-        if(parties.countStreams(id)>=WatchPartyRules.MAX_STREAMS) throw full();
-        Lookup lookup=streams.find(streamId);
-        if(lookup.outcome()==Outcome.UNAVAILABLE) throw new WatchPartyException(HttpStatus.SERVICE_UNAVAILABLE,"STREAMING_UNAVAILABLE","No fue posible consultar la transmisión.");
-        if(lookup.outcome()==Outcome.NOT_FOUND) throw streamNotFound();
-        if(!lookup.snapshot().playable()) throw new WatchPartyException(HttpStatus.CONFLICT,"STREAM_NOT_LIVE","La transmisión no está en vivo y reproducible.");
-        // A suspended owner's channel is not published, so it cannot be added either.
-        ChannelCard channel=channels.byChannelId(lookup.snapshot().channelId()).orElseThrow(WatchPartyApplicationService::streamNotFound);
+        Admitted admitted;
+        try { admitted=admit(current,id,streamId); }
+        catch(WatchPartyException rejection) {
+            // An identical retry that overlapped the first request can be rejected here only because that request already
+            // committed (duplicate, full, no longer live): its recorded outcome wins over any early rejection.
+            Optional<Party> late=replayed(principal,key,request);
+            if(late.isPresent()) return view(late.get(),principal,null,Map.of());
+            throw rejection;
+        }
+        Lookup lookup=admitted.lookup();
+        ChannelCard channel=admitted.channel();
         Done done=once(principal,key,request,()-> {
             Party locked=parties.lock(id).orElseThrow(WatchPartyApplicationService::notFound);
             if(locked.closed()) throw closed();
@@ -116,6 +117,25 @@ public class WatchPartyApplicationService {
             return parties.bump(id,now);
         });
         return view(done.party(),principal,null,done.replayed()?Map.of():Map.of(streamId,lookup));
+    }
+
+    private record Admitted(Lookup lookup,ChannelCard channel) { }
+
+    /**
+     * Cheap checks and the remote read, before any lock: they avoid a call that cannot succeed and the same rules are
+     * re-checked under the row lock. Only a PLAYABLE stream whose channel Core publishes can be added.
+     */
+    private Admitted admit(Party current,String id,String streamId) {
+        if(current.closed()) throw closed();
+        if(parties.hasStream(id,streamId)) throw duplicate();
+        if(parties.countStreams(id)>=WatchPartyRules.MAX_STREAMS) throw full();
+        Lookup lookup=streams.find(streamId);
+        if(lookup.outcome()==Outcome.UNAVAILABLE) throw new WatchPartyException(HttpStatus.SERVICE_UNAVAILABLE,"STREAMING_UNAVAILABLE","No fue posible consultar la transmisión.");
+        if(lookup.outcome()==Outcome.NOT_FOUND) throw streamNotFound();
+        if(!lookup.snapshot().playable()) throw new WatchPartyException(HttpStatus.CONFLICT,"STREAM_NOT_LIVE","La transmisión no está en vivo y reproducible.");
+        // A suspended owner's channel is not published, so it cannot be added either.
+        ChannelCard channel=channels.byChannelId(lookup.snapshot().channelId()).orElseThrow(WatchPartyApplicationService::streamNotFound);
+        return new Admitted(lookup,channel);
     }
 
     /** RF-048. Removing a stream that is not in the room succeeds without changing it. */

@@ -11,7 +11,8 @@ Core por `/api/watch-parties*` y reproduce cada fuente con el `HlsPlayer` existe
   entrada del historial para que el secreto no quede en él. Es una ruta pública a propósito: sin
   sesión explica que hay que iniciar sesión o crear una cuenta y volver a abrir el enlace, en vez
   de redirigir a `/login` y perder el enlace.
-- `/watch-parties/:partyId`: la sala. Sondea cada 5 s, muestra hasta 4 fuentes (1 columna; 2 × 2
+- `/watch-parties/:partyId`: la sala. El servidor la lee con la sesión de quien la pide (loader) y el HTML ya trae el título,
+  los canales y el estado de cada fuente; el navegador sigue desde ahí: sondea cada 5 s (el primer sondeo, un intervalo después), muestra hasta 4 fuentes (1 columna; 2 × 2
   desde 56 rem) y conserva la última información si una lectura falla.
 
 Cada fuente `PLAYABLE` monta su propio `HlsPlayer`; al dejar de serlo, quitarla, cerrar la sala o

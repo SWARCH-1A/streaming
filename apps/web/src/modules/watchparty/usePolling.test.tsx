@@ -106,3 +106,14 @@ it('un fallo de un sondeo superado por un comando no marca error ni borra la sal
   });
   expect(result.current).toMatchObject({ data: 'del comando', error: null });
 });
+
+it('con datos iniciales del servidor los muestra al instante y espera un intervalo para el primer sondeo', async () => {
+  const load = vi.fn(() => Promise.resolve('fresco'));
+  const { result } = renderHook(() => usePolling('k', load, 5000, true, undefined, 'del servidor'));
+  expect(result.current).toMatchObject({ data: 'del servidor', loading: false, error: null });
+  await tick(4999);
+  expect(load).not.toHaveBeenCalled();
+  await tick(1);
+  expect(result.current.data).toBe('fresco');
+  expect(load).toHaveBeenCalledTimes(1);
+});

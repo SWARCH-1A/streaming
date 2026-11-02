@@ -63,9 +63,11 @@ public class HttpStreamDirectory implements StreamDirectory {
         } catch(RuntimeException e) {
             return CompletableFuture.completedFuture(Lookup.unavailable());
         }
-        // HttpRequest.timeout stops applying once the headers arrive: orTimeout bounds the whole exchange, body included.
-        return client.sendAsync(request,HttpResponse.BodyHandlers.ofString())
-                .orTimeout(readTimeout.toMillis(),TimeUnit.MILLISECONDS)
+        var exchange=client.sendAsync(request,HttpResponse.BodyHandlers.ofString());
+        // HttpRequest.timeout stops applying once the headers arrive. Cancelling the exchange itself at the deadline (not just
+        // failing a dependent future) closes the connection of a stalled body, so repeated polls cannot pile up open exchanges.
+        CompletableFuture.delayedExecutor(readTimeout.toMillis(),TimeUnit.MILLISECONDS).execute(()->exchange.cancel(true));
+        return exchange
                 .thenApply(response->parse(streamId,response))
                 .exceptionally(error-> {
                     log.warn("event=streaming_lookup_failed component=core module=watchparty streamId={} reason={}",

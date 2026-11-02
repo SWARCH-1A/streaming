@@ -47,12 +47,15 @@ function changes(previous: Record<string, string>, party: Party) {
   return messages.join('. ');
 }
 
-export function WatchPartyRoom() {
+/** `initial` is the room the server rendered for this request (SSR); the browser keeps polling from there. */
+export function WatchPartyRoom({ initial }: { initial?: Party | null } = {}) {
   const { partyId = '' } = useParams();
-  return <Room key={partyId} partyId={partyId} />;
+  return (
+    <Room key={partyId} partyId={partyId} initial={initial?.partyId === partyId ? initial : null} />
+  );
 }
 
-function Room({ partyId }: { partyId: string }) {
+function Room({ partyId, initial }: { partyId: string; initial: Party | null }) {
   const { user } = useSession();
   const userId = user?.userId;
   const valid = PARTY_ID.test(partyId);
@@ -60,8 +63,10 @@ function Room({ partyId }: { partyId: string }) {
     `party:${partyId}`,
     (signal) => getParty(partyId, signal),
     POLL_MS,
-    valid,
+    // A room that was already closed when the server rendered it never changes again.
+    valid && initial?.status !== 'CLOSED',
     (next) => next.status === 'CLOSED',
+    initial ?? undefined,
   );
   const party = room.data;
   const command = useCommand();
@@ -97,10 +102,14 @@ function Room({ partyId }: { partyId: string }) {
     if (next.accessCode) {
       revealCode(partyId, next.accessCode);
       setCode(next.accessCode);
-    } else
+    } else {
+      // The rotation did apply: whatever code this tab still shows no longer admits anyone.
+      hideCode(partyId);
+      setCode(null);
       setNotice(
         'Esa rotación ya se había aplicado y el código no se puede volver a mostrar. Rótalo otra vez para obtener uno nuevo.',
       );
+    }
   }
   async function close() {
     const next = await apply('close', (key) => closeParty(partyId, key));

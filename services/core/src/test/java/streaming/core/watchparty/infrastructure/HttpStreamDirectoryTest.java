@@ -124,20 +124,27 @@ class HttpStreamDirectoryTest {
         assertThat(Duration.ofNanos(System.nanoTime()-started)).isLessThan(Duration.ofMillis(1400));
     }
 
-    @Test void aServerThatStallsAfterTheHeadersIsAlsoBoundedByTheTimeout() {
+    @Test void aServerThatStallsAfterTheHeadersIsBoundedByTheTimeoutAndItsConnectionIsClosed() {
+        var closedByClient=new java.util.concurrent.atomic.AtomicBoolean();
         routes.put("/api/streams/"+STREAM,exchange-> {
             try {
                 exchange.getResponseHeaders().set("Content-Type","application/json");
                 exchange.sendResponseHeaders(200,100000);
-                exchange.getResponseBody().write("{\"streamId\":".getBytes(StandardCharsets.UTF_8));
-                exchange.getResponseBody().flush();
-                sleep(2500);
+                // A trickling body that never completes: only a cancelled exchange makes these writes fail.
+                for(int i=0;i<60;i++) {
+                    exchange.getResponseBody().write('x');
+                    exchange.getResponseBody().flush();
+                    sleep(100);
+                }
                 exchange.close();
-            } catch(IOException ignored) { /* the client gave up first */ }
+            } catch(IOException clientGone) { closedByClient.set(true); }
         });
         long started=System.nanoTime();
         assertThat(directory.find(STREAM).outcome()).isEqualTo(Outcome.UNAVAILABLE);
         assertThat(Duration.ofNanos(System.nanoTime()-started)).as("headers arrive at once; only the body stalls").isLessThan(Duration.ofMillis(1400));
+        long deadline=System.nanoTime()+Duration.ofSeconds(3).toNanos();
+        while(!closedByClient.get() && System.nanoTime()<deadline) sleep(50);
+        assertThat(closedByClient).as("the deadline cancels the exchange itself, not just the future waiting for it").isTrue();
     }
 
     @Test void anEmptyBaseUrlDisablesTheLookupsWithoutAnyRequest() {
