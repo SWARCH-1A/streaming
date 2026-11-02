@@ -14,6 +14,22 @@ export function VodPlayer({
   vod: P2Vod;
   onPosition?: (ms: number, grant: string) => void;
 }) {
+  return (
+    <Player
+      key={`${vod.vodId}:${vod.mappingVersion}`}
+      vod={vod}
+      {...(onPosition ? { onPosition } : {})}
+    />
+  );
+}
+
+function Player({
+  vod,
+  onPosition,
+}: {
+  vod: P2Vod;
+  onPosition?: (ms: number, grant: string) => void;
+}) {
   const video = useRef<HTMLVideoElement>(null);
   const engine = useRef<Hls | null>(null);
   const permission = useRef('');
@@ -30,8 +46,12 @@ export function VodPlayer({
     trackResult.vodId === vod.vodId && trackResult.mapping === vod.mappingVersion;
   const tracks = currentTracks ? trackResult.items : [];
   const [track, setTrack] = useState('');
+  const selectedTrack = useRef('');
+  const failedTracks = useRef(new Set<string>());
+  const [trackAttempt, setTrackAttempt] = useState(0);
   const [failure, setFailure] = useState('');
   const [trackError, setTrackError] = useState('');
+  const [trackListError, setTrackListError] = useState('');
   const [trackPage, setTrackPage] = useState({
     vodId: vod.vodId,
     mapping: vod.mappingVersion,
@@ -139,10 +159,11 @@ export function VodPlayer({
             nextCursor: page.nextCursor,
           }));
           if (!trackCursor) setTrack('');
-          setTrackError('');
+          setTrackListError('');
         },
         () => {
-          if (!controller.signal.aborted) setTrackError('No se pudieron consultar los subtítulos.');
+          if (!controller.signal.aborted)
+            setTrackListError('No se pudieron consultar los subtítulos.');
         },
       )
       .finally(() => {
@@ -152,8 +173,13 @@ export function VodPlayer({
   }, [vod.vodId, vod.mappingVersion, trackCursor, trackPage.request]);
 
   function selectTrack(id: string) {
+    selectedTrack.current = id;
     setTrack(id);
-    setTrackError('');
+    setTrackError(
+      failedTracks.current.has(id)
+        ? 'No se pudo cargar la pista. Puedes reintentar o desactivar los subtítulos.'
+        : '',
+    );
     if (video.current)
       for (const item of Array.from(video.current.textTracks))
         item.mode = item.id === id ? 'showing' : 'disabled';
@@ -176,16 +202,34 @@ export function VodPlayer({
       >
         {tracks.map((item) => (
           <track
-            key={item.trackId}
+            key={`${item.trackId}:${trackAttempt}`}
             id={item.trackId}
             kind="subtitles"
             srcLang={item.language}
             label={item.label}
             src={item.contentPath}
             default={item.trackId === track}
-            onError={() =>
-              setTrackError('No se pudo cargar la pista. Puedes desactivar los subtítulos.')
-            }
+            ref={(element) => {
+              if (!element) return;
+              // Track load/error events do not bubble. Listen on the actual track element.
+              const loaded = () => {
+                failedTracks.current.delete(item.trackId);
+                if (selectedTrack.current === item.trackId) selectTrack(item.trackId);
+              };
+              const failed = () => {
+                failedTracks.current.add(item.trackId);
+                if (selectedTrack.current === item.trackId)
+                  setTrackError(
+                    'No se pudo cargar la pista. Puedes reintentar o desactivar los subtítulos.',
+                  );
+              };
+              element.addEventListener('load', loaded);
+              element.addEventListener('error', failed);
+              return () => {
+                element.removeEventListener('load', loaded);
+                element.removeEventListener('error', failed);
+              };
+            }}
           />
         ))}
       </video>
@@ -250,7 +294,34 @@ export function VodPlayer({
           Cargar más pistas
         </Button>
       ) : null}
-      {trackError ? <Notice tone="warning">{trackError}</Notice> : null}
+      {trackListError ? (
+        <Notice tone="warning">
+          {trackListError}{' '}
+          <Button
+            disabled={trackPending}
+            onClick={() => {
+              setTrackPending(true);
+              setTrackPage((previous) => ({ ...previous, request: previous.request + 1 }));
+            }}
+          >
+            Reintentar listado de subtítulos
+          </Button>
+        </Notice>
+      ) : null}
+      {trackError ? (
+        <Notice tone="warning">
+          {trackError}{' '}
+          <Button
+            onClick={() => {
+              setTrackError('');
+              failedTracks.current.delete(track);
+              setTrackAttempt((value) => value + 1);
+            }}
+          >
+            Reintentar subtítulos
+          </Button>
+        </Notice>
+      ) : null}
     </section>
   );
 }

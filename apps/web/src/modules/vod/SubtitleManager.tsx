@@ -7,6 +7,10 @@ import { Notice } from '@/src/components/molecules/Notice';
 import { errorMessage, request } from '@/src/shared/api/http';
 
 export function SubtitleManager({ vod }: { vod: P2Vod }) {
+  return <TrackManager key={`${vod.vodId}:${vod.mappingVersion}`} vod={vod} />;
+}
+
+function TrackManager({ vod }: { vod: P2Vod }) {
   const id = useId();
   const [tracks, setTracks] = useState<P2SubtitleTrack[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -15,6 +19,10 @@ export function SubtitleManager({ vod }: { vod: P2Vod }) {
   const [label, setLabel] = useState('Español');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const form = useRef<HTMLFormElement>(null);
+  const summary = useRef<HTMLElement>(null);
   const keys = useRef(new Map<string, string>());
   const key = (fingerprint: string) => {
     let value = keys.current.get(fingerprint);
@@ -39,10 +47,27 @@ export function SubtitleManager({ vod }: { vod: P2Vod }) {
     setNextCursor(page.nextCursor);
   }
   async function upload() {
-    if (!file || file.size > 1048576) {
-      setError('Selecciona un archivo WebVTT de hasta 1 MiB.');
+    if (pending) return;
+    const errors: Record<string, string> = {};
+    if (!/^[a-z]{2,3}(-[A-Z][a-z]{3})?(-([A-Z]{2}|[0-9]{3}))?(?![\s\S])/.test(language))
+      errors.language = 'Indica un idioma como es, en-US o es-419, sin espacios.';
+    if (
+      !label.trim() ||
+      label !== label.trim() ||
+      [...label].length > 80 ||
+      /[\p{Cc}]/u.test(label)
+    )
+      errors.label = 'Escribe un nombre de 1 a 80 caracteres, sin espacios en los extremos.';
+    if (!file || file.size === 0 || file.size > 1048576)
+      errors.file = 'Selecciona un archivo WebVTT de hasta 1 MiB que no esté vacío.';
+    setFieldErrors(errors);
+    setError('');
+    setNotice('');
+    if (Object.keys(errors).length) {
+      form.current?.querySelector<HTMLInputElement>(`[name="${Object.keys(errors)[0]}"]`)?.focus();
       return;
     }
+    if (!file) return;
     setPending(true);
     try {
       const metadata = { language, label, expectedMappingVersion: vod.mappingVersion };
@@ -61,6 +86,7 @@ export function SubtitleManager({ vod }: { vod: P2Vod }) {
       });
       await refresh();
       setError('');
+      setNotice(`Pista ${label} cargada.`);
     } catch (reason) {
       setError(errorMessage(reason));
     } finally {
@@ -68,7 +94,10 @@ export function SubtitleManager({ vod }: { vod: P2Vod }) {
     }
   }
   async function remove(track: P2SubtitleTrack) {
+    if (pending) return;
     setPending(true);
+    setError('');
+    setNotice('');
     try {
       await request<void>(`/api/vods/${vod.vodId}/subtitles/${track.trackId}`, {
         method: 'DELETE',
@@ -80,6 +109,8 @@ export function SubtitleManager({ vod }: { vod: P2Vod }) {
       });
       await refresh();
       setError('');
+      setNotice(`Pista ${track.label} retirada.`);
+      summary.current?.focus();
     } catch (reason) {
       setError(errorMessage(reason));
     } finally {
@@ -93,13 +124,16 @@ export function SubtitleManager({ vod }: { vod: P2Vod }) {
           void refresh().catch((reason: unknown) => setError(errorMessage(reason)));
       }}
     >
-      <summary>Subtítulos</summary>
+      <summary ref={summary}>Subtítulos</summary>
       <div className="stack">
         <p>
           Prepara el archivo contra esta versión del video. Para corregir una pista, carga otra y
           retira la anterior.
         </p>
         <form
+          ref={form}
+          noValidate
+          aria-busy={pending}
           className="stack"
           onSubmit={(event) => {
             event.preventDefault();
@@ -110,32 +144,63 @@ export function SubtitleManager({ vod }: { vod: P2Vod }) {
             Idioma
             <Input
               id={`${id}-language`}
+              name="language"
+              disabled={pending}
+              aria-describedby={`${id}-language-hint${fieldErrors.language ? ` ${id}-language-error` : ''}`}
+              aria-invalid={!!fieldErrors.language}
               required
               value={language}
               onChange={(event) => setLanguage(event.target.value)}
               placeholder="es, en-US…"
             />
           </label>
+          <p id={`${id}-language-hint`}>Idioma del archivo: por ejemplo, es, en-US o es-419.</p>
+          {fieldErrors.language ? (
+            <p id={`${id}-language-error`} role="alert">
+              {fieldErrors.language}
+            </p>
+          ) : null}
           <label htmlFor={`${id}-label`}>
             Nombre de la pista
             <Input
               id={`${id}-label`}
+              name="label"
+              disabled={pending}
+              aria-describedby={fieldErrors.label ? `${id}-label-error` : undefined}
+              aria-invalid={!!fieldErrors.label}
               required
               maxLength={80}
               value={label}
               onChange={(event) => setLabel(event.target.value)}
             />
           </label>
+          {fieldErrors.label ? (
+            <p id={`${id}-label-error`} role="alert">
+              {fieldErrors.label}
+            </p>
+          ) : null}
           <label htmlFor={`${id}-file`}>
             Archivo WebVTT
             <Input
               id={`${id}-file`}
+              name="file"
+              disabled={pending}
+              aria-describedby={`${id}-file-hint${fieldErrors.file ? ` ${id}-file-error` : ''}`}
+              aria-invalid={!!fieldErrors.file}
               required
               type="file"
               accept=".vtt,text/vtt"
               onChange={(event) => setFile(event.target.files?.[0] ?? null)}
             />
           </label>
+          <p id={`${id}-file-hint`}>
+            Archivo .vtt UTF-8, máximo 1 MiB, preparado para la duración de esta grabación.
+          </p>
+          {fieldErrors.file ? (
+            <p id={`${id}-file-error`} role="alert">
+              {fieldErrors.file}
+            </p>
+          ) : null}
           <Button type="submit" disabled={pending}>
             Cargar pista
           </Button>
@@ -144,6 +209,7 @@ export function SubtitleManager({ vod }: { vod: P2Vod }) {
           <p key={track.trackId}>
             {track.label} · {track.language}{' '}
             <Button
+              aria-label={`Retirar pista ${track.label} (${track.language})`}
               variant="secondary"
               disabled={pending}
               onClick={() => {
@@ -167,6 +233,8 @@ export function SubtitleManager({ vod }: { vod: P2Vod }) {
             Cargar más pistas
           </Button>
         ) : null}
+        {pending ? <p role="status">Procesando pistas…</p> : null}
+        {notice ? <Notice tone="success">{notice}</Notice> : null}
         {error ? <Notice tone="error">{error}</Notice> : null}
       </div>
     </details>

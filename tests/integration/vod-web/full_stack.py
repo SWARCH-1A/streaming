@@ -100,6 +100,9 @@ def main():
             compose("build", timeout=2400)
             started = True
             compose("up", "-d", "--wait", "--wait-timeout", "240", timeout=360)
+            # Compose can report a running service before its HTTP listener is ready.
+            # Reuse the canonical TLS/Web/API readiness gate before creating accounts.
+            manager.wait_local(env)
             print("Isolated full stack healthy; creating two native recordings with real Chat", flush=True)
             replay.configure(manager.STATE, project, origin=env["WEB_ORIGIN"], live_image=config["services"]["live"]["image"])
             first = replay.main(keep=True, minimum_seconds=70)

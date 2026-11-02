@@ -1,0 +1,170 @@
+[
+  {
+    "name": "basic",
+    "text": "WEBVTT\n\n00:00.000 --> 00:01.000\nHola &amp; mundo\n",
+    "durationMs": 1200,
+    "valid": true
+  },
+  {
+    "name": "bom-crlf",
+    "text": "﻿WEBVTT\r\n\r\n00:00.000 --> 00:01.000\r\nHola\r\n",
+    "durationMs": 1000,
+    "valid": true
+  },
+  {
+    "name": "cr",
+    "text": "WEBVTT\r\r00:00.000 --> 00:01.000\rHola\r",
+    "durationMs": 1000,
+    "valid": true
+  },
+  {
+    "name": "overlap",
+    "text": "WEBVTT\n\nid1\n00:00.000 --> 00:01.000\nUno\n\nid2\n00:00.500 --> 00:01.200\nDos\n",
+    "durationMs": 1200,
+    "valid": true
+  },
+  {
+    "name": "note",
+    "text": "WEBVTT comentario\n\nNOTE nota\nprivada\n\n00:00.000 --> 00:01.000\nDos\n",
+    "durationMs": 1000,
+    "valid": true
+  },
+  {
+    "name": "bad-header",
+    "text": "WEBVTT -->\n\n00:00.000 --> 00:01.000\nTexto\n",
+    "durationMs": 1000,
+    "valid": false
+  },
+  {
+    "name": "duration",
+    "text": "WEBVTT\n\n00:00.000 --> 00:01.001\nTexto\n",
+    "durationMs": 1000,
+    "valid": false
+  },
+  {
+    "name": "reverse",
+    "text": "WEBVTT\n\n00:01.000 --> 00:00.000\nTexto\n",
+    "durationMs": 1000,
+    "valid": false
+  },
+  {
+    "name": "order",
+    "text": "WEBVTT\n\n00:01.000 --> 00:02.000\nUno\n\n00:00.000 --> 00:01.000\nDos\n",
+    "durationMs": 2000,
+    "valid": false
+  },
+  {
+    "name": "tags",
+    "text": "WEBVTT\n\n00:00.000 --> 00:01.000\n<b>Texto</b>\n",
+    "durationMs": 1000,
+    "valid": false
+  },
+  {
+    "name": "entity",
+    "text": "WEBVTT\n\n00:00.000 --> 00:01.000\n&unknown;\n",
+    "durationMs": 1000,
+    "valid": false
+  },
+  {
+    "name": "controls",
+    "text": "WEBVTT\n\n00:00.000 --> 00:01.000\nHola\u0000\n",
+    "durationMs": 1000,
+    "valid": false
+  },
+  {
+    "name": "settings",
+    "text": "WEBVTT\n\n00:00.000 --> 00:01.000 align:start\nTexto\n",
+    "durationMs": 1000,
+    "valid": false
+  },
+  {
+    "name": "blank",
+    "text": "WEBVTT\n\n00:00.000 --> 00:01.000\n \t\n",
+    "durationMs": 1000,
+    "valid": false
+  },
+  {
+    "name": "note-arrow",
+    "text": "WEBVTT\n\nNOTE -->\n\n00:00.000 --> 00:01.000\nTexto\n",
+    "durationMs": 1000,
+    "valid": false
+  },
+  {
+    "name": "invalid-minutes",
+    "text": "WEBVTT\n\n00:60.000 --> 01:01.000\nTexto\n",
+    "durationMs": 61000,
+    "valid": false
+  },
+  {
+    "name": "missing-separator",
+    "text": "WEBVTT\n00:00.000 --> 00:01.000\nTexto\n",
+    "durationMs": 1000,
+    "valid": false
+  },
+  {
+    "name": "empty",
+    "text": "WEBVTT\n\n",
+    "durationMs": 1000,
+    "valid": false
+  },
+  {
+    "name": "invalid-duration",
+    "text": "WEBVTT\n\n00:00.000 --> 00:01.000\nTexto\n",
+    "durationMs": 9007199254740992,
+    "valid": false
+  },
+  {
+    "durationMs": 3603000,
+    "text": "WEBVTT\n\n01:00:00.000 --> 01:00:03.000\nHola\nMundo\n",
+    "valid": true,
+    "name": "hours-multiline"
+  },
+  {
+    "durationMs": 1000,
+    "text": "WEBVTT\n\n00:00.000 --> 00:01.000\n&amp; &lt; &gt; &nbsp; &lrm; &rlm;\n",
+    "valid": true,
+    "name": "allowed-entities"
+  },
+  {
+    "durationMs": 0,
+    "text": "WEBVTT\n\n00:00.000 --> 00:01.000\nTexto\n",
+    "valid": false,
+    "name": "zero-duration"
+  },
+  {
+    "durationMs": -1,
+    "text": "WEBVTT\n\n00:00.000 --> 00:01.000\nTexto\n",
+    "valid": false,
+    "name": "negative-duration"
+  },
+  {
+    "durationMs": 9007199254740991,
+    "text": "WEBVTT\n\n00:00.000 --> 00:01.000\nTexto\n",
+    "valid": true,
+    "name": "safe-integer-duration"
+  },
+  {
+    "durationMs": 9007199254740991,
+    "text": "WEBVTT\n\n99999999999:00:00.000 --> 99999999999:00:01.000\nTexto\n",
+    "valid": false,
+    "name": "pathological-hours"
+  },
+  {
+    "durationMs": 1000,
+    "text": "WEBVTT\n\nSTYLE\n::cue { color: red; }\n\n00:00.000 --> 00:01.000\nTexto\n",
+    "valid": false,
+    "name": "style"
+  },
+  {
+    "durationMs": 1000,
+    "text": "WEBVTT\n\nREGION\nid:example\n\n00:00.000 --> 00:01.000\nTexto\n",
+    "valid": false,
+    "name": "region"
+  },
+  {
+    "durationMs": 2000,
+    "text": "WEBVTT\n\n00:00.000 --> 00:01.000\nTexto\n00:01.000 --> 00:02.000\nOtro\n",
+    "valid": false,
+    "name": "missing-cue-separator"
+  }
+]
