@@ -97,7 +97,7 @@ al replicar Core; su indisponibilidad rechaza la consulta. El cursor de
 ## Verificación
 
 Pruebas unitarias de normalización, reglas de versión, cursor, validador de consulta, limitador e IP confiable; pruebas de
-integración con PostgreSQL desechable que cubren CA-01…CA-10, la recepción (duplicados, desorden, conflictos, 404 por el
+integración con PostgreSQL desechable que cubren CA-01…CA-12 (el p95 de CA-06 queda para SPEC-13; CA-11 es el texto con NUL en `q` y CA-12 la `previewUri` pública), la recepción (duplicados, desorden, conflictos, 404 por el
 puerto público), la reconstrucción con eventos concurrentes y corte vencido contra un Streaming simulado con los formatos
 reales, la migración V4→V5 y la privacidad del payload. La aceptación de RF-070…RF-073 requiere esa evidencia ejecutada y,
 después, la integración real con Streaming y la medición de SPEC-13.
