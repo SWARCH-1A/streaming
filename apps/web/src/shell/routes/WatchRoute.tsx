@@ -15,12 +15,7 @@ import { ViewErrorBoundary } from '@/src/shell/components/ViewErrorBoundary';
 import { useSession } from '@/src/shell/session/useSession';
 
 import styles from './WatchRoute.module.css';
-
-export interface WatchSnapshot {
-  stream: PublicStream;
-  session: PublicSession | null;
-  channel?: ChannelBootstrap | null;
-}
+import { sessionMatches, snapshotFromScreen, type WatchSnapshot } from './watchSnapshot';
 
 export function WatchRoute({
   initial,
@@ -43,11 +38,9 @@ export function WatchRoute({
           `/api/screens/watch/${encodeURIComponent(streamId)}`,
           { signal: bounded },
         );
-        return {
-          stream: screen.stream,
-          session: screen.session,
-          channel: 'data' in screen.channel ? (screen.channel.data ?? null) : null,
-        };
+        if (screen.stream.streamId !== streamId || !sessionMatches(screen.stream, screen.session))
+          throw new Error('La sesión de reproducción cambió. Reintentando…');
+        return snapshotFromScreen(screen);
       }
       const stream = await request<PublicStream>(`/api/streams/${encodeURIComponent(streamId)}`, {
         signal: bounded,
@@ -57,13 +50,7 @@ export function WatchRoute({
             signal: bounded,
           })
         : null;
-      if (
-        session &&
-        (session.streamId !== stream.streamId ||
-          session.sessionId !== stream.sessionId ||
-          session.channelId !== stream.channelId ||
-          session.streamGeneration !== stream.streamGeneration)
-      )
+      if (!sessionMatches(stream, session))
         throw new Error('La sesión de reproducción cambió. Reintentando…');
       return { stream, session };
     },
@@ -121,7 +108,12 @@ export function WatchRoute({
                 {channelData.profile.displayName} (@{channelData.handle})
               </Link>
             ) : (
-              <p>{channel.error ?? 'Cargando canal…'}</p>
+              <p>
+                {channel.error ??
+                  (gateway && resource.data.channelUnavailable
+                    ? 'No pudimos cargar la información del canal.'
+                    : 'Cargando canal…')}
+              </p>
             )}
             <p>
               {stream.category.name}

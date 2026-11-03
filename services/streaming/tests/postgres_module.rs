@@ -1186,3 +1186,33 @@ async fn outbox_recovers_large_backlog_in_order_without_reclaiming_closed_rows()
     pool.close().await;
     Ok(())
 }
+
+#[tokio::test]
+#[ignore = "requiere STREAMING_TEST_DATABASE_URL PostgreSQL desechable"]
+async fn active_account_with_stale_session_version_gets_a_new_session() -> Result<(), TestError> {
+    let pool = database().await?;
+    config(&pool, 1).await?;
+    let clock = Arc::new(MonotonicSessionClock::default());
+    let gate = Arc::new(AccountAuthority(std::sync::Mutex::new(Some((true, 0)))));
+    let authorizer = authorizer(&pool).with_channel_access(gate.clone());
+    let old = authorizer
+        .authorize(authorization(1), clock.as_ref())
+        .await?
+        .authorization;
+    // Suspended and reactivated while the broker was down: the old session was never reconciled.
+    *gate.0.lock().map_err(debug_error)? = Some((true, 2));
+    let result = authorizer
+        .authorize(authorization(1), clock.as_ref())
+        .await?;
+    assert_ne!(result.authorization.session_id, old.session_id);
+    assert_eq!(result.sessions_ended, vec![old.session_id.clone()]);
+    assert_eq!(
+        sqlx::query_scalar::<_, String>("SELECT status FROM stream_sessions WHERE session_id=$1")
+            .bind(old.session_id.as_str())
+            .fetch_one(&pool)
+            .await?,
+        "ENDED"
+    );
+    pool.close().await;
+    Ok(())
+}

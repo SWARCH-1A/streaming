@@ -152,16 +152,25 @@ impl PostgresIngestAuthorizationRepository {
         let lease_expires_at = now + TimeDuration::seconds(OWNER_LEASE.as_secs() as i64);
 
         let mut sessions_ended = Vec::new();
+        let mut active_session = active_session;
+        // A session opened under an earlier account state (before a suspension and reactivation,
+        // or before versions were recorded) is never resumed. Core just confirmed the account is
+        // active, so close the stale session and open a new one below instead of rejecting the key.
+        if self.channel_access.is_some()
+            && active_session
+                .as_ref()
+                .is_some_and(|active| active.owner_account_version != account_version)
+        {
+            let stale = active_session
+                .take()
+                .ok_or(IngestAuthorizationError::InvalidStoredData)?;
+            end_session(&mut transaction, &stale, session_clock, now).await?;
+            sessions_ended.push(
+                SessionId::parse(stale.session_id)
+                    .ok_or(IngestAuthorizationError::InvalidStoredData)?,
+            );
+        }
         if let Some(active) = active_session {
-            if self.channel_access.is_some() && active.owner_account_version != account_version {
-                end_session(&mut transaction, &active, session_clock, now).await?;
-                transaction.commit().await.map_err(persistence_error)?;
-                session_clock.forget(
-                    &SessionId::parse(active.session_id)
-                        .ok_or(IngestAuthorizationError::InvalidStoredData)?,
-                );
-                return Err(IngestAuthorizationError::InvalidStreamKey);
-            }
             if active.stream_id != stream_config.stream_id {
                 return Err(IngestAuthorizationError::InvalidStoredData);
             }

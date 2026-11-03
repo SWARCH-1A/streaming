@@ -9,6 +9,18 @@ import {
   UpstreamError,
 } from '@/src/server/api.server';
 import { WatchRoute } from '@/src/shell/routes/WatchRoute';
+import { sessionMatches, snapshotFromScreen } from '@/src/shell/routes/watchSnapshot';
+
+// Stream and session are read separately; a rotation between the reads must not render a mismatched
+// pair (the player would start HLS for another session). Both the Gateway and direct paths check it.
+function assertConsistent(
+  streamId: string | undefined,
+  stream: PublicStream,
+  session: PublicSession | null,
+) {
+  if (stream.streamId !== streamId || !sessionMatches(stream, session))
+    throw new UpstreamError(503);
+}
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
   // Bound the complete screen read, including dependent session/channel reads.
@@ -21,15 +33,9 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         bounded,
         `/api/screens/watch/${encodeURIComponent(params.streamId ?? '')}`,
       );
-      return {
-        initial: {
-          stream: screen.stream,
-          session: screen.session,
-          channel: 'data' in screen.channel ? (screen.channel.data ?? null) : null,
-        },
-        channel: 'data' in screen.channel ? (screen.channel.data ?? null) : null,
-        gateway: true,
-      };
+      assertConsistent(params.streamId, screen.stream, screen.session);
+      const initial = snapshotFromScreen(screen);
+      return { initial, channel: initial.channel ?? null, gateway: true };
     }
     const stream = await serverStreamGet<PublicStream>(
       bounded,
@@ -53,14 +59,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         return null;
       }),
     ]);
-    if (
-      session &&
-      (session.streamId !== stream.streamId ||
-        session.sessionId !== stream.sessionId ||
-        session.channelId !== stream.channelId ||
-        session.streamGeneration !== stream.streamGeneration)
-    )
-      throw new UpstreamError(503);
+    assertConsistent(params.streamId, stream, session);
     return { initial: { stream, session }, channel, gateway: false };
   } catch (error) {
     const status = error instanceof UpstreamError && error.status === 404 ? 404 : 503;

@@ -264,15 +264,24 @@ func (g gateway) exploreScreen(ctx context.Context, w http.ResponseWriter, r *ht
 	go func() { defer wg.Done(); raw, code = g.read(ctx, r, g.vod, "/api/vods?"+vquery.Encode(), true) }()
 	go func() { defer wg.Done(); live, liveCode = g.discovery(ctx, r) }()
 	wg.Wait()
+	rejected := false
 	switch code {
 	case http.StatusBadRequest, http.StatusUnauthorized, http.StatusGone, http.StatusUnprocessableEntity:
-		screenError(w, r, code)
-		return
+		// Paging the VOD list (cursor) is a VOD request: its client error is the caller's. A search or
+		// first page also carries the live section, which must not disappear because VOD rejected the query.
+		if q.Has("cursor") {
+			screenError(w, r, code)
+			return
+		}
+		rejected = true
 	}
 	result := map[string]any{}
 	partial := false
 	if code == http.StatusOK {
 		result["vods"] = available(raw)
+	} else if rejected {
+		result["vods"] = section{Status: "UNAVAILABLE", Error: map[string]any{"code": "VOD_QUERY_INVALID", "retryable": false, "requestId": correlation(r)}}
+		partial = true
 	} else {
 		result["vods"] = failure("VOD_UNAVAILABLE", correlation(r))
 		partial = true

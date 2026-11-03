@@ -455,6 +455,14 @@ func TestExploreScreen(t *testing.T) {
 			t.Errorf("explore VOD %d -> %d", upstreamStatus, response.StatusCode)
 		}
 	}
+
+	// A search VOD rejects (e.g. a title over its limit) keeps the live section.
+	f = newFixture()
+	f.vod["GET /api/vods"] = reply(400, `{}`)
+	response, result, body := get(t, f.server(t), "/api/screens/explore?title="+strings.Repeat("a", 141), nil)
+	if response.StatusCode != 200 || !result.Meta.Partial || result.Vods.Status != "UNAVAILABLE" || result.Discovery.Status != "AVAILABLE" {
+		t.Fatal(response.StatusCode, string(body))
+	}
 }
 
 // CA-05: client-supplied private headers never reach a domain and forged forwarding is ignored.
