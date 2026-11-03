@@ -6,8 +6,8 @@ La interfaz se presenta como Vault tv.
 
 Los requisitos, contratos y decisiones están en [docs](docs/README.md). Esta guía explica
 cómo levantar el código disponible en local. El [alcance P2](docs/alcance_p2.md) y sus
-[decisiones pendientes](docs/decisiones_pendientes_p2.md) describen la próxima entrega. El arranque
-local incluye las capacidades existentes y la integración inicial P2 de [RabbitMQ](infra/broker/README.md).
+[decisiones pendientes](docs/decisiones_pendientes_p2.md) definen este prototipo. El arranque local incluye Gateway, SSR, VOD, replay,
+Notificaciones y [RabbitMQ](infra/broker/README.md); móvil se construye por separado.
 
 ## Ejecutar todo en local
 
@@ -15,7 +15,8 @@ Necesitas Docker con Compose ≥2.24.4, Python ≥3.12 y OpenSSL. Puedes usar ma
 mediante WSL. Docker compila Java, Rust, Go y Web, así que este arranque no requiere instalar
 los lenguajes ni Node/pnpm en el host.
 
-El primer build puede tardar varios minutos. Reserva al menos 15 GB libres en el disco de Docker.
+El primer build puede tardar varios minutos. Reserva al menos 30 GB libres en el disco de Docker para las imágenes, caches y grabaciones.
+Una instalación de desarrollo con varios builds puede necesitar un disco virtual mayor.
 
 Desde la raíz de este repositorio:
 
@@ -32,23 +33,28 @@ credenciales y topología del broker, y las claves de recuperación de Cuentas. 
 los servicios y la herramienta de operación.
 `up` espera los servicios con healthcheck, incluido RabbitMQ, y respuestas HTTPS de Web y la API.
 El gestor combina el [Compose raíz](compose.yaml) y [RabbitMQ](infra/broker/compose.yaml)
-para levantar **trece contenedores**:
+para levantar **diecinueve servicios persistentes y un inicializador S3**:
 
 | Servicio | Función |
 | --- | --- |
 | `core` | Java/Spring: cuentas, perfiles, canales, catálogo, Discovery y watch parties |
 | `core-db` | PostgreSQL de Core |
 | `chat` | Go: mensajes, historial y WebSocket |
-| `chat-db` | Redis con AOF: mensajes, secuencia y cuota |
+| `chat-db` | Redis con AOF: cuota y coordinación efímera |
+| `chat-pg` | PostgreSQL: mensajes, secuencia y replay durables |
 | `live` | Rust: control de emisiones y adaptador Media |
 | `live-db` | PostgreSQL: bases separadas de Live y del adaptador |
 | `media-server` | MediaMTX: ingesta RTMPS y entrega HLS |
 | `web` | React Router SSR, servido por HTTPS |
+| `gateway` | Go: agregados por pantalla y retirada administrativa |
+| `vod` / `vod-db` | VOD y su PostgreSQL privado |
+| `minio` | Objetos privados S3 de grabaciones y subtítulos |
+| `media-recorder` | Captura y transferencia durable desde Media |
 | `notifications` | API y workers de bandeja, correo y recuperación |
 | `notifications-db` | PostgreSQL propio de Notificaciones |
 | `mailpit` | Buzón SMTP STARTTLS local de pruebas |
 | `proxy` | Entrada pública HTTPS y rutas Web/API/WebSocket/HLS |
-| `broker` | RabbitMQ: ciclo de sesión, Discovery y trabajos de recuperación |
+| `broker` | RabbitMQ: nueve familias de eventos/trabajos y suscripciones independientes |
 
 Abrir **[https://localhost:3445](https://localhost:3445)**. Antes, confiar en
 `infra/p1/.state-local/ca.crt` en el sistema donde corren OBS y el navegador, siguiendo la
@@ -83,6 +89,8 @@ sin usuario, contraseña ni identificador adicional. Streaming identifica la emi
 **RTMPS** y confiar en la CA local. Ingest usa `localhost:11938`.
 El perfil soporta H.264/AAC; con señal activa, abrir el canal o `/watch/{streamId}` desde otra pestaña
 para reproducir HLS y probar el chat. Discovery se actualiza desde las emisiones reales.
+Para emitir **hasta cuatro calidades desde OBS ≥31**, usar la [configuración multitrack](infra/media/README.md#obs-y-multicalidad-p2).
+Todas se codifican en origen y se conservan en el VOD; una sola conexión reserva un cupo.
 
 Solo HTTPS y RTMPS están publicados, en loopback. Las bases y APIs privadas permanecen en la red
 Compose. Avatares y portadas usan volúmenes locales; no se necesitan credenciales S3. `live` es el
@@ -146,12 +154,13 @@ La política y los contratos se documentan en [SPEC-01 P2](docs/spec-p2/spec_01_
 [Arquitectura](docs/arquitectura_c4_cnc_despliegue.md), [SPEC P1](docs/spec-p1/README.md),
 [contratos](docs/contratos_modelo_datos.md) y [ADR](docs/adr/README.md) describen las fronteras técnicas.
 
-## Integración inicial P2 por broker
+## Integración P2 por broker
 
 RabbitMQ transporta ciclo de sesión a Core/Chat y snapshots a Discovery y forma parte del arranque
 local anterior. Sus métricas, DLQ y recuperación están en el [runbook](infra/broker/README.md).
-La selección está en [ADR-016](docs/adr/ADR-016-rabbitmq-eventos-p2.md); quedan pendientes las
-aceptación audiovisual VOD/Media, replay durable Chat, proveedor push y las demás ampliaciones P2. La recuperación
+La selección está en [ADR-016](docs/adr/ADR-016-rabbitmq-eventos-p2.md). Captura multicalidad,
+VOD/replay y correo se han ejecutado con proveedores locales reales. Push conserva la
+[provisión e integración pendientes](apps/mobile/PUSH.md). La recuperación
 RF-004 usa el mismo broker y el worker de [ADR-017](docs/adr/ADR-017-recuperacion-de-credenciales.md).
 
 Al actualizar una instalación que usaba entrega HTTP P1, detener las emisiones antes del cambio
@@ -159,8 +168,9 @@ y repetir `init` para añadir la configuración privada del broker conservando l
 Los perfiles de pruebas bajo `infra/p1` mantienen su transporte HTTP y su estado independiente.
 
 El cliente Android/iOS vive en [apps/mobile](apps/mobile/README.md): build, instalación, TLS y cobertura
-parcial de SPEC-19. Consume las APIs públicas actuales; VOD, seguimiento, bandeja y push conservan
-sus dependencias P2 pendientes.
+de SPEC-19. Consume los agregados y APIs públicas de canal/live/VOD, seguimiento, bandeja,
+preferencias, replay y subtítulos. Android tiene reproducción live/VOD, replay y subtítulos verificados; la matriz distingue
+la compilación iOS de sus recorridos probados. Push real sigue pendiente.
 
 ## Biblioteca VOD
 
@@ -168,5 +178,9 @@ sus dependencias P2 pendientes.
 local/S3 externo, grabador durable Media, autorización, HLS/timeline, pistas SPEC-22 y limpieza.
 Web añade `/videos`, `/studio/vods`, `/vod/:vodId` y biblioteca de canal; [Gateway](services/gateway/README.md)
 compone canal/VOD/exploración. Repetir `init`, `build`, `up` añade configuración conservando datos.
-La captura final y multicalidad real dependen de P2-08; replay/limpieza de mensajes, de Chat.
-Las pruebas con MinIO y medios de fixture no acreditan esos recorridos ni S3 externo.
+La captura nativa de las cuatro rendiciones y su reproducción VOD se verifican con el
+[recorrido multicalidad](tests/integration/p2-multirendition/README.md); el [recorrido VOD/Chat](tests/integration/vod-web/README.md)
+cubre reconexión, replay, moderación, subtítulos y retirada. La evidencia local usa MinIO;
+no acredita un despliegue en S3 externo.
+
+Backup y recuperación P2: [comandos locales y validación independiente](infra/local/README.md#backup-y-recuperación-del-perfil-completo-p2).

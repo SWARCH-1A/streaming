@@ -253,7 +253,9 @@ function Player({
             value={selected}
             onChange={(event) => {
               const value = Number(event.target.value);
-              if (engine.current) engine.current.loadLevel = value;
+              // Switch at the next playable fragment rather than waiting for the
+              // entire VOD buffer; keep the current position and media element.
+              if (engine.current) engine.current.nextLevel = value;
               setSelected(value);
             }}
           >

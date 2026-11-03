@@ -1,6 +1,6 @@
 # SPEC-10 — Contratos compartidos P2
 
-**Prioridad:** P2. **Responsable:** Integración y dueños de interfaces. **Estado:** diseño para desarrollo.
+**Prioridad:** P2. **Responsable:** Integración y dueños de interfaces. **Estado:** fuente y generadores implementados; aceptación semántica por recorrido.
 **RF:** Todos salvo RF-038…045. **RNF:** RNF-006, 023…032, 038, 041…047, 050…051.
 
 ## 1. Contexto y problema
@@ -14,9 +14,10 @@ Fuente neutral de schemas y registro de operaciones/eventos. `contracts/p1.json`
 base; `contracts/p2.json` la amplía mediante schemas locales y un registro explícito de rutas,
 productores, consumidores, timeouts, visibilidad e idempotencia.
 
-La fuente actual incorpora el registro de nueve eventos y los dos schemas de ciclo/Discovery.
-Los payloads restantes y el inventario ejecutable HTTP/WS/media P2 siguen pendientes; esa
-cobertura parcial no acredita los criterios completos de esta SPEC.
+La fuente actual define 107 schemas locales, 72 operaciones y nueve eventos; hereda la base P1.
+El inventario incluye identidad móvil, seguimiento, VOD, subtítulos, administración, notificaciones,
+watch parties, agregados Gateway y autorización privada de Streaming. El estado de cada operación
+sigue explícito: un contrato no demuestra aceptación audiovisual o entrega push.
 
 ## 3. Historia de usuario
 
@@ -26,8 +27,8 @@ lo produce/consume, qué errores admite y cómo reintentarlo.
 ## 4. Alcance
 
 Schemas JSON, ejemplos válidos/negativos, inventario HTTP/WS/eventos, versiones y reglas
-semánticas; referencias entre SPEC y contratos. Las APIs de watch parties (ADR-025) están publicadas; las de subtítulos quedan
-bloqueadas hasta cerrar sus políticas, sin rutas ficticias consideradas listas.
+semánticas; referencias entre SPEC y contratos. Watch parties (ADR-025) y subtítulos WebVTT (ADR-018/022) tienen contratos publicados.
+Las interfaces aún delegadas conservan su bloqueo explícito.
 
 ## 5. Requisitos funcionales
 
@@ -39,9 +40,9 @@ bloqueadas hasta cerrar sus políticas, sin rutas ficticias consideradas listas.
 
 ## 6. Criterios de aceptación
 
-- [ ] CA-01: `contracts/check_p2.py` valida schemas, ejemplos, referencias, trazas y casos negativos sin acceder a red.
+- [x] CA-01: `contracts/check_p2.py` valida schemas, ejemplos, referencias, trazas y casos negativos sin acceder a red.
 - [ ] CA-02: cada operación nueva tiene permiso, error, idempotencia y esquema; cada evento tiene suscripciones y productor.
-- [ ] CA-03: consumidores tipados/generados se derivan de las fuentes y su generación se incorpora al elegir toolchain; no se mantiene otra definición a mano.
+- [x] CA-03: consumidores tipados/generados se derivan de las fuentes y su generación se incorpora al elegir toolchain; no se mantiene otra definición a mano.
 - [ ] CA-04: proveedor y consumidor prueban solicitud/respuesta o evento real, incluyendo error y repetición.
 - [ ] CA-05: un cambio incompatible se versiona y migra con consumidores; no se borra el schema anterior antes de retirarlos.
 - [ ] CA-06: interfaces delegadas se identifican con `review-required`/`pendingInterfaces` y bloqueo correspondiente; un ejemplo parcial no las acredita.
@@ -49,11 +50,11 @@ bloqueadas hasta cerrar sus políticas, sin rutas ficticias consideradas listas.
 ## 7. Diseño técnico y datos
 
 El bundle P2 hereda schemas P1; referencias `#/$defs/...` se resuelven sobre la unión, sin copiar
-schemas base a mano. Los IDs de operaciones son únicos. La fuente actual incorpora las cuatro
-operaciones y el evento de recuperación; el checker genera `contracts/generated/p2`, incluidos
-tipos TypeScript y manifest, y valida esta ampliación. Las demás familias del inventario siguen
-en diseño hasta aportar sus schemas y consumidores. `retiredP1Operations` permanece vacío mientras
-no se migren las entregas P1; retirar una operación exige registrar su migración de consumidores.
+schemas base a mano. Los IDs de operaciones son únicos. El checker genera JSON Schema, inventario,
+tipos TypeScript y manifest. `generate_mobile.py` deriva DTO Kotlin y representa las uniones
+etiquetadas como `JsonObject`; el cliente comprueba el estado antes de decodificar su `data`.
+No se editan a mano los artefactos generados. Retirar una operación exige registrar la migración
+de sus consumidores y conservar la base que continúe vigente.
 
 El formato es JSON Schema 2020-12. Los timestamps son UTC y los enteros interoperables no exceden
 9007199254740991. Un tipo estructural no expresa todas las reglas: igualdad entre IDs path/body,
@@ -71,8 +72,9 @@ Cada SPEC enlaza IDs de operaciones y eventos en lugar de redefinir sus schemas.
 
 ## 9. Decisiones y preguntas abiertas
 
-P2-01…05 bloquean las políticas delegadas; P2-06…17 cierran parámetros/tecnología y contratos
-marcados en revisión. El responsable que cierre una pregunta actualiza SPEC y fuente neutral,
+El registro de decisiones P2 distingue las políticas ya ratificadas de la provisión externa
+y aceptación aún pendientes. Las etiquetas históricas pending-owner no sustituyen esa revisión.
+El responsable que cierre una pregunta actualiza SPEC y fuente neutral,
 publica su ADR y valida los consumidores afectados en el mismo cambio.
 
 ## 10. Verificación

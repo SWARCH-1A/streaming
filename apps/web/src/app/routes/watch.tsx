@@ -1,7 +1,13 @@
 import { data, type LoaderFunctionArgs, useLoaderData } from 'react-router';
 import type { ChannelBootstrap, PublicSession, PublicStream } from '@contracts/p1';
+import type { P2WatchScreen } from '@contracts/p2';
 
-import { serverGet, serverStreamGet, UpstreamError } from '@/src/server/api.server';
+import {
+  serverGatewayGet,
+  serverGet,
+  serverStreamGet,
+  UpstreamError,
+} from '@/src/server/api.server';
 import { WatchRoute } from '@/src/shell/routes/WatchRoute';
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
@@ -10,6 +16,21 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     signal: AbortSignal.any([request.signal, AbortSignal.timeout(3000)]),
   });
   try {
+    if (process.env.WEB_GATEWAY_UPSTREAM) {
+      const screen = await serverGatewayGet<P2WatchScreen>(
+        bounded,
+        `/api/screens/watch/${encodeURIComponent(params.streamId ?? '')}`,
+      );
+      return {
+        initial: {
+          stream: screen.stream,
+          session: screen.session,
+          channel: 'data' in screen.channel ? (screen.channel.data ?? null) : null,
+        },
+        channel: 'data' in screen.channel ? (screen.channel.data ?? null) : null,
+        gateway: true,
+      };
+    }
     const stream = await serverStreamGet<PublicStream>(
       bounded,
       `/api/streams/${encodeURIComponent(params.streamId ?? '')}`,
@@ -27,7 +48,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
       serverGet<ChannelBootstrap>(
         bounded,
         `/api/channels/${encodeURIComponent(stream.channelId)}`,
-      ).catch(() => null),
+      ).catch((error: unknown) => {
+        if (error instanceof UpstreamError && error.status === 404) throw error;
+        return null;
+      }),
     ]);
     if (
       session &&
@@ -37,7 +61,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         session.streamGeneration !== stream.streamGeneration)
     )
       throw new UpstreamError(503);
-    return { initial: { stream, session }, channel };
+    return { initial: { stream, session }, channel, gateway: false };
   } catch (error) {
     const status = error instanceof UpstreamError && error.status === 404 ? 404 : 503;
     // eslint-disable-next-line @typescript-eslint/only-throw-error
@@ -51,6 +75,13 @@ export function headers() {
 
 // The initial HTML contains live metadata. HLS, quality discovery, WS and leases start in effects.
 export default function Watch() {
-  const { initial, channel } = useLoaderData<typeof loader>();
-  return <WatchRoute key={initial.stream.streamId} initial={initial} initialChannel={channel} />;
+  const { initial, channel, gateway } = useLoaderData<typeof loader>();
+  return (
+    <WatchRoute
+      key={initial.stream.streamId}
+      initial={initial}
+      initialChannel={channel}
+      gateway={gateway}
+    />
+  );
 }

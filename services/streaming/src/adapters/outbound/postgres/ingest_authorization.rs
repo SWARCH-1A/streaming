@@ -23,6 +23,8 @@ const OWNER_LEASE: Duration = Duration::from_secs(15);
 
 pub struct PostgresIngestAuthorizationRepository {
     pool: PgPool,
+    channel_access:
+        Option<Arc<dyn crate::application::ports::channel_access::ChannelAccessGateway>>,
     media_node_assignment: Arc<dyn MediaNodeAssignmentPolicy>,
 }
 
@@ -30,8 +32,17 @@ impl PostgresIngestAuthorizationRepository {
     pub fn new(pool: PgPool, media_node_assignment: Arc<dyn MediaNodeAssignmentPolicy>) -> Self {
         Self {
             pool,
+            channel_access: None,
             media_node_assignment,
         }
+    }
+
+    pub fn with_channel_access(
+        mut self,
+        gateway: Arc<dyn crate::application::ports::channel_access::ChannelAccessGateway>,
+    ) -> Self {
+        self.channel_access = Some(gateway);
+        self
     }
 
     async fn authorize_in_transaction(
@@ -60,6 +71,35 @@ impl PostgresIngestAuthorizationRepository {
         .await
         .map_err(persistence_error)?;
 
+        let stream_config = sqlx::query_as::<_, StreamKeyConfig>(
+            "SELECT stream_id, channel_id, stream_generation, source_generation FROM stream_configs WHERE ingest_key_hash = $1 FOR UPDATE",
+        )
+        .bind(command.stream_key_hash.as_slice())
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(persistence_error)?
+        .ok_or(IngestAuthorizationError::InvalidStreamKey)?;
+        if command
+            .expected_stream_id
+            .as_ref()
+            .is_some_and(|id| id.as_str() != stream_config.stream_id)
+        {
+            return Err(IngestAuthorizationError::InvalidStreamKey);
+        }
+
+        let account_version = if let Some(gateway) = &self.channel_access {
+            let access = gateway
+                .channel_access(stream_config.channel_id.clone())
+                .await
+                .map_err(|_| IngestAuthorizationError::PersistenceUnavailable)?;
+            if !access.active {
+                return Err(IngestAuthorizationError::InvalidStreamKey);
+            }
+            access.account_version
+        } else {
+            0
+        };
+
         if let Some(existing) = sqlx::query_as::<_, ExistingAttempt>(
             "SELECT payload_hash, response_payload FROM ingest_authorizations WHERE ingest_attempt_id = $1",
         )
@@ -79,8 +119,15 @@ impl PostgresIngestAuthorizationRepository {
                 return Err(IngestAuthorizationError::IdempotencyKeyReused);
             }
 
-            let authorization = serde_json::from_value(existing.response_payload)
+            let authorization: IngestAuthorization = serde_json::from_value(existing.response_payload)
                 .map_err(|_| IngestAuthorizationError::InvalidStoredData)?;
+            if self.channel_access.is_some() {
+                let current: Option<(String, i64)> = sqlx::query_as("SELECT status,owner_account_version FROM stream_sessions WHERE session_id=$1")
+                    .bind(authorization.session_id.as_str()).fetch_optional(&mut *transaction).await.map_err(persistence_error)?;
+                if current.is_none_or(|(status, version)| status == "ENDED" || version != account_version) {
+                    return Err(IngestAuthorizationError::InvalidStreamKey);
+                }
+            }
             transaction.commit().await.map_err(persistence_error)?;
             return Ok(AuthorizeIngestResult {
                 authorization,
@@ -88,24 +135,8 @@ impl PostgresIngestAuthorizationRepository {
             });
         }
 
-        let stream_config = sqlx::query_as::<_, StreamKeyConfig>(
-            "SELECT stream_id, channel_id, stream_generation, source_generation FROM stream_configs WHERE ingest_key_hash = $1 FOR UPDATE",
-        )
-        .bind(command.stream_key_hash.as_slice())
-        .fetch_optional(&mut *transaction)
-        .await
-        .map_err(persistence_error)?
-        .ok_or(IngestAuthorizationError::InvalidStreamKey)?;
-        if command
-            .expected_stream_id
-            .as_ref()
-            .is_some_and(|id| id.as_str() != stream_config.stream_id)
-        {
-            return Err(IngestAuthorizationError::InvalidStreamKey);
-        }
-
         let active_session = sqlx::query_as::<_, ActiveSession>(
-            "SELECT session_id, stream_id, channel_id, stream_generation, source_generation, source_claimed, status, session_version, owner_instance_id, owner_lease_expires_at, count_version, timeline_position_ms FROM stream_sessions WHERE channel_id = $1 AND status <> 'ENDED' FOR UPDATE",
+            "SELECT session_id, stream_id, channel_id, stream_generation, source_generation, source_claimed, owner_account_version, status, session_version, owner_instance_id, owner_lease_expires_at, count_version, timeline_position_ms FROM stream_sessions WHERE channel_id = $1 AND status <> 'ENDED' FOR UPDATE",
         )
         .bind(&stream_config.channel_id)
         .fetch_optional(&mut *transaction)
@@ -122,6 +153,15 @@ impl PostgresIngestAuthorizationRepository {
 
         let mut sessions_ended = Vec::new();
         if let Some(active) = active_session {
+            if self.channel_access.is_some() && active.owner_account_version != account_version {
+                end_session(&mut transaction, &active, session_clock, now).await?;
+                transaction.commit().await.map_err(persistence_error)?;
+                session_clock.forget(
+                    &SessionId::parse(active.session_id)
+                        .ok_or(IngestAuthorizationError::InvalidStoredData)?,
+                );
+                return Err(IngestAuthorizationError::InvalidStreamKey);
+            }
             if active.stream_id != stream_config.stream_id {
                 return Err(IngestAuthorizationError::InvalidStoredData);
             }
@@ -297,7 +337,7 @@ impl PostgresIngestAuthorizationRepository {
         .await
         .map_err(persistence_error)?;
         sqlx::query(
-            "INSERT INTO stream_sessions (session_id, stream_id, channel_id, stream_generation, source_generation, status, availability, media_node_id, owner_instance_id, owner_lease_expires_at, preparing_deadline_at, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, 'PREPARING', 'OFFLINE', $6, $7, $8, $9, $10, $10)",
+            "INSERT INTO stream_sessions (session_id, stream_id, channel_id, stream_generation, source_generation, status, availability, media_node_id, owner_instance_id, owner_lease_expires_at, preparing_deadline_at, created_at, updated_at, owner_account_version) VALUES ($1, $2, $3, $4, $5, 'PREPARING', 'OFFLINE', $6, $7, $8, $9, $10, $10, $11)",
         )
         .bind(session_id.as_str())
         .bind(&stream_config.stream_id)
@@ -309,6 +349,7 @@ impl PostgresIngestAuthorizationRepository {
         .bind(lease_expires_at)
         .bind(preparing_deadline_at)
         .bind(now)
+        .bind(account_version)
         .execute(&mut *transaction)
         .await
         .map_err(persistence_error)?;
@@ -519,6 +560,7 @@ impl From<MediaNodeLoadRow> for MediaNodeLoad {
 
 #[derive(FromRow)]
 struct ActiveSession {
+    owner_account_version: i64,
     session_id: String,
     stream_id: String,
     stream_generation: i64,

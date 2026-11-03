@@ -28,7 +28,7 @@ schemas generados no acreditan que esos endpoints estén implementados.
 ## Extensión P2 de eventos y recuperación
 
 La fuente p2.json extiende los schemas P1 sin modificar sus artefactos. Registra nueve familias
-y dieciocho suscripciones; los payloads de ciclo, snapshot Discovery y recuperación están listos.
+y dieciséis suscripciones con efecto; las nueve familias tienen schemas ejecutables.
 RF-004 incorpora solicitud/confirmación públicas y claim/result privados. Cada operación declara
 su estado; las entradas pending-owner no admiten publicación como contratos validados.
 
@@ -50,7 +50,7 @@ Chat añade moderación y `p2.chat.moderation-context` en `p2.chat.*`; consume
 `vod.availability.changed.v1` y `p2.vod.replay-context` definidos por VOD (ADR-022).
 
 Administración añade listados y cambios de estado en `p2.admin.*`, y el evento
-`account.status.changed.v1`. Su aceptación transversal sigue pendiente de P2-17.
+`account.status.changed.v1`. La integración local verifica suspensión de directo/VOD/replay e imágenes; la matriz completa de aceptación sigue en SPEC-23.
 
 ## Calidades live
 
@@ -72,10 +72,10 @@ python -m unittest discover -s tests/contracts -p 'test_*.py'
 ```
 
 `check_p2.py` comprueba además ejemplos, referencias de operaciones, paths y páginas de pistas.
-La duración usada en pruebas es ficticia; el futuro proveedor debe consultar la duración/mapping
-de VOD y aplicar permisos. No se acredita VOD funcional ni se decide su runtime mediante Python.
+La duración usada en las pruebas de contrato es ficticia. El proveedor VOD consulta duración/mapping
+y aplica permisos; los recorridos funcionales con VOD real viven en tests/integration/vod-web.
 
-Las cuatro operaciones `p2.subtitles.*` son `contract-only`. El mismo generador conserva Recuperación y Administración.
+Las operaciones `p2.subtitles.*` mantienen su contrato generado y cuentan con proveedor VOD y consumidores Web/Android; su estado de aceptación se detalla en SPEC-22. El mismo generador conserva Recuperación y Administración.
 Prueba adicional con Ajv (tras instalar las dependencias Web):
 
 ```sh

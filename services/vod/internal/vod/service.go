@@ -213,10 +213,17 @@ func (s *Service) Validate(ctx context.Context, r Recording) error {
 	if s.Probe == nil {
 		return Fail(503, "MEDIA_VALIDATOR_UNAVAILABLE")
 	}
+	lastSequence := map[string]int64{}
 	for _, seg := range index.Segments {
+		key := fmt.Sprintf("%s:%d", seg.RenditionID, seg.SourceGeneration)
+		lastSequence[key] = max(lastSequence[key], seg.Sequence)
+	}
+	for _, seg := range index.Segments {
+		key := fmt.Sprintf("%s:%d", seg.RenditionID, seg.SourceGeneration)
+		probeContext := context.WithValue(ctx, generationTailKey{}, seg.Sequence == lastSequence[key])
 		for _, v := range index.Renditions {
 			if v.RenditionID == seg.RenditionID {
-				if e = s.Probe(ctx, v, seg); e != nil {
+				if e = s.Probe(probeContext, v, seg); e != nil {
 					return e
 				}
 			}

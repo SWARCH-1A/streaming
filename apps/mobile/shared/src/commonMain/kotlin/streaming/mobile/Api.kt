@@ -80,12 +80,17 @@ class Api(val origin: String, val session: Session, val client: HttpClient,
         }
         return url(path)
     }
+    fun vodMediaUrl(value: String, vodId: String): String {
+        val path = publicPath(value)
+        require(path.startsWith("/vod-media/${id(vodId)}/") && '?' !in path && '#' !in path)
+        return url(path)
+    }
     suspend inline fun <reified T> get(path: String, authenticated: Boolean = false): T =
         call(HttpMethod.Get, path, authenticated = authenticated).body()
 
     suspend fun call(method: HttpMethod, path: String, body: Any? = null,
                      authenticated: Boolean = false, key: String? = null,
-                     authorization: String? = null): HttpResponse {
+                     authorization: String? = null, headers: Map<String, String> = emptyMap()): HttpResponse {
         val ticket = session.ticket()
         if (authenticated && ticket.token == null) throw ApiFailure(401, "AUTH_REQUIRED", null, null)
         val response = client.request(url(path)) {
@@ -99,6 +104,7 @@ class Api(val origin: String, val session: Session, val client: HttpClient,
             if (authorization != null) header(HttpHeaders.Authorization, authorization)
             else if (authenticated) header(HttpHeaders.Authorization, "Bearer ${ticket.token}")
             key?.let { header("Idempotency-Key", it) }
+            headers.forEach { (name, value) -> header(name, value) }
         }
         if (!response.status.isSuccess()) {
             if (response.status.value == 401 && authenticated) session.expire(ticket)

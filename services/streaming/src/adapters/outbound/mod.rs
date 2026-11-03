@@ -1,3 +1,5 @@
+pub mod account_events;
+pub mod account_revocation;
 pub mod http_clients;
 pub(crate) mod media_frame_probe;
 pub mod media_node_assignment;

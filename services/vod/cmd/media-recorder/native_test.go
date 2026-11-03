@@ -200,3 +200,86 @@ func TestLegacyCheckpointCodecMatchesUpgradedProbe(t *testing.T) {
 		}
 	}
 }
+
+func TestNativeClosedTailResolvesZeroDTSFromImmutableMediaAndSurvivesRestart(t *testing.T) {
+	start := time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
+	src := source{Start: vod.Start{SessionID: "ses_fixture", StreamID: "str_fixture", StreamGeneration: 1}, InitialSourceGeneration: 1, SourceGeneration: 1, StartedAt: &start}
+	s := &state{Start: src.Start, FirstSourceGeneration: 1, LastSourceGeneration: 1, Renditions: map[string]vod.Rendition{}, Next: map[string]int64{}, Finalized: map[string]bool{}}
+	r := &recorder{ctx: context.Background(), dir: t.TempDir(), nativeDir: t.TempDir(), limit: 1 << 20, states: map[string]*state{src.Start.SessionID: s}}
+	dir := filepath.Join(r.nativeDir, src.Start.SessionID, "1", "rend_source")
+	if e := os.MkdirAll(dir, 0700); e != nil {
+		t.Fatal(e)
+	}
+	data := nativeMedia(t)
+	filename := "1793275200-000000.ts"
+	if e := os.WriteFile(filepath.Join(dir, filename), data, 0600); e != nil {
+		t.Fatal(e)
+	}
+	inv := nativeInventory{Version: 1, Segments: []nativeEntry{{Sequence: 0, File: filename, Started: start, DurationMS: 0, Size: int64(len(data)), Hash: hash(data), Complete: true}}}
+	write := func() {
+		raw, _ := json.Marshal(inv)
+		if e := atomicFile(filepath.Join(dir, "index.json"), raw); e != nil {
+			t.Fatal(e)
+		}
+	}
+	write()
+	if e := r.captureNative(src); e != nil || len(s.Segments) != 0 {
+		t.Fatal("unsealed tail must wait for the producer", e)
+	}
+	inv.Closed = true
+	write()
+	if e := r.captureNative(src); e != nil {
+		t.Fatal(e)
+	}
+	if len(s.Segments) != 1 || s.Segments[0].Segment.DurationMS != 1000 || !s.Finalized["rend_source:1"] {
+		t.Fatal("tail duration was not measured from media")
+	}
+	// captureNative removes the native bytes only after its fsynced checkpoint.
+	raw, e := os.ReadFile(filepath.Join(r.dir, src.Start.SessionID+".json"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	var restored state
+	if e = json.Unmarshal(raw, &restored); e != nil {
+		t.Fatal(e)
+	}
+	r.states[src.Start.SessionID] = &restored
+	if e = r.captureNative(src); e != nil || len(restored.Segments) != 1 {
+		t.Fatal("restart lost or duplicated certified tail", e)
+	}
+}
+
+func TestNativeMultirenditionMissingSiblingCannotBecomeComplete(t *testing.T) {
+	start := time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC)
+	src := source{Start: vod.Start{SessionID: "ses_multi", StreamID: "str_multi", StreamGeneration: 1}, InitialSourceGeneration: 1, SourceGeneration: 1, StartedAt: &start}
+	s := &state{Start: src.Start, FirstSourceGeneration: 1, LastSourceGeneration: 1, Renditions: map[string]vod.Rendition{}, Next: map[string]int64{}, Finalized: map[string]bool{}}
+	r := &recorder{ctx: context.Background(), dir: t.TempDir(), nativeDir: t.TempDir(), limit: 1 << 20, states: map[string]*state{src.Start.SessionID: s}}
+	data := nativeMedia(t)
+	plan := []string{"rend_0", "rend_1"}
+	for i, id := range plan {
+		dir := filepath.Join(r.nativeDir, src.Start.SessionID, "1", id)
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+		inv := nativeInventory{Version: 1, Renditions: plan, Closed: true, Segments: []nativeEntry{{Sequence: 0, File: "1793707200-000000.ts", Started: start, DurationMS: 1000, Size: int64(len(data)), Hash: hash(data), Complete: true}}}
+		raw, _ := json.Marshal(inv)
+		if err := atomicFile(filepath.Join(dir, "index.json"), raw); err != nil {
+			t.Fatal(err)
+		}
+		if err := atomicFile(filepath.Join(dir, inv.Segments[0].File), data); err != nil {
+			t.Fatal(err)
+		}
+		if err := r.captureNative(src); err != nil {
+			t.Fatal(err)
+		}
+		if len(s.Expected) != 2 || !s.Finalized["rend_0:1"] || (i == 0 && s.Finalized["rend_1:1"]) {
+			t.Fatal("missing rendition was not retained in the immutable plan")
+		}
+	}
+	if len(s.Segments) != 2 || len(s.Renditions) != 2 || !s.Finalized["rend_1:1"] {
+		t.Fatal("second rendition lost or confused with sequence zero of the first")
+	}
+	if err := r.captureNative(src); err != nil || len(s.Segments) != 2 {
+		t.Fatal("poll duplicated a rendition segment")
+	}
+}

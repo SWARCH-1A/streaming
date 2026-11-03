@@ -1,6 +1,5 @@
 import { Link, useSearchParams } from 'react-router';
-import queries from '@contracts/graphql-queries.json';
-import type { GqlChannelConnection, GqlStreamConnection, GraphQLResponse } from '@contracts/p1';
+import type { P2ExploreScreen } from '@contracts/p2';
 
 import { Avatar } from '@/src/components/atoms/Avatar';
 import { Badge } from '@/src/components/atoms/Badge';
@@ -16,13 +15,18 @@ import { useCatalog } from '@/src/modules/taxonomy/entry';
 import { request } from '@/src/shared/api/http';
 import { useResource } from '@/src/shared/api/useResource';
 
+import { baseDiscovery, discoveryResults, explorePath } from './discovery.api';
 import styles from './DiscoveryPage.module.css';
 
-interface Results {
-  streams: GqlStreamConnection;
-  channels: GqlChannelConnection | null;
-}
-export function DiscoveryPage({ search = false }: { search?: boolean }) {
+export function DiscoveryPage({
+  search = false,
+  initial,
+  gateway = true,
+}: {
+  search?: boolean;
+  initial?: P2ExploreScreen;
+  gateway?: boolean;
+}) {
   const [params, setParams] = useSearchParams();
   const q = params.get('q') ?? '',
     categoryId = params.get('category') ?? '',
@@ -32,43 +36,19 @@ export function DiscoveryPage({ search = false }: { search?: boolean }) {
   const catalog = useCatalog();
   const resource = useResource(
     JSON.stringify([q, categoryId, tagId, cursor, channelCursor, search]),
-    async (signal) => {
-      async function query(name: string, variables: Record<string, unknown>) {
-        const operation = queries.find((item) => item.name === name);
-        if (!operation) throw new Error('Consulta no generada.');
-        const response = await request<GraphQLResponse>('/api/discovery/graphql', {
-          method: 'POST',
-          body: { query: operation.query, variables },
-          signal,
-        });
-        if (response.errors?.length)
-          throw new Error(
-            response.errors
-              .map(
-                (item) =>
-                  `${item.message} (${item.extensions.code} · ${item.extensions.requestId})`,
-              )
-              .join(' '),
-          );
-        if (!response.data) throw new Error('Discovery no devolvió datos.');
-        return response.data;
-      }
-      const [streams, channels] = await Promise.all([
-        query('LiveStreams', {
-          q,
-          categoryId: categoryId || null,
-          tagId: tagId || null,
-          cursor,
-          limit: 20,
-        }),
-        search ? query('Channels', { q, cursor: channelCursor, limit: 20 }) : Promise.resolve(null),
-      ]);
-      return {
-        streams: streams.streams as GqlStreamConnection,
-        channels: channels?.channels as GqlChannelConnection | null,
-      } satisfies Results;
+    async (parentSignal) => {
+      const signal = AbortSignal.any([parentSignal, AbortSignal.timeout(2500)]);
+      if (!gateway) return baseDiscovery(params, search, signal);
+      return discoveryResults(
+        await request<P2ExploreScreen>(explorePath(params, search), { signal }),
+      );
     },
-    10000,
+    2000,
+    initial &&
+      (initial.discovery.status === 'AVAILABLE' || initial.discovery.status === 'EMPTY') &&
+      initial.discovery.data
+      ? discoveryResults(initial)
+      : undefined,
   );
   function update(key: string, value: string) {
     setParams((previous) => {
@@ -255,6 +235,7 @@ export function DiscoveryPage({ search = false }: { search?: boolean }) {
         categoryId={categoryId}
         tagId={tagId}
         taxonomy={catalog.data}
+        {...(initial ? { initial: initial.vods } : {})}
       />
     </div>
   );

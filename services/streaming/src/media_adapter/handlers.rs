@@ -54,7 +54,7 @@ async fn preview(State(state): State<Arc<MediaState>>, Path(session): Path<Strin
             .get(&session)
             .filter(|preview| {
                 preview.publisher == source.publisher_id
-                    && preview.captured.elapsed() < std::time::Duration::from_secs(45)
+                    && preview.captured.elapsed() < std::time::Duration::from_secs(3)
             })
             .map(|preview| Arc::clone(&preview.bytes))
     });
@@ -251,18 +251,18 @@ async fn authorize(
 
 pub(super) fn publish_authorized(source: &super::repository::Source, recording: bool) -> Response {
     let mut response = StatusCode::NO_CONTENT.into_response();
-    if recording {
-        if let (Ok(session), Ok(generation)) = (
+    if recording
+        && let (Ok(session), Ok(generation)) = (
             source.session_id.parse(),
             source.source_generation.to_string().parse(),
-        ) {
-            response
-                .headers_mut()
-                .insert("X-Media-Recording-Session", session);
-            response
-                .headers_mut()
-                .insert("X-Media-Recording-Source-Generation", generation);
-        }
+        )
+    {
+        response
+            .headers_mut()
+            .insert("X-Media-Recording-Session", session);
+        response
+            .headers_mut()
+            .insert("X-Media-Recording-Source-Generation", generation);
     }
     response
 }

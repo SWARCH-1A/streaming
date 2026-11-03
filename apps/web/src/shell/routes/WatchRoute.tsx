@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import type { ChannelBootstrap, PublicSession, PublicStream } from '@contracts/p1';
+import type { P2WatchScreen } from '@contracts/p2';
 
 import { Button } from '@/src/components/atoms/Button';
 import { BroadcastPlaceholder } from '@/src/components/molecules/BroadcastPlaceholder';
@@ -18,26 +19,43 @@ import styles from './WatchRoute.module.css';
 export interface WatchSnapshot {
   stream: PublicStream;
   session: PublicSession | null;
+  channel?: ChannelBootstrap | null;
 }
 
 export function WatchRoute({
   initial,
   initialChannel,
+  gateway = false,
 }: {
   initial?: WatchSnapshot;
   initialChannel?: ChannelBootstrap | null;
+  gateway?: boolean;
 } = {}) {
   const { streamId = '' } = useParams();
   const [chatVisible, setChatVisible] = useState(true);
   const { user } = useSession();
   const resource = useResource(
-    `watch:${streamId}`,
+    `watch:${gateway}:${streamId}`,
     async (signal) => {
+      const bounded = AbortSignal.any([signal, AbortSignal.timeout(2500)]);
+      if (gateway) {
+        const screen = await request<P2WatchScreen>(
+          `/api/screens/watch/${encodeURIComponent(streamId)}`,
+          { signal: bounded },
+        );
+        return {
+          stream: screen.stream,
+          session: screen.session,
+          channel: 'data' in screen.channel ? (screen.channel.data ?? null) : null,
+        };
+      }
       const stream = await request<PublicStream>(`/api/streams/${encodeURIComponent(streamId)}`, {
-        signal,
+        signal: bounded,
       });
       const session = stream.sessionId
-        ? await request<PublicSession>(`/api/streams/sessions/${stream.sessionId}`, { signal })
+        ? await request<PublicSession>(`/api/streams/sessions/${stream.sessionId}`, {
+            signal: bounded,
+          })
         : null;
       if (
         session &&
@@ -49,19 +67,20 @@ export function WatchRoute({
         throw new Error('La sesión de reproducción cambió. Reintentando…');
       return { stream, session };
     },
-    4000,
+    2000,
     initial,
   );
   const channel = useResource(
     `watch-channel:${resource.data?.stream.channelId ?? ''}`,
     async (signal) => {
       const channelId = resource.data?.stream.channelId;
-      if (!channelId) return null;
+      if (gateway || !channelId) return null;
       return request<ChannelBootstrap>(`/api/channels/${channelId}`, { signal });
     },
     0,
     initialChannel ?? undefined,
   );
+  const channelData = gateway ? resource.data?.channel : channel.data;
   if (resource.loading) return <p role="status">Cargando transmisión…</p>;
   if (!resource.data) return <Notice tone="error">{resource.error}</Notice>;
   const { stream, session } = resource.data;
@@ -86,20 +105,20 @@ export function WatchRoute({
                 key={session.sessionId}
                 session={session}
                 title={stream.title}
-                poster={channel.data?.channel.bannerUri}
+                poster={channelData?.channel.bannerUri}
               />
             ) : (
               <BroadcastPlaceholder
                 title="El canal está offline."
                 description="Aquí aparecerá su próxima emisión."
-                image={channel.data?.channel.bannerUri}
+                image={channelData?.channel.bannerUri}
               />
             )}
           </ViewErrorBoundary>
           <Panel className="stack">
-            {channel.data ? (
-              <Link to={`/channels/${channel.data.handle}`}>
-                {channel.data.profile.displayName} (@{channel.data.handle})
+            {channelData ? (
+              <Link to={`/channels/${channelData.handle}`}>
+                {channelData.profile.displayName} (@{channelData.handle})
               </Link>
             ) : (
               <p>{channel.error ?? 'Cargando canal…'}</p>
@@ -127,7 +146,7 @@ export function WatchRoute({
               sessionId={session.sessionId}
               readOnly={session.status === 'ENDED' || session.status === 'PREPARING'}
               channelId={stream.channelId}
-              moderator={!!user && user.userId === channel.data?.channel.ownerUserId}
+              moderator={!!user && user.userId === channelData?.channel.ownerUserId}
             />
           </ViewErrorBoundary>
         ) : null}

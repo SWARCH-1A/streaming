@@ -13,11 +13,10 @@ Core y Chat deben recibir el mismo ciclo aunque uno esté detenido. ADR-015 cons
 consultas/autorización inmediata y la propiedad de datos de cada servicio. RabbitMQ no estaba
 seleccionado por esa decisión.
 
-La primera integración implementa dos familias: ciclo de sesión y snapshot público Discovery.
-ADR-017 añade la publicación de trabajos de recuperación al mismo broker; su consumidor y SMTP
-quedan pendientes del responsable de Notificaciones. El registro conserva nueve familias y
-dieciocho suscripciones. Cuenta/suspensión, grabación, VOD, seguimiento y notificaciones generales requieren payloads/implementaciones de sus
-responsables; aprovisionar sus colas no acredita esas funciones ni completa SPEC-17.
+La integración local conecta las nueve familias y dieciséis suscripciones con efecto real.
+ADR-017/020 concretan recuperación y SMTP; ADR-022/024 concretan grabación, VOD y replay.
+ADR-027 retira las dos suscripciones iniciales sin consumidor mediante archivo privado auditable.
+La entrega push real y las ventanas exhaustivas de fallo siguen pendientes de aceptación.
 
 ## Decisión
 
@@ -41,7 +40,7 @@ responsables; aprovisionar sus colas no acredita esas funciones ni completa SPEC
 6. Inbox con identidad (consumer,eventId), fingerprint y efecto atómicos antes del ACK manual.
    Core usa los repositorios Discovery BrokerEventStore/ProjectionStore en una transacción local
    compartida; sus adaptadores JDBC poseen el SQL, y la aplicación coordina validación y reglas.
-   Chat usa Lua/Redis con AOF. Las versiones de ciclo y proyección no se comparan
+   Chat usa PostgreSQL durable y Lua/Redis con AOF según ADR-024. Las versiones de ciclo y proyección no se comparan
    entre sí. Core conserva una barrera de ciclo separada; Chat conserva la barrera incluso si
    expira la caché de sala. Los eventos no autorizan operaciones protegidas.
 7. Un consumidor por cola y prefetch 16 en Core/Chat; Notificaciones concretará su concurrencia

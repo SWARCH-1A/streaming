@@ -2216,6 +2216,23 @@
       ],
       "type": "object"
     },
+    "P2ExploreQuery": {
+      "additionalProperties": false,
+      "examples": [{"limit": 20}],
+      "properties": {
+        "categoryId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "channelCursor": {"maxLength": 2048, "type": "string"},
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "cursor": {"maxLength": 8192, "type": "string"},
+        "limit": {"default": 20, "maximum": 50, "minimum": 1, "type": "integer"},
+        "liveCursor": {"maxLength": 2048, "type": "string"},
+        "searchChannels": {"type": "boolean"},
+        "tagId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "title": {"maxLength": 140, "type": "string"}
+      },
+      "required": [],
+      "type": "object"
+    },
     "P2ExploreScreen": {
       "additionalProperties": false,
       "examples": [

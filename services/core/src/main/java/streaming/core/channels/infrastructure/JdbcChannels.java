@@ -82,6 +82,10 @@ public class JdbcChannels implements ChannelInitializer, ChannelQueries, Channel
                 .param("now",java.sql.Timestamp.from(now)).param("limit",limit).query(String.class).list();
     }
 
+    @Override public boolean isPublicImageReadable(String objectKey) {
+        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM channels.channels p JOIN identity.public_accounts a ON a.user_id=p.owner_user_id WHERE p.banner_key=:key)")
+                .param("key",objectKey).query(Boolean.class).single();
+    }
     @Override public boolean isObjectReferenced(String objectKey,boolean published) {
         String sql=published?"SELECT EXISTS(SELECT 1 FROM channels.channels WHERE banner_key=:key)"
                 :"SELECT EXISTS(SELECT 1 FROM channels.banner_uploads WHERE object_key=:key)";

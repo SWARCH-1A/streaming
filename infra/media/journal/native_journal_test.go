@@ -55,3 +55,16 @@ func TestNativeJournalRestartCannotAttestCompleteRecording(t *testing.T) {
 		t.Fatal("ingest key path allowed")
 	}
 }
+
+func TestNativeJournalCertifiesZeroDTSTailBytesForMediaProbe(t *testing.T) {
+ dir := t.TempDir()
+ j := &nativeJournal{dir: dir, data: nativeInventory{Version: 1, Segments: []nativeEntry{}}}
+ file := filepath.Join(dir, "1793275200-500000.ts")
+ if err := os.WriteFile(file, []byte("native tail fixture"), 0600); err != nil { t.Fatal(err) }
+ j.create(file)
+ j.complete(file, 0)
+ j.seal()
+ if j.data.Failure != "" || !j.data.Closed || !j.data.Segments[0].Complete || j.data.Segments[0].DurationMS != 0 || len(j.data.Segments[0].Hash) != 64 {
+  t.Fatal("closed tail bytes must remain certified for duration probing")
+ }
+}
