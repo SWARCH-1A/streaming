@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+type generationTailKey struct{}
+
 // ProbeMedia checks each stored segment against declared dimensions, codec and duration.
 // Media remains responsible for segment alignment and encoder keyframes across renditions.
 func (s *Service) ProbeMedia(ctx context.Context, r Rendition, seg Segment) error {
@@ -82,7 +84,11 @@ func (s *Service) ProbeMedia(ctx context.Context, r Rendition, seg Segment) erro
 			}
 		}
 	}
-	if video != 1 || (r.AudioCodec != nil && audio != 1) || (r.AudioCodec == nil && audio != 0) {
+	// Only a verified last segment of its source generation can have a
+	// sub-250 ms video tail after AAC has ended. Interior audio loss still fails.
+	terminal, _ := ctx.Value(generationTailKey{}).(bool)
+	shortVideoTail := terminal && seg.DurationMS > 0 && seg.DurationMS <= 250 && audio == 0
+	if video != 1 || (r.AudioCodec != nil && audio != 1 && !shortVideoTail) || (r.AudioCodec == nil && audio != 0) {
 		return Fail(422, "MEDIA_STREAMS_CONFLICT")
 	}
 	duration, err := strconv.ParseFloat(result.Format.Duration, 64)

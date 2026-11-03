@@ -62,14 +62,22 @@ export function VodSection({
   categoryId,
   tagId,
   taxonomy,
+  initial,
 }: {
   q: string;
   categoryId: string;
   tagId: string;
   taxonomy: Taxonomy | null;
+  initial?: P2ExploreScreen['vods'];
 }) {
   const tooLong = [...q].length > MAX_TITLE;
-  const [loaded, setLoaded] = useState<Loaded | null>(null);
+  const [loaded, setLoaded] = useState<Loaded | null>(() => {
+    if (!initial) return null;
+    const result = outcome(initial);
+    return 'failure' in result
+      ? { items: [], nextCursor: null, failure: result.failure }
+      : { ...result.page, failure: '' };
+  });
   const [revision, setRevision] = useState(0);
   const [more, setMore] = useState<{ pending: boolean; error: string }>({
     pending: false,
@@ -77,7 +85,7 @@ export function VodSection({
   });
 
   useEffect(() => {
-    if (tooLong) return;
+    if (tooLong || (initial && revision === 0)) return;
     const controller = new AbortController();
     request<P2ExploreScreen>(exploreQuery(q, categoryId, tagId), {
       signal: controller.signal,
@@ -96,7 +104,7 @@ export function VodSection({
       },
     );
     return () => controller.abort();
-  }, [q, categoryId, tagId, revision, tooLong]);
+  }, [q, categoryId, tagId, revision, tooLong, initial]);
 
   async function loadMore(cursor: string) {
     setMore({ pending: true, error: '' });

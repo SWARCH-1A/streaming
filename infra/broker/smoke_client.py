@@ -1,4 +1,5 @@
 """AMQP assertions executed inside the disposable broker operator image."""
+import base64
 import json
 import logging
 import os
@@ -6,6 +7,7 @@ from pathlib import Path
 import ssl
 import subprocess
 import sys
+import time
 
 import pika
 
@@ -102,17 +104,48 @@ def verify():
         assert method and body == BODY and properties.headers["x-p2-attempt"] == 0
         channel.basic_ack(method.delivery_tag)
         assert channel.queue_declare("chat.lifecycle", passive=True).method.message_count == 0
+        # A second DLQ identity ahead of the selected event must remain recoverable.
+        other = {**EVENT, "eventId": "00000000-0000-4000-8000-000000000099"}
+        other_body = json.dumps(other).encode()
+        channel.basic_publish("core.lifecycle.dead", "failed", other_body,
+                              pika.BasicProperties(content_type="application/json", delivery_mode=2), mandatory=True)
         dead_letter()
         operation("close", *selected)
+        method, properties, body = channel.basic_get("core.lifecycle.dlq", auto_ack=False)
+        assert method and body == other_body
+        channel.basic_ack(method.delivery_tag)
         assert channel.queue_declare("core.lifecycle.dlq", passive=True).method.message_count == 0
         audit = [json.loads(line) for line in Path("/audit/operations.jsonl").read_text().splitlines()]
         assert [entry["action"] for entry in audit] == ["redrive", "close"]
         assert all(entry["eventId"] == EVENT["eventId"] for entry in audit)
+        # Upgrade a prior installation: archive exact pending bytes before removing
+        # only the two unused subscriptions. The live registry remains untouched.
+        for sub, route in (("chat.account", "account.status.changed.v1"),
+                           ("core.vod", "vod.availability.changed.v1")):
+            channel.exchange_declare(sub + ".retry", "direct", durable=True)
+            channel.exchange_declare(sub + ".dead", "direct", durable=True)
+            for suffix in ("", ".dlq", ".retry.1", ".retry.5", ".retry.30"):
+                channel.queue_declare(sub + suffix, durable=True, arguments={"x-queue-type": "quorum"})
+            channel.queue_bind(sub, "p2.events", route)
+            channel.basic_publish("p2.events", route, BODY,
+                                  pika.BasicProperties(content_type="application/json", delivery_mode=2), mandatory=True)
+            for _ in range(20):
+                names = {q["name"] for q in map(json.loads, operation("metrics").splitlines())}
+                if sub in names:
+                    break
+                time.sleep(.25)
+            result = json.loads(operation("retire", "--subscription", sub, "--reason", "ADR-027 upgrade regression"))
+            assert result["archived"] == 1
+            assert json.loads(operation("retire", "--subscription", sub, "--reason", "Retry after completion"))["archived"] == 0
+        archived = [json.loads(line) for line in Path("/audit/retired-subscriptions.jsonl").read_text().splitlines()]
+        assert {row["queue"] for row in archived} == {"chat.account", "core.vod"}
+        assert all(base64.b64decode(row["bodyBase64"]) == BODY for row in archived)
+        operation("retire", "--subscription", "core.lifecycle", "--reason", "Refuse current subscription", expected=1)
         metrics = [json.loads(line) for line in operation("metrics").splitlines()]
         assert {queue["name"] for queue in metrics} == set(FIXTURE["queues"])
     finally:
         connection.close()
-    print("PASS: durable independent copies, routing, DLQ inspect/redrive/close, audit and queue metrics")
+    print("PASS: durable independent copies, routing, DLQ inspect/redrive/close, audit, queue metrics and lossless legacy-subscription retirement")
 
 
 if __name__ == "__main__":

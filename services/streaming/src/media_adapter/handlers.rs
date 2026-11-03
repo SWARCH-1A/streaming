@@ -54,7 +54,7 @@ async fn preview(State(state): State<Arc<MediaState>>, Path(session): Path<Strin
             .get(&session)
             .filter(|preview| {
                 preview.publisher == source.publisher_id
-                    && preview.captured.elapsed() < std::time::Duration::from_secs(45)
+                    && preview.captured.elapsed() < std::time::Duration::from_secs(3)
             })
             .map(|preview| Arc::clone(&preview.bytes))
     });

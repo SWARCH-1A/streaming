@@ -45,7 +45,7 @@
     "schema": "P2EventAccountStatusChanged",
     "spec": ["SPEC-17", "SPEC-10"],
     "status": "contract-ready",
-    "subscriptions": ["streaming.account", "chat.account", "vod.account", "notifications.account"]
+    "subscriptions": ["streaming.account", "vod.account", "notifications.account"]
   },
   {
     "eventType": "vod.availability.changed.v1",
@@ -53,7 +53,7 @@
     "schema": "P2EventVodAvailabilityChanged",
     "spec": ["SPEC-17", "SPEC-10"],
     "status": "contract-ready",
-    "subscriptions": ["chat.vod", "core.vod"]
+    "subscriptions": ["chat.vod"]
   },
   {
     "eventType": "notification.delivery.requested.v1",

@@ -112,7 +112,7 @@ func newFixture() *fixture {
 func (f *fixture) server(t *testing.T) *httptest.Server {
 	t.Helper()
 	queries := filepath.Join(t.TempDir(), "graphql-queries.json")
-	if e := os.WriteFile(queries, []byte(`[{"name":"LiveStreams","query":"query LiveStreams { streams { items { streamId } nextCursor } }"}]`), 0o600); e != nil {
+	if e := os.WriteFile(queries, []byte(`[{"name":"LiveStreams","query":"query LiveStreams { streams { items { streamId } nextCursor } }"},{"name":"Channels","query":"query Channels { channels { items { channelId } nextCursor } }"}]`), 0o600); e != nil {
 		t.Fatal(e)
 	}
 	proxies, e := parseTrustedProxies(f.proxies)
@@ -455,6 +455,14 @@ func TestExploreScreen(t *testing.T) {
 			t.Errorf("explore VOD %d -> %d", upstreamStatus, response.StatusCode)
 		}
 	}
+
+	// A search VOD rejects (e.g. a title over its limit) keeps the live section.
+	f = newFixture()
+	f.vod["GET /api/vods"] = reply(400, `{}`)
+	response, result, body := get(t, f.server(t), "/api/screens/explore?title="+strings.Repeat("a", 141), nil)
+	if response.StatusCode != 200 || !result.Meta.Partial || result.Vods.Status != "UNAVAILABLE" || result.Discovery.Status != "AVAILABLE" {
+		t.Fatal(response.StatusCode, string(body))
+	}
 }
 
 // CA-05: client-supplied private headers never reach a domain and forged forwarding is ignored.
@@ -650,5 +658,68 @@ func TestContentRemovalRejectsBeforeReachingTheDomain(t *testing.T) {
 	browser := map[string]string{"Cookie": "stream_session=admin; XSRF-TOKEN=" + csrf, "X-XSRF-TOKEN": csrf, "Origin": "https://localhost:3445"}
 	if response := postRemoval(t, server, valid, browser); response.StatusCode != 202 || calls.Load() != 1 {
 		t.Fatal("browser command with CSRF", response.StatusCode)
+	}
+}
+
+func TestExploreSearchKeepsIndependentCursorsAndUsesGeneratedQueries(t *testing.T) {
+	f := newFixture()
+	var mu sync.Mutex
+	seen := map[string]map[string]any{}
+	f.core["POST /api/discovery/graphql"] = func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Query     string         `json:"query"`
+			Variables map[string]any `json:"variables"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+			w.WriteHeader(400)
+			return
+		}
+		name := "LiveStreams"
+		result := `{"data":{"streams":{"items":[],"nextCursor":"live-next"}}}`
+		if strings.Contains(body.Query, "query Channels") {
+			name = "Channels"
+			result = `{"data":{"channels":{"items":[],"nextCursor":"channel-next"}}}`
+		}
+		if r.Header.Get("Cookie") != "" || r.Header.Get("Authorization") != "" {
+			t.Error("public discovery received identity")
+		}
+		mu.Lock()
+		seen[name] = body.Variables
+		mu.Unlock()
+		reply(200, result)(w, r)
+	}
+	server := f.server(t)
+	response, err := http.Get(server.URL + "/api/screens/explore?title=clase&categoryId=cat_fixture&tagId=tag_fixture&liveCursor=live-page&channelCursor=channel-page&cursor=vod-page&searchChannels=true")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != 200 {
+		t.Fatalf("status %d", response.StatusCode)
+	}
+	var screen screenResult
+	if err := json.NewDecoder(response.Body).Decode(&screen); err != nil {
+		t.Fatal(err)
+	}
+	if screen.Discovery.Status != "AVAILABLE" {
+		t.Fatalf("discovery %+v", screen.Discovery)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if seen["LiveStreams"]["cursor"] != "live-page" || seen["Channels"]["cursor"] != "channel-page" {
+		t.Fatalf("mixed cursors: %+v", seen)
+	}
+	if seen["LiveStreams"]["categoryId"] != "cat_fixture" || seen["LiveStreams"]["tagId"] != "tag_fixture" || seen["Channels"]["categoryId"] != nil {
+		t.Fatalf("mixed filters: %+v", seen)
+	}
+	for name, variables := range seen {
+		if variables["q"] != "clase" {
+			t.Errorf("%s lost title", name)
+		}
+	}
+	vodRequest := f.log.find("/api/vods")
+	if vodRequest == nil || vodRequest.URL.Query().Get("cursor") != "vod-page" {
+		t.Fatal("VOD cursor lost")
 	}
 }

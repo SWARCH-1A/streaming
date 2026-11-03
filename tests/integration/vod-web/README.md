@@ -67,3 +67,12 @@ antes/después de retirada, suspensión/reactivación, evento atrasado, reinicio
 Tener el runner no acredita su aprobación: los resultados se registran por commit en el PR.
 Se conserva una calidad; móvil, multicalidad y observación humana asistiva siguen siendo verificaciones
 separadas. La moderación por propietario de Chat no otorga privilegios administrativos globales.
+
+Para repetir los escenarios locales `p2-chat-replay/run.py` y `p2-ssr-browser/run.py` sin crear
+cuentas en cada ejecución, `P2_TEST_ACCOUNTS` puede apuntar a un JSON privado fuera de Git
+(modo 0600). Sus entradas `replay-owner`, `replay-fan`, `ssr-owner` y `ssr-fan` contienen
+`handle`, `password` y `account` (la respuesta pública del registro). Usar exclusivamente
+cuentas ficticias separadas por escenario. Esto conserva los límites de registro del producto;
+los runners aislados siguen creando sus propias cuentas. `p2-account-live/run.py` requiere
+esas cuentas explícitas y provisiona `ssr-fan` como ADMIN con el script operador de Core;
+prueba suspensión, bloqueo HLS/preview, reactivación sin resurrección y nueva ingesta.

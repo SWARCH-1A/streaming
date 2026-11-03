@@ -75,6 +75,6 @@ Una SPEC aceptada no implica una prueba ejecutada. Para cerrar un recorrido se r
 probada, entorno, datos ficticios, resultado y evidencia, sin credenciales.
 
 P2-I-15/16 requieren las decisiones delegadas; sus RF siguen incluidos. La selección tecnológica,
-provisión push, empaquetado y clasificación académica siguen en
+provisión/adaptadores push y clasificación académica siguen en
 [decisiones pendientes](decisiones_pendientes_p2.md). No se certifican por un diagrama ni por
 haber instalado un broker. El criterio de cierre es el recorrido real y sus fallos.

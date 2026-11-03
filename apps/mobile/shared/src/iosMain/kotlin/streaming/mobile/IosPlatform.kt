@@ -17,6 +17,7 @@ import kotlinx.coroutines.delay
 import platform.AVFoundation.*
 import platform.AVKit.AVPlayerViewController
 import platform.CoreMedia.CMTimeGetSeconds
+import platform.CoreMedia.CMTimeMake
 import platform.Foundation.*
 import platform.UIKit.*
 
@@ -42,8 +43,18 @@ fun MainViewController(store: SecureStore, origin: String): UIViewController {
 }
 
 @Composable actual fun VideoPlayer(url: String, title: String, modifier: Modifier, onPlaying: (Boolean) -> Unit,
-                                  onPosition: (Long) -> Unit, onError: (String) -> Unit) {
-    val player = remember(url) { AVPlayer(uRL = NSURL(string = url)).apply { play() } }
+                                  onPosition: (Long) -> Unit, onError: (String) -> Unit, playbackGrant: String, startPositionMs: Long) {
+    val mediaUrl = NSURL(string = url)
+    // AVURLAsset uses Foundation's default cookie store. This short-lived grant is
+    // scoped to one VOD; the application session never enters media requests.
+    if (playbackGrant.isNotEmpty() && mediaUrl?.host != null) {
+        NSHTTPCookie.cookieWithProperties(mapOf<Any?, Any>(NSHTTPCookieName to "vod_access", NSHTTPCookieValue to playbackGrant,
+            NSHTTPCookieDomain to mediaUrl.host!!, NSHTTPCookiePath to mediaUrl.path!!.substringBeforeLast('/') + "/",
+            NSHTTPCookieSecure to "TRUE", NSHTTPCookieExpires to NSDate.dateWithTimeIntervalSinceNow(60.0)))?.let {
+            NSHTTPCookieStorage.sharedHTTPCookieStorage.setCookie(it)
+        }
+    }
+    val player = remember(url) { AVPlayer(uRL = NSURL(string = url)).apply { if (startPositionMs > 0) seekToTime(CMTimeMake(startPositionMs, 1000)); play() } }
     val controller = remember(player) { AVPlayerViewController().apply { this.player = player } }
     var variants by remember(url) { mutableStateOf(emptyList<Rendition>()) }
     var quality by remember(url) { mutableStateOf("Automática") }

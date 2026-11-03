@@ -1,11 +1,11 @@
 {
   "base": "contracts/p1.json",
   "sha256": {
-    "events.json": "47a623191614426bc8c74573e91ab256ee8d1d75fcc7dff7823b419d67dec9ea",
-    "index.d.ts": "a0cee8a5668c84d00460139852bfab9631eda4a13684bdc75e231f525ba93911",
-    "operations.json": "332c584e11f9d26ce8f1de3702f2be1761af8dd31b9cee2e887e66d40e74f024",
+    "events.json": "e8096293f2119e9fe87a549b307f5c18923e6d7ae0f2f0dc126c289b023665d9",
+    "index.d.ts": "b4c9e7aac2d4edfd01aac66bc604b483a76e66a1165222d7f850822f5789562b",
+    "operations.json": "a26807b4bc0e5f1cbacf87b76bb8caa4b54ea3fc37ed4c7fb6a3bf76fe61aaa1",
     "protocol-extensions.json": "f4ced1d55c7a20384ce99911c6db7a8829ee905043f5ab997968d10f57b54bbd",
-    "schema.json": "225dad294061085bcc0c9459a0cbfc1ab531c273a4d0db4e5ea315331a203759"
+    "schema.json": "3d6181ff3e8e663a8c12355a9bfb018abcfbbef0713829373399a5ca7d30cacc"
   },
   "source": "contracts/p2.json",
   "version": 2

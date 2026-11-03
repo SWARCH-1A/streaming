@@ -25,4 +25,6 @@ expect fun VideoPlayer(
     onPlaying: (Boolean) -> Unit,
     onPosition: (Long) -> Unit,
     onError: (String) -> Unit,
+    playbackGrant: String = "",
+    startPositionMs: Long = 0,
 )

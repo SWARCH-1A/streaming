@@ -9,15 +9,15 @@ sus licencias OFL en `shared/src/commonMain/composeResources/font`.
 
 Registro, login/logout, recuperación por solicitud/confirmación, perfil de consulta, exploración,
 búsqueda de canales/live, filtros, paginación, canal, reproducción live, calidad y chat live consumen
-APIs públicas. La recuperación acepta el token manualmente: la entrega SMTP y los enlaces
-universales de la instalación aún requieren integración. No se transmite el token en una URL API.
+APIs públicas. La recuperación acepta el token manualmente. SMTP local ya entrega el enlace Web;
+los enlaces universales de recuperación en móvil aún requieren integración. No se transmite el token en una URL API.
 
-La navegación incluye Siguiendo y Bandeja con indisponibilidad explícita. Los proveedores de
-seguimiento y bandeja/preferencias llegaron desde develop; su consumo móvil aún requiere integración.
-Core acepta Bearer para seguimiento y configuración VOD. VOD/replay, agregados Gateway,
-registro push y destinos de notificación siguen sujetos a SPEC-03/05/14/16/20/22.
-Estas funciones móviles no están aceptadas ni simuladas. No hay Firebase/APNs configurado.
-Ver la matriz de dependencias en SPEC-19 antes de interpretar una compilación como entrega completa P2.
+La navegación incluye Siguiendo, Bandeja, preferencias generales/por canal y biblioteca VOD.
+Exploración, biblioteca y detalle VOD consumen los agregados públicos del Gateway. El reproductor
+nativo usa permisos multimedia cortos, replay sobre el timeline y pistas WebVTT autorizadas.
+Los destinos de notificaciones se validan antes de navegar. No hay Firebase/APNs configurado;
+el registro y la entrega push reales siguen pendientes de provisión e implementación de adaptadores.
+La [guía de provisión push](PUSH.md) especifica los archivos privados y la aceptación necesaria.
 
 ## Preparar
 
@@ -34,7 +34,7 @@ python3 contracts/generate_mobile.py
 
 Arrancar el backend actual con `python3 infra/local/dev.py build` y `up` desde la raíz. Su entrada
 pública es `https://localhost:3445`. Mobile requiere TLS válido; nunca se desactiva su verificación.
-El cliente usa las rutas públicas base mientras Gateway no entregue agregados ejecutables.
+Las lecturas compuestas usan Gateway; los comandos conservan las APIs públicas de su dominio.
 
 ## Android
 
@@ -99,9 +99,18 @@ Cobertura ejecutada el 2026-10-27 con backend local HTTPS y una emisión de prue
 | iOS 27.0, iPhone 18 Pro simulado arm64 | Framework Kotlin y host UIKit compilados, firmados ad hoc e instalados | Exploración, enlace validado a live y primer frame HLS con AVPlayer; lease reflejado en el conteo | Login/Keychain y chat desde UI, pausa/retorno, selección de calidad, accesibilidad y dispositivo físico |
 | iOS arm64 físico | Compilación Kotlin del target | Sin instalación ni prueba física | Host firmado/provisioning, instalación y recorrido real |
 
-Las 14 pruebas compartidas pasan. Core pasa sus pruebas unitarias y 202 pruebas de integración;
-Chat pasa `go test -race ./...`. Los generadores y 37 pruebas de contratos también pasan.
-Estos resultados no acreditan VOD/replay, follow, bandeja, push ni entrega completa de SPEC-19.
+Verificación adicional del 2026-11-03: Android arm64 API 37 con backend HTTPS real acredita
+login y restauración tras reiniciar, búsqueda/canal, seguir/dejar de seguir, lista Siguiendo,
+bandeja y destino validado, HLS con frame decodificado, chat con ACK, lease 1→0 al pasar a segundo
+plano y 0→1 al volver, salida y logout persistente. VOD real reproduce video, seis mensajes de
+replay con retirada moderada aplicada y pista «Español móvil» seleccionada/desactivada sin
+reiniciar video. `tests/integration/p2-mobile/run.py` reproduce el recorrido live con fixtures
+explícitamente ficticios y un emulador dedicado.
+
+Las 23 pruebas compartidas y el APK Android pasan después del ajuste de paginación de replay.
+La compilación del host iOS acredita compilación; los nuevos recorridos comunitarios/VOD no se
+han ejecutado en iOS. La matriz de octubre conserva su fecha y no acredita push, dispositivo
+físico ni accesibilidad humana. Core y contratos tienen sus suites separadas.
 
 Las pruebas compartidas corren con `./gradlew :shared:desktopTest`; cubren generación de sesión,
 401 antiguos, persistencia, serialización canónica, ausencia de Cookie/Origin, restricciones de URLs,
@@ -113,5 +122,11 @@ Ningún mock acredita HLS, push ni operación offline en dispositivo.
 Para aceptación con backend real: registro/login → buscar canal → live → reproducir → calidad →
 chat; pausar/reanudar, rotar, cambiar pantalla y perder red; cerrar sesión y comprobar que la misma
 credencial ya no autoriza. Verificar primer frame y leases mediante Streaming, sin guardar tokens,
-logs de cuerpos o claves de emisión. Follow/bandeja/VOD/push esperan sus proveedores antes de cerrar
-CA-01/04/06/07. Las pruebas manuales de accesibilidad y escalado de texto siguen siendo necesarias.
+logs de cuerpos o claves de emisión. Follow/bandeja/VOD ya tienen consumidor; CA-01/04/06/07 requieren la aceptación integrada
+en dispositivo y el registro/entrega push con proveedores provisionados. Las pruebas manuales de accesibilidad y escalado de texto siguen siendo necesarias.
+
+En API 37 también se verificó el VOD real de cuatro calidades (720/540/360/180p), automática y
+seek de 4 a 56 s con reproducción a 58 s. Si el emulador 36.5.10/API 37 muestra rayas horizontales
+con el decoder Goldfish, arrancar el AVD dedicado con `-feature -HardwareDecoder`: usa el decoder
+software del sistema, sin cambiar la app ni los archivos. Se verificaron los cuatro frames en
+ese modo. Esta prueba no sustituye la matriz de dispositivos físicos/iOS.

@@ -152,3 +152,10 @@ También se ejecutó un smoke de arranque nativo TLS: PostgreSQL con verify-full
 privado inicializado con escritor/lector distintos, y salud HTTPS de VOD y Media. Core, Streaming
 y broker estuvieron ausentes en ese smoke; no acredita el recorrido completo TLS. Se validaron
 Compose/Caddy con certificados de fixture sin iniciar ni modificar el stack del usuario.
+
+El capturador conserva un último keyframe sellado aunque MediaMTX no tenga un DTS posterior:
+resuelve su duración real con ffprobe y persiste la medida antes de transferirlo. Una ausencia
+AAC de hasta 250 ms solo se admite al final verificado de su generación. Bytes sin sello,
+audio ausente en segmentos interiores y cambios de formato siguen fallando. Las pruebas de
+`cmd/media-recorder` y `internal/vod` requieren ffmpeg/ffprobe y un usuario sin privilegios;
+la prueba de permisos de limpieza no debe ejecutarse como root.

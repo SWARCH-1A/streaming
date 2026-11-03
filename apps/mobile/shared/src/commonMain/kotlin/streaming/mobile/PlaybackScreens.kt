@@ -33,14 +33,15 @@ import streaming.mobile.contracts.*
 @Composable
 fun ChannelScreen(api: Api, handle: String, foreground: Boolean, navigate: (String) -> Unit) {
     var channel by remember(handle) { mutableStateOf<ChannelBootstrap?>(null) }
+    var screen by remember(handle) { mutableStateOf<P2ChannelScreen?>(null) }
     var error by remember(handle) { mutableStateOf<String?>(null) }
     var retry by remember { mutableIntStateOf(0) }
     LaunchedEffect(handle, foreground, retry) {
         if (!foreground) return@LaunchedEffect
         while (isActive) {
-            recoverable { api.get<ChannelBootstrap>("/api/channels/by-handle/${id(handle)}") }
-                .onSuccess { channel = it; error = null }.onFailure { error = it.userMessage(); if (it is ApiFailure && it.status in listOf(404, 410, 403)) channel = null }
-            delay(3_000)
+            recoverable { api.get<P2ChannelScreen>("/api/screens/channels/${id(handle)}", api.session.state.value != null) }
+                .onSuccess { screen = it; channel = it.channel; error = null }.onFailure { error = it.userMessage(); if (it is ApiFailure && it.status in listOf(404, 410, 403)) channel = null }
+            delay(2_000)
         }
     }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -54,8 +55,8 @@ fun ChannelScreen(api: Api, handle: String, foreground: Boolean, navigate: (Stri
                 Text(stream.title, style = MaterialTheme.typography.titleLarge)
                 Button(enabled = data.availability in listOf("PLAYABLE", "RECONNECTING"), onClick = { navigate("watch:${stream.streamId}") }) { Text("Ver transmisión") }
             } }
-            item { Notice("El seguimiento aún no está disponible en el servidor.") }
-            item { SectionHeading("Videos del canal"); Notice("La biblioteca de videos aún no está disponible en el servidor.") }
+            item { FollowControl(api, data, screen?.follow?.sectionData<P2Follow>(), navigate) }
+            item { SectionHeading("Videos del canal"); VodCards(screen?.vods?.sectionData<P2VodPage>(), navigate) }
         }
     }
 }
@@ -74,19 +75,17 @@ fun WatchScreen(api: Api, streamId: String, foreground: Boolean, navigate: (Stri
         if (!foreground) return@LaunchedEffect
         while (isActive) {
             recoverable {
-                val next = api.get<PublicStream>("/api/streams/${id(streamId)}")
-                val session = next.sessionId?.let { api.get<PublicSession>("/api/streams/sessions/${id(it)}") }
-                require(session == null || (session.streamId == streamId && session.sessionId == next.sessionId))
-                stream = next; live = session; error = null
+                val screen = api.get<P2WatchScreen>("/api/screens/watch/${id(streamId)}", api.session.state.value != null)
+                val next = screen.stream
+                val session = screen.session
+                require(session == null || (session.streamId == streamId && session.sessionId == next.sessionId && session.channelId == next.channelId && session.streamGeneration == next.streamGeneration))
+                stream = next; live = session; channel = screen.channel.sectionData<ChannelBootstrap>(); error = null
             }.onFailure {
                 error = it.userMessage()
                 live = null; playing = false
             }
-            delay(3_000)
+            delay(2_000)
         }
-    }
-    LaunchedEffect(stream?.channelId) {
-        stream?.channelId?.let { channelId -> recoverable { api.get<ChannelBootstrap>("/api/channels/${id(channelId)}") }.onSuccess { channel = it } }
     }
     val leases = remember(live?.sessionId) { live?.let { ViewerLeases(api, it.sessionId) } }
     LaunchedEffect(playing, foreground, leases) { if (playing && foreground) leases?.whilePlaying { leaseError = it } }

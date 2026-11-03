@@ -18,7 +18,7 @@ import { useResource } from '@/src/shared/api/useResource';
 import styles from './ChannelRoute.module.css';
 
 interface ChannelRouteProps {
-  /** Bootstrap rendered by the SSR loader; the browser only revalidates it every 4 s. */
+  /** Bootstrap rendered by the SSR loader; the browser only revalidates it every 2 s. */
   initial?: ChannelBootstrap;
   initialFollow?: P2Follow | null;
   initialVods?: P2VodPage;
@@ -36,9 +36,9 @@ export function ChannelRoute({
     `channel:${handle}`,
     (signal) =>
       request<ChannelBootstrap>(`/api/channels/by-handle/${encodeURIComponent(handle)}`, {
-        signal,
+        signal: AbortSignal.any([signal, AbortSignal.timeout(2500)]),
       }),
-    4000,
+    2000,
     initial,
   );
   const navigate = useNavigate();

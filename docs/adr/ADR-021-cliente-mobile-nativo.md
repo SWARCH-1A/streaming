@@ -7,8 +7,7 @@
 
 ADR-015 selecciona Kotlin Multiplatform y Compose Multiplatform. Se necesita una aplicación
 Android e iOS que conserve el lenguaje visual de `apps/web` y la autoridad de sesión Core.
-Gateway, VOD, seguimiento, replay y Notificaciones aún requieren contratos ejecutables de sus
-responsables. No se deduce su implementación a partir de una pantalla móvil.
+Gateway, VOD, seguimiento, replay y Notificaciones publican contratos ejecutables propios. No se deduce su implementación a partir de una pantalla móvil.
 
 ## Decisión
 
@@ -25,9 +24,7 @@ mismo origen. Compartir una librería de reproducción adicional no sustituiría
 
 Ktor usa OkHttp en Android y Darwin en iOS, confianza TLS de plataforma y ningún logger de cuerpos,
 CookieJar o interceptor que reintente comandos. Solo se configura un origen HTTPS público.
-Mientras SPEC-16 no se materialice, el cliente consume las APIs públicas existentes mediante el
-proxy integrado; no llama listeners privados. La sustitución por agregados requiere schemas y
-pruebas del Gateway, sin transferirle autorización de los dominios.
+El cliente consume los agregados públicos Gateway de exploración, canal, live y VOD; los comandos mantienen las APIs de dominio. No llama listeners privados ni transfiere autorización al Gateway. Los estados parciales se validan antes de usar cada sección.
 
 Los DTO Kotlin y consultas GraphQL derivan de `contracts/p1.json` y `contracts/p2.json` mediante
 `contracts/generate_mobile.py`. No se mantiene una definición paralela de sus campos.
@@ -57,7 +54,9 @@ aceptado y no resolvería de forma equivalente player/credenciales. Se conservan
 nativos pequeños y pruebas por plataforma; compilar Kotlin compartido no demuestra funcionamiento iOS.
 
 El diseño replica colores, tipografías y marca Vault tv de la web responsive, con navegación inferior
-adaptada al teléfono. Seguimiento y bandeja muestran su dependencia pendiente. No se generan
+adaptada al teléfono. Seguimiento, bandeja/preferencias, biblioteca/detalle VOD, replay y subtítulos consumen sus
+proveedores públicos; el estado de sección se valida antes de leer datos. El player VOD recibe
+un permiso corto, sin introducir la sesión de usuario en URLs multimedia. No se generan
 tokens push ficticios ni se instala un SDK sin proyecto Firebase/APNs y contrato de instalaciones.
 
 La configuración de certificados se hace en el emulador/simulador; no se permiten trust-all ni

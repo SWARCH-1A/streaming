@@ -1,6 +1,6 @@
 # SPEC-17 — Broker y entrega durable de eventos y trabajos
 
-**Prioridad:** P2. **Responsable:** Mensajería / integración. **Estado:** ciclo/Discovery integrados y productor de recuperación disponible; consumidor SMTP y aceptación completa pendientes.
+**Prioridad:** P2. **Responsable:** Mensajería / integración. **Estado:** nueve familias integradas en el stack local, VOD/SMTP reales verificados; push y ventanas de fallo exhaustivas pendientes.
 **RF:** RF-011, 020…022, 052, 056, 061, 079, 082. **RNF:** RNF-001, 006, 009…010, 014, 020…024, 025, 038, 041…047, 050…051.
 
 ## 1. Contexto y problema
@@ -49,9 +49,10 @@ continúa para consultas y autorización inmediata. El broker no transporta byte
 ## 7. Diseño técnico y datos
 
 [Mensajería P2](../contratos_p2_eventos.md) y `contracts/p2.json.events` fijan nueve tipos de
-mensaje, productores y suscripciones lógicas. Los payloads ejecutables de ciclo, Discovery y
-recuperación están listos; las otras seis familias permanecen pendientes de sus responsables. El responsable mapea esos nombres al
-producto elegido sin cambiar qué consumidores reciben cada mensaje.
+mensaje, productores y suscripciones lógicas. Los nueve payloads tienen schemas ejecutables
+y las suscripciones se materializan en la topología RabbitMQ de ADR-016. Streaming consume
+además su cola de estado de cuenta con inbox durable y cercado por versión. La aceptación
+por familia comprueba el efecto real de cada proveedor, además de la entrega de transporte.
 
 El outbox se escribe con el cambio de dominio. Solo se marca publicado tras confirmación durable
 del broker. El inbox tiene unicidad `(consumer,eventId)`, fingerprint y efecto/estado de trabajo
@@ -73,7 +74,7 @@ se acepta un TTL que elimine una responsabilidad durable pendiente sin recuperac
 | Streaming/Media → VOD | Segmentos confirmados y cierre de grabación con índice |
 | Core → Notificaciones | Seguimiento, estado de cuenta y trabajos de recuperación |
 | Notificaciones → workers | Trabajo filtrado por medio y target/deliveryId |
-| VOD → Chat/Core | Disponibilidad y borrado con versión |
+| VOD → Chat | Disponibilidad y borrado con versión |
 
 Cada dueño implementa su outbox/inbox. El responsable del broker entrega topología y librería o
 adaptador neutral, sin importar clases de dominio de otro lenguaje.
@@ -82,9 +83,9 @@ adaptador neutral, sin importar clases de dominio de otro lenguaje.
 
 P2-07: [ADR-016](../adr/ADR-016-rabbitmq-eventos-p2.md) fija producto, protocolo, SDK iniciales,
 topología, tamaños, reintentos, DLQ/redrive y retención. ADR-017 incorpora la publicación desde
-Cuentas y contratos privados de recuperación. El responsable de Notificaciones implementará
-el consumidor y elegirá su runtime, almacén y proveedor SMTP en P2-12. La compatibilidad de
-runtimes futuros y la cobertura completa siguen pendientes.
+Cuentas y contratos privados de recuperación. Notificaciones implementa los consumidores en TypeScript/PostgreSQL y SMTP según ADR-020;
+Mailpit valida el correo en local. La entrega push externa requiere provisión. La compatibilidad
+de runtimes futuros y la aceptación completa se verifican por consumidor.
 La entrega durable, suscripciones independientes y un único broker son obligatorios. El ADR
 incluye matriz de compatibilidad Java/Rust/Go y runtimes nuevos, más evidencia de recuperación.
 
@@ -108,9 +109,37 @@ core.lifecycle, core.discovery y chat.lifecycle. Se verificaron emisión real, e
 Discovery, duplicados/desorden/conflictos, consumidores detenidos, reintentos, DLQ/redrive y reinicio
 con outbox/colas conservados. La prueba automatizada de infraestructura y su alcance están en
 el runbook del perfil. Los criterios anteriores conservan pendiente la aceptación completa:
-faltan las ventanas exactas de commit/confirm/ACK, la medición hasta interfaz bajo carga y las
-demás familias. Las colas VOD/Notificaciones no acreditan sus funciones.
+faltan las ventanas exactas de commit/confirm/ACK de todos los consumidores y la medición
+hasta interfaz bajo carga; no se infieren de las pruebas de transporte. Las funciones VOD/SMTP se acreditan además mediante los recorridos reales descritos abajo.
 
 El gestor infra/local/dev.py incorpora el broker por defecto en init/build/up/status/down.
 La inicialización conserva datos y secretos existentes; up espera salud de RabbitMQ y los demás
 servicios con healthcheck, además de Web/API. Los perfiles de prueba P1 mantienen su aislamiento.
+
+## Recuperación y consumidores verificados
+
+La prueba de infraestructura se ejecutó el 2026-11-03: TLS, ACL negativas, suscripciones
+independientes, reinicio con envelope conservado y operaciones inspect/redrive/close con
+auditoría pasaron. Los escenarios VOD/Chat ejecutaron segmentos/cierre, disponibilidad,
+replay y borrado; seguimiento/notificaciones y recuperación ejecutaron bandeja y SMTP real.
+El proveedor push sigue sin configurar y no se presenta como una entrega exitosa.
+
+Streaming mantiene índices parciales de orden, predecesor y alerta del outbox. Los claims
+excluyen filas cerradas; la alerta no recorre todo el backlog por cada entrega antigua.
+La prueba PostgreSQL con 30.000 snapshots conserva el orden por agregado, impide reclamar
+el siguiente antes del ACK y ejecuta cien ciclos claim/alert/ACK en un presupuesto de cinco
+segundos. No se borran ni rejuvenecen snapshots atrasados para ocultar la edad de cola;
+Discovery solo aplica versiones mayores y reconstruye por corte consistente/watermark.
+
+La topología vigente conserva dieciséis suscripciones con efecto (ADR-027). Chat no mantiene
+una réplica de identidad y Core no mantiene una réplica del catálogo VOD. Las antiguas colas
+`chat.account` y `core.vod` se archivan con la operación privada `retire` antes de retirarlas.
+Streaming 0008 conserva P1 pero publica `RECONNECT_GRACE` en el envelope P2 de pérdida de fuente;
+las pruebas PostgreSQL comprueban ambos cuerpos y la inmutabilidad histórica.
+
+El ensayo final de reconexión con cuatro pistas, tras aplicar 0008 en el contenedor desplegado,
+conservó la sesión y finalizó el VOD con sus cuatro calidades. Las 80 colas vigentes quedaron sin
+mensajes pendientes ni DLQ y el outbox quedó vacío. Los eventos inválidos históricos se cerraron
+con auditoría tras comprobar sesión ENDED y barreras terminales/generación posterior; no se
+reescribieron ni se redirigieron cuerpos inválidos. El smoke también verifica selección de un
+ID DLQ detrás de otro mensaje y conserva sin ACK la otra entrega.

@@ -185,3 +185,46 @@ Los Compose básicos por servicio de esta
 guía mantienen su alcance original. Para incorporar VOD a la instalación completa, repetir
 `init`, `build`, `up`; se conservan secretos y datos anteriores. Certificados, identidades S3
 separadas, migraciones, salud y recuperación: [servicio VOD](../../services/vod/README.md).
+
+## Provisión externa
+
+El perfil completo usa MinIO y Mailpit locales, sin cuentas de nube para video/correo.
+Firebase/APNs aún no están provisionados; [PUSH.md](../../apps/mobile/PUSH.md) identifica
+los archivos privados y los adaptadores pendientes. No confundir guardar preferencias push
+con registrar un dispositivo o entregar un aviso real.
+
+## Backup y recuperación del perfil completo P2
+
+Desde la raíz del repositorio, con el stack `streaming-local` ya inicializado:
+
+```sh
+python3 infra/local/backup.py backup /ruta/privada/backup-p2
+python3 infra/local/backup.py restore /ruta/privada/backup-p2 --prefix streaming-restore-prueba --start
+```
+
+El primer comando requiere un directorio nuevo. Detiene de forma consistente solo el proyecto
+local, copia sus doce volúmenes y configuración privada, calcula SHA-256 y vuelve a arrancar
+los contenedores que estaban activos. La parada interrumpe emisiones; hacerla sin publicadores
+conectados. Un backup sin `manifest.json` no está completo. El directorio contiene contraseñas,
+claves privadas y datos: permisos 0700/0600, fuera de Git; conservarlo en almacenamiento privado.
+El contenedor auxiliar no recibe red ni socket Docker. Los volúmenes ajenos se rechazan.
+
+Restaurar verifica todos los hashes antes de crear volúmenes nuevos y rechaza nombres existentes.
+No sobrescribe ni borra el original. `--start` usa las imágenes locales exactas del snapshot y
+levanta otra instalación con red y tres puertos loopback libres; muestra su URL HTTPS. Conservar
+las imágenes del snapshot hasta validar la recuperación. La CA recuperada sigue siendo la del
+backup. Sin `--start`, solo se crean volúmenes y el mapa `*.compose.json` para operación manual.
+
+Se generan un archivo `PREFIJO.runtime.json`, un mapa `PREFIJO.json` y configuración privada en
+`PREFIJO-state`. Para parar la copia recuperada conservando sus volúmenes:
+
+```sh
+docker compose -p streaming-restore-prueba -f compose.yaml -f infra/broker/compose.yaml \
+  -f /ruta/privada/backup-p2/streaming-restore-prueba.runtime.json \
+  --env-file /ruta/privada/backup-p2/streaming-restore-prueba-state/environment.env down
+```
+
+La aceptación `tests/integration/p2-recovery/run.py` comprueba login, VOD/timeline, replay moderado
+y un frame decodificado en Chromium desde el MinIO restaurado. Requiere cuentas ficticias
+explícitas mediante `P2_TEST_ACCOUNTS`, una grabación publicada en el backup y Playwright Python.
+Restaurar tablas o conservar volúmenes por sí solo no acredita reproducción y referencias S3.

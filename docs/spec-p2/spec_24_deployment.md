@@ -1,6 +1,6 @@
 # SPEC-24 — Despliegue, datos y operación P2
 
-**Prioridad:** P2. **Responsable:** Integración / responsables de componentes. **Estado:** diseño para desarrollo.
+**Prioridad:** P2. **Responsable:** Integración / responsables de componentes. **Estado:** ensamblaje local implementado; recuperación real verificada; aceptación transversal en curso.
 **RF:** Todos los recorridos incluidos en P2. **RNF:** RNF-001…010, 015…024, 025, 041…051.
 
 ## 1. Contexto y problema
@@ -22,7 +22,7 @@ qué se recupera o deja de estar disponible al detener un componente.
 
 Contenedores de servidor, redes, dominio HTTPS, configuración, secretos, volúmenes, health,
 readiness, backups, recuperación, comandos y artefacto académico. Perfil local sencillo con
-S3 compatible; no se fija producto local ni tamaño de disco en esta SPEC.
+S3 compatible; MinIO es el proveedor local fijado por ADR-022; el tamaño de disco se dimensiona para builds y grabaciones.
 
 ## 5. Requisitos funcionales
 
@@ -34,10 +34,10 @@ S3 compatible; no se fija producto local ni tamaño de disco en esta SPEC.
 ## 6. Criterios de aceptación
 
 - [ ] CA-01: desde checkout limpio, comandos documentados construyen y levantan servidores y permiten instalar Android.
-- [ ] CA-02: dominio HTTPS sirve SSR/API/WS/HLS; rutas y credenciales internas no están expuestas.
+- [x] CA-02: dominio HTTPS sirve SSR/API/WS/HLS; rutas y credenciales internas no están expuestas.
 - [ ] CA-03: S3 externo conserva todas las calidades; el perfil local usa endpoint configurable compatible sin forzar proveedor de producción.
 - [ ] CA-04: reiniciar servicios/broker con volúmenes conserva cuentas, VOD, mensajes confirmados, bandeja e intenciones pendientes.
-- [ ] CA-05: backup/restore demuestra datos y referencias de objetos consistentes; se distingue volumen conservado de recuperación tras pérdida.
+- [x] CA-05: backup/restore demuestra datos y referencias de objetos consistentes; se distingue volumen conservado de recuperación tras pérdida.
 - [ ] CA-06: readiness detecta dependencias necesarias y health distingue proceso vivo de capacidad de atender, sin filtrar secretos.
 - [ ] CA-07: inventario acredita mínimos con artefactos ejecutados y criterio docente; no cuenta módulos Core como procesos o el broker como BD de negocio.
 - [ ] CA-08: logs/métricas permiten seguir requestId/eventId/deliveryId, cola/DLQ y fallos parciales sin tokens ni payloads privados.
@@ -56,8 +56,16 @@ VOD/Notificaciones deben soportar recuperación y el inventario de cuatro compon
 Bases lógicas dentro de un solo motor no se cuentan automáticamente como componentes distintos.
 
 El dominio usa HTTPS. Local conserva autenticación y aislamiento con un arranque sencillo;
-los comandos reales existentes siguen siendo P1 hasta publicar los de P2. Se documenta qué
+el perfil completo se ejecuta con `python3 infra/local/dev.py init/build/up/status`. Se documenta qué
 servicios requieren credenciales/provisión externa y qué pruebas se realizaron con S3 local.
+
+`infra/local/backup.py` crea un backup consistente con parada global del proyecto local y
+reinicio de los contenedores que estaban activos. Incluye los doce volúmenes: cinco PostgreSQL,
+Redis, RabbitMQ, MinIO, dos almacenes de imágenes Core y dos buffers Media. Copia configuración,
+certificados y secretos privados, con hashes SHA-256, directorio 0700 y archivos 0600. El archivo
+nunca se incluye en Git. La restauración verifica todos los hashes antes de crear volúmenes
+nuevos y rechaza destinos existentes; entrega un mapa Compose de esos volúmenes. No modifica
+la instalación original ni confunde conservar un volumen con restaurarlo desde un archivo.
 
 ## 8. Dependencias y contratos de integración
 
@@ -68,8 +76,8 @@ C&C, despliegue, capas y descomposición alineados con ese inventario.
 
 ## 9. Decisiones y preguntas abiertas
 
-P2-18: clasificación Gateway/seis lógica y cuatro datos; P2-07/09/10/12: productos y motores;
-P2-13: push real. El perfil debe cerrarse con esos ADR antes de acreditar mínimos. No se inventa
+P2-07/09/10/12 tienen productos/motores aceptados en ADR-016/022/024/020.
+P2-18 conserva la clasificación docente del Gateway; P2-13, provisión y adaptadores push reales. No se inventa
 un sexto dominio solo para completar un diagrama.
 
 ## 10. Verificación
@@ -80,7 +88,20 @@ datos por componente real. El artefacto Markdown/PDF incluye equipo, nombre, log
 cuatro vistas, elementos/conectores/estilos y comandos probados, con cierre de código el 30 de
 octubre, entrega 2 de noviembre y presentación 3 de noviembre.
 
+El inventario local ejecutado incluye dos presentaciones (Web SSR y KMP Android/iOS), seis
+unidades de lógica (Core, Streaming, Chat, VOD, Notificaciones y Gateway de agregación), cinco
+lenguajes (Java, Rust, Go, TypeScript, Kotlin), cinco PostgreSQL privados, Redis y MinIO.
+El broker es mensajería y MediaMTX es transporte/procesamiento de medios. Los 19 servicios
+persistentes arrancan con volúmenes; `minio-init` es un inicializador efímero. El criterio docente
+sobre Gateway como lógica no puede certificarse mediante el inventario técnico.
+
 ## 11. Esfuerzo, riesgos y consecuencias
 
 Esfuerzo L transversal. La dependencia de S3/SMTP/push y las decisiones de motores deben
 resolverse pronto; la evidencia debe separar configuración local, despliegue externo e iOS real.
+
+La verificación del 2026-11-03 restauró los doce volúmenes y la configuración en un proyecto
+independiente con `backup.py restore --start`; arrancó los cinco PostgreSQL y los 19 servicios
+persistentes. El runner `tests/integration/p2-recovery/run.py` comprobó login, metadatos/timeline,
+replay moderado y frames decodificados del VOD servido desde los objetos MinIO restaurados.
+La instalación original y el contenedor ajeno al proyecto conservaron sus datos y funcionamiento.

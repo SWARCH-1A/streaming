@@ -5,6 +5,7 @@ use crate::adapters::outbound::{
         find_segment_uri, find_variant_uri, resolve_reference, resolve_segment_url, uri_attribute,
     },
 };
+use futures_util::{StreamExt, stream};
 use reqwest::Url;
 use std::{
     sync::Arc,
@@ -20,34 +21,46 @@ pub(super) struct Preview {
 
 // At most five active P1 streams. HTTP reads never start an encoder or create viewer leases.
 pub(super) async fn run(state: Arc<MediaState>, mut shutdown: watch::Receiver<bool>) {
-    let mut interval = tokio::time::interval(Duration::from_secs(5));
+    let mut interval = tokio::time::interval(Duration::from_millis(500));
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     loop {
         tokio::select! { _ = shutdown.changed() => break, _ = interval.tick() => {} }
         let Ok(sources) = state.repository.active_sources().await else {
             continue;
         };
-        for source in sources
+        let eligible: Vec<Source> = sources
             .iter()
             .filter(|source| source.playback_at.is_some() && source.lost_at.is_none())
+            .filter(|source| {
+                !state.previews.read().ok().is_some_and(|cache| {
+                    cache.get(&source.session_id).is_some_and(|preview| {
+                        preview.publisher == source.publisher_id
+                            && preview.captured.elapsed() < Duration::from_millis(1500)
+                    })
+                })
+            })
             .take(5)
-        {
+            .cloned()
+            .collect();
+        let capture_state = Arc::clone(&state);
+        let mut captures = stream::iter(eligible)
+            .map(move |source| {
+                let state = Arc::clone(&capture_state);
+                async move {
+                    let result =
+                        tokio::time::timeout(Duration::from_secs(2), capture(&state, &source))
+                            .await;
+                    (source, result)
+                }
+            })
+            .buffer_unordered(5);
+        while let Some((source, result)) = captures.next().await {
+            let Ok(Ok(preview)) = result else { continue };
             if *shutdown.borrow() {
                 return;
             }
-            let fresh = state.previews.read().ok().is_some_and(|cache| {
-                cache.get(&source.session_id).is_some_and(|preview| {
-                    preview.publisher == source.publisher_id
-                        && preview.captured.elapsed() < Duration::from_secs(15)
-                })
-            });
-            if fresh {
-                continue;
-            }
-            if let Ok(preview) = capture(&state, source).await
-                && let Ok(mut cache) = state.previews.write()
-            {
-                cache.retain(|_, value| value.captured.elapsed() < Duration::from_secs(45));
+            if let Ok(mut cache) = state.previews.write() {
+                cache.retain(|_, value| value.captured.elapsed() < Duration::from_secs(3));
                 if cache.len() < 5 || cache.contains_key(&source.session_id) {
                     cache.insert(source.session_id.clone(), preview);
                 }
@@ -55,7 +68,7 @@ pub(super) async fn run(state: Arc<MediaState>, mut shutdown: watch::Receiver<bo
         }
         if let Ok(mut cache) = state.previews.write() {
             cache.retain(|session, value| {
-                value.captured.elapsed() < Duration::from_secs(45)
+                value.captured.elapsed() < Duration::from_secs(3)
                     && sources.iter().any(|source| {
                         &source.session_id == session
                             && source.publisher_id == value.publisher

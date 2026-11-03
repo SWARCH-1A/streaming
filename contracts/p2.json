@@ -5709,6 +5709,61 @@
           "closedAtUtc": "2026-10-30T18:05:00Z"
         }
       ]
+    },
+    "P2ExploreQuery": {
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 140
+        },
+        "categoryId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "tagId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 20
+        },
+        "cursor": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "liveCursor": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "channelCursor": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "searchChannels": {
+          "type": "boolean"
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "limit": 20
+        }
+      ]
     }
   },
   "events": [
@@ -5801,7 +5856,6 @@
       ],
       "subscriptions": [
         "streaming.account",
-        "chat.account",
         "vod.account",
         "notifications.account"
       ],
@@ -5818,8 +5872,7 @@
         "vod"
       ],
       "subscriptions": [
-        "chat.vod",
-        "core.vod"
+        "chat.vod"
       ],
       "schema": "P2EventVodAvailabilityChanged",
       "status": "contract-ready",
@@ -8594,7 +8647,7 @@
       "limits": "Bounded JSON 16 KiB; pages 20 by default and 50 maximum; private streamed objects use their size/hash inventory.",
       "requiredHeaders": [],
       "status": "implemented",
-      "query": "P2VodQuery"
+      "query": "P2ExploreQuery"
     },
     {
       "id": "p2.admin.content-removal",
@@ -9069,6 +9122,36 @@
       "requiredHeaders": [
         "Idempotency-Key"
       ]
+    },
+    {
+      "id": "p2.streaming.channel-access",
+      "method": "GET",
+      "path": "/internal/core/streaming/channels/{channelId}/access-context",
+      "provider": "Core",
+      "consumer": "Streaming",
+      "owner": "Core",
+      "auth": "service:streaming",
+      "request": null,
+      "responses": {
+        "200": "P2AccessContext",
+        "400": "Error",
+        "401": "Error",
+        "404": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 1000,
+      "idempotency": "Safe read; no cache or stale authorization.",
+      "recovery": "Fail closed on timeout or unavailable authority; retry within the caller deadline.",
+      "spec": "SPEC-04",
+      "traceability": "docs/spec-p2/spec_04_stream.md",
+      "visibility": "private",
+      "limits": "Channel identifier <=128 characters; response <=64 KiB.",
+      "requiredHeaders": [
+        "X-Service-Name",
+        "X-Service-Token"
+      ],
+      "status": "implemented",
+      "semantics": "read"
     }
   ],
   "retiredP1Operations": [],

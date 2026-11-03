@@ -30,7 +30,7 @@ fun VaultApp(api: Api) {
         }
     }
     val route = stack.last()
-    val watching = route.startsWith("watch:")
+    val watching = route.startsWith("watch:") || route.startsWith("vod:")
     val navigate: (String) -> Unit = { if (it != route) stack = stack + it }
     val back: () -> Unit = { if (stack.size > 1) stack = stack.dropLast(1) }
     NativeBack(stack.size > 1, back)
@@ -42,6 +42,7 @@ fun VaultApp(api: Api) {
                     if (stack.size > 1) TextButton(onClick = back) { Text("Volver") }
                     Image(painterResource(Res.drawable.vault_tv), "Vault tv", Modifier.height(40.dp).width(118.dp))
                     Spacer(Modifier.weight(1f))
+                    TextButton(onClick = { navigate("library") }) { Text("Videos") }
                     TextButton(onClick = { navigate(if (identity == null) "login" else "account") }) {
                         Text(if (identity == null) "Iniciar sesión" else "Mi cuenta")
                     }
@@ -59,7 +60,7 @@ fun VaultApp(api: Api) {
             }
         }) { padding ->
             Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
-                when {
+                key(identity?.userId, api.session.generation) { when {
                     route == "explore" || route == "search" -> ExploreScreen(api, route == "search", foreground, navigate)
                     route.startsWith("channel:") -> ChannelScreen(api, route.substringAfter(':'), foreground, navigate)
                     route.startsWith("watch:") -> WatchScreen(api, route.substringAfter(':'), foreground, navigate, back)
@@ -67,12 +68,12 @@ fun VaultApp(api: Api) {
                         stack = stack.dropLast(1).ifEmpty { listOf("explore") }
                     }
                     route == "account" -> AccountScreen(api, navigate)
-                    route == "following" -> DependencyScreen("Canales seguidos", "Aquí podrás volver a tus canales favoritos.", identity != null, navigate,
-                        "El seguimiento aún no está disponible en el servidor. Puedes descubrir canales desde Explorar.")
-                    route == "inbox" -> DependencyScreen("Tu bandeja", "Los avisos de tus canales, en un solo lugar.", identity != null, navigate,
-                        "La bandeja aún no está disponible en el servidor. Podrás consultarla aunque no actives notificaciones push.")
+                    route == "following" -> FollowingScreen(api, foreground, navigate)
+                    route == "inbox" -> InboxScreen(api, foreground, navigate)
+                    route == "library" -> LibraryScreen(api, foreground, navigate)
+                    route.startsWith("vod:") -> VodScreen(api, route.substringAfter(':'), foreground, back)
                     else -> Notice("Este contenido no está disponible.")
-                }
+                } }
             }
         }
     }
@@ -104,14 +105,5 @@ private fun NavigationGlyph(kind: String) {
                 drawLine(color, androidx.compose.ui.geometry.Offset(size.width * .35f, size.height * .67f), androidx.compose.ui.geometry.Offset(size.width * .65f, size.height * .33f), strokeWidth = stroke.width * 2)
             }
         }
-    }
-}
-
-@Composable
-private fun DependencyScreen(title: String, caption: String, signedIn: Boolean, navigate: (String) -> Unit, message: String) {
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        SectionHeading(title, caption)
-        Notice(if (signedIn) message else "Inicia sesión para consultar esta sección.")
-        Button(onClick = { navigate(if (signedIn) "explore" else "login") }) { Text(if (signedIn) "Explorar canales" else "Iniciar sesión") }
     }
 }

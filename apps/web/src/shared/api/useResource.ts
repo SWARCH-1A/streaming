@@ -32,6 +32,7 @@ export function useResource<T>(
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     async function read() {
+      const started = Date.now();
       try {
         const data = await loader.current(controller.signal);
         if (!controller.signal.aborted) setState({ key, data, error: null, loading: false });
@@ -40,9 +41,12 @@ export function useResource<T>(
           setState({ key, data: null, error: errorMessage(error), loading: false });
       } finally {
         if (interval && !controller.signal.aborted)
-          timer = setTimeout(() => {
-            void read();
-          }, interval);
+          timer = setTimeout(
+            () => {
+              void read();
+            },
+            Math.max(0, interval - (Date.now() - started)),
+          );
       }
     }
     if (seeded.current === key) {

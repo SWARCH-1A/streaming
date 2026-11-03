@@ -77,16 +77,17 @@ Core mantiene módulos de Cuentas, Canales/seguimiento, Catálogo y Discovery en
 Streaming conserva su proceso Rust y Chat su proceso Go. VOD y Notificaciones son unidades
 independientes. VOD usa Go/PostgreSQL/MinIO (ADR-022), Notificaciones TypeScript/PostgreSQL/SMTP
 (ADR-020), y Gateway Go con Caddy (ADR-023). Cuentas publica trabajos de recuperación y ofrece contratos privados
-de entrega; su consumidor y SMTP pertenecen a Notificaciones y están pendientes (ADR-017).
-Web usa TypeScript y móvil Kotlin. Watch parties es un módulo de Core (ADR-025) y no añade proceso; los subtítulos requieren concretar su SPEC y
-ubicación funcional antes de atribuirles un nuevo proceso.
+de entrega; Notificaciones implementa su consumidor y SMTP STARTTLS (ADR-017/020),
+verificados con Mailpit local. Push sigue pendiente de provisión y adaptadores.
+Web usa TypeScript y móvil Kotlin. Watch parties es un módulo de Core (ADR-025) y no añade proceso; los subtítulos son una capacidad VOD con pistas WebVTT y clientes Web/móvil (SPEC-22), sin otro proceso.
 
 ## Despliegue
 
 ```mermaid
 flowchart LR
-  Clients[Clientes web / móvil] -->|Dominio HTTPS| G[Contenedor Gateway]
-  G --> W[Contenedor Web SSR]
+  Clients[Clientes web / móvil] -->|HTTPS localhost:3445| P[Contenedor proxy Caddy]
+  P --> W[Contenedor Web SSR]
+  P --> G[Contenedor Gateway Go / agregación]
   subgraph Private[Red privada de servicios]
     C[Contenedor Core]
     S[Contenedor Streaming]
@@ -115,26 +116,31 @@ flowchart LR
   V <--> B
   N <--> B
   S <--> M
-  M --> S3[(S3 externo)]
-  V --> S3
-  N --> Providers[SMTP / push externos]
+  V --> S3[(MinIO local / S3 configurable)]
+  R[Contenedor media-recorder] -->|HTTP privado| M
+  R --> S3
+  R <--> B
+  N --> SMTP[Mailpit local / SMTP configurable]
+  N -.-> Push[Push externo pendiente]
 ```
 
 Cada servicio conserva credenciales y propiedad de escritura. VOD tiene persistencia privada;
 compartir un servidor de base de datos no permite compartir tablas ni credenciales. La selección
-de motores y la distribución física deben acreditar al menos cuatro componentes de datos,
-incluyendo relacional y NoSQL. El broker no sustituye una base de negocio.
+de motores del despliegue local son cinco PostgreSQL privados, Redis para vivo/cuota y MinIO
+para objetos S3. El broker no sustituye una base de negocio.
 
 Core, Streaming, Chat, VOD y Notificaciones constituyen cinco unidades de dominio. La clasificación
 del Gateway de agregación como sexta unidad lógica debe validarse con el criterio docente,
 además de su función de comunicación/orquestación. Los módulos internos de Core no cuentan
 como procesos independientes. Este punto permanece en P2-18.
 
-El dominio público usa HTTPS y mantiene bloqueadas las rutas internas. Los puertos, lenguajes
-nuevos, imágenes de contenedor y comandos P2 se fijan con la implementación. Para local se
-admite configuración sencilla y almacenamiento compatible S3 configurable; MinIO y RustFS
-se concretan en MinIO para VOD por ADR-022. Los comandos existentes siguen descritos en el [README](../README.md) y
-el [runbook P1](../infra/p1/README.md).
+El dominio público usa HTTPS y mantiene bloqueadas las rutas internas. Caddy publica solo
+loopback 3445 y Media RTMPS loopback 11938; Mailpit publica su buzón local en 8025. Los demás
+servicios y bases quedan en la red privada. Los 19 servicios persistentes y el inicializador
+S3 se levantan con `infra/local/dev.py`; comandos e inventario en el [README](../README.md).
+El cliente Kotlin se construye fuera de Docker para Android/iOS; completa los cinco lenguajes
+junto a Java, Rust, Go y TypeScript. La recuperación consistente de los doce volúmenes
+se describe en el [runbook local](../infra/local/README.md#backup-y-recuperación-del-perfil-completo-p2).
 
 ## Aislamiento y recuperación
 
@@ -151,4 +157,5 @@ VOD conserva todas las rendiciones recibidas y valida el medio antes de publicar
 es reintentable, con retirada de acceso inmediata. La suspensión de cuenta afecta también a
 manifiestos, segmentos, subtítulos y replay; no basta ocultar enlaces de la interfaz.
 
-La selección RabbitMQ y la integración inicial Streaming–Core/Chat están en [ADR-016](adr/ADR-016-rabbitmq-eventos-p2.md). El diagrama P2 sigue incluyendo componentes/recorridos pendientes; ver [perfil implementado](../infra/broker/README.md).
+La selección RabbitMQ y la integración inicial Streaming–Core/Chat están en [ADR-016](adr/ADR-016-rabbitmq-eventos-p2.md). Las nueve familias se integran en el [perfil local](../infra/broker/README.md). Push
+permanece sin proveedor; SPEC-15/19 distinguen las plataformas y recorridos verificados.

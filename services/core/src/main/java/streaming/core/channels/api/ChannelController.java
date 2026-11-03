@@ -1,7 +1,6 @@
 package streaming.core.channels.api;
 
 import tools.jackson.databind.JsonNode;
-import java.time.Duration;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -75,7 +74,7 @@ public class ChannelController {
     public ResponseEntity<byte[]> banner(@PathVariable String key) {
         byte[] bytes=edits.readBanner(key);
         return ResponseEntity.ok().contentType(MediaType.parseMediaType(edits.bannerContentType(key)))
-                .cacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePublic())
+                .header("Cache-Control","no-store, private")
                 .header("X-Content-Type-Options","nosniff").body(bytes);
     }
 

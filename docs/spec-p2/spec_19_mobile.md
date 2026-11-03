@@ -1,6 +1,6 @@
 # SPEC-19 — Aplicación KMP y Compose Multiplatform
 
-**Prioridad:** P2. **Responsable:** Móvil. **Estado:** cliente inicial implementado en `apps/mobile`; aceptación integral pendiente de proveedores P2 y pruebas multimedia.
+**Prioridad:** P2. **Responsable:** Móvil. **Estado:** cliente integrado con Gateway y dominios; Android con backend real verificado, push e iOS ampliado pendientes.
 **RF:** RF-001…006, 010…016, 023…025, 028…035, 052…055, 058…059, 062, 064…065, 070…075, 082. **RNF:** RNF-002, 007, 012…014, 019…020, 023, 025…032, 034, 038, 046…047.
 
 ## 1. Contexto y problema
@@ -38,9 +38,9 @@ Watch parties/subtítulos se integran tras sus políticas y contratos.
 
 - [ ] CA-01: instalación Android reproducible y recorrido registro/login → canal → live → follow → bandeja.
 - [ ] CA-02: logout elimina credencial local y revoca Core; token expirado/suspendido no permite mensajes ni comandos.
-- [ ] CA-03: WS nativo autentica sin Origin ficticio y sin debilitar validación de navegador.
+- [x] CA-03: WS nativo autentica sin Origin ficticio y sin debilitar validación de navegador.
 - [ ] CA-04: HLS real muestra calidades recibidas, selección automática/manual y VOD con seek/replay.
-- [ ] CA-05: pausa/retorno y destrucción de pantalla cierran o recuperan player, lease y WS según estado; no duplican conteos.
+- [x] CA-05: pausa/retorno y destrucción de pantalla cierran o recuperan player, lease y WS según estado; no duplican conteos.
 - [ ] CA-06: preferencias y registro/rotación/eliminación de token push se asocian al usuario correcto; denegar permiso no rompe bandeja.
 - [ ] CA-07: una notificación abre un destino validado; contenido suspendido/retirado muestra indisponibilidad.
 - [x] CA-08: se entrega matriz de dispositivo/emulador y plataforma compilada/probada; no se atribuye cobertura iOS por compartir Kotlin. Ver cobertura y pendientes en `apps/mobile/README.md`.
@@ -80,9 +80,9 @@ SPEC-01 define login nativo; SPEC-16, agregados; SPEC-05, WS/replay; SPEC-20, di
 Firmas en `contracts/p2.json.operations` y `.websocket`. HLS y leases conservan semántica de
 Streaming; subtítulos se integran con SPEC-22 cuando se cierre su formato.
 
-El consumidor inicial usa exclusivamente las APIs públicas P1 del proxy HTTPS mientras se
-implementa Gateway; todavía no acredita el criterio de agregados P2. No se llama a listeners
-internos. Los DTO derivan de contratos canónicos con `contracts/generate_mobile.py`.
+El cliente consume los agregados públicos Gateway de canal, live, exploración VOD y detalle VOD.
+Los comandos, seguimiento, bandeja y preferencias usan las APIs públicas de sus dominios.
+No se llama a listeners internos. Los DTO derivan de contratos canónicos con `contracts/generate_mobile.py`.
 
 Si un heartbeat devuelve `401 INVALID_VIEWER_LEASE_TOKEN`, el cliente descarta el lease y
 lo solicita de nuevo con otra clave de idempotencia, conservando la sesión del usuario.
@@ -93,13 +93,13 @@ Explorar y Buscar reinicia las consultas periódicas con el modo de la pestaña 
 | Proveedor | Entrega requerida para cerrar el recorrido | Estado del consumidor móvil |
 | --- | --- | --- |
 | Cuentas / SPEC-01 | `P2NativeLogin`, logout y Bearer con revocación común | Implementado en Core y cliente; pruebas de transporte/revocación |
-| Gateway / SPEC-16, STREAMING-26 | Agregados por pantalla, schemas, errores parciales y proxy WS/HLS | Adaptación a agregados pendiente; APIs públicas base operativas |
-| Canales / SPEC-03, STREAMING-2 | Follow/unfollow, estado personal, listado paginado y acceso suspendido | Proveedor Core integrado desde develop con soporte Bearer; consumo en pantallas móvil pendiente |
-| VOD / SPEC-14, STREAMING-25 | Biblioteca/detalle/disponibilidad, manifiestos y mapping autorizados | Biblioteca y playback VOD pendientes |
-| Chat / SPEC-05, STREAMING-5 | Replay durable, ventanas/cursores, supresiones versionadas | Chat live y replay (acepta Bearer) implementados; consumo móvil del replay pendiente |
-| Streaming / SPEC-04, STREAMING-4 | Maestro multicalidad, hasta cuatro rendiciones, continuidad y disponibilidad | Adaptadores Media3/AVPlayer y leases; aceptación multicalidad pendiente de fuente real |
-| Notificaciones / SPEC-20, STREAMING-30 | Bandeja/preferencias, instalación/token, destino validado, FCM/APNs y SMTP | Bandeja/preferencias y SMTP disponibles en el proveedor; integración móvil pendiente. Sin proyecto Firebase ni certificados APNs; sin registro o entrega push |
-| Subtítulos / SPEC-22, STREAMING-32 | VOD autorizado y pistas WebVTT ratificadas | Pendiente de VOD y reproducción integrada |
+| Gateway / SPEC-16, STREAMING-26 | Agregados por pantalla, schemas, errores parciales y proxy WS/HLS | Canal/live/biblioteca/detalle VOD consumen agregados y distinguen secciones no disponibles |
+| Canales / SPEC-03, STREAMING-2 | Follow/unfollow, estado personal, listado paginado y acceso suspendido | Proveedor Core integrado desde develop con soporte Bearer; follow/unfollow, listado paginado y preferencias por canal implementados |
+| VOD / SPEC-14, STREAMING-25 | Biblioteca/detalle/disponibilidad, manifiestos y mapping autorizados | Biblioteca filtrada/paginada y player VOD autorizado con seek implementados; reproducción audiovisual y seek 4→56→58 s en Android API 37 ejecutados; iOS pendiente |
+| Chat / SPEC-05, STREAMING-5 | Replay durable, ventanas/cursores, supresiones versionadas | Chat live y replay (acepta Bearer) implementados; replay móvil por ventanas/cursores, mapping y versión de moderación implementado; replay audiovisual Android ejecutado; iOS pendiente |
+| Streaming / SPEC-04, STREAMING-4 | Maestro multicalidad, hasta cuatro rendiciones, continuidad y disponibilidad | Adaptadores Media3/AVPlayer y leases; HLS live real y VOD con cuatro calidades 720/540/360/180p, selección automática/manual y frames Android verificados; iOS multicalidad pendiente |
+| Notificaciones / SPEC-20, STREAMING-30 | Bandeja/preferencias, instalación/token, destino validado, FCM/APNs y SMTP | Bandeja paginada, lectura, preferencias generales/por canal y destinos validados implementados. FCM/APNs y registro/entrega push pendientes de provisión y adaptadores nativos |
+| Subtítulos / SPEC-22, STREAMING-32 | VOD autorizado y pistas WebVTT ratificadas | Selector y sincronización de WebVTT con el reloj VOD implementados; selección/sincronización Android ejecutada; iOS y lectura asistiva pendientes |
 
 Los IDs STREAMING identifican las dependencias existentes en Plane; esta matriz no cambia
 asignaciones ni declara terminadas esas SPEC. No se eligen tecnologías de los proveedores desde móvil.
@@ -123,3 +123,8 @@ rechazado. Documentar build/install y evidencia separada por plataforma.
 
 Esfuerzo L; KMP es nuevo para el equipo. Reproductor y push pueden requerir trabajo nativo.
 Compartir UI no elimina esas integraciones ni los requisitos de compilación de iOS.
+
+Android API 37 reprodujo el VOD real de cuatro calidades y volvió a automática; un seek desde
+4 s hasta 56 s reanudó a 58 s. El decodificador Goldfish del emulador produjo rayas; repetir con
+`-feature -HardwareDecoder` conserva app/archivos y obtiene frames correctos usando el decoder
+software del sistema. Esta limitación del emulador no acredita dispositivos físicos ni iOS.

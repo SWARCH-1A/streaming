@@ -75,6 +75,13 @@ permiso ya concedido tiene como cota su vencimiento; no se promete revocación i
 Las pistas siguen el perfil `p2-webvtt-text-v1` de ADR-018: carga manual, duración/mapping autoritativos,
 objetos privados, límites y tombstones. No se añade transcripción ni otro perfil.
 
+El sello nativo certifica bytes aunque el último keyframe no tenga un DTS posterior. El capturador
+mide esa duración en el archivo sellado mediante ffprobe y conserva la medida en su checkpoint.
+Un final de generación de hasta 250 ms puede contener solo video después del último AAC;
+VOD comprueba esa posición desde el índice completo antes de aceptar la ausencia de audio.
+Interior sin audio, duración no medible, formato cambiado o bytes sin cierre siguen fallando.
+Se conserva el frame final en vez de descartarlo o generar contenido para cubrirlo.
+
 ## Opciones consideradas
 
 - Incorporar VOD a Core: contradice la independencia aceptada y acopla trabajo audiovisual al Core.

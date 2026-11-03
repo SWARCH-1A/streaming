@@ -2,8 +2,7 @@
 
 [Streaming](spec-p2/spec_04_stream.md), [VOD](spec-p2/spec_14_vod.md),
 [Chat](spec-p2/spec_05_chat.md) y [schemas P2](../contracts/p2.json) comparten este contrato.
-ADR-022 fija escritor VOD, Go/PostgreSQL, MinIO local y mapping. La entrega real del empaquetado
-y cierre multicalidad sigue en P2-08; el replay durable, en Chat/P2-10.
+ADR-022 fija escritor VOD, Go/PostgreSQL, MinIO local y mapping. [ADR-026](adr/ADR-026-multicalidad-enhanced-rtmp.md) define Enhanced RTMPS y empaquetado/captura por rendición; Chat conserva la autoridad del replay según ADR-024.
 
 ## Rendiciones e identidad
 
@@ -146,3 +145,23 @@ un solo cupo, máximo cuatro IDs de rendición distintos, keyframes/audio, durac
 checksum real, cobertura del inventario, mapping sin solapamientos y acceso por URL directa.
 Se prueban segmentos repetidos/desordenados, evento faltante con objeto existente, objeto
 faltante con evento existente, cierre adelantado, desconexión/reconexión y reinicio de VOD.
+
+## Cierre de un segmento nativo corto
+
+Media certifica bytes, hash y cierre sincrónico antes de transferir el inventario. Un último
+keyframe puede no tener un DTS posterior; una duración nativa cero queda pendiente hasta el
+cierre de su generación. El capturador obtiene entonces la duración del MPEG-TS mediante
+ffprobe, con protocolos locales y plazo acotado. La medida se persiste y reutiliza tras reiniciar;
+no se estima desde el reloj ni se genera contenido. Una cola de video de hasta 250 ms puede
+terminar después del último paquete AAC. VOD solo admite esa ausencia de audio en el último
+segmento de una generación verificada; una pérdida interior, un tramo mayor o un cambio de
+resolución/códec siguen impidiendo publicar.
+
+El perfil Enhanced RTMPS local recibe 1…4 H.264 y un AAC opcional por conexión autorizada.
+La agrupación conserva los timestamps de origen y comparte sesión/cupo; cada video tiene
+muxer y grabador propios. Cada inventario nativo incluye `renditions` con el plan completo
+inmutable de esa generación (ausente solo para inventarios antiguos `rend_source`). El
+capturador registra todas como esperadas antes de procesar cualquier segmento. Falta de una
+pista o de su cierre impide confirmar el índice. La secuencia cero de distintas rendiciones
+no representa el mismo segmento ni comparte checkpoint. Véase ADR-026 y el ejemplo OBS de
+`infra/media/obs-multitrack.json`.
