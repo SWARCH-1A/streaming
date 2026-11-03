@@ -67,4 +67,27 @@ class VodAccessIT {
         jdbc.sql("UPDATE identity.accounts SET account_status='SUSPENDED',account_version=account_version+1 WHERE user_id=:id").param("id",owner).update();
         var context=json.readTree(call(listener.localPort(),null,SERVICE,"READ").body());assertThat(context.get("active").asBoolean()).isFalse();assertThat(context.get("accountVersion").asLong()).isEqualTo(1);
     }
+    HttpResponse<String> streamingContext(int port,String service,String token)throws Exception {
+        var request=HttpRequest.newBuilder(URI.create("http://localhost:"+port+"/internal/core/streaming/channels/"+channel+"/access-context"))
+            .header("X-Service-Name",service).header("X-Service-Token",token).GET().build();
+        return HttpClient.newHttpClient().send(request,HttpResponse.BodyHandlers.ofString());
+    }
+    @Test void streamingAuthorityIsPrivateUncachedAndPreservesSuspensionRevision()throws Exception {
+        String token="streaming-fixture-other-secret-32-bytes";
+        assertThat(streamingContext(publicPort,"streaming",token).statusCode()).isEqualTo(404);
+        assertThat(streamingContext(listener.localPort(),"vod",SERVICE).statusCode()).isEqualTo(401);
+        var first=streamingContext(listener.localPort(),"streaming",token);
+        assertThat(first.statusCode()).isEqualTo(200);
+        assertThat(first.headers().firstValue("Cache-Control").orElse("")).isEqualTo("no-store");
+        assertThat(json.readTree(first.body()).get("accountVersion").asLong()).isZero();
+        jdbc.sql("UPDATE identity.accounts SET account_status='SUSPENDED',account_version=account_version+1 WHERE user_id=:id").param("id",owner).update();
+        var suspended=json.readTree(streamingContext(listener.localPort(),"streaming",token).body());
+        assertThat(suspended.get("active").asBoolean()).isFalse();
+        assertThat(suspended.get("accountVersion").asLong()).isEqualTo(1);
+        jdbc.sql("UPDATE identity.accounts SET account_status='ACTIVE',account_version=account_version+1 WHERE user_id=:id").param("id",owner).update();
+        var resumed=json.readTree(streamingContext(listener.localPort(),"streaming",token).body());
+        assertThat(resumed.get("active").asBoolean()).isTrue();
+        assertThat(resumed.get("accountVersion").asLong()).isEqualTo(2);
+    }
+
 }

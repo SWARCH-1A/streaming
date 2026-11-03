@@ -1515,7 +1515,7 @@
     "owner": "gateway",
     "path": "/api/screens/explore",
     "provider": "gateway",
-    "query": "P2VodQuery",
+    "query": "P2ExploreQuery",
     "recovery": "Retry within caller deadline; commands use the original key; failures remain observable.",
     "request": null,
     "requiredHeaders": [],
@@ -1943,5 +1943,26 @@
     "timeoutMs": 5000,
     "traceability": "docs/spec-p2/spec_21_watch_party.md",
     "visibility": "public"
+  },
+  {
+    "auth": "service:streaming",
+    "consumer": "Streaming",
+    "id": "p2.streaming.channel-access",
+    "idempotency": "Safe read; no cache or stale authorization.",
+    "limits": "Channel identifier <=128 characters; response <=64 KiB.",
+    "method": "GET",
+    "owner": "Core",
+    "path": "/internal/core/streaming/channels/{channelId}/access-context",
+    "provider": "Core",
+    "recovery": "Fail closed on timeout or unavailable authority; retry within the caller deadline.",
+    "request": null,
+    "requiredHeaders": ["X-Service-Name", "X-Service-Token"],
+    "responses": {"200": "P2AccessContext", "400": "Error", "401": "Error", "404": "Error", "503": "Error"},
+    "semantics": "read",
+    "spec": "SPEC-04",
+    "status": "implemented",
+    "timeoutMs": 1000,
+    "traceability": "docs/spec-p2/spec_04_stream.md",
+    "visibility": "private"
   }
 ]

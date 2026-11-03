@@ -1,6 +1,6 @@
 # SPEC-21 — Watch parties
 
-**Prioridad:** P2. **Responsable:** Core / Watch parties. **Estado:** implementado en Core y Web con políticas cerradas en [ADR-025](../adr/ADR-025-watch-parties-en-core.md) (propuesta, pendiente de la revisión de integración); verificado en un stack local aislado y completo (19 servicios, con Chat, VOD y Notificaciones) con emisiones reales. Queda la integración móvil.
+**Prioridad:** P2. **Responsable:** Core / Watch parties. **Estado:** implementado en Core y Web con políticas cerradas en [ADR-025](../adr/ADR-025-watch-parties-en-core.md) (ratificado por integración el 2026-11-03); verificado en un stack local aislado y completo (19 servicios, con Chat, VOD y Notificaciones) con emisiones reales. Queda la integración móvil.
 **RF:** RF-046…051. **RNF:** RNF-022…030, 038, 041…047.
 
 ## 1. Contexto y problema
@@ -37,7 +37,7 @@ ingesta ni se usa una sala para eludir suspensión de un canal.
 
 ## 6. Criterios de aceptación
 
-- [x] CA-01: el responsable cierra acceso/roles, cantidad de fuentes, ciclo y comportamiento al acabar una emisión en P2-01…03. (ADR-025: sala privada por código, hasta 4 fuentes, la fuente terminada queda con su estado hasta que el propietario la retire, cierre terminal. La revisión de integración del ADR sigue pendiente.)
+- [x] CA-01: el responsable cierra acceso/roles, cantidad de fuentes, ciclo y comportamiento al acabar una emisión en P2-01…03. (ADR-025: sala privada por código, hasta 4 fuentes, la fuente terminada queda con su estado hasta que el propietario la retire, cierre terminal. La revisión de integración del ADR se completó el 2026-11-03.)
 - [x] CA-02: contrato de crear/consultar/agregar/retirar/cerrar tiene schemas, errores y permisos consistentes con esas decisiones. (`p2.watch-parties.*` en `contracts/p2.json`, validadas por `check_p2.py` y `tests/contracts`.)
 - [x] CA-03: usuario autorizado crea una sala y añade/retira fuentes sin duplicación; usuario sin permiso es rechazado. (`WatchPartyIT`: propietario, miembro y tercero; límite de cuatro y duplicados con solicitudes concurrentes.)
 - [x] CA-04: varias fuentes reales se reproducen con su canal visible; caída/fin de una se presenta sin inventar una fuente activa. (Navegador real: 4 emisiones RTMPS reales se reproducen a la vez para el propietario y para un miembro, cada una con su canal; al caer una pasa a `RECONNECTING` a los 0,2 s y a `ENDED` a los 30,5 s, siempre sin sesión y con su reproductor desmontado.)
@@ -68,7 +68,7 @@ Siete operaciones `p2.watch-parties.*` (ver [contratos HTTP](../contratos_p2_htt
 
 ## 9. Decisiones y preguntas abiertas
 
-P2-01, P2-02 y P2-03 están resueltas por el responsable en ADR-025 y pendientes de su revisión de integración. Quedan abiertas,
+P2-01, P2-02 y P2-03 están resueltas por el responsable y ratificadas en la revisión de integración de ADR-025. Quedan abiertas,
 sin bloquear la entrega: el listado de salas de un usuario, un tope de salas por cuenta, la carga que la lectura repetida de
 cuatro fuentes impone a Streaming y la integración móvil.
 

@@ -8,13 +8,10 @@ export function StreamPreview({ uri, sessionId }: { uri: string; sessionId: stri
   const valid =
     /^ses_[a-zA-Z0-9_-]{1,64}$/.test(sessionId) && uri === `/hls/${sessionId}/preview.jpg`;
   useEffect(() => {
-    const timer = setInterval(
-      () => {
-        setFailed(false);
-        setVersion((value) => value + 1);
-      },
-      failed ? 5000 : 15000,
-    );
+    const timer = setInterval(() => {
+      setFailed(false);
+      setVersion((value) => value + 1);
+    }, 2000);
     return () => clearInterval(timer);
   }, [failed]);
   return (

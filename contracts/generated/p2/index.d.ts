@@ -93,6 +93,7 @@ export type P2EventRecordingSegmentAvailable = { "eventId": string; "eventType":
 export type P2EventStreamDiscoverySnapshot = { "eventId": string; "eventType": "stream.discovery.snapshot.v1"; "schemaVersion": 1; "aggregateId": string; "sequence": number; "occurredAtUtc": string; "producer": "streaming"; "payload": DiscoverySnapshot; "correlationId": string };
 export type P2EventStreamSessionChanged = { "eventId": string; "eventType": "stream.session.changed.v1"; "schemaVersion": 1; "aggregateId": string; "sequence": number; "occurredAtUtc": string; "producer": "streaming"; "payload": P2StreamSessionChangedPayload; "correlationId": string };
 export type P2EventVodAvailabilityChanged = { "eventId": string; "eventType": "vod.availability.changed.v1"; "schemaVersion": 1; "aggregateId": string; "sequence": number; "occurredAtUtc": string; "producer": "vod"; "payload": P2VodAvailabilityPayload; "correlationId": string };
+export type P2ExploreQuery = { "channelId"?: string; "title"?: string; "categoryId"?: string; "tagId"?: string; "limit"?: number; "cursor"?: string; "liveCursor"?: string; "channelCursor"?: string; "searchChannels"?: boolean };
 export type P2ExploreScreen = { "vods": P2VodSection; "discovery": P2DiscoverySection; "meta": P2ScreenMeta };
 export type P2Follow = { "channelId": string; "following": boolean; "followVersion": number; "followedAtUtc": string | null };
 export type P2FollowPage = { "items": Array<P2FollowedChannel>; "nextCursor": string | null };

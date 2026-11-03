@@ -264,15 +264,24 @@ func (g gateway) exploreScreen(ctx context.Context, w http.ResponseWriter, r *ht
 	go func() { defer wg.Done(); raw, code = g.read(ctx, r, g.vod, "/api/vods?"+vquery.Encode(), true) }()
 	go func() { defer wg.Done(); live, liveCode = g.discovery(ctx, r) }()
 	wg.Wait()
+	rejected := false
 	switch code {
 	case http.StatusBadRequest, http.StatusUnauthorized, http.StatusGone, http.StatusUnprocessableEntity:
-		screenError(w, r, code)
-		return
+		// Paging the VOD list (cursor) is a VOD request: its client error is the caller's. A search or
+		// first page also carries the live section, which must not disappear because VOD rejected the query.
+		if q.Has("cursor") {
+			screenError(w, r, code)
+			return
+		}
+		rejected = true
 	}
 	result := map[string]any{}
 	partial := false
 	if code == http.StatusOK {
 		result["vods"] = available(raw)
+	} else if rejected {
+		result["vods"] = section{Status: "UNAVAILABLE", Error: map[string]any{"code": "VOD_QUERY_INVALID", "retryable": false, "requestId": correlation(r)}}
+		partial = true
 	} else {
 		result["vods"] = failure("VOD_UNAVAILABLE", correlation(r))
 		partial = true
@@ -286,7 +295,7 @@ func (g gateway) exploreScreen(ctx context.Context, w http.ResponseWriter, r *ht
 	writeScreen(w, r, result, partial)
 }
 
-// discovery runs the canonical generated LiveStreams query; it never forwards identity.
+// discovery executes generated read queries with independent live/channel cursors.
 func (g gateway) discovery(ctx context.Context, r *http.Request) (json.RawMessage, int) {
 	rawQueries, e := os.ReadFile(g.queriesFile)
 	if e != nil {
@@ -299,47 +308,79 @@ func (g gateway) discovery(ctx context.Context, r *http.Request) (json.RawMessag
 	if json.Unmarshal(rawQueries, &queries) != nil {
 		return nil, http.StatusServiceUnavailable
 	}
-	query := ""
+	definitions := map[string]string{}
 	for _, q := range queries {
-		if q.Name == "LiveStreams" {
-			query = q.Query
+		definitions[q.Name] = q.Query
+	}
+	q := r.URL.Query()
+	run := func(name, cursor string) (map[string]json.RawMessage, int) {
+		query := definitions[name]
+		if query == "" {
+			return nil, http.StatusServiceUnavailable
 		}
-	}
-	if query == "" {
-		return nil, http.StatusServiceUnavailable
-	}
-	variables := map[string]any{"limit": 12}
-	for _, field := range []string{"categoryId", "tagId"} {
-		if value := r.URL.Query().Get(field); value != "" {
-			variables[field] = value
+		variables := map[string]any{"limit": 20}
+		if value := q.Get("title"); value != "" {
+			variables["q"] = value
 		}
+		if value := q.Get(cursor); value != "" {
+			variables["cursor"] = value
+		}
+		if name == "LiveStreams" {
+			for _, field := range []string{"categoryId", "tagId"} {
+				if value := q.Get(field); value != "" {
+					variables[field] = value
+				}
+			}
+		}
+		payload, _ := json.Marshal(map[string]any{"query": query, "variables": variables})
+		request, e := http.NewRequestWithContext(ctx, http.MethodPost, g.core+"/api/discovery/graphql", strings.NewReader(string(payload)))
+		if e != nil {
+			return nil, http.StatusServiceUnavailable
+		}
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Accept", "application/json")
+		g.forwarding(r, request)
+		res, e := g.client.Do(request)
+		if e != nil {
+			return nil, transportStatus(ctx, e)
+		}
+		defer res.Body.Close()
+		raw, e := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+		if e != nil || res.StatusCode != http.StatusOK {
+			return nil, http.StatusServiceUnavailable
+		}
+		var data struct {
+			Data   map[string]json.RawMessage `json:"data"`
+			Errors []any                      `json:"errors"`
+		}
+		if json.Unmarshal(raw, &data) != nil || len(data.Errors) > 0 || data.Data == nil {
+			return nil, http.StatusServiceUnavailable
+		}
+		return data.Data, http.StatusOK
 	}
-	if value := r.URL.Query().Get("title"); value != "" {
-		variables["q"] = value
+	var streams, channels map[string]json.RawMessage
+	var liveCode, channelCode int
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() { defer wg.Done(); streams, liveCode = run("LiveStreams", "liveCursor") }()
+	if q.Get("searchChannels") == "true" {
+		wg.Add(1)
+		go func() { defer wg.Done(); channels, channelCode = run("Channels", "channelCursor") }()
 	}
-	payload, _ := json.Marshal(map[string]any{"query": query, "variables": variables})
-	request, e := http.NewRequestWithContext(ctx, http.MethodPost, g.core+"/api/discovery/graphql", strings.NewReader(string(payload)))
+	wg.Wait()
+	if liveCode != http.StatusOK {
+		return nil, liveCode
+	}
+	if channels != nil {
+		for key, value := range channels {
+			streams[key] = value
+		}
+	} else if channelCode != 0 {
+		return nil, channelCode
+	}
+	raw, e := json.Marshal(streams)
 	if e != nil {
 		return nil, http.StatusServiceUnavailable
 	}
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Accept", "application/json")
-	g.forwarding(r, request)
-	res, e := g.client.Do(request)
-	if e != nil {
-		return nil, transportStatus(ctx, e)
-	}
-	defer res.Body.Close()
-	raw, e := io.ReadAll(io.LimitReader(res.Body, 1<<20))
-	if e != nil || res.StatusCode != http.StatusOK {
-		return nil, http.StatusServiceUnavailable
-	}
-	var data struct {
-		Data   json.RawMessage `json:"data"`
-		Errors []any           `json:"errors"`
-	}
-	if json.Unmarshal(raw, &data) != nil || len(data.Errors) > 0 || len(data.Data) == 0 || string(data.Data) == "null" {
-		return nil, http.StatusServiceUnavailable
-	}
-	return data.Data, http.StatusOK
+	return raw, http.StatusOK
 }

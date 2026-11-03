@@ -15,6 +15,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.*
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.*
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import io.ktor.client.HttpClient
@@ -83,11 +85,14 @@ class AndroidSecureStore(context: Context) : SecureStore {
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 actual fun VideoPlayer(url: String, title: String, modifier: Modifier, onPlaying: (Boolean) -> Unit,
-                       onPosition: (Long) -> Unit, onError: (String) -> Unit) {
+                       onPosition: (Long) -> Unit, onError: (String) -> Unit, playbackGrant: String, startPositionMs: Long) {
     val context = LocalContext.current
-    val player = remember(url) { ExoPlayer.Builder(context).build().apply {
+    val dataSource = remember(url) { DefaultHttpDataSource.Factory() }
+    dataSource.setDefaultRequestProperties(if (playbackGrant.isEmpty()) emptyMap() else mapOf("X-VOD-Playback-Grant" to playbackGrant))
+    val player = remember(url) { ExoPlayer.Builder(context).setMediaSourceFactory(DefaultMediaSourceFactory(context).setDataSourceFactory(dataSource)).build().apply {
         setMediaItem(MediaItem.Builder().setUri(url).setMimeType(MimeTypes.APPLICATION_M3U8)
             .setMediaMetadata(MediaMetadata.Builder().setTitle(title).build()).build())
+        if (startPositionMs > 0) seekTo(startPositionMs)
         prepare()
         playWhenReady = true
     } }

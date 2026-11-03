@@ -15,6 +15,13 @@ playlists con segmentos; 404 para sesión inexistente; 503 si no es reproducible
 permite obtener metadatos completos; 504 al agotar dos segundos. Éxito y error usan `no-store`.
 Esto no acredita la ingesta ni sincronización real de cuatro calidades (P2-08).
 
+`p2.streaming.channel-access` entrega owner/estado/versión actual para un canal al servicio
+Streaming por el listener privado Core. No acepta credenciales públicas ni la credencial limitada
+a catálogo. El presupuesto total es un segundo y no se cachean autorizaciones.
+
+`p2.gateway.explore` acepta `P2ExploreQuery`: conserva los filtros y el cursor VOD, y añade
+`liveCursor`, `channelCursor` y `searchChannels` para consultas Discovery independientes.
+
 ## Reglas comunes
 
 IDs opacos; timestamps UTC; enteros interoperables hasta 9007199254740991. JSON ordinario limitado
@@ -348,3 +355,8 @@ Todas estas respuestas usan Cache-Control: no-store; reader añade Content-Type:
 X-Content-Type-Options: nosniff. No necesita Range: devuelve la pista completa acotada. Cada
 petición de pista revalida acceso en Core y mapping local según ADR-022.
 Las URLs no van directamente a S3. Esto no revoca texto previamente descargado por el usuario.
+
+Las lecturas públicas de imágenes de perfil/canal conservan su forma P1, pero verifican que
+la referencia pertenezca a una cuenta ACTIVE. Avatar y portada suspendidos o no referenciados
+devuelven 404; las respuestas legibles llevan `Cache-Control: no-store, private`. Suspender
+no borra objetos y reactivar vuelve a habilitar las referencias actuales.

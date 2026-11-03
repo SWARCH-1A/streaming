@@ -21,6 +21,8 @@ pub struct PublicStreamView {
 pub struct GetPublicStream<R, T> {
     repository: Arc<R>,
     taxonomy: Arc<T>,
+    channel_access:
+        Option<Arc<dyn crate::application::ports::channel_access::ChannelAccessGateway>>,
 }
 
 impl<R, T> GetPublicStream<R, T>
@@ -32,7 +34,16 @@ where
         Self {
             repository,
             taxonomy,
+            channel_access: None,
         }
+    }
+
+    pub fn with_channel_access(
+        mut self,
+        gateway: Arc<dyn crate::application::ports::channel_access::ChannelAccessGateway>,
+    ) -> Self {
+        self.channel_access = Some(gateway);
+        self
     }
 
     pub async fn execute(
@@ -46,6 +57,16 @@ where
             .await
             .map_err(map_repository_error)?
             .ok_or(GetPublicStreamError::NotFound)?;
+
+        if let Some(gateway) = &self.channel_access {
+            let access = gateway
+                .channel_access(snapshot.channel_id.clone())
+                .await
+                .map_err(|_| GetPublicStreamError::Unavailable)?;
+            if !access.active {
+                return Err(GetPublicStreamError::NotFound);
+            }
+        }
 
         if snapshot.stream_id != stream_id
             || snapshot.metadata_version < 1

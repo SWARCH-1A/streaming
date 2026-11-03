@@ -1,6 +1,6 @@
 # ADR-018 — Subtítulos aportados por el propietario dentro de VOD
 
-- Estado: perfil ratificado e implementado en VOD/Web por ADR-022; aceptación audiovisual/móvil pendiente.
+- Estado: perfil ratificado e implementado en VOD/Web por ADR-022; reproducción audiovisual Web/Android verificada; tecnología asistiva e iOS ampliado pendientes.
 - Fecha: 2026-10-25.
 - Responsable: Subtítulos / accesibilidad, coordinado con VOD, Web, móvil y Gateway.
 - Trazabilidad: SPEC-22; RF-063…065; P2-04/05 y dependencia P2-09/17.
@@ -41,6 +41,7 @@ y revisar cada idioma: los contratos no certifican traducción, exactitud lingü
 
 Implementado: schemas neutrales, fixtures/checker Python, proveedor Go/PostgreSQL/MinIO en VOD,
 carga y controles Web. Python continúa como herramienta de conformidad. Las pruebas VOD con
-almacenamiento real comprueban autorización, WebVTT, Range y limpieza; las pruebas Web usan un
-motor de medios simulado. CA-01…07 siguen abiertos hasta completar reproducción audiovisual,
-móvil, suspensión integrada, recuperación y accesibilidad humana. Ver [ADR-022](ADR-022-vod-go-postgresql-minio.md).
+almacenamiento real comprueban autorización, WebVTT, Range y limpieza. El recorrido aislado
+completo con capturas RTMPS/Chat y Chromium ejecutó selección, seek/replay, fallo de pista,
+suspensión y retirada; Android API 37 ejecutó selección/desactivación con WebVTT real.
+SPEC-22 conserva pendientes la prueba combinada de calidad/pistas, iOS ampliado y lectura asistiva humana. Ver [ADR-022](ADR-022-vod-go-postgresql-minio.md).

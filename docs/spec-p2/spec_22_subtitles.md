@@ -1,7 +1,7 @@
 # SPEC-22 — Pistas WebVTT para VOD y controles accesibles
 
 **Prioridad:** P2. **Responsable:** Subtítulos / accesibilidad, con VOD y clientes.
-**Estado:** proveedor VOD y controles Web implementados; aceptación audiovisual/móvil pendiente.
+**Estado:** proveedor y reproducción Web/Android verificados con medios reales; lector asistivo e iOS ampliado pendientes.
 **RF:** RF-063…065. **RNF:** RNF-022…030, 035…038, 041…047.
 
 ## 1. Contexto y problema
@@ -86,7 +86,7 @@ retirar bytes ya descargados. P2-17 debe acordar propagación y vigencia de auto
 Web implementa RF-064/065 con un control «Subtítulos», opción «Desactivados» y nombres/idiomas
 de pistas reales. Inicialmente desactivados; la elección se mantiene durante seek y cambio de
 calidad del mismo VOD. Al cambiar VOD o mappingVersion, se descarta su trackId anterior. Web usa texto de pista
-como tal, nunca innerHTML de contenido cargado; móvil necesita un adaptador probado del mismo perfil.
+como tal, nunca innerHTML de contenido cargado; móvil usa el mismo perfil validado y reloj de reproducción, con adaptadores Media3/AVPlayer.
 
 Teclado: foco visible, selección sin pérdida de foco, Escape al cerrar menú y retorno al control.
 Nombre, idioma y selección deben ser accesibles; loading/error se anuncian sin repetir cada cue
@@ -103,13 +103,13 @@ El reintento vuelve a cargar las pistas sin desmontar el motor HLS ni cambiar la
 
 ## 8. Criterios de aceptación
 
-- [ ] CA-01: revisión de contratos/perfil con VOD, Gateway, Web y móvil; modalidad y origen definidos.
-- [ ] CA-02: proveedor real autoriza propietario y rechaza UTF-8/formato/timing inválidos sin publicación parcial.
-- [ ] CA-03: listado READY y controles permiten elegir/cambiar/desactivar sin reiniciar el vídeo.
+- [x] CA-01: revisión de contratos/perfil con VOD, Gateway, Web y móvil; modalidad y origen definidos.
+- [x] CA-02: proveedor real autoriza propietario y rechaza UTF-8/formato/timing inválidos sin publicación parcial.
+- [x] CA-03: listado READY y controles permiten elegir/cambiar/desactivar sin reiniciar el vídeo.
 - [ ] CA-04: seek, calidad, reconexión y cambio de mapping conservan sincronía o invalidan explícitamente.
-- [ ] CA-05: suspensión/retirada/borrado impiden URL directa y limpieza se recupera sin resurrección.
+- [x] CA-05: suspensión/retirada/borrado impiden URL directa y limpieza se recupera sin resurrección.
 - [ ] CA-06: teclado, nombres, foco y lectura asistiva funcionan en reproductores reales.
-- [ ] CA-07: pista caída no corta vídeo; errores y reintentos observables.
+- [x] CA-07: pista caída no corta vídeo; errores y reintentos observables.
 
 ## 9. Código y verificación disponible
 
@@ -143,13 +143,19 @@ Su modo `full_stack.py` incorpora captura RTMPS, mensajes reales, reconexión y 
 de SPEC-05. Comprueba el callback de posición/permiso, mensajes sobre la línea temporal del VOD,
 seek y continuidad del vídeo ante caída de Chat. El Gateway y el panel lateral existentes se
 conservan; no se añade otra API ni se declara completa la aceptación transversal.
-Móvil, lector de pantalla, contraste visual y multicalidad real conservan aceptación pendiente.
+El 2026-11-03 se ejecutó `full_stack.py --browser subtitles.mjs` con RTMPS, SQL,
+MinIO, Chat y Chromium reales: dos capturas de 64 segundos, reconexión, moderación, seek/replay,
+caída de Chat sin interrumpir vídeo, carga inválida, pistas, selección/desactivación/reintento,
+foco y retirada directa. Axe y viewports 320/390/768/1440 pasaron. Android API 37 mostró
+la pista española autorizada, entidades decodificadas y desactivación sin reiniciar vídeo.
+Siguen pendientes lector de pantalla humano, iOS ampliado y la combinación de pista con
+conmutación de las cuatro calidades en una misma prueba.
 
 ## 10. Decisiones, dependencias y costo
 
-[ADR-018](../adr/ADR-018-subtitulos-vod-webvtt.md) fija la propuesta de perfil y alternativas.
+[ADR-018](../adr/ADR-018-subtitulos-vod-webvtt.md) fija el perfil ratificado y sus alternativas.
 P2-04 queda definido como VOD y autoría del propietario; P2-05 como carga WebVTT de texto.
-Límites, idiomas y firmas necesitan revisión de consumidores. El costo es preparar las pistas
+Límites, idiomas y firmas son compartidos por VOD, Web y el adaptador móvil. El costo es preparar las pistas
 manualmente y restringir estilos avanzados; se evitan un proveedor de transcripción y otro runtime.
 Persistencia/permisos dependen de SPEC-14/P2-09/P2-17; presentación de SPEC-18/19 y SPEC-08.
 
@@ -167,5 +173,5 @@ cada dominio verifica lo siguiente:
 | Integración | Proveedores reales, acceso por URL directa y recuperación ante fallos; fixtures de texto no acreditan reproducción |
 
 P2-09 y el acceso VOD de P2-17 se concretan en ADR-022. El perfil P2-04/05 se conserva. SPEC-22
-permanece abierta hasta completar reproducción real, accesibilidad y móvil; la disponibilidad
-del proveedor o sus pruebas de texto no cierra esos criterios.
+conserva abiertos los criterios de sincronía combinada, tecnología asistiva e iOS.
+La reproducción real Web/Android ya tiene evidencia; no se confunde con las pruebas offline de texto.

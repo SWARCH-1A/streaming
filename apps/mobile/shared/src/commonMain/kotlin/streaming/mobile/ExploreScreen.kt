@@ -12,6 +12,9 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
 import streaming.mobile.contracts.Taxonomy
+import streaming.mobile.contracts.P2ExploreScreen
+import io.ktor.http.encodeURLParameter
+import kotlin.time.TimeSource
 
 @Composable
 fun ExploreScreen(api: Api, search: Boolean, foreground: Boolean, navigate: (String) -> Unit) {
@@ -36,17 +39,21 @@ fun ExploreScreen(api: Api, search: Boolean, foreground: Boolean, navigate: (Str
         result = null; channels = null; failure = null; channelError = null
         delay(250)
         while (isActive) {
-            coroutineScope {
-                launch {
-                    recoverable { api.discovery(query, category, tag, cursor) }.onSuccess { result = it; failure = null }
-                        .onFailure { failure = it.userMessage() }
-                }
-                if (search) launch {
-                    recoverable { api.channels(query, channelCursor) }.onSuccess { channels = it; channelError = null }
-                        .onFailure { channelError = it.userMessage() }
-                }
-            }
-            delay(3_000)
+            val started = TimeSource.Monotonic.markNow()
+            recoverable {
+                val path = libraryPath(query, category.orEmpty(), tag.orEmpty(), null) +
+                    (cursor?.let { "&liveCursor=${it.encodeURLParameter()}" } ?: "") +
+                    (channelCursor?.let { "&channelCursor=${it.encodeURLParameter()}" } ?: "") +
+                    (if (search) "&searchChannels=true" else "")
+                val screen = api.get<P2ExploreScreen>(path, api.session.state.value != null)
+                val section = screen.discovery
+                require(section.string("status") in listOf("AVAILABLE", "EMPTY")) { "Discovery no está disponible. Reintenta la consulta." }
+                val data = section["data"]?.jsonObject ?: error("Discovery no devolvió datos.")
+                result = data["streams"]?.jsonObject ?: error("No se recibieron las transmisiones.")
+                channels = if (search) data["channels"]?.jsonObject ?: error("No se recibieron los canales.") else null
+                failure = null; channelError = null
+            }.onFailure { result = null; channels = null; failure = it.userMessage() }
+            delay((2000 - started.elapsedNow().inWholeMilliseconds).coerceAtLeast(0))
         }
     }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {

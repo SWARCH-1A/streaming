@@ -768,8 +768,16 @@ func (r *recorder) transfer(id string) error {
 		}
 		complete := len(s.Expected) > 0 && s.LastSourceGeneration >= s.FirstSourceGeneration
 		for generation := s.FirstSourceGeneration; generation <= s.LastSourceGeneration; generation++ {
-			key := fmt.Sprintf("rend_source:%d", generation)
-			if !s.Finalized[key] {
+			hasGeneration := false
+			for key := range s.Expected {
+				if strings.HasSuffix(key, ":"+strconv.FormatInt(generation, 10)) {
+					hasGeneration = true
+					if !s.Finalized[key] {
+						complete = false
+					}
+				}
+			}
+			if !hasGeneration {
 				complete = false
 			}
 		}

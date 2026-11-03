@@ -1,38 +1,34 @@
-# Decisiones pendientes de P2
+# Decisiones y aceptación pendiente de P2
 
-Las políticas de producto aceptadas están en [alcance P2](alcance_p2.md). Cada responsable resuelve
-las preguntas de su componente antes de fijar la interfaz afectada y registra su tecnología en
-un ADR. Las fechas de trabajo se organizan en Plane; el cierre de código es el 30 de octubre.
+Las políticas vigentes están en [alcance P2](alcance_p2.md). Una decisión aceptada fija el diseño;
+las SPEC distinguen implementación, evidencia ejecutada y comprobaciones pendientes. La revisión
+de integración del 2026-11-03 conserva todos los RF incluidos y el despliegue local del prototipo.
 
-| ID | Responsable | Pregunta o resultado necesario | Momento de cierre |
-| --- | --- | --- | --- |
-| P2-01 | Watch parties | **Resuelta por el responsable** ([ADR-025](adr/ADR-025-watch-parties-en-core.md), propuesta): sala privada con código de acceso; entra quien tiene cuenta y código, crea cualquier usuario con sesión y solo el propietario modifica. | Cerrada; revisión de integración pendiente |
-| P2-02 | Watch parties | **Resuelta** (ADR-025): hasta 4 fuentes sin duplicados, rejilla del cliente; una fuente terminada o suspendida conserva su estado real hasta que el propietario la retire; la sala no depende del propietario ni caduca sola. | Cerrada; revisión de integración pendiente |
-| P2-03 | Watch parties | **Resuelta** (ADR-025): sin sincronía, chat propio, invitaciones nominales ni mezcla audiovisual; la invitación es el código o su enlace. Ciclo `OPEN` → `CLOSED`, terminal y solo del propietario. | Cerrada; revisión de integración pendiente |
-| P2-04 | Subtítulos / accesibilidad | Definido por alcance: solo VOD, archivos preparados por propietario; rutas VOD en SPEC-22. Proveedor y permisos implementados en VOD; aceptación integrada de reproductores pendiente. | Revisión de interfaces antes de integrar |
-| P2-05 | Subtítulos / accesibilidad | Perfil propuesto p2-webvtt-text-v1, carga manual UTF-8; formato, límites, idioma y mapping definidos en SPEC-22/ADR-018 y comprobados offline. Perfil conservado por VOD/Web en ADR-022; reproducción audiovisual y móvil pendientes. | Antes de aceptar controles del player |
-| P2-06 | Gateway | **Resuelta:** Go1.26/HTTP estándar para agregación, Caddy TLS/HTTP/WS/HLS, presupuesto JSON3s y dirección de cliente vía proxies de confianza ([ADR-023](adr/ADR-023-gateway-go-caddy.md)). Agregados canal/watch/VOD/exploración implementados y CA-01…07 verificados en local (SPEC-16 §10); adopción watch por SSR/móvil y carga sostenida pendientes. | Antes de integrar SSR y móvil |
-| P2-07 | Mensajería / integración | RabbitMQ/AMQP, clientes, topología y parámetros seleccionados en [ADR-016](adr/ADR-016-rabbitmq-eventos-p2.md). Ciclo/Discovery integrados y productor de recuperación disponible; consumidor SMTP disponible (ADR-020); aceptación integrada y cobertura completa de SPEC-17 pendientes. | Antes de publicar eventos compartidos |
-| P2-08 | Streaming / Media | Resolver empaquetado HLS de hasta cuatro rendiciones codificadas en origen. Probar OBS → ingesta → manifiesto maestro → selección manual/automática, keyframes, discontinuidades y VOD. | Antes de dar por válida la estrategia multicalidad |
-| P2-09 | VOD | **Resuelta para VOD:** Go, PostgreSQL privado y MinIO local/S3 externo configurable; VOD escribe/verifica y Media entrega bytes por HTTP privado. Identidad y permisos en [ADR-022](adr/ADR-022-vod-go-postgresql-minio.md). Captura/cierre real depende de P2-08. | Antes de integrar grabación |
-| P2-10 | Chat / VOD | **Mapping resuelto:** compactar huecos conocidos; mensajes en la unión ordenados por secuencia original, timeline/version e invalidación (ADR-022). **Resuelto en Chat:** PostgreSQL propio con outbox Redis Stream, replay paginado por ventana sobre `P2Timeline` consultado en `p2.vod.replay-context` y borrado coordinado ([ADR-024](adr/ADR-024-chat-redis-postgresql-replay-moderacion.md)). | Antes de habilitar replay |
-| P2-11 | Chat | **Resuelta:** duraciones fijas PT10M/PT1H/PT24H/P7D o PERMANENT; gana la última escritura con versión; el borrado por usuario abarca la emisión indicada hasta el sequence observado ([ADR-024](adr/ADR-024-chat-redis-postgresql-replay-moderacion.md)). | Antes de publicar contratos de moderación |
-| P2-12 | Notificaciones | **Resuelta:** Node.js 24/TypeScript, PostgreSQL propio y SMTP STARTTLS con Mailpit local ([ADR-020](adr/ADR-020-notificaciones-typescript-postgresql-smtp.md)). Original: elegir runtime, almacenamiento durable de intentos/bandeja y proveedor SMTP, e implementar el consumidor de recuperación. Cuentas proporciona evento y claim/result (ADR-017). Preferencias versionadas y selección fijadas en ADR-020; queda abierta la caducidad de avisos atrasados. | Antes de integrar entrega por medios |
-| P2-13 | Notificaciones / móvil | Provisionar proveedor de push, registro de dispositivos y configuración Android/iOS. Verificar qué plataformas pueden probarse realmente. | Antes de acreditar push y cobertura iOS |
-| P2-14 | Cuentas / móvil / Chat | Core/Chat implementan login/logout Bearer y Upgrade nativo con revocación y pruebas; adaptadores seguros definidos en ADR-021. Falta aceptación del recorrido móvil completo y multimedia. Conservar cookie/CSRF para web y revocación común. | Antes de integrar autenticación móvil |
-| P2-15 | Cuentas | Resuelta para Core en [ADR-017](adr/ADR-017-recuperacion-de-credenciales.md): token opaco de un uso/30 min; 3 solicitudes por dirección/hora y 10 operaciones por IP/15 min; nueva solicitud invalida anteriores; material de correo cifrado AES-256-GCM. Core publica en RabbitMQ y ofrece claim/result; consumidor y SMTP implementados por Notificaciones según ADR-020; aceptación integrada por separado. | Política confirmada antes de implementar RF-004 |
-| P2-16 | Canales | Ratificar contratos p2.channels.*, snapshot/paginación de destinatarios, vencimiento y política de canales indisponibles con Notificaciones. | Antes de integrar seguimiento y avisos |
-| P2-17 | Administración / Core / Gateway / Streaming / VOD | **VOD implementado:** Core por manifiesto, permiso firmado de60s/renovación45s, restricciones locales y eventos por versión, objetos privados y retirada inmediata antes de202 (ADR-022). Aceptación transversal Core/Gateway/Streaming/Chat y revocación con retraso de eventos pendiente. | Antes de cerrar acceso público y RF-079 |
-| P2-18 | Integración | Justificar seis componentes de lógica y cuatro de datos con inventario de ejecución. Validar la clasificación del Gateway de agregación como lógica además de comunicación; si la clasificación docente lo excluye, resolver la sexta unidad lógica. No contar un broker como BD de negocio ni módulos Core como procesos separados. | Antes de fijar el diagrama de despliegue |
+| ID | Responsable | Definición vigente y aceptación restante |
+| --- | --- | --- |
+| P2-01 | Watch parties | Resuelta y ratificada por integración: sala privada por código, cuenta activa, crea cualquier usuario, modifica solo propietario. [ADR-025](adr/ADR-025-watch-parties-en-core.md). |
+| P2-02 | Watch parties | Resuelta: hasta cuatro fuentes sin duplicados; rejilla cliente, estado real de fuente terminada/suspendida hasta retirada; la sala no depende de la conexión del propietario. |
+| P2-03 | Watch parties | Resuelta: `OPEN` → `CLOSED` terminal, sin sincronía, chat propio, invitación nominal ni mezcla. SPEC-21 registra API, cuatro emisiones reales, navegador, leases y reinicio. Móvil no forma parte de esa entrega. |
+| P2-04 | Subtítulos / accesibilidad | Resuelta: solo VOD, pistas preparadas por propietario; proveedor y reproducción Web/Android reales verificados. SPEC-22 conserva pendientes lectura asistiva, iOS ampliado y prueba combinada de pista/cuatro calidades. |
+| P2-05 | Subtítulos / accesibilidad | Perfil ratificado `p2-webvtt-text-v1`: carga UTF-8, límites, idioma y mapping en [ADR-018](adr/ADR-018-subtitulos-vod-webvtt.md)/SPEC-22; validación Go/Python y consumidores Web/Android. |
+| P2-06 | Gateway | Resuelta: Go 1.26, Caddy TLS/HTTP/WS/HLS, presupuesto JSON 3 s, fallos parciales y agregados canal/watch/VOD/exploración. SSR y móvil ya los consumen. [ADR-023](adr/ADR-023-gateway-go-caddy.md); carga sostenida pendiente. |
+| P2-07 | Mensajería / integración | RabbitMQ/AMQP seleccionado en [ADR-016](adr/ADR-016-rabbitmq-eventos-p2.md), nueve familias y dieciséis suscripciones con efecto (ADR-027). VOD, replay, seguimiento/bandeja y SMTP ejecutados con proveedores reales. Infraestructura: TLS, ACL, reinicio, DLQ/redrive/close y auditoría verificados. SPEC-17 mantiene las ventanas exactas de fallo de todos los consumidores y carga pendientes. |
+| P2-08 | Streaming / Media | Implementada por [ADR-026](adr/ADR-026-multicalidad-enhanced-rtmp.md): una conexión Enhanced RTMPS, hasta cuatro H.264 y AAC, HLS/captura independientes sin transcoding. Prueba real live → selección de cuatro calidades → VOD completo pasó. Se entrega JSON/configuración OBS ≥31; la operación manual de OBS y la reconexión combinada con cuatro calidades quedan identificadas en SPEC-04. |
+| P2-09 | VOD | Resuelta en [ADR-022](adr/ADR-022-vod-go-postgresql-minio.md): Go, PostgreSQL privado, MinIO local/S3 configurable y escritor VOD. Captura nativa, cierre/tail, cuatro rendiciones, publicación, permisos y recuperación de objetos se ejecutaron en local; S3 externo no se ha probado. |
+| P2-10 | Chat / VOD | Resuelta en ADR-022/[ADR-024](adr/ADR-024-chat-redis-postgresql-replay-moderacion.md): compactar huecos conocidos, mapping/version, PostgreSQL Chat propio, ventanas/cursores y moderación. Captura con reconexión, replay, seek, Chat caído y retirada verificados con proveedores reales. |
+| P2-11 | Chat | Resuelta: PT10M/PT1H/PT24H/P7D o PERMANENT, última escritura versionada; borrado por usuario hasta secuencia observada de la emisión. ADR-024. |
+| P2-12 | Notificaciones | Resuelta en [ADR-020](adr/ADR-020-notificaciones-typescript-postgresql-smtp.md): TypeScript/Node, PostgreSQL propio, SMTP STARTTLS/Mailpit, intentos independientes y preferencias versionadas. Bandeja/leído, destinos y correo verificados; caducidad de avisos atrasados conserva su política pendiente. |
+| P2-13 | Notificaciones / móvil | **Pendiente externo y de implementación:** Firebase/APNs todavía no existen; el equipo prevé provisionarlos. [Guía de provisión](../apps/mobile/PUSH.md): archivos privados, adaptador backend, SDK/registro/rotación/logout y pruebas reales por plataforma. Proveer archivos no activa push automáticamente. |
+| P2-14 | Cuentas / móvil / Chat | Bearer Core/Chat y cookie/CSRF Web conservan revocación común. Android real ejecutó login/Keystore, HLS, WS con ACK, seguimiento, bandeja y ciclo de vida; VOD/replay/subtítulos también reproducidos. SPEC-19 separa pruebas Android de compilación iOS y de recorridos aún pendientes. |
+| P2-15 | Cuentas | Resuelta en [ADR-017](adr/ADR-017-recuperacion-de-credenciales.md): token de un uso/30 min, cuotas, nueva solicitud invalida anteriores, AES-GCM, outbox y claim/result. Solicitud Web → broker → SMTP → enlace canónico → formulario ejecutado; confirmación UI es manual. Uso único, vencimiento/concurrencia y revocación tienen pruebas Core. |
+| P2-16 | Canales / Notificaciones | Contratos `p2.channels.*`, snapshot/paginación y versiones integrados con Notificaciones. Follow/unfollow, preferencias, primer LIVE y deduplicación se ejercitan en el recorrido de seguimiento; SPEC-03/20 conservan su aceptación particular. |
+| P2-17 | Administración / proveedores | [ADR-019](adr/ADR-019-administracion-core.md)/022: suspensión transaccional, outbox y autoridad vigente. Streaming cerca por accountVersion y corta HLS/preview en <5 s; VOD/replay/pistas/segmentos tienen prueba directa, evento viejo, reinicio y Core caído. El permiso VOD dura como máximo 60 s con eventos retrasados. Avatar/banner revalidan ACTIVE/referencia con no-store. SPEC-23 conserva pendiente la comprobación WS combinada durante suspensión live y la cobertura humana. |
+| P2-18 | Integración | Inventario ejecutado: dos presentaciones, Core/Streaming/Chat/VOD/Notificaciones/Gateway con agregación, cinco lenguajes (Java/Rust/Go/TypeScript/Kotlin), cinco PostgreSQL privados más Redis/MinIO, HTTP/WS/HLS y workers. No se cuenta RabbitMQ como BD ni módulos Core como procesos. La aceptación docente del Gateway como sexta lógica sigue siendo externa. |
 
-## Límite de la definición
+## Condición de cierre
 
-Las políticas de watch parties las cerró su responsable en ADR-025 y su aceptación integrada sigue pendiente (SPEC-21). Subtítulos tiene alcance VOD
-y perfil de SPEC-22 implementados en VOD y Web; aceptación audiovisual/móvil pendiente.
-Las tecnologías de Gateway/VOD y Notificaciones están registradas en ADR-023/022/020.
-Cuentas entrega publicación y contratos privados de recuperación (ADR-017). RabbitMQ está
-seleccionado por ADR-016. La independencia y propiedad de datos de VOD están definidas.
-
-La aceptación de una interfaz requiere esquema, permisos, fallos, idempotencia y consumidor
-identificados. Una dependencia de provisión o una prueba pendiente debe permanecer visible;
-no se presenta como una función ejecutada.
+Las capacidades principales se han integrado y probado en la instalación local. Esto no acredita
+push, una plataforma/dispositivo no ejecutados, accesibilidad humana ni carga sostenida. Las SPEC
+conservan esos criterios abiertos: no se retira un requisito ni se marca terminado por tener una PR.
+Las pruebas reproducibles y su alcance están junto a los proveedores y en `tests/integration`;
+secretos, resultados temporales y cuentas ficticias permanecen fuera de Git.

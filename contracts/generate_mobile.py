@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "contracts/generated/mobile/MobileContracts.kt"
-ROOTS = "P2NativeLogin LoginRequest RegistrationRequest Registration Profile ChannelBootstrap PublicStream PublicSession Taxonomy ChatMessage ChatHistory ViewerLease P2RecoveryRequest P2RecoveryAccepted P2RecoveryConfirm P2Vod P2VodPage P2Timeline P2SubtitlePage P2OperationStatus".split()
+ROOTS = "P2NativeLogin LoginRequest RegistrationRequest Registration Profile ChannelBootstrap PublicStream PublicSession Taxonomy ChatMessage ChatHistory ViewerLease P2RecoveryRequest P2RecoveryAccepted P2RecoveryConfirm P2Vod P2VodPage P2Timeline P2SubtitlePage P2OperationStatus P2ChannelScreen P2WatchScreen P2ExploreScreen P2VodScreen P2Follow P2FollowPage P2NotificationPage P2Notification P2Preferences P2ChannelPreference P2ReplayPage P2Device".split()
 
 
 def generate():
@@ -40,6 +40,10 @@ def generate():
         if name in emitted:
             continue
         s = schemas[name]
+        if 'properties' not in s:
+            # Screen sections are tagged unions; their data is decoded only after checking status.
+            emitted[name] = f'typealias {name} = JsonObject'
+            continue
         fields = []
         for field, schema in s["properties"].items():
             kt = kind(schema)

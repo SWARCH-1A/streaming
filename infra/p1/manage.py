@@ -105,6 +105,17 @@ def gateway_ip(subnet, proxy_ip):
 def initialize():
     if STATE.exists():
         env = environment()
+        path = STATE / "environment.env"
+        stored = path.read_text()
+        if PROFILE == "local" and "LOCAL_GATEWAY_IP" in env and not any(
+            line.startswith("LOCAL_GATEWAY_IP=") for line in stored.splitlines()
+        ):
+            # Persist the derived address so documented raw Compose commands work
+            # after upgrading a state initialized before SPEC-16, without rotation.
+            temporary = path.with_suffix(".network.tmp")
+            temporary.write_text(stored.rstrip("\n") + "\nLOCAL_GATEWAY_IP=" + env["LOCAL_GATEWAY_IP"] + "\n")
+            os.chmod(temporary, 0o600)
+            os.replace(temporary, path)
         print(f"Existing {PROJECT} state retained: {STATE}")
         return env
     https_port, rtmps_port = configured_ports(os.environ)

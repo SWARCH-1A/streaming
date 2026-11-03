@@ -13,6 +13,7 @@ public interface ChannelStore {
     Optional<Upload> findUpload(String channelId,String ownerUserId,String uploadHash,Instant now);
     Optional<Upload> consumeUpload(String channelId,String ownerUserId,String uploadHash,Instant now);
     List<String> deleteExpiredUploads(Instant now,int limit);
+    boolean isPublicImageReadable(String objectKey);
     boolean isObjectReferenced(String objectKey,boolean published);
 
     record Channel(String channelId,String ownerUserId,String description,String bannerKey,long version,Instant createdAt,Instant updatedAt) { }

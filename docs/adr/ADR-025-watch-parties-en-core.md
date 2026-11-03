@@ -1,6 +1,6 @@
 # ADR-025: Watch parties como módulo de Core con salas por código y fuentes de Streaming
 
-- Estado: propuesta
+- Estado: aceptada para integración local el 2026-11-03
 - Fecha: 2026-11-01
 - Responsable: Core / Watch parties; revisión con Gateway, Web, Streaming e Integración
 - SPEC/contratos afectados: SPEC-21; RF-046…RF-051; P2-01, P2-02 y P2-03; contratos `p2.watch-parties.*`; ruta pública `/api/watch-parties`.
@@ -96,14 +96,18 @@ el código de 256 bits hace inviable adivinarlo y la creación queda para una po
 membresías no se borran. El estado `UNKNOWN` por frescura depende del reloj de Streaming.
 
 La suspensión oculta la fuente en la sala, pero no corta por sí sola el HLS que un cliente ya conozca; ese corte pertenece a
-Streaming/Media y queda pendiente en SPEC-23. Sin sincronía, cada participante puede ver puntos distintos de cada emisión.
+Streaming/Media y fue verificado en SPEC-23 con RTMPS y HLS reales. Sin sincronía, cada participante puede ver puntos distintos de cada emisión.
 Reconstruir o mover el módulo a otro proceso exigirá un ADR que cubra los datos de `watchparty`.
 
 ## Verificación
 
 Ver la evidencia ejecutada registrada en [SPEC-21](../spec-p2/spec_21_watch_party.md#10-verificación): suite de Core con PostgreSQL
-real, contratos, Web y un stack local aislado con cuatro emisiones RTMPS reales y navegador. Esta decisión sigue en propuesta: falta
-la revisión de integración y el despliegue completo con Chat, VOD y Notificaciones.
+real, contratos, Web y un stack local aislado con cuatro emisiones RTMPS reales y navegador,
+incluidos Chat, VOD y Notificaciones. La revisión de integración del 2026-11-03 ratifica
+las políticas ya cerradas por su responsable: adaptadores de interfaces publicadas, seguridad
+común, comandos transaccionales/idempotentes, timeouts y ausencia de estado Streaming duplicado.
+La suite Core completa volvió a pasar con 286 unitarias y 247 de integración. La aceptación
+del ADR no extiende la cobertura a móvil ni a carga sostenida.
 
 ## Revisión
 

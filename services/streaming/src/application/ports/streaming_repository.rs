@@ -73,6 +73,13 @@ pub enum RepositoryError {
 }
 
 pub trait StreamingRepository: Send + Sync {
+    fn session_account_version(
+        &self,
+        _session_id: SessionId,
+    ) -> impl Future<Output = Result<Option<i64>, RepositoryError>> + Send {
+        async { Ok(None) }
+    }
+
     fn remember_catalog_values(
         &self,
         _stream_id: StreamId,

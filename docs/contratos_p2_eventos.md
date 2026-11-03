@@ -29,8 +29,8 @@ headers de intento/trace, sin reescribir el envelope para simular un evento nuev
 | `recording.segment.available.v1` | Streaming/Media | P2EventRecordingSegmentAvailable | `vod.segments` |
 | `recording.closed.v1` | Streaming/Media | P2EventRecordingClosed | `vod.recording` |
 | `channel.follow.changed.v1` | Core | P2EventChannelFollowChanged | `notifications.follow` |
-| `account.status.changed.v1` | Core | P2EventAccountStatusChanged | `streaming.account`, `chat.account`, `vod.account`, `notifications.account` |
-| `vod.availability.changed.v1` | VOD | P2EventVodAvailabilityChanged | `chat.vod`, `core.vod` |
+| `account.status.changed.v1` | Core | P2EventAccountStatusChanged | `streaming.account`, `vod.account`, `notifications.account` |
+| `vod.availability.changed.v1` | VOD | P2EventVodAvailabilityChanged | `chat.vod` |
 | `notification.delivery.requested.v1` | Notificaciones | P2EventNotificationDeliveryRequested | `notifications.delivery.inbox`, `notifications.delivery.email`, `notifications.delivery.push` |
 | `credential.recovery.delivery.requested.v1` | Core | P2EventCredentialRecoveryDeliveryRequested | `notifications.recovery.email` |
 
@@ -123,8 +123,16 @@ propia; p2.redelivery devuelve solo a la suscripción original. Los filtros no i
 La integración conecta ciclo a Core/Chat, snapshots a Discovery y publica trabajos opacos de
 recuperación en `notifications.recovery.email`, consumida por `services/notifications` con SMTP
 según ADR-020. Notificaciones también consume follows y el primer LIVE, y publica entregas por
-medio. Core publica cambios de estado de cuenta; sus consumidores siguen pendientes de P2-17.
-VOD y las demás familias aún pendientes requieren contratos antes de activar productores.
+medio. Core publica cambios de cuenta consumidos por Streaming, VOD y Notificaciones. Chat consulta
+el estado vigente mediante HTTP para cada envío; Core no mantiene una proyección del catálogo
+VOD, consultado directamente por el Gateway. Las antiguas suscripciones sin efecto `chat.account`
+y `core.vod` se retiran mediante archivo privado auditable (ADR-027), sin consumidores que
+confirmen mensajes sin un efecto. El registro vigente tiene dieciséis suscripciones.
+
+El ciclo P2 usa `RECONNECT_GRACE/RECONNECTING` al perder la fuente. El alias público P1
+`LIVE/RECONNECTING` se conserva solo en P1. La migración 0008 normaliza nuevos envelopes P2;
+los envelopes históricos son inmutables y un inválido se cierra tras reconciliar el estado,
+sin corregir su cuerpo bajo el mismo eventId.
 
 ## Integración de recuperación entre Cuentas y Notificaciones
 
