@@ -2,12 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import type { P2Accepted, P2ContentRemoval, P2OperationStatus, P2Vod } from '@contracts/p2';
 
 import { Button } from '@/src/components/atoms/Button';
+import { Icon } from '@/src/components/atoms/Icon';
 import { Input } from '@/src/components/atoms/Input';
 import { Textarea } from '@/src/components/atoms/Textarea';
 import { FormField } from '@/src/components/molecules/FormField';
-import { errorMessage, HttpError, request } from '@/src/shared/api/http';
+import { Notice } from '@/src/components/molecules/Notice';
+import { HttpError, request } from '@/src/shared/api/http';
 
 import styles from './AdministrationPage.module.css';
+import { readableAdminError } from './administrationError';
 
 export function VodRemoval() {
   const [id, setId] = useState('');
@@ -66,7 +69,7 @@ export function VodRemoval() {
         throw new Error('Esta consulta solo admite grabaciones publicadas y disponibles.');
       setVod(value);
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(readableAdminError(cause));
     } finally {
       setBusy(false);
     }
@@ -111,7 +114,7 @@ export function VodRemoval() {
       setError(
         cause instanceof HttpError && cause.detail.code === 'VOD_VERSION_CONFLICT'
           ? 'La grabación cambió. Consulta de nuevo su versión antes de confirmar.'
-          : errorMessage(cause),
+          : readableAdminError(cause),
       );
       if (!ambiguous && cause instanceof HttpError && cause.status === 409) {
         focusLookup.current = true;
@@ -132,48 +135,59 @@ export function VodRemoval() {
       );
       setStatus(value);
     } catch (cause) {
-      setError(errorMessage(cause));
+      setError(readableAdminError(cause));
     } finally {
       setBusy(false);
     }
   }
   return (
-    <section className={styles.page} aria-labelledby="admin-vod-heading">
-      <h2 id="admin-vod-heading" ref={heading} tabIndex={-1}>
-        Retirar una grabación publicada
-      </h2>
-      <p>
-        Consulta el identificador de una grabación para revisar su título antes de retirarla. Esta
-        consulta no lista grabaciones privadas.
-      </p>
+    <section className={`${styles.panel} ${styles.vodPanel}`} aria-labelledby="admin-vod-heading">
+      <div className={styles.sectionHeader}>
+        <span className={styles.sectionIcon}>
+          <Icon name="play" size={20} />
+        </span>
+        <div className={styles.sectionCopy}>
+          <p className={styles.eyebrow}>Moderación de contenido</p>
+          <h2 id="admin-vod-heading" ref={heading} tabIndex={-1}>
+            Retirar una grabación
+          </h2>
+          <p className={styles.vodDescription}>
+            Busca una grabación publicada, revisa su título y confirma la retirada. Las grabaciones
+            privadas no aparecen aquí.
+          </p>
+        </div>
+      </div>
       <form
         onSubmit={(event) => {
           void lookup(event);
         }}
-        className={styles.form}
+        className={styles.lookupForm}
       >
-        <FormField
-          id="admin-vod-id"
-          label="Identificador del VOD"
-          hint="Copia el identificador que aparece en la dirección de la grabación."
-        >
-          <Input
+        <div className={styles.lookupField}>
+          <FormField
             id="admin-vod-id"
-            ref={idField}
-            value={id}
-            onChange={(event) => setId(event.target.value)}
-            disabled={busy || uncertain}
-            maxLength={128}
-            aria-describedby="admin-vod-id-hint"
-          />
-        </FormField>
-        <Button type="submit" disabled={busy || uncertain}>
+            label="Identificador del VOD"
+            hint="Copia el identificador de la dirección de la grabación, sin incluir la URL."
+          >
+            <Input
+              id="admin-vod-id"
+              ref={idField}
+              value={id}
+              onChange={(event) => setId(event.target.value)}
+              disabled={busy || uncertain}
+              maxLength={128}
+              aria-describedby="admin-vod-id-hint"
+            />
+          </FormField>
+        </div>
+        <Button className={styles.lookupAction} type="submit" disabled={busy || uncertain}>
+          <Icon name="search" size={17} />
           Consultar grabación
         </Button>
       </form>
       {vod ? (
         <form
-          className={styles.form}
+          className={styles.removalForm}
           onSubmit={(event) => {
             void remove(event);
           }}
@@ -200,7 +214,7 @@ export function VodRemoval() {
               aria-describedby={`admin-vod-reason-hint${fieldError ? ' admin-vod-reason-error' : ''}`}
             />
           </FormField>
-          <label>
+          <label className={styles.confirmRemoval}>
             <Input
               type="checkbox"
               checked={confirmed}
@@ -210,10 +224,10 @@ export function VodRemoval() {
             Confirmo la retirada de esta grabación.
           </label>
           {uncertain ? (
-            <p role="status">
+            <Notice tone="warning">
               No se pudo confirmar el resultado. Reintenta la misma operación para consultar su
               resultado sin duplicarla.
-            </p>
+            </Notice>
           ) : null}
           <div className={styles.actions}>
             <Button type="submit" disabled={!confirmed || busy}>
@@ -237,12 +251,12 @@ export function VodRemoval() {
         <div
           ref={result}
           tabIndex={-1}
-          className={styles.page}
+          className={styles.resultPanel}
           aria-label="Resultado de la retirada"
         >
-          <p role="status">
+          <Notice>
             Retirada aceptada. El acceso está restringido; la limpieza todavía debe comprobarse.
-          </p>
+          </Notice>
           <Button
             onClick={() => {
               void checkStatus();
@@ -252,7 +266,7 @@ export function VodRemoval() {
             Consultar estado de la retirada
           </Button>
           {status ? (
-            <p role="status">
+            <Notice tone={status.status === 'FAILED' ? 'warning' : 'info'}>
               {
                 {
                   PENDING: 'Limpieza pendiente.',
@@ -262,12 +276,12 @@ export function VodRemoval() {
                 }[status.status]
               }{' '}
               El replay se gestiona en Chat.
-            </p>
+            </Notice>
           ) : null}
         </div>
       ) : null}
-      {busy ? <p role="status">Procesando solicitud…</p> : null}
-      {error ? <p role="alert">{error}</p> : null}
+      {busy ? <p className={styles.loading} role="status">Procesando solicitud…</p> : null}
+      {error ? <Notice tone="error">{error}</Notice> : null}
     </section>
   );
 }

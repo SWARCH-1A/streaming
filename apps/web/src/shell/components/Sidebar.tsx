@@ -25,15 +25,13 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             <Icon name="users" size={18} />
             Canales
           </NavLink>
-          <NavLink to="/studio" onClick={onNavigate}>
+          <NavLink to="/studio" end onClick={onNavigate}>
             <Icon name="screen" size={18} />
             Estudio de emisión
           </NavLink>
           <NavLink to="/videos" onClick={onNavigate}>
+            <Icon name="play" size={18} />
             Grabaciones
-          </NavLink>
-          <NavLink to="/studio/vods" onClick={onNavigate}>
-            Mis grabaciones
           </NavLink>
           {user ? (
             <NavLink to="/watch-parties" onClick={onNavigate}>
@@ -46,6 +44,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             Notificaciones
           </NavLink>
           <NavLink to="/admin" onClick={onNavigate}>
+            <Icon name="shield" size={18} />
             Administración
           </NavLink>
           <NavLink to="/profile" onClick={onNavigate}>

@@ -13,12 +13,17 @@
 }
 .grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(18rem, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: 1.5rem;
 }
 .grid > * {
   min-width: 0;
+}
+.grid > aside {
+  width: 100%;
+  max-width: 62rem;
+  justify-self: center;
 }
 .metrics {
   display: flex;
@@ -70,23 +75,6 @@
   }
 }
 
-.navigation {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem;
-  border-radius: 999px;
-  background: var(--color-canvas);
-}
-.navigation > span {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-  border-radius: 999px;
-  padding: 0.7rem 1rem;
-  font-weight: 600;
-  font-size: 0.875rem;
-}
 .statusStrip {
   display: flex;
   flex-wrap: wrap;
@@ -158,10 +146,59 @@
 .monitorTitle svg {
   color: var(--color-primary-soft);
 }
-@media (max-width: 600px) {
-  .navigation {
-    border-radius: var(--radius-lg);
+.previewChatGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(17rem, 0.9fr);
+  align-items: stretch;
+  gap: 1rem;
+}
+.videoColumn,
+.chatColumn {
+  min-width: 0;
+}
+.videoColumn {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+}
+.chatColumn :global(aside#chat) {
+  height: min(70vh, 36rem);
+  min-height: 28rem;
+}
+.chatPlaceholder {
+  display: grid;
+  min-height: 28rem;
+  place-content: center;
+  justify-items: center;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border: 1px solid rgb(255 255 255 / 4%);
+  border-radius: var(--radius-lg);
+  background: var(--color-panel);
+  color: var(--color-muted);
+  text-align: center;
+}
+.chatPlaceholder svg {
+  color: var(--color-primary-soft);
+}
+.chatPlaceholder h3 {
+  color: var(--color-text);
+  font-size: 1.1rem;
+}
+.chatPlaceholder p {
+  max-width: 18rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+@media (max-width: 900px) {
+  .previewChatGrid {
+    grid-template-columns: minmax(0, 1fr);
   }
+  .chatColumn :global(aside#chat) {
+    height: min(70vh, 36rem);
+  }
+}
+@media (max-width: 600px) {
   .statusStrip .metrics {
     gap: 1rem;
   }
