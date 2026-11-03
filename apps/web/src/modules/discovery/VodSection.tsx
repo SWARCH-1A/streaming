@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router';
 import type { Taxonomy } from '@contracts/p1';
 import type { P2ExploreScreen, P2SectionError, P2Vod } from '@contracts/p2';
 
-import { Badge } from '@/src/components/atoms/Badge';
 import { Button } from '@/src/components/atoms/Button';
 import { EmptyState } from '@/src/components/molecules/EmptyState';
 import { Notice } from '@/src/components/molecules/Notice';
-import { Panel } from '@/src/components/molecules/Panel';
+import { VodCard } from '@/src/modules/vod/entry';
 import { errorMessage, request } from '@/src/shared/api/http';
 
 import styles from './DiscoveryPage.module.css';
@@ -44,11 +42,6 @@ function outcome(section: P2ExploreScreen['vods']): { page: Page } | { failure: 
   if (section.status === 'AVAILABLE' || section.status === 'EMPTY')
     return { page: section.data ?? { items: [], nextCursor: null } };
   return { failure: sectionFailure(section.status, section.error) };
-}
-
-function minutes(ms: number) {
-  const seconds = Math.floor(ms / 1000);
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
 /**
@@ -163,24 +156,12 @@ export function VodSection({
           {view.items.length ? (
             <div className={styles.vods}>
               {view.items.map((vod) => (
-                <Panel key={vod.vodId} className="stack">
-                  <h3>
-                    <Link to={`/vod/${vod.vodId}`}>{vod.title}</Link>
-                  </h3>
-                  <p className="muted">
-                    {minutes(vod.durationMs)} ·{' '}
-                    {new Date(vod.createdAtUtc).toLocaleDateString('es-CO', {
-                      dateStyle: 'medium',
-                      timeZone: 'UTC',
-                    })}
-                  </p>
-                  <p>
-                    <Badge>{category(vod.categoryId) ?? 'Categoría'}</Badge>
-                    {vod.tagIds.map((id) => (
-                      <span key={id}> {tag(id) ?? 'Etiqueta'}</span>
-                    ))}
-                  </p>
-                </Panel>
+                <VodCard
+                  key={vod.vodId}
+                  vod={vod}
+                  category={category(vod.categoryId) ?? 'Categoría'}
+                  tags={vod.tagIds.map((id) => tag(id) ?? 'Etiqueta')}
+                />
               ))}
             </div>
           ) : (

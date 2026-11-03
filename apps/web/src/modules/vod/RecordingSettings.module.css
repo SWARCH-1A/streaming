@@ -1,0 +1,93 @@
+.settings {
+  display: grid;
+  gap: 1.5rem;
+  padding: clamp(1.25rem, 2vw, 1.75rem);
+  background: linear-gradient(135deg, rgb(132 112 255 / 10%), transparent 58%), var(--color-panel);
+  border: 1px solid rgb(255 255 255 / 7%);
+  border-radius: var(--radius-lg);
+}
+
+.intro {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  max-width: 56rem;
+}
+
+.icon {
+  display: grid;
+  flex: 0 0 2.75rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  color: transparent;
+  border: 1px solid rgb(158 143 255 / 35%);
+  border-radius: 0.9rem;
+  background:
+    radial-gradient(circle at 50% 50%, #c2b5ff 0 12%, transparent 14%),
+    linear-gradient(135deg, rgb(132 112 255 / 38%), rgb(132 112 255 / 8%));
+  box-shadow: 0 0.4rem 1.5rem rgb(92 75 255 / 18%);
+}
+
+.intro > div {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.intro h2 {
+  font-size: 1.25rem;
+}
+
+.intro > div > p:last-child,
+.loading {
+  color: var(--color-muted);
+}
+
+.form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgb(255 255 255 / 8%);
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 2.75rem;
+  cursor: pointer;
+}
+
+.toggle input {
+  flex: 0 0 auto;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-right: 0.65rem;
+}
+
+.toggle span {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.toggle small {
+  color: var(--color-muted);
+}
+
+.loading {
+  padding-top: 1.25rem;
+  border-top: 1px solid rgb(255 255 255 / 8%);
+}
+
+@media (max-width: 600px) {
+  .form {
+    align-items: stretch;
+  }
+
+  .form > button {
+    width: 100%;
+  }
+}
