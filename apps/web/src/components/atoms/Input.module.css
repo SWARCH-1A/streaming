@@ -1,4 +1,4 @@
-.control {
+.control:not([type='checkbox']):not([type='radio']) {
   display: block;
   width: 100%;
   min-height: 44px;
@@ -8,18 +8,28 @@
   border-radius: var(--radius-sm);
   padding: 0.7rem 0.875rem;
 }
-.control::placeholder {
+.control:not([type='checkbox']):not([type='radio'])::placeholder {
   color: var(--color-subtle);
 }
-.control:focus {
+.control:not([type='checkbox']):not([type='radio']):focus {
   border-color: var(--color-primary-soft);
 }
-.control[aria-invalid='true'] {
+.control:not([type='checkbox']):not([type='radio'])[aria-invalid='true'] {
   border-color: var(--color-error);
 }
 .control:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+.control[type='checkbox'],
+.control[type='radio'] {
+  width: 1.2rem;
+  height: 1.2rem;
+  min-height: 0;
+  margin: 0 0.5rem 0 0;
+  padding: 0;
+  accent-color: var(--color-primary);
+  vertical-align: middle;
 }
 .textarea {
   resize: vertical;

@@ -1,5 +1,4 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { Link } from 'react-router';
 import type { Taxonomy } from '@contracts/p1';
 import type { P2Accepted, P2OperationStatus, P2Vod, P2VodPage } from '@contracts/p2';
 
@@ -8,11 +7,11 @@ import { Input } from '@/src/components/atoms/Input';
 import { Select } from '@/src/components/atoms/Select';
 import { Textarea } from '@/src/components/atoms/Textarea';
 import { Notice } from '@/src/components/molecules/Notice';
-import { Panel } from '@/src/components/molecules/Panel';
 import { errorMessage, request } from '@/src/shared/api/http';
 
-import { duration } from './format';
+import styles from './Library.module.css';
 import { SubtitleManager } from './SubtitleManager';
+import { VodCard } from './VodCard';
 
 export function Library({
   initial,
@@ -139,52 +138,80 @@ export function Library({
     }
   }
 
+  const categoryName = (id: string) => taxonomy?.categories.find((item) => item.id === id)?.name;
+  const tagName = (id: string) => taxonomy?.tags.find((item) => item.id === id)?.name;
+
   return (
-    <section className="stack" aria-label={mine ? 'Mis grabaciones' : 'Grabaciones del canal'}>
-      <label htmlFor={fieldId}>
-        Buscar grabaciones
-        <Input
-          id={fieldId}
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-          type="search"
-          maxLength={140}
-        />
-      </label>
-      {taxonomy ? (
-        <div className="stack">
-          <label htmlFor={`${fieldId}-category`}>
-            Categoría
-            <Select
-              id={`${fieldId}-category`}
-              value={categoryId}
-              onChange={(event) => setCategoryId(event.target.value)}
-            >
-              <option value="">Todas las categorías</option>
-              {taxonomy.categories.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label htmlFor={`${fieldId}-tag`}>
-            Etiqueta
-            <Select
-              id={`${fieldId}-tag`}
-              value={tagId}
-              onChange={(event) => setTagId(event.target.value)}
-            >
-              <option value="">Todas las etiquetas</option>
-              {taxonomy.tags.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </Select>
-          </label>
+    <section
+      className={styles.library}
+      aria-label={mine ? 'Mis grabaciones' : 'Grabaciones del canal'}
+    >
+      <div className={styles.heading}>
+        <div>
+          <p className="eyebrow">{mine ? 'TU CONTENIDO' : 'REPRODUCCIONES'}</p>
+          <h2>{mine ? 'Tu biblioteca' : 'Grabaciones del canal'}</h2>
+          <p>
+            {mine
+              ? 'Organiza, edita y publica tus emisiones pasadas.'
+              : 'Vuelve a ver las emisiones publicadas de este canal.'}
+          </p>
         </div>
-      ) : null}
+        {page ? (
+          <span className={styles.count}>
+            {page.items.length}{' '}
+            {page.items.length === 1 ? 'grabación visible' : 'grabaciones visibles'}
+          </span>
+        ) : null}
+      </div>
+
+      <div className={styles.filters}>
+        <label className={styles.search} htmlFor={fieldId}>
+          Buscar por título
+          <Input
+            id={fieldId}
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            type="search"
+            maxLength={140}
+            placeholder="Ej. sesión de dibujo…"
+          />
+        </label>
+        {taxonomy ? (
+          <>
+            <label htmlFor={`${fieldId}-category`}>
+              Categoría
+              <Select
+                id={`${fieldId}-category`}
+                value={categoryId}
+                onChange={(event) => setCategoryId(event.target.value)}
+              >
+                <option value="">Todas</option>
+                {taxonomy.categories.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label htmlFor={`${fieldId}-tag`}>
+              Etiqueta
+              <Select
+                id={`${fieldId}-tag`}
+                value={tagId}
+                onChange={(event) => setTagId(event.target.value)}
+              >
+                <option value="">Todas</option>
+                {taxonomy.tags.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          </>
+        ) : null}
+      </div>
+
       {error ? (
         <Notice tone="error">
           {error} <Button onClick={() => setRevision((value) => value + 1)}>Reintentar</Button>
@@ -202,71 +229,70 @@ export function Library({
           . La retirada del catálogo ya es efectiva.
         </Notice>
       ) : null}
-      {!error && page?.items.length === 0 ? <p>No hay grabaciones disponibles.</p> : null}
-      {page?.items.map((vod) => (
-        <Panel key={vod.vodId} className="stack">
-          <h3>
-            {vod.restriction === 'NONE' ? (
-              <Link to={`/vod/${vod.vodId}`}>{vod.title}</Link>
-            ) : (
-              vod.title
-            )}
-          </h3>
-          <p>
-            {duration(vod.durationMs)} ·{' '}
-            {vod.restriction === 'RETIRED'
-              ? 'Retirada por administración'
-              : vod.processingState === 'READY'
-                ? vod.publicationState === 'PUBLISHED'
-                  ? 'Publicada'
-                  : 'Borrador privado'
-                : vod.processingState === 'FAILED'
-                  ? 'No se pudo validar la grabación'
-                  : 'Procesando grabación'}
-          </p>
-          {vod.description ? <p>{vod.description}</p> : null}
-          {mine ? (
-            <>
-              {vod.restriction === 'NONE' ? (
-                <Editor
-                  key={`${vod.vodId}:${vod.version}`}
-                  vod={vod}
-                  taxonomy={taxonomy}
-                  onSaved={() => setRevision((value) => value + 1)}
-                />
+      {!error && page?.items.length === 0 ? (
+        <div className={styles.empty}>
+          <span aria-hidden="true">▶</span>
+          <h3>No hay grabaciones todavía</h3>
+          <p>Cuando termines una emisión, la encontrarás aquí para revisarla y compartirla.</p>
+        </div>
+      ) : null}
+
+      {page?.items.length ? (
+        <div className={styles.grid}>
+          {page.items.map((vod) => (
+            <VodCard
+              key={vod.vodId}
+              vod={vod}
+              category={categoryName(vod.categoryId)}
+              tags={vod.tagIds.map((id) => tagName(id) ?? id)}
+            >
+              {mine ? (
+                <>
+                  {vod.restriction === 'NONE' ? (
+                    <Editor
+                      key={`${vod.vodId}:${vod.version}`}
+                      vod={vod}
+                      taxonomy={taxonomy}
+                      onSaved={() => setRevision((value) => value + 1)}
+                    />
+                  ) : null}
+                  {vod.processingState === 'READY' && vod.restriction === 'NONE' ? (
+                    <SubtitleManager vod={vod} />
+                  ) : null}
+                  <details>
+                    <summary>Eliminar grabación</summary>
+                    <p>
+                      Retira el acceso y programa la limpieza de video y pistas. Esta acción es
+                      permanente.
+                    </p>
+                    <Button
+                      variant="secondary"
+                      disabled={pending}
+                      onClick={() => {
+                        void remove(vod);
+                      }}
+                    >
+                      Eliminar definitivamente
+                    </Button>
+                  </details>
+                </>
               ) : null}
-              {vod.processingState === 'READY' && vod.restriction === 'NONE' ? (
-                <SubtitleManager vod={vod} />
-              ) : null}
-              <details>
-                <summary>Eliminar grabación</summary>
-                <p>
-                  Retira el acceso y programa la limpieza de video y pistas. Esta acción es
-                  permanente.
-                </p>
-                <Button
-                  variant="secondary"
-                  disabled={pending}
-                  onClick={() => {
-                    void remove(vod);
-                  }}
-                >
-                  Eliminar definitivamente
-                </Button>
-              </details>
-            </>
-          ) : null}
-        </Panel>
-      ))}
+            </VodCard>
+          ))}
+        </div>
+      ) : null}
       {page?.nextCursor ? (
-        <Button
-          disabled={pending}
-          onClick={() => {
-            void next();
-          }}
-        >
-          Cargar más grabaciones
-        </Button>
+        <div className={styles.more}>
+          <Button
+            variant="secondary"
+            disabled={pending}
+            onClick={() => {
+              void next();
+            }}
+          >
+            {pending ? 'Cargando…' : 'Cargar más grabaciones'}
+          </Button>
+        </div>
       ) : null}
     </section>
   );
