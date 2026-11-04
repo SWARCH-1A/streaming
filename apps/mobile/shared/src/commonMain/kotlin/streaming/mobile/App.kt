@@ -39,7 +39,6 @@ fun VaultApp(api: Api) {
             if (!watching) {
                 Row(Modifier.fillMaxWidth().background(Panel).statusBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (stack.size > 1) TextButton(onClick = back) { Text("Volver") }
                     Image(painterResource(Res.drawable.vault_tv), "Vault tv", Modifier.height(40.dp).width(118.dp))
                     Spacer(Modifier.weight(1f))
                     TextButton(onClick = { navigate("library") }) { Text("Videos") }

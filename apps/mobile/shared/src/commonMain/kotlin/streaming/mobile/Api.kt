@@ -11,8 +11,13 @@ import io.ktor.http.*
 import io.ktor.http.content.TextContent
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.*
 import streaming.mobile.contracts.*
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 val wireJson = Json { ignoreUnknownKeys = true; explicitNulls = false }
 
@@ -31,13 +36,18 @@ class ApiFailure(val status: Int, val code: String, val requestId: String?, val 
     Exception(messageFor(status, code))
 
 private fun messageFor(status: Int, code: String): String = when (status) {
-    401 -> "La sesión ya no es válida. Inicia sesión de nuevo."
+    401 -> if (code in listOf("LOGIN_INVALID", "INVALID_CREDENTIALS")) "Revisa tu correo o usuario y contraseña."
+        else "La sesión ya no es válida. Inicia sesión de nuevo."
     403 -> "No tienes permiso para realizar esta acción."
     404, 410 -> "Este contenido no está disponible."
     409 -> "Los datos cambiaron. Actualiza antes de reintentar."
     429 -> "Alcanzaste el límite de intentos. Espera antes de reintentar."
     503, 504 -> "El servicio no está disponible. Reintenta en unos momentos."
     else -> if (code == "LOGIN_INVALID" || code == "INVALID_CREDENTIALS") "Revisa tu usuario y contraseña." else "No se pudo completar la solicitud. Revisa los datos e inténtalo de nuevo."
+}
+
+data class LoginCooldown(val identifier: String, val until: Instant) {
+    fun remainingSeconds(now: Instant): Long = ((until - now).inWholeMilliseconds.coerceAtLeast(0) + 999) / 1000
 }
 
 fun Throwable.userMessage(): String = when (this) {
@@ -48,6 +58,8 @@ fun Throwable.userMessage(): String = when (this) {
 
 class Api(val origin: String, val session: Session, val client: HttpClient,
           val reportFailure: (String, Throwable) -> Unit = { _, _ -> }) {
+    private val cooldown = MutableStateFlow<LoginCooldown?>(null)
+    val loginCooldown = cooldown.asStateFlow()
     private val base = Url(origin)
     init {
         require(base.protocol == URLProtocol.HTTPS && base.host.isNotBlank() &&
@@ -115,9 +127,22 @@ class Api(val origin: String, val session: Session, val client: HttpClient,
         return response
     }
     suspend fun login(login: String, password: String) {
+        val identifier = login.trim().lowercase()
+        cooldown.value?.takeIf { it.identifier == identifier }?.remainingSeconds(Clock.System.now())?.let { remaining ->
+            if (remaining > 0) throw ApiFailure(429, "RATE_LIMITED", null, remaining.toString())
+        }
         val attempt = session.beginLogin()
-        val result = call(HttpMethod.Post, "/api/identity/mobile-sessions", LoginRequest(login, password)).body<P2NativeLogin>()
+        val result = try {
+            call(HttpMethod.Post, "/api/identity/mobile-sessions", LoginRequest(login, password)).body<P2NativeLogin>()
+        } catch (failure: ApiFailure) {
+            if (failure.status == 429 && session.generation == attempt) {
+                val wait = failure.retryAfter?.toLongOrNull()?.takeIf { it in 0..86_400 } ?: 900L
+                cooldown.value = LoginCooldown(identifier, Clock.System.now() + wait.seconds)
+            }
+            throw failure
+        }
         session.install(attempt, result)
+        if (cooldown.value?.identifier == identifier) cooldown.value = null
     }
     suspend fun logout() {
         val ticket = session.ticket()

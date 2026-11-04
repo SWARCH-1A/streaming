@@ -1,6 +1,8 @@
 package streaming.mobile
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.material3.*
@@ -8,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.ktor.client.call.body
 import io.ktor.client.statement.bodyAsText
@@ -63,7 +66,9 @@ fun VodScreen(api: Api, vodId: String, foreground: Boolean, back: () -> Unit) {
     var screen by remember(vodId) { mutableStateOf<P2VodScreen?>(null) }
     var failure by remember(vodId) { mutableStateOf<String?>(null) }
     var retry by remember { mutableIntStateOf(0) }
+    val controls = remember(vodId) { PlaybackControls() }
     var grant by remember(vodId) { mutableStateOf("") }
+    var renditions by remember(vodId) { mutableStateOf(emptyList<Rendition>()) }
     var position by remember(vodId) { mutableLongStateOf(0) }
     var tracks by remember(vodId) { mutableStateOf(emptyList<P2SubtitleTrack>()) }
     var trackId by remember(vodId) { mutableStateOf<String?>(null) }
@@ -84,7 +89,7 @@ fun VodScreen(api: Api, vodId: String, foreground: Boolean, back: () -> Unit) {
                 val response = api.call(HttpMethod.Get, path, authenticated = api.session.state.value != null)
                 val next = response.headers["X-VOD-Playback-Grant"].orEmpty()
                 require(next.matches(Regex("[A-Za-z0-9_.-]{1,4096}")))
-                response.bodyAsText()
+                renditions = hlsRenditions(api.vodMediaUrl(path, vodId), response.bodyAsText())
                 grant = next
                 delay(40_000)
             }
@@ -110,36 +115,60 @@ fun VodScreen(api: Api, vodId: String, foreground: Boolean, back: () -> Unit) {
             subtitleCues(api.call(HttpMethod.Get, path, authenticated = api.session.state.value != null).bodyAsText(), vod!!.durationMs)
         }.onSuccess { cues = it; subtitleError = null }.onFailure { subtitleError = it.userMessage(); trackId = null }
     }
-    Column(Modifier.fillMaxSize().background(Canvas)) {
-        Row(Modifier.fillMaxWidth().statusBarsPadding()) {
-            TextButton(onClick = back) { Text("Volver") }
-            Text(vod?.title ?: "Grabación", Modifier.padding(12.dp), style = MaterialTheme.typography.titleMedium)
+    BoxWithConstraints(Modifier.fillMaxSize().background(Canvas)) {
+        val landscape = maxWidth > maxHeight
+        val video: @Composable (Modifier) -> Unit = { modifier ->
+            Box(modifier.background(Color.Black)) {
+                if (foreground && grant.isNotEmpty() && vod != null && failure == null) {
+                    key(vodId, vod.mappingVersion, retry) {
+                        VideoPlayer(api.vodMediaUrl(vod.playbackPath, vodId), vod.title, Modifier.fillMaxSize(), {},
+                            { position = it }, { failure = it; grant = "" }, grant, position, renditions, controls, back)
+                    }
+                } else Text(failure ?: if (foreground) "Cargando video…" else "Reproducción en pausa", Modifier.align(Alignment.Center).padding(16.dp), color = Muted)
+                val caption = cues.filter { position >= it.fromMs && position < it.toMs }.joinToString("\n") { it.text }
+                if (caption.isNotEmpty()) Text(caption, color = Color.White, modifier = Modifier.align(Alignment.BottomCenter)
+                    .padding(bottom = 48.dp, start = 16.dp, end = 16.dp).background(Color.Black.copy(alpha = .85f)).padding(8.dp))
+            }
         }
-        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9).background(Color.Black)) {
-            if (foreground && grant.isNotEmpty() && vod != null && failure == null) {
-                key(vodId, vod.mappingVersion, retry) {
-                    VideoPlayer(api.vodMediaUrl(vod.playbackPath, vodId), vod.title, Modifier.fillMaxSize(), {},
-                        { position = it }, { failure = it; grant = "" }, grant, position)
-                }
-            } else Text(failure ?: if (foreground) "Cargando video…" else "Reproducción en pausa", Modifier.align(Alignment.Center).padding(16.dp), color = Muted)
-            val caption = cues.filter { position >= it.fromMs && position < it.toMs }.joinToString("\n") { it.text }
-            if (caption.isNotEmpty()) Text(caption, color = Color.White, modifier = Modifier.align(Alignment.BottomCenter)
-                .padding(bottom = 48.dp, start = 16.dp, end = 16.dp).background(Color.Black.copy(alpha = .85f)).padding(8.dp))
-        }
-        failure?.let { Notice(it, true); TextButton(onClick = { retry++ }) { Text("Reintentar video") } }
-        if (vod != null) {
-            Text(vod.description, Modifier.padding(12.dp))
-            var menu by remember { mutableStateOf(false) }
-            Box {
-                TextButton(onClick = { menu = true }) { Text(tracks.firstOrNull { it.trackId == trackId }?.label ?: "Subtítulos desactivados") }
-                DropdownMenu(menu, { menu = false }) {
-                    DropdownMenuItem(text = { Text("Desactivar") }, onClick = { trackId = null; menu = false })
-                    tracks.forEach { track -> DropdownMenuItem(text = { Text("${track.label} (${track.language})") }, onClick = { trackId = track.trackId; menu = false }) }
-                    moreTracks?.let { cursor -> DropdownMenuItem(text = { Text("Más idiomas") }, onClick = { trackCursor = cursor; menu = false }) }
+        val details: @Composable () -> Unit = {
+            Column {
+                failure?.let { Notice(it, true); TextButton(onClick = { retry++ }) { Text("Reintentar video") } }
+                if (vod != null) {
+                    Column(Modifier.fillMaxWidth().heightIn(max = 152.dp).verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(vod.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        val channel = screen?.channel?.sectionData<ChannelBootstrap>()
+                        Text(listOfNotNull(channel?.profile?.displayName, videoDuration(vod.durationMs)).joinToString(" · "),
+                            color = Muted, style = MaterialTheme.typography.bodySmall)
+                        if (vod.description.isNotBlank()) Text(vod.description, color = Muted, style = MaterialTheme.typography.bodyMedium)
+                    }
+                    var menu by remember { mutableStateOf(false) }
+                    Box {
+                        TextButton(onClick = { menu = true }) { Text(tracks.firstOrNull { it.trackId == trackId }?.label ?: "Subtítulos desactivados") }
+                        DropdownMenu(menu, { menu = false }) {
+                            DropdownMenuItem(text = { Text("Desactivar") }, onClick = { trackId = null; menu = false })
+                            tracks.forEach { track -> DropdownMenuItem(text = { Text("${track.label} (${track.language})") }, onClick = { trackId = track.trackId; menu = false }) }
+                            moreTracks?.let { cursor -> DropdownMenuItem(text = { Text("Más idiomas") }, onClick = { trackCursor = cursor; menu = false }) }
+                        }
+                    }
+                    subtitleError?.let { Notice(it, true); TextButton(onClick = { retry++ }) { Text("Reintentar subtítulos") } }
                 }
             }
-            subtitleError?.let { Notice(it, true); TextButton(onClick = { retry++ }) { Text("Reintentar subtítulos") } }
-            ReplayMessages(api, vod, position, grant, foreground, Modifier.weight(1f))
+        }
+        if (landscape) Row(Modifier.fillMaxSize()) {
+            Column(Modifier.weight(1.4f).fillMaxHeight()) {
+                video(Modifier.fillMaxWidth().aspectRatio(16f / 9))
+                PlaybackToolbar(controls, back)
+            }
+            Column(Modifier.weight(1f).fillMaxHeight()) {
+                details()
+                if (vod != null) ReplayMessages(api, vod, position, grant, foreground, Modifier.weight(1f))
+            }
+        } else Column(Modifier.fillMaxSize()) {
+            video(Modifier.fillMaxWidth().aspectRatio(16f / 9))
+            PlaybackToolbar(controls, back)
+            details()
+            if (vod != null) ReplayMessages(api, vod, position, grant, foreground, Modifier.weight(1f))
         }
     }
 }

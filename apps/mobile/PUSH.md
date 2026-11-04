@@ -1,5 +1,9 @@
 # Provisión de push para el prototipo local
 
+Sin membresía Apple habilitada no se puede completar APNs. La instalación de desarrollo con
+Personal Team gratuito sí es posible, siguiendo la [guía del iPhone](iosApp/DEVICE.md); no acredita
+push real. Android/FCM puede provisionarse de forma independiente.
+
 El equipo todavía no ha creado Firebase/APNs. Bandeja, preferencias y correo funcionan
 independientemente. El código actual no registra tokens ficticios: el proveedor backend es
 `unconfiguredPush` y produce un fallo permanente observable; aún faltan los adaptadores

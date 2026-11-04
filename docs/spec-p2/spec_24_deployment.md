@@ -59,6 +59,13 @@ El dominio usa HTTPS. Local conserva autenticación y aislamiento con un arranqu
 el perfil completo se ejecuta con `python3 infra/local/dev.py init/build/up/status`. Se documenta qué
 servicios requieren credenciales/provisión externa y qué pruebas se realizaron con S3 local.
 
+El modo local predeterminado publica solo en loopback. La acción explícita `dev.py lan` permite
+clientes de la misma red: publica únicamente la entrada HTTPS, fija un origen canónico por nombre
+Bonjour/IP privada y añade sus SAN al certificado de entrada conservando la CA y los secretos.
+Navegador, móvil, WS y URLs multimedia comparten ese origen. Los alias se redirigen; hosts ajenos
+se rechazan. RTMPS/Mailpit siguen en loopback y los listeners privados no se publican. `lan --loopback`
+revierte la exposición sin borrar datos; una restauración arranca en loopback aunque el backup fuera LAN.
+
 `infra/local/backup.py` crea un backup consistente con parada global del proyecto local y
 reinicio de los contenedores que estaban activos. Incluye los doce volúmenes: cinco PostgreSQL,
 Redis, RabbitMQ, MinIO, dos almacenes de imágenes Core y dos buffers Media. Copia configuración,

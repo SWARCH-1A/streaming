@@ -42,6 +42,10 @@ de solicitudes deben descartar respuestas tardías y cerrar conexiones anteriore
 Las rutas y schemas de los agregados y las APIs nuevas están definidos en
 [contratos HTTP P2](contratos_p2_http.md) y [su fuente estructural](../contracts/p2.json).
 P2-06 conserva la ratificación de los agregados y los parámetros operativos pendientes.
+El despliegue local puede habilitar HTTPS para la LAN mediante `infra/local/dev.py lan`. Mantiene
+un único origen canónico para Web, móvil, WS y URLs de video; redirige alias localhost/IP y rechaza
+hosts no configurados. Conserva la CA, incorpora los SAN de nombre/IP y mantiene privados los
+listeners de servicio. [Instalación del cliente iPhone y confianza TLS](../apps/mobile/iosApp/DEVICE.md).
 El enrutamiento HLS debe admitir manifiestos de variantes y subrutas. Los timeouts de streaming/WS
 se configuran por su naturaleza; no heredan el timeout corto de una consulta agregada.
 

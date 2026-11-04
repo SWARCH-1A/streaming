@@ -139,6 +139,26 @@ describe('calidades reales de la emisión', () => {
     return screen.getByRole('combobox', { name: 'Calidad' });
   }
 
+  it('muestra solo el tiempo total del directo y evita estados redundantes', () => {
+    const { rerender } = render(
+      <HlsPlayer session={{ ...session, timelinePositionMs: 3_723_000 }} title="Directo" />,
+    );
+    expect(screen.getByText('01:02:03')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('slider', { name: 'Progreso de la emisión' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('Señal estable')).not.toBeInTheDocument();
+
+    rerender(
+      <HlsPlayer
+        session={{ ...session, availability: 'RECONNECTING', timelinePositionMs: 3_723_000 }}
+        title="Directo"
+      />,
+    );
+    expect(screen.getAllByText('Reconectando').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Señal estable')).not.toBeInTheDocument();
+  });
+
   it('solo ofrece la fuente 720p recibida y arranca en automático', async () => {
     expect(screen.queryByRole('combobox', { name: 'Calidad' })).not.toBeInTheDocument();
     const selector = await start();

@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react';
+import type { FormEvent, KeyboardEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import type {
   ChatError,
@@ -19,6 +19,7 @@ import type {
 
 import { ActionLink } from '@/src/components/atoms/ActionLink';
 import { Button } from '@/src/components/atoms/Button';
+import { Icon } from '@/src/components/atoms/Icon';
 import { Textarea } from '@/src/components/atoms/Textarea';
 import { Notice } from '@/src/components/molecules/Notice';
 import { ModerationActions } from '@/src/modules/chat/components/ModerationActions';
@@ -235,16 +236,27 @@ export function LiveChatPanel({ sessionId, readOnly, channelId, moderator = fals
         : { type: 'message.send', clientMessageId: crypto.randomUUID(), text: validated.text },
     );
   }
+  function submitOnEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
+  }
   return (
     <aside id="chat" className={styles.chat} aria-label="Chat en vivo">
       <header className={styles.header}>
-        <h2>Chat en vivo</h2>
+        <div className={styles.title}>
+          <Icon name="chat" size={20} />
+          <h2>Chat en vivo</h2>
+        </div>
         <Button
           variant="ghost"
+          size="icon"
+          title={autoscroll ? 'Pausar autodesplazamiento' : 'Reanudar autodesplazamiento'}
+          aria-label={autoscroll ? 'Pausar autodesplazamiento' : 'Reanudar autodesplazamiento'}
           aria-pressed={!autoscroll}
           onClick={() => setAutoscroll((previous) => !previous)}
         >
-          {autoscroll ? 'Pausar autodesplazamiento' : 'Reanudar autodesplazamiento'}
+          <Icon name={autoscroll ? 'pause' : 'play'} size={16} />
         </Button>
       </header>
       <div
@@ -271,15 +283,15 @@ export function LiveChatPanel({ sessionId, readOnly, channelId, moderator = fals
               className={`${styles.message} ${moderator && channelId ? styles.moderated : ''}`}
             >
               <div className={styles.body}>
-                <p>
-                  <strong>{entry.message.author.displayName}</strong>: {entry.message.text}
+                <p className={styles.messageText}>
+                  <strong>{entry.message.author.displayName}</strong> {entry.message.text}
+                  <time className={styles.time} dateTime={entry.message.serverCreatedAtUtc}>
+                    {new Date(entry.message.serverCreatedAtUtc).toLocaleTimeString('es', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </time>
                 </p>
-                <time className={styles.time} dateTime={entry.message.serverCreatedAtUtc}>
-                  {new Date(entry.message.serverCreatedAtUtc).toLocaleTimeString('es', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </time>
               </div>
               {moderator && channelId && entry.message.author.userId !== user?.userId ? (
                 <ModerationActions
@@ -307,6 +319,7 @@ export function LiveChatPanel({ sessionId, readOnly, channelId, moderator = fals
           <Textarea
             id="chat-message"
             value={text}
+            onKeyDown={submitOnEnter}
             disabled={disabled}
             readOnly={!!pending}
             rows={2}

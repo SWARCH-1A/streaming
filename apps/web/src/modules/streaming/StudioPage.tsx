@@ -22,7 +22,6 @@ import { useCatalog } from '@/src/modules/taxonomy/entry';
 import { errorMessage, HttpError, request } from '@/src/shared/api/http';
 import { useLifetime } from '@/src/shared/api/useLifetime';
 import { useResource } from '@/src/shared/api/useResource';
-import { StudioNavigation } from '@/src/shell/components/StudioNavigation';
 import { useSession } from '@/src/shell/session/useSession';
 
 import styles from './StudioPage.module.css';
@@ -109,7 +108,6 @@ export function StudioPage() {
     <div className={styles.page}>
       <header className={styles.heading}>
         <h1>Estudio de emisión</h1>
-        <StudioNavigation channelHandle={channel.data?.handle ?? ''} />
       </header>
       {configuration.error ? <Notice tone="error">{configuration.error}</Notice> : null}
       {failure ? <Notice tone="error">{failure}</Notice> : null}
@@ -197,9 +195,7 @@ export function StudioPage() {
                       session.data.status === 'ENDED' || session.data.status === 'PREPARING'
                     }
                     channelId={channelId}
-                    moderator={
-                      !!user && user.userId === channel.data?.channel.ownerUserId
-                    }
+                    moderator={!!user && user.userId === channel.data?.channel.ownerUserId}
                   />
                 ) : (
                   <div className={styles.chatPlaceholder}>

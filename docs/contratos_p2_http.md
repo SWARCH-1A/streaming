@@ -77,6 +77,7 @@ La respuesta no contiene stack, SQL, secretos ni información privada de otra cu
 | `p2.vod.publish` | POST `/api/vods/{vodId}/publication` | VOD | P2VersionCommand | 200 P2Vod | session |
 | `p2.vod.delete` | DELETE `/api/vods/{vodId}` | VOD | — | 202 P2Accepted | session |
 | `p2.vod.timeline` | GET `/api/vods/{vodId}/timeline` | VOD | — | 200 P2Timeline | public |
+| `p2.vod.thumbnail` | GET `/api/vods/{vodId}/thumbnail` | VOD | — | 200 JPEG, hasta 640×360 / 512 KiB | public-if-readable; owner draft |
 | `p2.vod.media` | GET `/vod-media/{vodId}/{assetPath}` | VOD | — | 200 Binary, 206 Binary | public |
 | `p2.chat.replay` | GET `/api/chat/vods/{vodId}/messages` | Chat | —; query P2ReplayQuery | 200 P2ReplayPage | public-if-readable |
 | `p2.chat.delete-message` | DELETE `/api/chat/sessions/{sessionId}/messages/{messageId}` | Chat | — | 200 P2ChatRemoval | session |

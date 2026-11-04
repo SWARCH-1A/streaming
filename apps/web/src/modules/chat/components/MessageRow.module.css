@@ -1,24 +1,29 @@
 .message {
-  display: flex;
-  align-items: baseline;
-  gap: 0.65rem;
+  display: grid;
+  gap: 0.3rem;
   padding: 0.6rem 0;
   font-size: 0.8125rem;
   line-height: 1.55;
-}
-.message time {
-  color: var(--color-muted);
-  font: 0.6875rem var(--font-mono);
-  flex-shrink: 0;
-}
-.message > div {
-  min-width: 0;
   overflow-wrap: anywhere;
 }
-.message strong {
-  display: inline;
-  margin-right: 0.5rem;
+
+.message p {
+  margin: 0;
 }
+
+.message time {
+  margin-left: 0.5rem;
+  color: var(--color-muted);
+  font: 0.6875rem var(--font-mono);
+  white-space: nowrap;
+}
+
+.message strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 .message strong > span {
   margin-right: 0.4rem;
   padding: 0.1rem 0.3rem;

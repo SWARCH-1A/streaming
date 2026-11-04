@@ -1,5 +1,7 @@
 import { NavLink } from 'react-router';
 
+import { useSession } from '@/src/shell/session/useSession';
+
 import styles from './StudioNavigation.module.css';
 
 function linkClass({ isActive }: { isActive: boolean }) {
@@ -22,8 +24,20 @@ export function StudioNavigation({ channelHandle }: { channelHandle: string }) {
         Ver canal
       </NavLink>
       <NavLink to="/studio/vods" end className={linkClass}>
-        Mis grabaciones
+        Grabaciones del canal
       </NavLink>
     </nav>
+  );
+}
+
+export function StudioNavigationFrame() {
+  const { user } = useSession();
+  if (!user) return null;
+
+  return (
+    <div className={styles.frame}>
+      <p className="eyebrow">Herramientas del creador</p>
+      <StudioNavigation channelHandle={user.handle} />
+    </div>
   );
 }

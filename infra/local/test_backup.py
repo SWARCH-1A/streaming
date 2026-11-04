@@ -12,6 +12,31 @@ spec.loader.exec_module(backup)
 
 
 class BackupRecovery(unittest.TestCase):
+    def test_lan_backup_starts_recovery_on_loopback_without_inheriting_public_host(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = root / 'config'
+            config.mkdir()
+            (config / 'Caddyfile').write_text('fixture caddy')
+            (config / 'environment.env').write_text('LOCAL_HTTPS_BIND=0.0.0.0\nLOCAL_PUBLIC_HOST=vault.local\n'
+                                                    'LOCAL_LAN_IP=192.168.0.7\nWEB_ORIGIN=https://vault.local:3445\n')
+            prefix = 'streaming-restore-fixture'
+            (root / (prefix + '.compose.json')).write_text('{}')
+            manifest = {'images': {'proxy': 'sha256:fixture'},
+                        'config': [{'file': 'Caddyfile'}, {'file': 'environment.env'}]}
+            sockets = [Mock() for _ in range(3)]
+            for index, sock in enumerate(sockets):
+                sock.getsockname.return_value = ('127.0.0.1', 45000 + index)
+            with patch.object(backup, 'docker', side_effect=['network-id', '[]', '']) as docker, \
+                    patch.object(backup.socket, 'socket', side_effect=sockets), patch('builtins.print'):
+                backup.start_restored(root, prefix, manifest)
+            env = dict(line.split('=', 1) for line in (root / (prefix + '-state/environment.env')).read_text().splitlines())
+            self.assertEqual(env['LOCAL_HTTPS_BIND'], '127.0.0.1')
+            self.assertEqual(env['LOCAL_PUBLIC_HOST'], 'localhost')
+            self.assertEqual(env['LOCAL_LAN_IP'], '127.0.0.1')
+            self.assertTrue(env['WEB_ORIGIN'].startswith('https://localhost:'))
+            self.assertEqual(docker.call_args.args[:2], ('compose', '--env-file'))
+
     def source(self, root):
         path = root / 'volume-00.tar'
         path.write_bytes(b'fixture archive')

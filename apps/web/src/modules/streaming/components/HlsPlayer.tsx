@@ -4,7 +4,10 @@ import type Hls from 'hls.js';
 
 import artwork from '@/public/images/signal-grid.svg';
 
+import { Badge } from '@/src/components/atoms/Badge';
 import { Button } from '@/src/components/atoms/Button';
+import { Icon } from '@/src/components/atoms/Icon';
+import { Input } from '@/src/components/atoms/Input';
 import { Select } from '@/src/components/atoms/Select';
 import { BroadcastPlaceholder } from '@/src/components/molecules/BroadcastPlaceholder';
 import { Notice } from '@/src/components/molecules/Notice';
@@ -20,16 +23,28 @@ function bufferedPosition(element: HTMLVideoElement): number | null {
   return null;
 }
 
+function formatTime(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds < 0) return '00:00:00';
+  const total = Math.floor(seconds);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const remainder = total % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`;
+}
+
 export function HlsPlayer({
   session,
   title,
   poster,
+  viewerCount,
 }: {
   session: PublicSession;
   title: string;
   poster?: string | null | undefined;
+  viewerCount?: number | undefined;
 }) {
   const video = useRef<HTMLVideoElement>(null);
+  const viewport = useRef<HTMLDivElement>(null);
   const synchronize = useRef<(() => void) | null>(null);
   const selectQuality = useRef<((uri: string) => void) | null>(null);
   const [quality, setQuality] = useState({
@@ -42,12 +57,31 @@ export function HlsPlayer({
   const [leaseError, setLeaseError] = useState('');
   const [attempt, setAttempt] = useState(0);
   const [drained, setDrained] = useState(!session.playbackUrl);
+  const [paused, setPaused] = useState(true);
+  const [muted, setMuted] = useState(true);
+  const [volume, setVolume] = useState(0.85);
+  const [theater, setTheater] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   // Null ends delivery, not playback of frames already downloaded.
   const [source, setSource] = useState(session.playbackUrl);
   if (session.playbackUrl && session.playbackUrl !== source) setSource(session.playbackUrl);
   const currentSession = useEffectEvent(() => session);
   const playable =
     session.availability === 'PLAYABLE' && session.status === 'LIVE' && !!session.playbackUrl;
+  const signalTone =
+    session.availability === 'PLAYABLE'
+      ? 'success'
+      : session.availability === 'RECONNECTING'
+        ? 'warning'
+        : 'neutral';
+  const signalLabel =
+    session.availability === 'PLAYABLE'
+      ? 'En vivo'
+      : session.availability === 'RECONNECTING'
+        ? 'Reconectando'
+        : session.status === 'ENDED'
+          ? 'Emisión finalizada'
+          : 'Esperando señal';
 
   useEffect(() => {
     const element = video.current;
@@ -298,19 +332,96 @@ export function HlsPlayer({
     synchronize.current?.();
   }, [session.status, session.availability]);
 
+  useEffect(() => {
+    if (!video.current) return;
+    video.current.volume = volume;
+    video.current.muted = muted;
+  }, [muted, volume]);
+
+  useEffect(() => {
+    function updateFullscreen() {
+      setFullscreen(document.fullscreenElement === viewport.current);
+    }
+    document.addEventListener('fullscreenchange', updateFullscreen);
+    return () => document.removeEventListener('fullscreenchange', updateFullscreen);
+  }, []);
+
+  function togglePlayback() {
+    const element = video.current;
+    if (!element) return;
+    if (element.paused) void element.play().catch(() => {});
+    else element.pause();
+  }
+
+  function syncToLive() {
+    const element = video.current;
+    if (!element || !element.seekable.length) return;
+    const liveEdge = element.seekable.end(element.seekable.length - 1);
+    element.currentTime = liveEdge;
+    if (element.paused) void element.play().catch(() => {});
+  }
+
+  function toggleMute() {
+    setMuted((previous) => {
+      const next = !previous;
+      if (video.current) video.current.muted = next;
+      return next;
+    });
+  }
+
+  async function toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else if (viewport.current?.requestFullscreen) await viewport.current.requestFullscreen();
+    } catch {
+      // The browser can reject fullscreen without changing playback state.
+    }
+  }
+
   return (
-    <div className="stack">
-      <div className={styles.viewport}>
+    <div className={styles.player}>
+      <div ref={viewport} className={`${styles.viewport} ${theater ? styles.theater : ''}`}>
         {/* Live captions are outside the explicitly agreed P1 scope (SPEC-08). */}
+        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
         <video
           ref={video}
-          controls={!(session.status === 'ENDED' && drained)}
+          controls={false}
           poster={poster || artwork}
-          muted
+          muted={muted}
           playsInline
           aria-label={`Reproductor de ${title}`}
-          style={{ width: '100%', height: '100%' }}
+          onPlay={() => setPaused(false)}
+          onPause={() => setPaused(true)}
+          onVolumeChange={(event) => {
+            setVolume(event.currentTarget.volume);
+            setMuted(event.currentTarget.muted);
+          }}
         />
+        <div className={styles.overlayBar}>
+          <div className={styles.overlayGroup}>
+            <Badge tone={session.availability === 'PLAYABLE' ? 'live' : signalTone} dot>
+              {session.availability === 'PLAYABLE' ? 'EN VIVO' : signalLabel}
+            </Badge>
+            {viewerCount !== undefined ? (
+              <span className={styles.viewerChip}>
+                <Icon name="eye" size={15} />
+                <strong>{viewerCount.toLocaleString('es-CO')}</strong>
+                <span>espectadores</span>
+              </span>
+            ) : null}
+          </div>
+        </div>
+        {!playable && session.status !== 'ENDED' ? (
+          <div className={styles.overlayMessage} role="status">
+            <Icon name="broadcast" size={30} />
+            <h2>{signalLabel}</h2>
+            <p>
+              {session.availability === 'RECONNECTING'
+                ? 'Estamos intentando recuperar la señal.'
+                : 'Esperando una señal reproducible.'}
+            </p>
+          </div>
+        ) : null}
         {session.status === 'ENDED' && drained ? (
           <div className={styles.endState}>
             <BroadcastPlaceholder
@@ -320,40 +431,131 @@ export function HlsPlayer({
             />
           </div>
         ) : null}
-      </div>
-      {quality.levels.length > 0 ? (
-        <div className={styles.qualityPicker}>
-          <label>
-            Calidad
-            <Select
-              value={quality.selected}
-              disabled={!playable}
-              onChange={(event) => selectQuality.current?.(event.target.value)}
-            >
-              <option value="">Automática</option>
-              {quality.levels.map((level) => (
-                <option key={level.uri} value={level.uri}>
-                  {level.label}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <span role="status">
-            {quality.active
-              ? `Reproduciendo ${quality.levels.find((level) => level.uri === quality.active)?.label ?? 'señal'}`
-              : 'Esperando calidad de reproducción…'}
+        <div className={styles.controls}>
+          <div className={styles.controlBar}>
+            <div className={styles.controlGroup}>
+              <Button
+                variant="secondary"
+                size="icon"
+                className={styles.playerButton}
+                aria-label={paused ? 'Reproducir emisión' : 'Pausar emisión'}
+                onClick={togglePlayback}
+              >
+                <Icon name={paused ? 'play' : 'pause'} size={20} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={styles.liveSync}
+                aria-label="Ir al directo"
+                onClick={syncToLive}
+              >
+                <span aria-hidden="true" />
+                <span>DIRECTO</span>
+              </Button>
+              <div className={styles.volumeControl}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={styles.iconButton}
+                  aria-label={muted ? 'Activar volumen' : 'Silenciar emisión'}
+                  aria-pressed={muted}
+                  onClick={toggleMute}
+                >
+                  <Icon name={muted ? 'muted' : 'volume'} size={20} />
+                </Button>
+                <div
+                  className={`${styles.rangeTrack} ${styles.volumeTrack}`}
+                  style={{
+                    background: `linear-gradient(to right, var(--color-primary) 0 ${(muted ? 0 : volume) * 100}%, rgb(255 255 255 / 24%) ${(muted ? 0 : volume) * 100}% 100%)`,
+                  }}
+                >
+                  <Input
+                    className={styles.rangeControl}
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={muted ? 0 : volume}
+                    aria-label="Volumen"
+                    onChange={(event) => {
+                      const next = Number(event.target.value);
+                      setVolume(next);
+                      setMuted(next === 0);
+                      if (video.current) {
+                        video.current.volume = next;
+                        video.current.muted = next === 0;
+                      }
+                    }}
+                  />
+                  <span
+                    className={styles.rangeThumb}
+                    style={{ left: `${(muted ? 0 : volume) * 100}%` }}
+                    aria-hidden="true"
+                  />
+                </div>
+              </div>
+              <span className={styles.timecode}>
+                {formatTime(session.timelinePositionMs / 1000)}
+              </span>
+            </div>
+            <div className={styles.controlGroup}>
+              {quality.levels.length > 0 ? (
+                <label className={styles.qualityControl}>
+                  <Icon className={styles.qualityIcon} name="settings" size={16} />
+                  <span className="sr-only">Calidad</span>
+                  <Select
+                    className={styles.qualitySelect}
+                    value={quality.selected}
+                    disabled={!playable}
+                    onChange={(event) => selectQuality.current?.(event.target.value)}
+                  >
+                    <option value="">Automática</option>
+                    {quality.levels.map((level) => (
+                      <option key={level.uri} value={level.uri}>
+                        {level.label}
+                      </option>
+                    ))}
+                  </Select>
+                  <Icon className={styles.qualityChevron} name="chevron" size={14} />
+                </label>
+              ) : (
+                <span className={styles.qualityFallback} aria-label="Calidad automática">
+                  <Icon className={styles.qualityIcon} name="settings" size={16} />
+                  <span>AUTO</span>
+                </span>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className={styles.iconButton}
+                aria-label={theater ? 'Salir del modo cine' : 'Activar modo cine'}
+                aria-pressed={theater}
+                onClick={() => setTheater((previous) => !previous)}
+              >
+                <Icon name="screen" size={19} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={styles.iconButton}
+                aria-label={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+                aria-pressed={fullscreen}
+                onClick={() => void toggleFullscreen()}
+              >
+                <Icon name="fullscreen" size={20} />
+              </Button>
+            </div>
+          </div>
+          <span className="sr-only" role="status">
+            {quality.native
+              ? 'Calidad automática gestionada por el navegador.'
+              : quality.active
+                ? `Reproduciendo ${quality.levels.find((level) => level.uri === quality.active)?.label ?? 'señal'}`
+                : 'Esperando calidad de reproducción…'}
           </span>
         </div>
-      ) : quality.native ? (
-        <p className={styles.nativeQuality}>Calidad automática gestionada por el navegador.</p>
-      ) : null}
-      {!playable && session.status !== 'ENDED' ? (
-        <Notice>
-          {session.availability === 'RECONNECTING'
-            ? 'Reconectando la señal…'
-            : 'Esperando señal reproducible…'}
-        </Notice>
-      ) : null}
+      </div>
       {failure ? (
         <Notice tone="error">
           {failure}

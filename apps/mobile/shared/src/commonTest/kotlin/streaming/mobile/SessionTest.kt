@@ -84,6 +84,43 @@ class SessionTest {
         assertEquals("usr_fixture", Session(store).state.value?.userId)
         api.close()
     }
+    @Test fun rejectedCredentialsDoNotMasqueradeAsAnExpiredSessionOrRetry() = runTest {
+        val session = Session(MemorySecureStore()); session.install(session.beginLogin(), login())
+        var requests = 0
+        val api = Api("https://fixture.example.test", session, HttpClient(MockEngine { request ->
+            requests++
+            val payload = Json.parseToJsonElement((request.body as TextContent).text).jsonObject
+            // Passwords are opaque: neither whitespace nor Unicode may be normalized.
+            assertEquals("  Ficción-contraseña  ", payload.getValue("password").jsonPrimitive.content)
+            respond("""{"code":"INVALID_CREDENTIALS"}""", HttpStatusCode.Unauthorized,
+                headersOf(HttpHeaders.ContentType, "application/json"))
+        }) { configureVaultClient() })
+        val failure = assertFailsWith<ApiFailure> { api.login("fixture", "  Ficción-contraseña  ") }
+        assertEquals("Revisa tu correo o usuario y contraseña.", failure.userMessage())
+        assertEquals(1, requests)
+        assertEquals("A".repeat(43), session.state.value?.accessToken)
+        api.close()
+    }
+    @Test fun serverLoginCooldownPreventsResubmissionAndSurvivesScreenChanges() = runTest {
+        var requests = 0
+        val api = Api("https://fixture.example.test", Session(MemorySecureStore()), HttpClient(MockEngine { request ->
+            requests++
+            val identifier = Json.parseToJsonElement((request.body as TextContent).text).jsonObject.getValue("login").jsonPrimitive.content
+            if (identifier == "blocked") respond("""{"code":"RATE_LIMITED"}""", HttpStatusCode.TooManyRequests,
+                headersOf(HttpHeaders.ContentType to listOf("application/json"), HttpHeaders.RetryAfter to listOf("900")))
+            else respond(Json.encodeToString(login()), HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+        }) { configureVaultClient() })
+        assertFailsWith<ApiFailure> { api.login("blocked", "fictional-password") }
+        val repeated = assertFailsWith<ApiFailure> { api.login(" BLOCKED ", "fictional-password") }
+        assertEquals(429, repeated.status)
+        assertTrue(repeated.retryAfter!!.toLong() in 1..900)
+        assertEquals(1, requests)
+        // A quota for one identifier cannot lock every other account in the client.
+        api.login("another_fixture", "fictional-password")
+        assertEquals(2, requests)
+        assertNotNull(api.session.state.value)
+        api.close()
+    }
     @Test fun graphqlSerializesJsonTreesWithLiteralsAndNulls() = runTest {
         val api = Api("https://fixture.example.test", Session(MemorySecureStore()), HttpClient(MockEngine { request ->
             val payload = Json.parseToJsonElement((request.body as TextContent).text).jsonObject

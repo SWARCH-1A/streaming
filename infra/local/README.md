@@ -188,6 +188,11 @@ separadas, migraciones, salud y recuperación: [servicio VOD](../../services/vod
 
 ## Provisión externa
 
+Para un iPhone conectado a la misma LAN que el Mac, `python3 infra/local/dev.py lan` prepara
+el origen, certificado y publicación HTTPS; después ejecutar `up`. La [guía de dispositivo](../../apps/mobile/iosApp/DEVICE.md)
+explica la firma gratuita con Xcode, instalación de la CA y permisos de red. `lan --loopback` retira
+el acceso de red conservando datos. RTMPS y Mailpit permanecen en loopback.
+
 El perfil completo usa MinIO y Mailpit locales, sin cuentas de nube para video/correo.
 Firebase/APNs aún no están provisionados; [PUSH.md](../../apps/mobile/PUSH.md) identifica
 los archivos privados y los adaptadores pendientes. No confundir guardar preferencias push

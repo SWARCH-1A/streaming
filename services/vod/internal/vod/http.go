@@ -200,6 +200,7 @@ func (s *Service) PublicHandler() http.Handler {
 		response(w, 200, t)
 		return nil
 	})
+	handle("GET /api/vods/{vodId}/thumbnail", s.thumbnail)
 	handle("PATCH /api/vods/{vodId}", s.mutate("PATCH"))
 	handle("POST /api/vods/{vodId}/publication", s.mutate("PUBLISH"))
 	handle("DELETE /api/vods/{vodId}", s.mutate("DELETE"))

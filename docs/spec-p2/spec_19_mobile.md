@@ -14,6 +14,11 @@ Aplicación Kotlin Multiplatform con Compose Multiplatform. Comparte lógica de 
 clientes y modelos; integra reproductor HLS, almacenamiento seguro, WebSocket y push mediante
 adaptadores de plataforma. Esta entrega incluye Android e iOS; cada plataforma requiere compilación, instalación y pruebas propias.
 
+El host iOS entrega un proyecto Xcode con firma automática para instalación de desarrollo mediante
+Personal Team gratuito; no habilita APNs. El origen HTTPS se configura en un xcconfig local ignorado.
+Para consumir el Mac desde un iPhone físico se configura el modo LAN del despliegue, se confía en
+su CA y se concede Red local; no se desactiva TLS/ATS. Procedimiento en `apps/mobile/iosApp/DEVICE.md`.
+
 ## 3. Historia de usuario
 
 Como espectador, quiero descubrir canales, ver live/VOD, escribir en chat, seguir canales y
@@ -47,16 +52,34 @@ Watch parties/subtítulos se integran tras sus políticas y contratos.
 
 La UI toma `apps/web` responsive como referencia: marca Vault tv, fondo oscuro, Inter, Plus Jakarta
 Sans, tarjetas y estados de disponibilidad. La navegación inferior adapta Explorar, Buscar,
-Siguiendo y Bandeja al teléfono; login y canal conservan el shell, y live usa una vista dedicada. Los errores
+Siguiendo y Bandeja al teléfono; login y canal conservan el shell, y live/VOD usan vistas dedicadas. La
+cabecera conserva el logo en su sitio, sin añadir un botón «Volver» al navegar. La biblioteca presenta
+tarjetas con fotograma real, duración y título; filtros horizontales y carga diferida de miniaturas.
+Una miniatura no disponible conserva el acceso al video y muestra un estado explícito. Los errores
 no muestran excepciones técnicas ni secretos al usuario.
 
 Al abrir un live se ocultan las barras generales: el video ocupa todo el ancho de la parte superior,
-con volver y calidad superpuestos. Debajo, una franja compacta muestra canal, título, categoría y
+sin botones propios superpuestos. Debajo se sitúan el selector de calidad y una zona de arrastre
+para cerrar; una franja compacta muestra canal, título, categoría y
 espectadores. El chat ocupa el alto restante, con su compositor fijo abajo; solo se desplazan los
 mensajes. Desplazarse hacia el historial pausa el seguimiento automático y permite volver a los
 últimos mensajes. El teclado conserva el video y el compositor visibles y oculta los metadatos
 secundarios. En horizontal, video y chat ocupan columnas fijas contiguas. Controles y campo de envío
 usan alineación, márgenes y radios coherentes, sin tarjetas anidadas.
+
+VOD coloca el video antes del título, sin otra cabecera ni duplicar el espacio del área segura.
+Live/VOD se cierran con un deslizamiento hacia abajo sobre la imagen o la zona de arrastre inferior,
+que también expone una acción accesible de cierre. En iOS el gesto se inicia en la imagen central,
+conserva los toques nativos, excluye las franjas superior/inferior y los laterales y se
+desactiva durante la pantalla completa nativa; volumen, transporte y pantalla completa conservan
+sus interacciones nativas. El selector de calidad queda fuera del video. El audio usa una sesión
+multimedia `Playback`/`MoviePlayback`, por lo que
+el modo silencio del iPhone no silencia el video. La sesión se libera al cerrar o pasar a segundo
+plano, y un rechazo de activación muestra error/reintento. iOS recibe las variantes del
+maestro ya autorizado; admite referencias relativas, relativas al origen y absolutas del mismo
+origen, siempre limitadas al directorio de la grabación/sesión. No inventa calidades ni oculta un
+fallo de lectura del maestro como si solo existiera la opción automática. En horizontal el video
+conserva su proporción en la columna izquierda y metadatos/replay ocupan la derecha.
 
 ## 7. Diseño técnico y datos
 
@@ -66,7 +89,13 @@ modelos de pantalla y reconciliación de chat. Adaptadores: player/HLS, almacén
 vida, WebSocket si lo exige la librería, permisos y proveedor push.
 
 `P2NativeLogin` conserva vida fija de 24 h y no introduce refresh token. Un 401 vigente elimina
-la sesión; los errores de lectura pública y respuestas de intentos cancelados no deben revocar
+la sesión únicamente en una solicitud autenticada; `401 INVALID_CREDENTIALS` al entrar indica
+credenciales incorrectas, sin anunciar caducidad ni revocar una sesión previa. El formulario usa
+teclados sin autocorrección ni capitalización automática, teclado de contraseña y revelado opcional;
+el registro confirma la contraseña exacta antes de enviarla. No recorta ni normaliza contraseñas.
+Un 429 de login respeta `Retry-After` con contador y bloqueo local del mismo identificador; la
+espera se conserva al cambiar de pantalla mientras vive el cliente. No reintenta comandos de
+autenticación automáticamente ni modifica las cuotas de Core. Los errores de lectura pública y respuestas de intentos cancelados no deben revocar
 un login posterior. Nunca persistir stream keys ni tokens en logs, preferencias ordinarias o
 URLs. El token del proveedor push no es un token de usuario.
 
@@ -97,7 +126,7 @@ Explorar y Buscar reinicia las consultas periódicas con el modo de la pestaña 
 | Canales / SPEC-03, STREAMING-2 | Follow/unfollow, estado personal, listado paginado y acceso suspendido | Proveedor Core integrado desde develop con soporte Bearer; follow/unfollow, listado paginado y preferencias por canal implementados |
 | VOD / SPEC-14, STREAMING-25 | Biblioteca/detalle/disponibilidad, manifiestos y mapping autorizados | Biblioteca filtrada/paginada y player VOD autorizado con seek implementados; reproducción audiovisual y seek 4→56→58 s en Android API 37 ejecutados; iOS pendiente |
 | Chat / SPEC-05, STREAMING-5 | Replay durable, ventanas/cursores, supresiones versionadas | Chat live y replay (acepta Bearer) implementados; replay móvil por ventanas/cursores, mapping y versión de moderación implementado; replay audiovisual Android ejecutado; iOS pendiente |
-| Streaming / SPEC-04, STREAMING-4 | Maestro multicalidad, hasta cuatro rendiciones, continuidad y disponibilidad | Adaptadores Media3/AVPlayer y leases; HLS live real y VOD con cuatro calidades 720/540/360/180p, selección automática/manual y frames Android verificados; iOS multicalidad pendiente |
+| Streaming / SPEC-04, STREAMING-4 | Maestro multicalidad, hasta cuatro rendiciones, continuidad y disponibilidad | Adaptadores Media3/AVPlayer y leases; HLS live real y VOD con cuatro calidades 720/540/360/180p, selección automática/manual y frames Android verificados. iOS simulado muestra esas cuatro opciones, reproduce al elegir 360p y vuelve a automática; dispositivo físico pendiente |
 | Notificaciones / SPEC-20, STREAMING-30 | Bandeja/preferencias, instalación/token, destino validado, FCM/APNs y SMTP | Bandeja paginada, lectura, preferencias generales/por canal y destinos validados implementados. FCM/APNs y registro/entrega push pendientes de provisión y adaptadores nativos |
 | Subtítulos / SPEC-22, STREAMING-32 | VOD autorizado y pistas WebVTT ratificadas | Selector y sincronización de WebVTT con el reloj VOD implementados; selección/sincronización Android ejecutada; iOS y lectura asistiva pendientes |
 

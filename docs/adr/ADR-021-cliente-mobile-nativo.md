@@ -19,6 +19,15 @@ Se fijan Kotlin 2.3.0, Compose 1.10.0, Ktor 3.3.3, Gradle 8.14.3 y AGP 8.13.2. A
 26 o posterior y SDK de compilación 36; iOS requiere 17.2 o posterior y Mac arm64 con Xcode.
 Media3 1.9.0 reproduce HLS Android; AVPlayer/AVPlayerViewController reproduce iOS. Ambos conservan
 controles nativos y solo ofrecen calidades presentes en las pistas/manifiesto recibido.
+iOS configura `AVAudioSession` con categoría `Playback` y modo `MoviePlayback` antes de reproducir,
+para mantener sonido multimedia también en modo silencio. Activa la sesión al abrir el player y
+la desactiva después de pausarlo al salir o pasar a segundo plano, notificando a otras apps.
+Si iOS rechaza la activación, el player muestra un error recuperable. El volumen y la ruta de
+salida siguen bajo control del usuario; no se habilita audio en segundo plano.
+El selector de calidad se sitúa debajo del video. La vista UIKit recibe los eventos directamente
+(`NonCooperative`); un reconocedor sobre un contenedor estable limita el cierre por arrastre a la
+imagen central en reproducción integrada, conserva los toques nativos y se desactiva en pantalla completa. Una zona de
+arrastre inferior ofrece también cierre accesible sin superponer botones a AVKit.
 El manifiesto maestro es la opción automática; iOS puede sustituir el item por una variante del
 mismo origen. Compartir una librería de reproducción adicional no sustituiría estas integraciones.
 
@@ -41,6 +50,11 @@ Android cifra la credencial con AES-GCM y clave no exportable de Android Keystor
 iOS usa Keychain WhenUnlockedThisDeviceOnly. No se guardan contraseñas ni credenciales privadas
 de servicios. Cada respuesta protegida usa la generación/credencial de su solicitud: un 401 antiguo
 no puede cerrar un login posterior. Lecturas públicas no invalidan una sesión.
+Un rechazo `INVALID_CREDENTIALS` de login tiene mensaje propio; no se presenta como sesión
+caducada. Un 429 conserva en memoria la espera `Retry-After` por identificador y bloquea su
+reenvío hasta vencerla, sin sustituir las cuotas de Core. El formulario desactiva autocorrección
+y capitalización automática, permite revelar la contraseña y exige confirmación al registrar.
+Las contraseñas se transmiten exactamente como se introducen, sin trim ni normalización.
 
 Player, polling, chat y leases pertenecen a la pantalla y al estado foreground. El lease solo se
 adquiere cuando hay reproducción efectiva, se renueva y libera al detenerse; un cierre fallido
@@ -59,8 +73,13 @@ proveedores públicos; el estado de sección se valida antes de leer datos. El p
 un permiso corto, sin introducir la sesión de usuario en URLs multimedia. No se generan
 tokens push ficticios ni se instala un SDK sin proyecto Firebase/APNs y contrato de instalaciones.
 
-La configuración de certificados se hace en el emulador/simulador; no se permiten trust-all ni
-excepciones ATS. El build Android debug admite CA de usuario para el entorno académico. Release
+La configuración de certificados se hace en el emulador/simulador o dispositivo físico; no se permiten trust-all ni
+excepciones ATS. El host UIKit incluye un proyecto Xcode con firma automática de desarrollo
+compatible con Personal Team gratuito y origen HTTPS en xcconfig local ignorado. El modo LAN del
+despliegue comparte un origen canónico entre navegador/móvil/WS/medios, conserva la CA y añade
+nombre/IP al certificado de entrada. iOS declara el uso de Red local y requiere permiso y confianza
+total en esa CA. Esto no habilita APNs ni acredita una prueba física.
+El build Android debug admite CA de usuario para el entorno académico. Release
 usa confianza de sistema. Las decisiones y provisión pendientes siguen en P2-06/08…13/16/17.
 
 ## Referencias
