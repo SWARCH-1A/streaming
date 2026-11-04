@@ -121,7 +121,7 @@ try {
   assert.equal(live.status, 200);
   assert.equal(live.headers.get('cache-control'), 'no-store, private');
   const liveHtml = await live.text();
-  assert.match(liveHtml, /<h1>Directo SSR fixture<\/h1>/);
+  assert.match(liveHtml, /<h1[^>]*>Directo SSR fixture<\/h1>/);
   assert.match(liveHtml, /<video[^>]*aria-label="Reproductor de Directo SSR fixture"/);
   assert.doesNotMatch(liveHtml, /<video[^>]*\ssrc=|<select[^>]*>[^]*720p/);
   assert.doesNotMatch(liveHtml, /fixture-credential|127\.0\.0\.1/);
