@@ -35,6 +35,10 @@ replay por contrato con Chat. Las políticas de subtítulos corresponden a su re
 - RF-081: grabación validada sin autopublicación queda pendiente de publicación manual.
 - RF-082: conservar vínculo y mapping para obtener replay de Chat, sin copiar su propiedad.
 - Suspensión del propietario o retirada administrativa impide acceso directo y desde catálogo.
+- El catálogo móvil muestra miniaturas reales. `GET /api/vods/{vodId}/thumbnail` autoriza cada
+  lectura, incluidos aciertos de caché, con las mismas reglas de publicación/propietario y restricciones
+  del detalle. Devuelve JPEG de hasta 640×360 y 512 KiB, generado desde un segmento confirmado y
+  verificado, sin modificar el video. Un fallo de miniatura no impide reproducir.
 
 ## 6. Criterios de aceptación
 

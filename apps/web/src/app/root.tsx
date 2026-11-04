@@ -12,6 +12,11 @@ import {
 } from 'react-router';
 import type { Profile, PublicIdentity } from '@contracts/p1';
 
+import favicon from '@/public/brand/vault-tv-icon-32.png';
+import appIcon from '@/public/brand/vault-tv-icon-180.png';
+import appIcon192 from '@/public/brand/vault-tv-icon-192.png';
+import appIcon512 from '@/public/brand/vault-tv-icon-512.png';
+
 import { hasSession, serverGet, UpstreamError } from '@/src/server/api.server';
 import type { SessionUser } from '@/src/shell/session/Session.types';
 import { SessionProvider } from '@/src/shell/session/SessionProvider';
@@ -62,6 +67,14 @@ export function Layout({ children }: { children: ReactNode }) {
         <style>{'@layer tokens, base, components;'}</style>
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta name="theme-color" content="#0d0e12" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="Vault tv" />
+        <link rel="icon" type="image/png" sizes="32x32" href={favicon} />
+        <link rel="icon" type="image/png" sizes="192x192" href={appIcon192} />
+        <link rel="icon" type="image/png" sizes="512x512" href={appIcon512} />
+        <link rel="apple-touch-icon" sizes="180x180" href={appIcon} />
         <Meta />
         <Links />
       </head>

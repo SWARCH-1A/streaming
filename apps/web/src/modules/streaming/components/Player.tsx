@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Badge } from '@/src/components/atoms/Badge';
 import { Button } from '@/src/components/atoms/Button';
 import { Icon } from '@/src/components/atoms/Icon';
+import { Input } from '@/src/components/atoms/Input';
 import { Notice } from '@/src/components/molecules/Notice';
 import type { BroadcastState } from '@/src/modules/streaming/streaming.types';
 
@@ -31,6 +32,8 @@ const messages: Record<Exclude<BroadcastState, 'LIVE'>, { title: string; detail:
 export function Player({ poster, title, state = 'LIVE', onRetry }: PlayerProps) {
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(true);
+  const [volume, setVolume] = useState(0.85);
+  const [theater, setTheater] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [fullscreenError, setFullscreenError] = useState(false);
   const viewport = useRef<HTMLDivElement>(null);
@@ -57,7 +60,11 @@ export function Player({ poster, title, state = 'LIVE', onRetry }: PlayerProps) 
   const playing = state === 'LIVE';
   return (
     <div className={styles.player}>
-      <div ref={viewport} className={styles.viewport} aria-label={`Vista previa de ${title}`}>
+      <div
+        ref={viewport}
+        className={`${styles.viewport} ${theater ? styles.theater : ''}`}
+        aria-label={`Vista previa de ${title}`}
+      >
         <img src={poster} alt="" className={!playing ? styles.dimmed : ''} />
         <div className={styles.top}>
           <Badge
@@ -92,46 +99,91 @@ export function Player({ poster, title, state = 'LIVE', onRetry }: PlayerProps) 
           </div>
         ) : null}
         <div className={styles.controls}>
-          <div className="row">
-            <Button
-              variant="secondary"
-              size="icon"
-              aria-label={paused ? 'Reanudar vista previa' : 'Pausar vista previa'}
-              aria-pressed={paused}
-              disabled={!playing}
-              onClick={() => setPaused((previous) => !previous)}
-            >
-              <Icon name={paused ? 'play' : 'pause'} />
-            </Button>
-            <Badge tone="live" dot>
-              DEMO
-            </Badge>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={
-                muted ? 'Activar audio de demostración' : 'Silenciar audio de demostración'
-              }
-              aria-pressed={muted}
-              disabled={!playing}
-              onClick={() => setMuted((previous) => !previous)}
-            >
-              <Icon name={muted ? 'muted' : 'volume'} />
-            </Button>
-          </div>
-          <div className="row">
-            <span className={styles.quality}>1080p · 60 fps</span>
-            <Button
-              variant="secondary"
-              size="icon"
-              aria-label={expanded ? 'Salir del modo cine' : 'Activar modo cine'}
-              aria-pressed={expanded}
-              onClick={() => {
-                void toggleFullscreen();
-              }}
-            >
-              <Icon name="fullscreen" />
-            </Button>
+          <div className={styles.controlBar}>
+            <div className={styles.controlGroup}>
+              <Button
+                variant="secondary"
+                size="icon"
+                className={styles.playerButton}
+                aria-label={paused ? 'Reanudar vista previa' : 'Pausar vista previa'}
+                aria-pressed={paused}
+                disabled={!playing}
+                onClick={() => setPaused((previous) => !previous)}
+              >
+                <Icon name={paused ? 'play' : 'pause'} size={20} />
+              </Button>
+              <div className={styles.volumeControl}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={styles.iconButton}
+                  aria-label={
+                    muted ? 'Activar audio de demostración' : 'Silenciar audio de demostración'
+                  }
+                  aria-pressed={muted}
+                  disabled={!playing}
+                  onClick={() => setMuted((previous) => !previous)}
+                >
+                  <Icon name={muted ? 'muted' : 'volume'} size={20} />
+                </Button>
+                <div
+                  className={`${styles.rangeTrack} ${styles.volumeTrack}`}
+                  style={{
+                    background: `linear-gradient(to right, var(--color-primary) 0 ${(muted ? 0 : volume) * 100}%, rgb(255 255 255 / 24%) ${(muted ? 0 : volume) * 100}% 100%)`,
+                  }}
+                >
+                  <Input
+                    className={styles.rangeControl}
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={muted ? 0 : volume}
+                    aria-label="Volumen de la vista previa"
+                    disabled={!playing}
+                    onChange={(event) => {
+                      const next = Number(event.target.value);
+                      setVolume(next);
+                      setMuted(next === 0);
+                    }}
+                  />
+                  <span
+                    className={styles.rangeThumb}
+                    style={{ left: `${(muted ? 0 : volume) * 100}%` }}
+                    aria-hidden="true"
+                  />
+                </div>
+              </div>
+              <span className={styles.timecode}>03:42:19</span>
+            </div>
+            <div className={styles.controlGroup}>
+              <span className={styles.qualityFallback} aria-label="Calidad 1080p · 60 fps">
+                <Icon className={styles.qualityIcon} name="settings" size={16} />
+                <span>1080p · 60 fps</span>
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={styles.iconButton}
+                aria-label={theater ? 'Salir del modo cine' : 'Activar modo cine'}
+                aria-pressed={theater}
+                onClick={() => setTheater((previous) => !previous)}
+              >
+                <Icon name="screen" size={19} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={styles.iconButton}
+                aria-label={expanded ? 'Salir de pantalla completa' : 'Pantalla completa'}
+                aria-pressed={expanded}
+                onClick={() => {
+                  void toggleFullscreen();
+                }}
+              >
+                <Icon name="fullscreen" size={20} />
+              </Button>
+            </div>
           </div>
         </div>
       </div>

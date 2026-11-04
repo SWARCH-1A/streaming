@@ -168,6 +168,7 @@ def start_restored(source, prefix, manifest):
         for sock in sockets:
             sock.close()
     env.update(P1_STATE=str(state), P1_HTTPS_PORT=str(https), P1_RTMPS_PORT=str(rtmps), MAILPIT_UI_PORT=str(mailpit),
+               LOCAL_HTTPS_BIND='127.0.0.1', LOCAL_PUBLIC_HOST='localhost', LOCAL_LAN_IP='127.0.0.1',
                WEB_ORIGIN=f'https://localhost:{https}', LOCAL_SUBNET=str(subnet),
                LOCAL_PROXY_IP=str(subnet.network_address + 2), LOCAL_GATEWAY_IP=str(subnet.network_address + 3),
                LOCAL_DYNAMIC_RANGE=str(list(subnet.subnets(prefixlen_diff=1))[1]))

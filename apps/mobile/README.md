@@ -11,8 +11,22 @@ Registro, login/logout, recuperación por solicitud/confirmación, perfil de con
 búsqueda de canales/live, filtros, paginación, canal, reproducción live, calidad y chat live consumen
 APIs públicas. La recuperación acepta el token manualmente. SMTP local ya entrega el enlace Web;
 los enlaces universales de recuperación en móvil aún requieren integración. No se transmite el token en una URL API.
+El registro confirma la contraseña y permite mostrarla; los teclados de credenciales desactivan
+autocorrección y capitalización. Login distingue credenciales rechazadas de una sesión caducada;
+un 429 muestra cuenta atrás y respeta `Retry-After` antes de reenviar ese identificador. Volver
+a la pantalla conserva esa espera en memoria; las cuotas y el bloqueo efectivo siguen en Core.
 
 La navegación incluye Siguiendo, Bandeja, preferencias generales/por canal y biblioteca VOD.
+La biblioteca muestra tarjetas con miniaturas reales y duración, búsqueda y filtros horizontales.
+Las miniaturas se solicitan al entrar en pantalla y conservan un estado alternativo si fallan;
+ese fallo no impide abrir el video. La cabecera mantiene la marca sin desplazarla con «Volver».
+Live/VOD se cierran deslizando el video hacia abajo; la franja inferior también permite ese gesto
+y ofrece una acción accesible de cierre. iOS usa audio multimedia (`Playback`/`MoviePlayback`),
+también con el modo silencio activo, y libera la sesión al salir o pasar a segundo plano.
+No cambia el volumen ni fuerza la ruta de salida. Calidad queda debajo, sin tapar los controles nativos
+de volumen, transporte y pantalla completa de iOS. En VOD el título queda debajo del video
+y no se vuelve a aplicar el margen de la barra de estado. iOS usa las variantes del maestro VOD
+ya autorizado y admite sus rutas relativas al origen dentro de la misma grabación.
 Exploración, biblioteca y detalle VOD consumen los agregados públicos del Gateway. El reproductor
 nativo usa permisos multimedia cortos, replay sobre el timeline y pistas WebVTT autorizadas.
 Los destinos de notificaciones se validan antes de navegar. No hay Firebase/APNs configurado;
@@ -62,6 +76,12 @@ En horizontal se usan dos columnas; con el teclado abierto se oculta la franja d
 
 ## iOS
 
+Para instalar en un **iPhone físico con cuenta gratuita de Apple** y usar este Mac como host
+de contenedores, seguir la [guía de dispositivo, firma automática y red local](iosApp/DEVICE.md).
+Abrir `iosApp/VaultTV.xcodeproj`, seleccionar Personal Team e iPhone, configurar el origen HTTPS
+en el archivo ignorado `iosApp/Config.local.xcconfig` y ejecutar. El host incluye la explicación
+del permiso Red local; se instala y confía en la CA pública en el teléfono.
+
 ```sh
 python3 iosApp/build.py --origin https://localhost:3445
 xcrun simctl boot <UDID>
@@ -75,9 +95,15 @@ Compose y firma ad hoc el bundle del simulador. No necesita CocoaPods ni XcodeGe
 la sesión con protección WhenUnlockedThisDeviceOnly; AVPlayer ofrece controles y calidades reales.
 
 `python3 iosApp/build.py --device --origin https://servidor.example` compila arm64 para iPhone físico.
-Su instalación requiere identidad Apple, provisioning profile y firma apropiados; el script admite
-`--sign-identity` y `--provisioning-profile`. Un dispositivo físico no llega al Mac mediante localhost.
+Para instalar, se recomienda el proyecto Xcode y su firma/provisioning automáticos; la compilación
+directa sin firma no se instala en el teléfono. Un dispositivo físico no llega al Mac mediante localhost.
 La compilación de simulador no acredita instalación física ni APNs. No hay excepciones ATS.
+
+El proyecto Xcode se verificó el 2026-11-03 para simulador y arm64 físico, con firma de desarrollo
+e instalación mediante Personal Team en un iPhone 15 Pro con iOS 26.7.2.
+En iOS 27 simulado se instaló la app, se confió en la CA y se cargó Exploración contra el origen
+HTTPS LAN del Mac, con catálogo real. Los recorridos audiovisuales del dispositivo físico
+requieren verificación propia; la compilación/instalación y la prueba de simulador no los acreditan.
 
 Los enlaces `vault://watch/<streamId>` y `vault://channel/<handle>` pasan por el validador
 compartido y consultan disponibilidad al servidor. No aceptan tokens, queries ni destinos externos.
@@ -96,8 +122,8 @@ Cobertura ejecutada el 2026-10-27 con backend local HTTPS y una emisión de prue
 | Plataforma | Compilación e instalación | Comprobado con backend real | Pendiente |
 | --- | --- | --- | --- |
 | Android, emulador arm64 API 31 | APK debug instalado; SDK de compilación 36 | Exploración, login, restauración de sesión, primer frame HLS, chat con ACK y mensaje persistido; segundo plano reduce el conteo de 2 a 1 manteniendo el espectador iOS | Multicalidad, recorrido completo de recuperación, revocación cruzada en UI, pérdida de red, accesibilidad y dispositivo físico |
-| iOS 27.0, iPhone 18 Pro simulado arm64 | Framework Kotlin y host UIKit compilados, firmados ad hoc e instalados | Exploración, enlace validado a live y primer frame HLS con AVPlayer; lease reflejado en el conteo | Login/Keychain y chat desde UI, pausa/retorno, selección de calidad, accesibilidad y dispositivo físico |
-| iOS arm64 físico | Compilación Kotlin del target | Sin instalación ni prueba física | Host firmado/provisioning, instalación y recorrido real |
+| iOS 27.0, iPhone 18 Pro simulado arm64 | Framework Kotlin y host UIKit compilados, firmados ad hoc e instalados | Exploración, enlace validado a live y primer frame HLS con AVPlayer; lease reflejado en el conteo. Ver ampliación VOD del 2026-11-03 debajo | Login/Keychain y chat desde UI, pausa/retorno, accesibilidad y dispositivo físico |
+| iPhone 15 Pro, iOS 26.7.2 | Framework y host UIKit compilados, firmados con Personal Team e instalados el 2026-11-03 | Instalación de desarrollo comprobada; recorridos audiovisuales pendientes de verificación propia | Recorrido audiovisual, accesibilidad y push |
 
 Verificación adicional del 2026-11-03: Android arm64 API 37 con backend HTTPS real acredita
 login y restauración tras reiniciar, búsqueda/canal, seguir/dejar de seguir, lista Siguiendo,
@@ -106,6 +132,16 @@ plano y 0→1 al volver, salida y logout persistente. VOD real reproduce video, 
 replay con retirada moderada aplicada y pista «Español móvil» seleccionada/desactivada sin
 reiniciar video. `tests/integration/p2-mobile/run.py` reproduce el recorrido live con fixtures
 explícitamente ficticios y un emulador dedicado.
+
+En iOS 27.0 simulado, el 2026-11-03 se verificaron biblioteca VOD con miniaturas JPEG derivadas de
+los videos reales del servidor LAN, entrada al player sin cabecera/margen superior duplicado,
+menú 720/540/360/180p, reproducción al elegir 360p y regreso a Automática, y distribución de video
+y replay en horizontal. Se verificaron además entrada/salida de pantalla completa nativa,
+visibilidad de volumen sin solapamientos, cierre por arrastre de la imagen y de la franja inferior,
+y permanencia en reproducción ante un arrastre corto. La salida de audio y el volumen físico del
+iPhone requieren comprobación en el dispositivo. Las pruebas VOD aisladas comprueban JPEG decodificable, integridad del
+segmento, caché acotada y denegación de miniaturas de borradores/suspendidos, incluso con caché
+caliente. Esta evidencia de simulador no acredita el recorrido audiovisual del iPhone físico.
 
 Las 23 pruebas compartidas y el APK Android pasan después del ajuste de paginación de replay.
 La compilación del host iOS acredita compilación; los nuevos recorridos comunitarios/VOD no se

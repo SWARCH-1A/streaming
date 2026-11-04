@@ -92,7 +92,12 @@ para reproducir HLS y probar el chat. Discovery se actualiza desde las emisiones
 Para emitir **hasta cuatro calidades desde OBS ≥31**, usar la [configuración multitrack](infra/media/README.md#obs-y-multicalidad-p2).
 Todas se codifican en origen y se conservan en el VOD; una sola conexión reserva un cupo.
 
-Solo HTTPS y RTMPS están publicados, en loopback. Las bases y APIs privadas permanecen en la red
+Por defecto, HTTPS y RTMPS están publicados en loopback. Para conectar un iPhone de la misma LAN,
+`python3 infra/local/dev.py lan` configura un origen HTTPS con el nombre Bonjour del Mac,
+certificado válido para ese nombre/IP y publicación de la entrada HTTPS en la red. Después ejecutar
+`python3 infra/local/dev.py up` y seguir la [guía de instalación en iPhone](apps/mobile/iosApp/DEVICE.md).
+El navegador del Mac usa el mismo origen; localhost se redirige a él. `lan --loopback` y `up`
+retiran el acceso LAN. RTMPS y Mailpit permanecen en loopback; las bases y APIs privadas siguen en la red
 Compose. Avatares y portadas usan volúmenes locales; no se necesitan credenciales S3. `live` es el
 nombre del servicio desplegado; sus fuentes siguen en `services/streaming` y los contratos conservan
 sus rutas y variables `STREAMING_*`.

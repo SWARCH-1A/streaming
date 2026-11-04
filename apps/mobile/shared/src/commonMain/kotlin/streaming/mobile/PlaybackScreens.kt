@@ -56,7 +56,7 @@ fun ChannelScreen(api: Api, handle: String, foreground: Boolean, navigate: (Stri
                 Button(enabled = data.availability in listOf("PLAYABLE", "RECONNECTING"), onClick = { navigate("watch:${stream.streamId}") }) { Text("Ver transmisión") }
             } }
             item { FollowControl(api, data, screen?.follow?.sectionData<P2Follow>(), navigate) }
-            item { SectionHeading("Videos del canal"); VodCards(screen?.vods?.sectionData<P2VodPage>(), navigate) }
+            item { SectionHeading("Videos del canal"); VodCards(api, screen?.vods?.sectionData<P2VodPage>(), navigate) }
         }
     }
 }
@@ -71,6 +71,7 @@ fun WatchScreen(api: Api, streamId: String, foreground: Boolean, navigate: (Stri
     var leaseError by remember(streamId) { mutableStateOf<String?>(null) }
     var playing by remember(streamId) { mutableStateOf(false) }
     var retry by remember(streamId) { mutableIntStateOf(0) }
+    val controls = remember(streamId) { PlaybackControls() }
     LaunchedEffect(streamId, foreground, retry) {
         if (!foreground) return@LaunchedEffect
         while (isActive) {
@@ -100,7 +101,7 @@ fun WatchScreen(api: Api, streamId: String, foreground: Boolean, navigate: (Stri
                 if (foreground && session?.availability == "PLAYABLE" && media != null && playerError == null) {
                     key(session.sessionId, retry) {
                         VideoPlayer(media, stream?.title.orEmpty(), Modifier.fillMaxSize(),
-                            { playing = it }, {}, { playerError = it; playing = false })
+                            { playing = it }, {}, { playerError = it; playing = false }, controls = controls, onDismiss = back)
                     }
                 } else Column(Modifier.align(Alignment.Center).padding(horizontal = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(playerError ?: error ?: when {
@@ -111,10 +112,6 @@ fun WatchScreen(api: Api, streamId: String, foreground: Boolean, navigate: (Stri
                         else -> "El canal está offline"
                     }, color = Muted, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
                     if (error != null || playerError != null) TextButton(onClick = { playerError = null; retry++ }) { Text("Reintentar") }
-                }
-                IconButton(onClick = back, modifier = Modifier.align(Alignment.TopStart).padding(8.dp)
-                    .size(48.dp).background(Color.Black.copy(alpha = .65f), RoundedCornerShape(8.dp))) {
-                    WatchGlyph("back", Ink, "Volver")
                 }
             }
         }
@@ -133,11 +130,12 @@ fun WatchScreen(api: Api, streamId: String, foreground: Boolean, navigate: (Stri
             }
         }
         if (landscape) Row(Modifier.fillMaxSize()) {
-            Column(Modifier.weight(1.2f).fillMaxHeight()) { video(Modifier.fillMaxWidth().weight(1f)); details() }
+            Column(Modifier.weight(1.2f).fillMaxHeight()) { video(Modifier.fillMaxWidth().weight(1f)); PlaybackToolbar(controls, back); details() }
             VerticalDivider(color = Raised)
             chat(Modifier.weight(1f).fillMaxHeight())
         } else Column(Modifier.fillMaxSize()) {
             video(Modifier.fillMaxWidth().aspectRatio(16f / 9))
+            PlaybackToolbar(controls, back)
             details()
             chat(Modifier.fillMaxWidth().weight(1f))
         }
@@ -250,7 +248,7 @@ private fun LiveChat(api: Api, sessionId: String, foreground: Boolean, navigate:
             FilledIconButton(onClick = ::send, enabled = canWrite && (state.pendingId != null || (text.isNotBlank() && codePoints(text) <= 500)),
                 modifier = Modifier.size(56.dp), shape = RoundedCornerShape(8.dp)) {
                 if (state.pendingId != null) Text("↻", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { contentDescription = "Reintentar mensaje" })
-                else WatchGlyph("send", LocalContentColor.current, "Enviar mensaje")
+                else SendGlyph(LocalContentColor.current, "Enviar mensaje")
             }
         }
         LaunchedEffect(state.pendingId) { if (state.pendingId == null && state.pendingText.isEmpty()) text = "" }
@@ -258,28 +256,14 @@ private fun LiveChat(api: Api, sessionId: String, foreground: Boolean, navigate:
 }
 
 @Composable
-private fun WatchGlyph(kind: String, color: Color, description: String) {
+private fun SendGlyph(color: Color, description: String) {
     androidx.compose.foundation.Canvas(Modifier.size(24.dp).semantics { contentDescription = description }) {
         val stroke = 2.dp.toPx()
-        if (kind == "back") {
-            drawLine(color, Offset(size.width * .65f, size.height * .2f), Offset(size.width * .35f, size.height * .5f), strokeWidth = stroke)
-            drawLine(color, Offset(size.width * .35f, size.height * .5f), Offset(size.width * .65f, size.height * .8f), strokeWidth = stroke)
-        } else {
-            val path = androidx.compose.ui.graphics.Path().apply {
-                moveTo(size.width * .15f, size.height * .2f); lineTo(size.width * .85f, size.height * .5f)
-                lineTo(size.width * .15f, size.height * .8f); lineTo(size.width * .3f, size.height * .5f); close()
-            }
-            drawPath(path, color, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
-            drawLine(color, Offset(size.width * .3f, size.height * .5f), Offset(size.width * .85f, size.height * .5f), strokeWidth = stroke)
+        val path = androidx.compose.ui.graphics.Path().apply {
+            moveTo(size.width * .15f, size.height * .2f); lineTo(size.width * .85f, size.height * .5f)
+            lineTo(size.width * .15f, size.height * .8f); lineTo(size.width * .3f, size.height * .5f); close()
         }
-    }
-}
-
-@Composable
-fun VideoQualityButton(quality: String, onClick: () -> Unit) {
-    TextButton(onClick = onClick, modifier = Modifier.height(48.dp).semantics { contentDescription = "Calidad de video: $quality" },
-        colors = ButtonDefaults.textButtonColors(contentColor = Ink, containerColor = Color.Black.copy(alpha = .65f)),
-        shape = RoundedCornerShape(8.dp), contentPadding = PaddingValues(horizontal = 12.dp)) {
-        Text("${if (quality == "Automática") "Auto" else quality} ▾", style = MaterialTheme.typography.labelMedium)
+        drawPath(path, color, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+        drawLine(color, Offset(size.width * .3f, size.height * .5f), Offset(size.width * .85f, size.height * .5f), strokeWidth = stroke)
     }
 }

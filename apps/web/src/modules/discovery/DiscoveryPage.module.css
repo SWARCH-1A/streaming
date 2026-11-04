@@ -25,9 +25,45 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
 }
+.channelCard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.9rem;
+  min-width: 0;
+}
+.channelIdentity {
+  display: grid;
+  min-width: 0;
+  gap: 0.15rem;
+  overflow: hidden;
+}
+.channelIdentity strong,
+.channelIdentity span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.channelIdentity strong {
+  font-size: 0.9rem;
+}
+.channelIdentity span {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
 @media (max-width: 900px) {
   .channels {
     grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 480px) {
+  .channelCard {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .channelCard > :last-child {
+    grid-column: 2;
+    justify-self: start;
   }
 }
 

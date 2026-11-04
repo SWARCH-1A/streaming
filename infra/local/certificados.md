@@ -103,6 +103,9 @@ El servidor local es `rtmps://localhost:11938/live` (aceptación P1: `11936`); u
 
 Si OBS rechaza el certificado, comprueba la CA del perfil, reinicia OBS y revisa la fecha del equipo
 y el vencimiento de `ca.crt` y `mediamtx.crt` con `openssl x509 -in <archivo> -noout -dates`.
-Usa `localhost`: los certificados generados incluyen ese nombre y `127.0.0.1`; para otra máquina
-se requiere un certificado con su nombre/IP y publicar el listener correspondiente, que aquí está en loopback.
+Por defecto, los certificados incluyen `localhost` y `127.0.0.1` y la entrada está en loopback.
+Para un iPhone en la misma LAN, `python3 infra/local/dev.py lan` añade nombre/IP al certificado
+de entrada conservando la CA y publica únicamente HTTPS. Después ejecutar `up` y seguir la
+[guía del iPhone](../../apps/mobile/iosApp/DEVICE.md): instalar `ca.cer` y activar confianza total.
+OBS en el Mac sigue usando `rtmps://localhost:11938/live`; RTMPS permanece en loopback.
 La verificación TLS permanece activa; no se usa `curl -k` ni una opción de OBS para ignorar certificados.

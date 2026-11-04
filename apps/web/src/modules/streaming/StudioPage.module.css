@@ -13,17 +13,20 @@
 }
 .grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.4fr) minmax(20rem, 0.85fr);
   align-items: start;
   gap: 1.5rem;
 }
 .grid > * {
   min-width: 0;
 }
+.grid > :first-child {
+  grid-column: 1 / -1;
+}
 .grid > aside {
   width: 100%;
-  max-width: 62rem;
-  justify-self: center;
+  max-width: none;
+  justify-self: stretch;
 }
 .metrics {
   display: flex;

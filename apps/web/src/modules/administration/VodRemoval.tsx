@@ -9,8 +9,8 @@ import { FormField } from '@/src/components/molecules/FormField';
 import { Notice } from '@/src/components/molecules/Notice';
 import { HttpError, request } from '@/src/shared/api/http';
 
-import styles from './AdministrationPage.module.css';
 import { readableAdminError } from './administrationError';
+import styles from './AdministrationPage.module.css';
 
 export function VodRemoval() {
   const [id, setId] = useState('');
@@ -280,7 +280,11 @@ export function VodRemoval() {
           ) : null}
         </div>
       ) : null}
-      {busy ? <p className={styles.loading} role="status">Procesando solicitud…</p> : null}
+      {busy ? (
+        <p className={styles.loading} role="status">
+          Procesando solicitud…
+        </p>
+      ) : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
     </section>
   );

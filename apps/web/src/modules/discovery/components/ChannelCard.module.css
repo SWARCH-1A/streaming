@@ -1,12 +1,11 @@
 .card {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  flex-wrap: wrap;
   gap: 1rem;
   padding: 1rem;
 }
 .content {
-  flex: 1;
   min-width: 100px;
 }
 .content h3 {
@@ -14,4 +13,15 @@
 }
 .content p {
   font-size: 0.75rem;
+}
+
+@media (max-width: 420px) {
+  .card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .card > :last-child {
+    grid-column: 2;
+    justify-self: start;
+  }
 }

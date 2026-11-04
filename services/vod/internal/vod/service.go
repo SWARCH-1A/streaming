@@ -28,6 +28,7 @@ type Service struct {
 	Origin      string
 	Probe       func(context.Context, Rendition, Segment) error
 	Development bool
+	thumbnails  thumbnailCache
 }
 
 func cleanText(s string, max int) bool {

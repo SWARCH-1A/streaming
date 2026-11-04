@@ -1,3 +1,10 @@
+.frame {
+  display: grid;
+  gap: 0.65rem;
+  width: min(100%, 1440px);
+  margin-inline: auto;
+}
+
 .navigation {
   display: flex;
   flex-wrap: wrap;

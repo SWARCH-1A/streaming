@@ -1,11 +1,27 @@
-import { useEffect, useRef, useState } from 'react';
+import { type ChangeEvent, useEffect, useRef, useState } from 'react';
 import type { P2SubtitlePage, P2Vod } from '@contracts/p2';
 import type Hls from 'hls.js';
 
+import artwork from '@/public/images/signal-grid.svg';
+
 import { Button } from '@/src/components/atoms/Button';
+import { Icon } from '@/src/components/atoms/Icon';
+import { Input } from '@/src/components/atoms/Input';
 import { Select } from '@/src/components/atoms/Select';
 import { Notice } from '@/src/components/molecules/Notice';
+// The live and VOD players deliberately share the same visual control contract.
+// eslint-disable-next-line no-restricted-imports
+import styles from '@/src/modules/streaming/components/Player.module.css';
 import { request } from '@/src/shared/api/http';
+
+function formatTime(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds < 0) return '00:00:00';
+  const total = Math.floor(seconds);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const remainder = total % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`;
+}
 
 export function VodPlayer({
   vod,
@@ -65,6 +81,14 @@ function Player({
       ? trackPage.cursor
       : '';
   const [attempt, setAttempt] = useState(0);
+  const [paused, setPaused] = useState(true);
+  const [muted, setMuted] = useState(true);
+  const [volume, setVolume] = useState(0.85);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [mediaDuration, setMediaDuration] = useState(Math.max(0, vod.durationMs / 1000));
+  const [theater, setTheater] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const viewport = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const element = video.current;
@@ -88,7 +112,13 @@ function Player({
         const { default: Library } = await import('hls.js');
         if (controller.signal.aborted) return;
         if (Library.isSupported()) {
-          instance = new Library();
+          instance = new Library({
+            xhrSetup: (xhr) => {
+              xhr.withCredentials = true;
+              if (permission.current)
+                xhr.setRequestHeader('X-VOD-Playback-Grant', permission.current);
+            },
+          });
           engine.current = instance;
           instance.on(Library.Events.MANIFEST_PARSED, () => {
             setLevels(
@@ -172,6 +202,55 @@ function Player({
     return () => controller.abort();
   }, [vod.vodId, vod.mappingVersion, trackCursor, trackPage.request]);
 
+  useEffect(() => {
+    function updateFullscreen() {
+      setFullscreen(document.fullscreenElement === viewport.current);
+    }
+    document.addEventListener('fullscreenchange', updateFullscreen);
+    return () => document.removeEventListener('fullscreenchange', updateFullscreen);
+  }, []);
+
+  useEffect(() => {
+    if (!video.current) return;
+    video.current.volume = volume;
+    video.current.muted = muted;
+  }, [muted, volume]);
+
+  function togglePlayback() {
+    const element = video.current;
+    if (!element) return;
+    if (element.paused) void element.play().catch(() => {});
+    else element.pause();
+  }
+
+  function seek(event: ChangeEvent<HTMLInputElement>) {
+    const element = video.current;
+    const next = Number(event.currentTarget.value);
+    if (!element || !Number.isFinite(mediaDuration) || mediaDuration <= 0) return;
+    element.currentTime = (next / 100) * mediaDuration;
+    setCurrentTime(element.currentTime);
+  }
+
+  function toggleMute() {
+    setMuted((previous) => {
+      const next = !previous;
+      if (video.current) video.current.muted = next;
+      return next;
+    });
+  }
+
+  async function toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else if (viewport.current?.requestFullscreen) await viewport.current.requestFullscreen();
+    } catch {
+      // Fullscreen can be rejected without affecting playback.
+    }
+  }
+
+  const progress =
+    mediaDuration > 0 ? Math.min(100, Math.max(0, (currentTime / mediaDuration) * 100)) : 0;
+
   function selectTrack(id: string) {
     selectedTrack.current = id;
     setTrack(id);
@@ -185,54 +264,205 @@ function Player({
         item.mode = item.id === id ? 'showing' : 'disabled';
   }
   return (
-    <section className="stack" aria-label="Reproductor de grabación">
-      {/* VOD uses seek and native media controls, without live viewer leases. */}
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption -- Las pistas reales de SPEC-22 se cargan dinámicamente. */}
-      <video
-        ref={video}
-        controls
-        playsInline
-        preload="metadata"
-        aria-label={vod.title}
-        style={{ width: '100%', background: '#000', aspectRatio: '16/9' }}
-        onTimeUpdate={(event) =>
-          onPosition?.(Math.floor(event.currentTarget.currentTime * 1000), permission.current)
-        }
-        onLoadedData={() => selectTrack(track)}
-      >
-        {tracks.map((item) => (
-          <track
-            key={`${item.trackId}:${trackAttempt}`}
-            id={item.trackId}
-            kind="subtitles"
-            srcLang={item.language}
-            label={item.label}
-            src={item.contentPath}
-            default={item.trackId === track}
-            ref={(element) => {
-              if (!element) return;
-              // Track load/error events do not bubble. Listen on the actual track element.
-              const loaded = () => {
-                failedTracks.current.delete(item.trackId);
-                if (selectedTrack.current === item.trackId) selectTrack(item.trackId);
-              };
-              const failed = () => {
-                failedTracks.current.add(item.trackId);
-                if (selectedTrack.current === item.trackId)
-                  setTrackError(
-                    'No se pudo cargar la pista. Puedes reintentar o desactivar los subtítulos.',
-                  );
-              };
-              element.addEventListener('load', loaded);
-              element.addEventListener('error', failed);
-              return () => {
-                element.removeEventListener('load', loaded);
-                element.removeEventListener('error', failed);
-              };
+    <section className={`${styles.player} stack`} aria-label="Reproductor de grabación">
+      <div ref={viewport} className={`${styles.viewport} ${theater ? styles.theater : ''}`}>
+        {/* eslint-disable-next-line jsx-a11y/media-has-caption -- Las pistas reales de SPEC-22 se cargan dinámicamente. */}
+        <video
+          ref={video}
+          className={styles.media}
+          controls={false}
+          playsInline
+          preload="metadata"
+          poster={artwork}
+          aria-label={vod.title}
+          onPlay={() => setPaused(false)}
+          onPause={() => setPaused(true)}
+          onLoadedMetadata={(event) => {
+            if (Number.isFinite(event.currentTarget.duration) && event.currentTarget.duration > 0)
+              setMediaDuration(event.currentTarget.duration);
+          }}
+          onTimeUpdate={(event) => {
+            const next = event.currentTarget.currentTime;
+            setCurrentTime(next);
+            if (Number.isFinite(event.currentTarget.duration) && event.currentTarget.duration > 0)
+              setMediaDuration(event.currentTarget.duration);
+            onPosition?.(Math.floor(next * 1000), permission.current);
+          }}
+          onVolumeChange={(event) => {
+            setVolume(event.currentTarget.volume);
+            setMuted(event.currentTarget.muted);
+          }}
+          onError={() => setFailure('No se pudo reproducir esta grabación.')}
+          onLoadedData={() => selectTrack(track)}
+        >
+          {tracks.map((item) => (
+            <track
+              key={`${item.trackId}:${trackAttempt}`}
+              id={item.trackId}
+              kind="subtitles"
+              srcLang={item.language}
+              label={item.label}
+              src={item.contentPath}
+              default={item.trackId === track}
+              ref={(element) => {
+                if (!element) return;
+                // Track load/error events do not bubble. Listen on the actual track element.
+                const loaded = () => {
+                  failedTracks.current.delete(item.trackId);
+                  if (selectedTrack.current === item.trackId) selectTrack(item.trackId);
+                };
+                const failed = () => {
+                  failedTracks.current.add(item.trackId);
+                  if (selectedTrack.current === item.trackId)
+                    setTrackError(
+                      'No se pudo cargar la pista. Puedes reintentar o desactivar los subtítulos.',
+                    );
+                };
+                element.addEventListener('load', loaded);
+                element.addEventListener('error', failed);
+                return () => {
+                  element.removeEventListener('load', loaded);
+                  element.removeEventListener('error', failed);
+                };
+              }}
+            />
+          ))}
+        </video>
+        <div className={styles.controls}>
+          <div
+            className={styles.rangeTrack}
+            style={{
+              background: `linear-gradient(to right, var(--color-live) 0 ${progress}%, rgb(255 255 255 / 22%) ${progress}% 100%)`,
             }}
-          />
-        ))}
-      </video>
+          >
+            <Input
+              className={styles.rangeControl}
+              type="range"
+              min="0"
+              max="100"
+              step="0.1"
+              value={progress}
+              aria-label="Progreso de la grabación"
+              onChange={seek}
+            />
+            <span
+              className={styles.rangeThumb}
+              style={{ left: `${progress}%` }}
+              aria-hidden="true"
+            />
+          </div>
+          <div className={styles.controlBar}>
+            <div className={styles.controlGroup}>
+              <Button
+                variant="secondary"
+                size="icon"
+                className={styles.playerButton}
+                aria-label={paused ? 'Reproducir grabación' : 'Pausar grabación'}
+                onClick={togglePlayback}
+              >
+                <Icon name={paused ? 'play' : 'pause'} size={20} />
+              </Button>
+              <div className={styles.volumeControl}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={styles.iconButton}
+                  aria-label={muted ? 'Activar volumen' : 'Silenciar grabación'}
+                  aria-pressed={muted}
+                  onClick={toggleMute}
+                >
+                  <Icon name={muted ? 'muted' : 'volume'} size={20} />
+                </Button>
+                <div
+                  className={`${styles.rangeTrack} ${styles.volumeTrack}`}
+                  style={{
+                    background: `linear-gradient(to right, var(--color-primary) 0 ${(muted ? 0 : volume) * 100}%, rgb(255 255 255 / 24%) ${(muted ? 0 : volume) * 100}% 100%)`,
+                  }}
+                >
+                  <Input
+                    className={styles.rangeControl}
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={muted ? 0 : volume}
+                    aria-label="Volumen de la grabación"
+                    onChange={(event) => {
+                      const next = Number(event.currentTarget.value);
+                      setVolume(next);
+                      setMuted(next === 0);
+                      if (video.current) {
+                        video.current.volume = next;
+                        video.current.muted = next === 0;
+                      }
+                    }}
+                  />
+                  <span
+                    className={styles.rangeThumb}
+                    style={{ left: `${(muted ? 0 : volume) * 100}%` }}
+                    aria-hidden="true"
+                  />
+                </div>
+              </div>
+              <span className={styles.timecode}>
+                {formatTime(currentTime)} / {formatTime(mediaDuration)}
+              </span>
+            </div>
+            <div className={styles.controlGroup}>
+              {levels.length ? (
+                <label className={styles.qualityControl}>
+                  <Icon className={styles.qualityIcon} name="settings" size={16} />
+                  <span className="sr-only">Calidad</span>
+                  <Select
+                    className={styles.qualitySelect}
+                    aria-label="Calidad"
+                    value={selected}
+                    onChange={(event) => {
+                      const value = Number(event.target.value);
+                      // Switch at the next playable fragment and keep the current position.
+                      if (engine.current) engine.current.nextLevel = value;
+                      setSelected(value);
+                    }}
+                  >
+                    <option value={-1}>Automática</option>
+                    {levels.map((level) => (
+                      <option key={level.index} value={level.index}>
+                        {level.label}
+                      </option>
+                    ))}
+                  </Select>
+                  <Icon className={styles.qualityChevron} name="chevron" size={14} />
+                </label>
+              ) : (
+                <span className={styles.qualityFallback} aria-label="Calidad automática">
+                  <Icon className={styles.qualityIcon} name="settings" size={16} />
+                  <span>AUTO</span>
+                </span>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className={styles.iconButton}
+                aria-label={theater ? 'Salir del modo cine' : 'Activar modo cine'}
+                aria-pressed={theater}
+                onClick={() => setTheater((previous) => !previous)}
+              >
+                <Icon name="screen" size={19} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={styles.iconButton}
+                aria-label={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+                aria-pressed={fullscreen}
+                onClick={() => void toggleFullscreen()}
+              >
+                <Icon name="fullscreen" size={20} />
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
       {failure ? (
         <Notice tone="error">
           {failure}{' '}
@@ -245,28 +475,6 @@ function Player({
             Reintentar reproducción
           </Button>
         </Notice>
-      ) : null}
-      {levels.length ? (
-        <label>
-          Calidad
-          <Select
-            value={selected}
-            onChange={(event) => {
-              const value = Number(event.target.value);
-              // Switch at the next playable fragment rather than waiting for the
-              // entire VOD buffer; keep the current position and media element.
-              if (engine.current) engine.current.nextLevel = value;
-              setSelected(value);
-            }}
-          >
-            <option value={-1}>Automática</option>
-            {levels.map((level) => (
-              <option key={level.index} value={level.index}>
-                {level.label}
-              </option>
-            ))}
-          </Select>
-        </label>
       ) : null}
       {native ? <p>La calidad se adapta automáticamente en este navegador.</p> : null}
       <label>

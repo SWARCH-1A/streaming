@@ -14,4 +14,4 @@ actual fun normalizeText(value: String): String = Normalizer.normalize(value, No
 @Composable actual fun Foreground(): Boolean = true
 // JVM target exists for common tests; it is not distributed as a desktop product.
 @Composable actual fun VideoPlayer(url: String, title: String, modifier: Modifier,
-    onPlaying: (Boolean) -> Unit, onPosition: (Long) -> Unit, onError: (String) -> Unit, playbackGrant: String, startPositionMs: Long) = Unit
+    onPlaying: (Boolean) -> Unit, onPosition: (Long) -> Unit, onError: (String) -> Unit, playbackGrant: String, startPositionMs: Long, renditions: List<Rendition>?, controls: PlaybackControls, onDismiss: () -> Unit) = Unit

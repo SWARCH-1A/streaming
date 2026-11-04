@@ -26,8 +26,8 @@ func TestCompactionKeepsAllRenditionsAndMapsGapMessagesToSeam(t *testing.T) {
 		t.Fatalf("wrong compacted mapping: %+v", timeline)
 	}
 	index.Segments[len(index.Segments)-1].DurationMS = 900
-	if _, e = BuildTimeline(r, index); e == nil {
-		t.Fatal("different rendition coverage must fail")
+	if timeline, e = BuildTimeline(r, index); e != nil || timeline.DurationMS != 2000 {
+		t.Fatalf("independently segmented rendition should remain playable: %+v %v", timeline, e)
 	}
 }
 func TestMissingCoverageCannotBeCompactedWithoutProducerDiscontinuity(t *testing.T) {

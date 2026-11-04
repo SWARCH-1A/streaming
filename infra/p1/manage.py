@@ -58,6 +58,14 @@ def render_proxy():
         response_header_timeout 10s
       }""")
     if PROFILE == "local":
+        # The same TLS entry serves the Mac and LAN clients. Only configured names are accepted;
+        # aliases redirect to the canonical origin used by cookies, CSRF, WS and media URLs.
+        source = source.replace("https://localhost:3443 {", "https://:3443 {")
+        source = source.replace("  route {", """  route {
+    @foreignHost not host localhost 127.0.0.1 {$LOCAL_PUBLIC_HOST:localhost} {$LOCAL_LAN_IP:127.0.0.1}
+    respond @foreignHost 421
+    @aliasHost not host {$LOCAL_PUBLIC_HOST:localhost}
+    redir @aliasHost {$WEB_ORIGIN:https://localhost:3445}{uri} 307""", 1)
         source = source.replace("https://streaming:", "https://live:")
         # The SSR web container listens with TLS on 3443 (SPEC-18).
         source = source.replace("{$WEB_UPSTREAM:https://web:3000}", "{$WEB_UPSTREAM:https://web:3443}")
@@ -180,7 +188,12 @@ def environment():
         # States initialized before SPEC-16 derive the same fixed address instead of re-running init.
         env["LOCAL_GATEWAY_IP"] = gateway_ip(env["LOCAL_SUBNET"], env["LOCAL_PROXY_IP"])
     https_port, _ = configured_ports(env)
-    if env["WEB_ORIGIN"]!="https://localhost:"+https_port:raise RuntimeError("Origin and HTTPS port differ; keep the initialized ports")
+    host = env.get("LOCAL_PUBLIC_HOST", "localhost") if PROFILE == "local" else "localhost"
+    if PROFILE == "local":
+        import runpy
+        network = runpy.run_path(str(ROOT / "infra/local/network_config.py"))
+        network["validate"](env)
+    if env["WEB_ORIGIN"]!="https://"+host+":"+https_port:raise RuntimeError("Origin and HTTPS port differ; keep the initialized ports")
     return env
 
 
@@ -236,19 +249,34 @@ def wait_local(env, timeout=180):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("init","build","up","status","down","reset"))
+    parser.add_argument("action", choices=("init","build","up","status","down","reset","lan"))
+    parser.add_argument("--host", help="LAN DNS name ending in .local, or private IPv4 address (lan action)")
+    parser.add_argument("--address", help="Current private IPv4 address of this host (lan action)")
+    parser.add_argument("--loopback", action="store_true", help="Disable LAN access and restore localhost (lan action)")
     parser.add_argument("--s3", action="store_true", help="External private S3; configure its environment first")
     parser.add_argument("--broker", action="store_true", default=PROFILE == "local",
                         help="RabbitMQ transport (already included in the local profile)")
     parser.add_argument("--replicas", type=int, choices=(1,2), default=1)
     parser.add_argument("--confirm-disposable", action="store_true", help="Required to remove only this project's volumes")
     args = parser.parse_args()
+    if args.action == "lan" and PROFILE != "local":
+        parser.error("LAN access is only available in infra/local/dev.py")
+    if args.action != "lan" and (args.host or args.address or args.loopback):
+        parser.error("--host, --address and --loopback require the lan action")
+    if args.loopback and (args.host or args.address):
+        parser.error("--loopback cannot be combined with --host or --address")
     if PROFILE == "local" and args.replicas != 1:
         raise RuntimeError("The local installation uses one replica per service; use P1 for replica tests")
     # Lock outside .state so initialization is serialized too.
     with open(HERE / LOCK_NAME,"a") as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         env = initialize() if args.action=="init" else environment()
+        if args.action == "lan":
+            import runpy
+            network = runpy.run_path(str(ROOT / "infra/local/network_config.py"))
+            network["configure"](env, STATE, run, host=args.host, address=args.address, loopback=args.loopback)
+            print("Network configuration saved; run python3 infra/local/dev.py up to apply it")
+            return
         if args.broker and args.action=="init":
             if PROFILE != "local": raise RuntimeError("Use infra/local/dev.py init")
             import runpy

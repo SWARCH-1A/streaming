@@ -75,6 +75,13 @@ permiso ya concedido tiene como cota su vencimiento; no se promete revocación i
 Las pistas siguen el perfil `p2-webvtt-text-v1` de ADR-018: carga manual, duración/mapping autoritativos,
 objetos privados, límites y tombstones. No se añade transcripción ni otro perfil.
 
+VOD deriva miniaturas JPEG bajo demanda desde el inventario confirmado, mediante FFmpeg sobre un
+archivo temporal de tamaño/hash verificados y sin protocolos de red. La API de miniatura comprueba
+Core y restricciones locales en cada lectura; una caché privada de 32 imágenes por versión/mapping
+evita repetir decodificaciones y serializa el decoder con un plazo de siete segundos por solicitud.
+La respuesta usa `no-store`; la caché nunca sustituye la autorización. Se conserva la reproducción
+si falla esta imagen auxiliar y no se añaden objetos durables ni migraciones para esta derivación.
+
 El sello nativo certifica bytes aunque el último keyframe no tenga un DTS posterior. El capturador
 mide esa duración en el archivo sellado mediante ffprobe y conserva la medida en su checkpoint.
 Un final de generación de hasta 250 ms puede contener solo video después del último AAC;

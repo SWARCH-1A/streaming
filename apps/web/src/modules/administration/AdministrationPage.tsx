@@ -9,8 +9,8 @@ import { Notice } from '@/src/components/molecules/Notice';
 import { request } from '@/src/shared/api/http';
 import { useResource } from '@/src/shared/api/useResource';
 
-import styles from './AdministrationPage.module.css';
 import { isAdminRequired, readableAdminError } from './administrationError';
+import styles from './AdministrationPage.module.css';
 import { VodRemoval } from './VodRemoval';
 
 export function AdministrationPage() {
@@ -147,9 +147,7 @@ export function AdministrationPage() {
               <h2 id="admin-users-heading">Usuarios</h2>
               <p>Revisa el estado de las cuentas y aplica cambios con un motivo.</p>
             </div>
-            <span className={styles.count}>
-              {users.data.items.length} en esta página
-            </span>
+            <span className={styles.count}>{users.data.items.length} en esta página</span>
           </div>
           {users.data.items.length ? (
             <ul className={styles.list}>

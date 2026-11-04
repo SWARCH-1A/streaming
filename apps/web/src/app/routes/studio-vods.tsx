@@ -4,7 +4,6 @@ import type { P2VodPage } from '@contracts/p2';
 
 import { Library, RecordingSettings } from '@/src/modules/vod/entry';
 import { serverGet, serverVodGet } from '@/src/server/api.server';
-import { StudioNavigation } from '@/src/shell/components/StudioNavigation';
 
 import styles from './studio-vods.module.css';
 
@@ -17,22 +16,19 @@ export async function loader({ request }: LoaderFunctionArgs) {
     request,
     `/api/channels/by-owner/${encodeURIComponent(profile.userId)}`,
   );
-  return { initial, channelId: channel.channel.channelId, channelHandle: channel.handle };
+  return { initial, channelId: channel.channel.channelId };
 }
 export function headers() {
   return { 'Cache-Control': 'no-store, private' };
 }
 export default function StudioVods() {
-  const { initial, channelId, channelHandle } = useLoaderData<typeof loader>();
+  const { initial, channelId } = useLoaderData<typeof loader>();
   return (
     <main className={styles.page}>
       <header className={styles.hero}>
         <p className="eyebrow">ESTUDIO DE EMISIÓN</p>
-        <h1>Mis grabaciones</h1>
-        <p>
-          Revisa tus emisiones pasadas, organiza los detalles y comparte las que quieras publicar.
-        </p>
-        <StudioNavigation channelHandle={channelHandle} />
+        <h1>Grabaciones del canal</h1>
+        <p>Revisa, edita y publica las emisiones grabadas de tu canal.</p>
       </header>
       <RecordingSettings channelId={channelId} />
       <Library mine initial={initial} />

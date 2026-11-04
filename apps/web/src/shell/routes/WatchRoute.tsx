@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router';
 import type { ChannelBootstrap, PublicSession, PublicStream } from '@contracts/p1';
 import type { P2WatchScreen } from '@contracts/p2';
 
+import { Avatar } from '@/src/components/atoms/Avatar';
+import { Badge } from '@/src/components/atoms/Badge';
 import { Button } from '@/src/components/atoms/Button';
 import { BroadcastPlaceholder } from '@/src/components/molecules/BroadcastPlaceholder';
 import { Notice } from '@/src/components/molecules/Notice';
@@ -16,6 +18,24 @@ import { useSession } from '@/src/shell/session/useSession';
 
 import styles from './WatchRoute.module.css';
 import { sessionMatches, snapshotFromScreen, type WatchSnapshot } from './watchSnapshot';
+
+function playbackLabel(stream: PublicStream) {
+  return stream.availability === 'PLAYABLE'
+    ? 'En vivo'
+    : stream.availability === 'RECONNECTING'
+      ? 'Reconectando'
+      : stream.status === 'PREPARING'
+        ? 'Preparando señal'
+        : 'Offline';
+}
+
+function playbackTone(stream: PublicStream): 'neutral' | 'live' | 'warning' {
+  return stream.availability === 'PLAYABLE'
+    ? 'live'
+    : stream.availability === 'RECONNECTING'
+      ? 'warning'
+      : 'neutral';
+}
 
 export function WatchRoute({
   initial,
@@ -71,21 +91,36 @@ export function WatchRoute({
   if (resource.loading) return <p role="status">Cargando transmisión…</p>;
   if (!resource.data) return <Notice tone="error">{resource.error}</Notice>;
   const { stream, session } = resource.data;
+  const viewerCount = session?.viewerCount ?? stream.viewerCount ?? 0;
+  const status = playbackLabel(stream);
   return (
-    <div className="stack">
-      <div className={styles.heading}>
-        <h1>{stream.title}</h1>
-        <Button
-          variant="secondary"
-          aria-expanded={chatVisible}
-          aria-controls="chat"
-          onClick={() => setChatVisible((previous) => !previous)}
-        >
-          {chatVisible ? 'Ocultar chat' : 'Mostrar chat'}
-        </Button>
+    <div className={styles.page}>
+      <div className={styles.routeBar}>
+        <div className={styles.routeMeta}>
+          <span className={styles.routeLabel}>Ruta actual</span>
+          <span className={styles.routePath}>
+            <span className={styles.routeDot} aria-hidden="true" />
+            /watch/{streamId}
+          </span>
+        </div>
+        <div className={styles.routeActions}>
+          <Badge tone="primary" dot>
+            Reproductor en vivo
+          </Badge>
+          <Button
+            variant="secondary"
+            size="sm"
+            className={styles.chatToggle}
+            aria-expanded={chatVisible}
+            aria-controls="chat"
+            onClick={() => setChatVisible((previous) => !previous)}
+          >
+            {chatVisible ? 'Ocultar chat' : 'Mostrar chat'}
+          </Button>
+        </div>
       </div>
       <div className={`${styles.layout} ${!chatVisible ? styles.wide : ''}`}>
-        <div className="stack">
+        <section className={styles.primaryColumn} aria-labelledby="stream-title">
           <ViewErrorBoundary name="El reproductor">
             {session ? (
               <HlsPlayer
@@ -93,6 +128,7 @@ export function WatchRoute({
                 session={session}
                 title={stream.title}
                 poster={channelData?.channel.bannerUri}
+                viewerCount={viewerCount}
               />
             ) : (
               <BroadcastPlaceholder
@@ -102,35 +138,57 @@ export function WatchRoute({
               />
             )}
           </ViewErrorBoundary>
-          <Panel className="stack">
-            {channelData ? (
-              <Link to={`/channels/${channelData.handle}`}>
-                {channelData.profile.displayName} (@{channelData.handle})
-              </Link>
-            ) : (
-              <p>
-                {channel.error ??
-                  (gateway && resource.data.channelUnavailable
-                    ? 'No pudimos cargar la información del canal.'
-                    : 'Cargando canal…')}
+          <Panel className={styles.streamInfo}>
+            <div className={styles.metaRow}>
+              <Badge tone={playbackTone(stream)} dot>
+                {status}
+              </Badge>
+              <Badge tone="neutral">{stream.category.name}</Badge>
+              {stream.tags.map((tag) => (
+                <span key={tag.id} className={styles.tag}>
+                  #{tag.name}
+                </span>
+              ))}
+            </div>
+            <h1 id="stream-title">{stream.title}</h1>
+            <div className={styles.channelRow}>
+              {channelData ? (
+                <Link className={styles.channelIdentity} to={`/channels/${channelData.handle}`}>
+                  <Avatar
+                    name={channelData.profile.displayName}
+                    {...(channelData.profile.avatarUri
+                      ? { src: channelData.profile.avatarUri }
+                      : {})}
+                    size="lg"
+                    online={stream.availability === 'PLAYABLE'}
+                  />
+                  <span className={styles.channelCopy}>
+                    <span className={styles.channelName}>{channelData.profile.displayName}</span>
+                    <span className={styles.channelHandle}>
+                      @{channelData.handle} · {viewerCount.toLocaleString('es-CO')} espectadores
+                    </span>
+                  </span>
+                </Link>
+              ) : (
+                <p className={styles.channelFallback}>
+                  {channel.error ??
+                    (gateway && resource.data.channelUnavailable
+                      ? 'No pudimos cargar la información del canal.'
+                      : 'Cargando canal…')}
+                </p>
+              )}
+              <div className={styles.sessionState}>
+                <span>Estado de sesión</span>
+                <strong role="status">{status}</strong>
+              </div>
+            </div>
+            {channelData?.channel.description || channelData?.profile.bio ? (
+              <p className={styles.description}>
+                {channelData.channel.description || channelData.profile.bio}
               </p>
-            )}
-            <p>
-              {stream.category.name}
-              {stream.tags.length ? ` · ${stream.tags.map((tag) => tag.name).join(' · ')}` : ''}
-            </p>
-            <p role="status">
-              {stream.availability === 'PLAYABLE'
-                ? 'En vivo'
-                : stream.availability === 'RECONNECTING'
-                  ? 'Reconectando'
-                  : stream.status === 'PREPARING'
-                    ? 'Preparando señal'
-                    : 'Offline'}{' '}
-              · {session?.viewerCount ?? 0} espectadores
-            </p>
+            ) : null}
           </Panel>
-        </div>
+        </section>
         {chatVisible && session ? (
           <ViewErrorBoundary name="El chat">
             <LiveChatPanel

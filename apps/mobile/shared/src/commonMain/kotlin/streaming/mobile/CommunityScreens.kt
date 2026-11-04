@@ -1,6 +1,7 @@
 package streaming.mobile
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.material3.*
@@ -184,11 +185,11 @@ fun InboxScreen(api: Api, foreground: Boolean, navigate: (String) -> Unit) {
 }
 
 @Composable
-fun VodCards(page: P2VodPage?, navigate: (String) -> Unit) {
+fun VodCards(api: Api, page: P2VodPage?, navigate: (String) -> Unit) {
     if (page == null) { Notice("No se pudo consultar la biblioteca."); return }
     if (page.items.isEmpty()) Notice("Todavía no hay grabaciones publicadas.")
-    page.items.forEach { vod ->
-        TextButton(onClick = { navigate("vod:${vod.vodId}") }) { Text(vod.title + " · ${vod.durationMs / 60_000} min") }
+    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        page.items.forEach { vod -> VodCard(api, vod, navigate = navigate) }
     }
 }
 
@@ -222,23 +223,24 @@ fun LibraryScreen(api: Api, foreground: Boolean, navigate: (String) -> Unit) {
         pending = false
     }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item { SectionHeading("Grabaciones", "Mira tus canales a tu ritmo.") }
+        item { SectionHeading("Videos", "Grabaciones de tus canales, a tu ritmo.") }
         item { OutlinedTextField(title, { title = it.take(120) }, label = { Text("Buscar videos") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
         item {
-            Text("Categoría")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(category.isEmpty(), { category = "" }, label = { Text("Todas") })
+            Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(category.isEmpty(), { category = "" }, label = { Text("Todas las categorías") })
                 taxonomy?.categories?.forEach { c -> FilterChip(category == c.id, { category = c.id }, label = { Text(c.name) }) }
             }
-            Text("Etiqueta")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(tag.isEmpty(), { tag = "" }, label = { Text("Todas") })
+            Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(tag.isEmpty(), { tag = "" }, label = { Text("Todas las etiquetas") })
                 taxonomy?.tags?.forEach { t -> FilterChip(tag == t.id, { tag = t.id }, label = { Text(t.name) }) }
             }
         }
         if (pending) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
         failure?.let { item { Notice(it, true); TextButton(onClick = { retry++ }) { Text("Reintentar") } } }
-        item { VodCards(page, navigate) }
+        if (page != null && page!!.items.isEmpty() && !pending) item { Notice("Todavía no hay grabaciones publicadas.") }
+        items(page?.items.orEmpty(), key = { it.vodId }) { vod ->
+            VodCard(api, vod, taxonomy?.categories?.firstOrNull { it.id == vod.categoryId }?.name, navigate)
+        }
         page?.nextCursor?.let { value -> item { Button(enabled = !pending, onClick = { cursor = value }) { Text("Más videos") } } }
     }
 }

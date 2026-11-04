@@ -8141,6 +8141,33 @@
       "status": "implemented"
     },
     {
+      "id": "p2.vod.thumbnail",
+      "method": "GET",
+      "path": "/api/vods/{vodId}/thumbnail",
+      "provider": "vod",
+      "consumer": "Web / Mobile / integration",
+      "owner": "vod",
+      "auth": "Core read authorization on every request, including cache hits; published public or owner draft; current restrictions apply",
+      "request": null,
+      "responses": {
+        "200": "P2MediaBody",
+        "401": "Error",
+        "404": "Error",
+        "422": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 8000,
+      "idempotency": "Safe read",
+      "recovery": "Retry independently; thumbnail failure must not block playback.",
+      "spec": "SPEC-14",
+      "traceability": "docs/spec-p2/spec_14_vod.md",
+      "visibility": "public",
+      "limits": "JPEG <=512 KiB, at most 640x360; verified confirmed source segment; 7s deadline and one decoder; 32-entry private server cache.",
+      "requiredHeaders": [],
+      "status": "implemented",
+      "responseContentType": "binary"
+    },
+    {
       "id": "p2.vod.media",
       "method": "GET",
       "path": "/vod-media/{vodId}/{assetPath}",

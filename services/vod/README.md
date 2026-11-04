@@ -19,6 +19,13 @@ python3 infra/local/dev.py up
 La entrada pública Caddy sirve `/api/vods`, `/api/me/vods` y `/vod-media`; Web ofrece `/videos`,
 `/studio/vods` y `/vod/:vodId`. La biblioteca de canal usa el agregado SSR de Gateway.
 
+`GET /api/vods/{vodId}/thumbnail` devuelve un JPEG real de hasta 640×360 y 512 KiB. Comprueba
+publicación, propietario y restricciones incluso al reutilizar una imagen. Deriva el fotograma
+de un segmento confirmado con tamaño/hash verificados; no abre URLs externas ni escribe nuevos
+objetos S3. La caché privada conserva hasta 32 imágenes y solo ejecuta un decoder a la vez, con
+plazo de siete segundos por solicitud. La respuesta usa `no-store`. Un error de esta lectura
+auxiliar debe mostrar una miniatura alternativa y conservar el acceso a reproducción.
+
 | Proceso | Puertos privados | Datos |
 | --- | --- | --- |
 | vod | 8098 API y 8099 servicio, ambos TLS | PostgreSQL propio; escritura S3 |

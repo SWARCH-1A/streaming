@@ -128,15 +128,33 @@ export function DiscoveryPage({
           ) : null}
           <div className={styles.channels}>
             {data.channels.items.map((item) => (
-              <Panel key={item.channelId}>
+              <Panel key={item.channelId} className={styles.channelCard}>
                 <Avatar
                   name={item.displayName}
                   {...(item.avatarUri ? { src: item.avatarUri } : {})}
                 />
-                <Link to={`/channels/${item.handle}`}>
-                  {item.displayName} (@{item.handle})
+                <Link to={`/channels/${item.handle}`} className={styles.channelIdentity}>
+                  <strong>{item.displayName}</strong>
+                  <span>@{item.handle}</span>
                 </Link>
-                <Badge>{item.statusFresh ? item.availability : 'UNKNOWN'}</Badge>
+                <Badge
+                  tone={
+                    item.statusFresh && item.availability === 'PLAYABLE'
+                      ? 'live'
+                      : item.statusFresh && item.availability === 'RECONNECTING'
+                        ? 'warning'
+                        : 'neutral'
+                  }
+                  dot={item.statusFresh && item.availability === 'PLAYABLE'}
+                >
+                  {item.statusFresh
+                    ? item.availability === 'PLAYABLE'
+                      ? 'EN VIVO'
+                      : item.availability === 'RECONNECTING'
+                        ? 'RECONECTANDO'
+                        : 'OFFLINE'
+                    : 'ESTADO NO DISPONIBLE'}
+                </Badge>
               </Panel>
             ))}
           </div>

@@ -1,0 +1,4 @@
+// Override the origin and signing team in ignored Config.local.xcconfig, or select a team in Xcode.
+VAULT_API_ORIGIN = https:/$()/localhost:3445
+PRODUCT_BUNDLE_IDENTIFIER = dev.swarch.vault
+#include? "Config.local.xcconfig"
