@@ -106,3 +106,4 @@ allure-results/
 /infra/p1/.manage-load.lock
 /infra/p1/.manage-local.lock
 /services/chat/target/
+**/.react-router/

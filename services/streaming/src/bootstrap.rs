@@ -32,6 +32,7 @@ use crate::{
                 PostgresStreamingRepository, PostgresViewerCountSnapshotRepository,
                 PostgresViewerLeaseRepository, PostgresWorkerQueueMetricsRepository,
             },
+            rabbitmq::RabbitDomainEventPublisher,
             readiness::StreamingReadinessProbe,
             viewer_lease_credentials::HmacViewerLeaseCredentialIssuer,
             worker_health::BackgroundWorkerHealth,
@@ -459,11 +460,18 @@ pub async fn build_app(config: &AppConfig) -> Result<StreamingApp, BootstrapErro
     let media_node_assignment: Arc<dyn MediaNodeAssignmentPolicy> = Arc::new(
         ConfiguredMediaNodeAssignment::new(config.media_node_id.clone()),
     );
+    let identity = Arc::new(CoreHttpGateway::new(
+        http_client.clone(),
+        config.core_base_url.clone(),
+        config.core_service_token.clone(),
+        config.session_cookie_name.clone(),
+    ));
     let authorization_repository = Arc::new(
         crate::adapters::outbound::postgres::PostgresIngestAuthorizationRepository::new(
             pool.clone(),
             media_node_assignment,
-        ),
+        )
+        .with_channel_access(identity.clone()),
     );
     let media_callback_repository = Arc::new(PostgresMediaCallbackRepository::new(pool.clone()));
     let session_deadline_repository =
@@ -476,12 +484,6 @@ pub async fn build_app(config: &AppConfig) -> Result<StreamingApp, BootstrapErro
         Some(read_pool) => PostgresStreamingRepository::with_read_pool(pool.clone(), read_pool),
         None => PostgresStreamingRepository::new(pool.clone()),
     });
-    let identity = Arc::new(CoreHttpGateway::new(
-        http_client.clone(),
-        config.core_base_url.clone(),
-        config.core_service_token.clone(),
-        config.session_cookie_name.clone(),
-    ));
     let channels = Arc::clone(&identity);
     let taxonomy = Arc::clone(&identity);
     let secret_generator = Arc::new(OsSecretGenerator);
@@ -510,15 +512,18 @@ pub async fn build_app(config: &AppConfig) -> Result<StreamingApp, BootstrapErro
     let control_clock = Arc::new(MonotonicSessionClock::default());
     let session_clock: Arc<dyn crate::application::ports::session_clock::SessionMonotonicClock> =
         control_clock.clone();
-    let get_public_stream_session = Arc::new(GetPublicStreamSession::new(
-        Arc::clone(&streaming_repository),
-        config.public_hls_base_url.clone(),
-        Arc::clone(&session_clock),
-    ));
-    let get_public_stream = Arc::new(GetPublicStream::new(
-        Arc::clone(&streaming_repository),
-        Arc::clone(&taxonomy),
-    ));
+    let get_public_stream_session = Arc::new(
+        GetPublicStreamSession::new(
+            Arc::clone(&streaming_repository),
+            config.public_hls_base_url.clone(),
+            Arc::clone(&session_clock),
+        )
+        .with_channel_access(identity.clone()),
+    );
+    let get_public_stream = Arc::new(
+        GetPublicStream::new(Arc::clone(&streaming_repository), Arc::clone(&taxonomy))
+            .with_channel_access(identity.clone()),
+    );
     let patch_stream_metadata = Arc::new(PatchStreamMetadata::new(
         Arc::clone(&identity),
         Arc::clone(&stream_config_repository),
@@ -532,7 +537,7 @@ pub async fn build_app(config: &AppConfig) -> Result<StreamingApp, BootstrapErro
         config.rtmp_ingest_base_url.clone(),
     ));
     let stop_stream_session = Arc::new(StopStreamSession::new(
-        identity,
+        identity.clone(),
         Arc::clone(&streaming_repository),
         Arc::clone(&session_clock),
     ));
@@ -546,7 +551,7 @@ pub async fn build_app(config: &AppConfig) -> Result<StreamingApp, BootstrapErro
     )));
     let process_media_callbacks = Arc::new(ProcessMediaCallbacks::new(
         Arc::clone(&media_callback_repository),
-        media_server,
+        Arc::clone(&media_server),
         Arc::clone(&session_clock),
     ));
 
@@ -561,6 +566,39 @@ pub async fn build_app(config: &AppConfig) -> Result<StreamingApp, BootstrapErro
     let (worker_shutdown, worker_shutdown_rx) = watch::channel(false);
     let (worker_failure_sender, worker_failures) = watch::channel(None);
     let mut worker_tasks = Vec::with_capacity(10);
+    worker_tasks.push((
+        "account-revocation",
+        spawn_cancellable_worker(
+            "account-revocation",
+            worker_shutdown_rx.clone(),
+            Arc::clone(&worker_health),
+            worker_failure_sender.clone(),
+            crate::adapters::outbound::account_revocation::run(
+                pool.clone(),
+                identity.clone(),
+                streaming_repository.clone(),
+                session_clock.clone(),
+            ),
+        ),
+    ));
+    if let Some((url, ca)) = &config.broker {
+        worker_tasks.push((
+            "account-events",
+            spawn_cancellable_worker(
+                "account-events",
+                worker_shutdown_rx.clone(),
+                Arc::clone(&worker_health),
+                worker_failure_sender.clone(),
+                crate::adapters::outbound::account_events::run(
+                    pool.clone(),
+                    streaming_repository.clone(),
+                    session_clock.clone(),
+                    url.clone(),
+                    ca.clone(),
+                ),
+            ),
+        ));
+    }
     let guard_clock = Arc::clone(&control_clock);
     let guard_shutdown = worker_shutdown.clone();
     let guard_failure = worker_failure_sender.clone();
@@ -729,7 +767,28 @@ pub async fn build_app(config: &AppConfig) -> Result<StreamingApp, BootstrapErro
                 config.chat_service_token.clone(),
             )
         };
-        if url.is_some() && token.is_some() {
+        if let Some((broker_url, ca)) = config.broker.as_ref() {
+            let relay = RelayDomainEvents::new(
+                Arc::new(repository.durable_broker()),
+                Arc::new(RabbitDomainEventPublisher::new(
+                    pool.clone(),
+                    broker_url.clone(),
+                    ca.clone(),
+                )),
+            )
+            .durable_broker();
+            let owner = config.instance_id.clone();
+            worker_tasks.push((
+                consumer,
+                spawn_cancellable_worker(
+                    consumer,
+                    worker_shutdown_rx.clone(),
+                    Arc::clone(&worker_health),
+                    worker_failure_sender.clone(),
+                    async move { relay.run(owner).await },
+                ),
+            ));
+        } else if url.is_some() && token.is_some() {
             let relay = RelayDomainEvents::new(
                 Arc::new(repository),
                 Arc::new(HttpDomainEventPublisher::new(
@@ -770,7 +829,7 @@ pub async fn build_app(config: &AppConfig) -> Result<StreamingApp, BootstrapErro
         create_stream_config,
         get_stream_config,
         get_public_stream,
-        get_public_stream_session,
+        get_public_stream_session: Arc::clone(&get_public_stream_session),
         patch_stream_metadata,
         rotate_ingest_key,
         stop_stream_session,
@@ -793,10 +852,20 @@ pub async fn build_app(config: &AppConfig) -> Result<StreamingApp, BootstrapErro
             }
         },
     );
-    let router = http_endpoints.public.layer(owner_gate.clone());
+    let router = http_endpoints
+        .public
+        .merge(http::renditions::router(
+            get_public_stream_session,
+            media_server,
+        ))
+        .layer(owner_gate.clone());
     let private_router = http_endpoints
         .private
         .merge(private_router)
+        .merge(http::recordings::router(
+            pool.clone(),
+            config.media_adapter_service_token.as_deref(),
+        ))
         .layer(owner_gate);
 
     Ok(StreamingApp {

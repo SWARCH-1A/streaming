@@ -15,7 +15,7 @@ spring:
     username: ${CORE_DB_USER:core}
     password: ${CORE_DB_PASSWORD}
   flyway:
-    schemas: core,identity,profile,channels,taxonomy,discovery
+    schemas: core,identity,profile,channels,taxonomy,discovery,watchparty
     default-schema: core
   servlet:
     multipart:
@@ -31,6 +31,7 @@ management:
       probes:
         enabled: true
 core:
+  events-transport: ${CORE_EVENTS_TRANSPORT:http}
   images:
     storage-provider: ${CORE_IMAGE_STORAGE_PROVIDER:s3}
     s3:
@@ -47,6 +48,10 @@ core:
     streaming-service-token: ${CORE_STREAMING_SERVICE_TOKEN:}
     streaming-catalog-service-token: ${CORE_STREAMING_CATALOG_SERVICE_TOKEN:}
     chat-service-token: ${CHAT_CORE_SERVICE_TOKEN:}
+    recovery-service-token: ${CORE_RECOVERY_SERVICE_TOKEN:}
+    notifications-service-token: ${CORE_NOTIFICATIONS_SERVICE_TOKEN:}
+    vod-service-token: ${CORE_VOD_SERVICE_TOKEN:}
+    recording-settings-service-token: ${CORE_RECORDING_SETTINGS_SERVICE_TOKEN:}
     tls-keystore: ${CORE_INTERNAL_TLS_KEYSTORE:}
     tls-keystore-password: ${CORE_INTERNAL_TLS_KEYSTORE_PASSWORD:}
   streaming:
@@ -56,6 +61,9 @@ core:
   cookie-name: stream_session
   secure-cookie: ${CORE_SECURE_COOKIE:false}
   public-origin: ${WEB_ORIGIN:http://localhost:3000}
+  recovery:
+    enabled: ${CORE_RECOVERY_ENABLED:false}
+    encryption-key: ${CORE_RECOVERY_ENCRYPTION_KEY:}
   rate-limit-hmac-secret: ${CORE_RATE_LIMIT_HMAC_SECRET}
   # CIDR list of reverse proxies whose X-Forwarded-For is trusted; empty = always use the socket address.
   trusted-proxies: ${CORE_TRUSTED_PROXIES:}
@@ -79,3 +87,9 @@ discovery:
     burst: 20
     window-max: 600
     window: PT60S
+watchparty:
+  # Public Streaming read GET /api/streams/{streamId} (no credentials); it is the authority of every source state.
+  # Empty disables the lookups (sources are UNKNOWN and adding one fails with 503) instead of pointing at a wrong host.
+  streaming-base-url: ${WATCHPARTY_STREAMING_BASE_URL:}
+  streaming-connect-timeout: PT1S
+  streaming-read-timeout: PT2S

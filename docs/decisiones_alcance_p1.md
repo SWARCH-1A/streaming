@@ -1,5 +1,10 @@
 # Registro de decisiones — Streaming
 
+> Perfil de aceptación y alcance P1. Las obligaciones actuales de P2 están en
+> [alcance P2](alcance_p2.md), [catálogo](catalogo_requisitos.md) y [SPEC-15](spec-p2/spec_15_int.md).
+> Los mínimos arquitectónicos, transporte de eventos, SSR y retención/replay de P2 se verifican allí.
+
+
 **Versión:** 1
 **Estado:** decisiones de alcance P1 acordadas; las decisiones de implementación que siguen abiertas
 se deben justificar en un ADR del módulo responsable.

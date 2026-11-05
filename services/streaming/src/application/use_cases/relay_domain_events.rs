@@ -11,6 +11,7 @@ const ERROR_BACKOFF: Duration = Duration::from_millis(500);
 pub struct RelayDomainEvents<R, P> {
     repository: Arc<R>,
     publisher: Arc<P>,
+    retry_forever: bool,
 }
 
 impl<R, P> RelayDomainEvents<R, P>
@@ -22,7 +23,13 @@ where
         Self {
             repository,
             publisher,
+            retry_forever: false,
         }
+    }
+
+    pub fn durable_broker(mut self) -> Self {
+        self.retry_forever = true;
+        self
     }
 
     pub async fn run(&self, owner_instance_id: String) -> ! {
@@ -60,7 +67,7 @@ where
         {
             tracing::warn!(event_id=%claim.envelope.event_id, aggregate_id=%claim.envelope.aggregate_id, queue_age_ms=claim.queue_age_ms, "streaming delivery exceeds freshness budget");
         }
-        if claim.retry_age_ms >= 900000 {
+        if !self.retry_forever && claim.retry_age_ms >= 900000 {
             self.repository
                 .dead_letter(
                     claim.envelope.event_id,

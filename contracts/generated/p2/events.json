@@ -1,0 +1,74 @@
+[
+  {
+    "eventType": "stream.session.changed.v1",
+    "producers": ["streaming"],
+    "schema": "P2EventStreamSessionChanged",
+    "spec": ["SPEC-17", "SPEC-10"],
+    "status": "contract-ready",
+    "subscriptions": ["core.lifecycle", "chat.lifecycle", "notifications.live", "vod.lifecycle"]
+  },
+  {
+    "eventType": "stream.discovery.snapshot.v1",
+    "producers": ["streaming"],
+    "schema": "P2EventStreamDiscoverySnapshot",
+    "spec": ["SPEC-17", "SPEC-10"],
+    "status": "contract-ready",
+    "subscriptions": ["core.discovery"]
+  },
+  {
+    "eventType": "recording.segment.available.v1",
+    "producers": ["streaming", "media"],
+    "schema": "P2EventRecordingSegmentAvailable",
+    "spec": ["SPEC-17", "SPEC-10"],
+    "status": "contract-ready",
+    "subscriptions": ["vod.segments"]
+  },
+  {
+    "eventType": "recording.closed.v1",
+    "producers": ["streaming", "media"],
+    "schema": "P2EventRecordingClosed",
+    "spec": ["SPEC-17", "SPEC-10"],
+    "status": "contract-ready",
+    "subscriptions": ["vod.recording"]
+  },
+  {
+    "eventType": "channel.follow.changed.v1",
+    "producers": ["core"],
+    "schema": "P2EventChannelFollowChanged",
+    "spec": ["SPEC-03", "SPEC-17", "SPEC-20", "SPEC-10"],
+    "status": "contract-ready",
+    "subscriptions": ["notifications.follow"]
+  },
+  {
+    "eventType": "account.status.changed.v1",
+    "producers": ["core"],
+    "schema": "P2EventAccountStatusChanged",
+    "spec": ["SPEC-17", "SPEC-10"],
+    "status": "contract-ready",
+    "subscriptions": ["streaming.account", "vod.account", "notifications.account"]
+  },
+  {
+    "eventType": "vod.availability.changed.v1",
+    "producers": ["vod"],
+    "schema": "P2EventVodAvailabilityChanged",
+    "spec": ["SPEC-17", "SPEC-10"],
+    "status": "contract-ready",
+    "subscriptions": ["chat.vod"]
+  },
+  {
+    "eventType": "notification.delivery.requested.v1",
+    "producers": ["notifications"],
+    "schema": "P2EventNotificationDeliveryRequested",
+    "spec": ["SPEC-20", "SPEC-17", "SPEC-10"],
+    "status": "contract-ready",
+    "subscriptions": ["notifications.delivery.inbox", "notifications.delivery.email", "notifications.delivery.push"]
+  },
+  {
+    "eventType": "credential.recovery.delivery.requested.v1",
+    "producers": ["core"],
+    "schema": "P2EventCredentialRecoveryDeliveryRequested",
+    "spec": ["SPEC-01", "SPEC-17", "SPEC-20", "SPEC-10"],
+    "status": "contract-ready",
+    "subscriptions": ["notifications.recovery.email"]
+  }
+]

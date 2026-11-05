@@ -106,11 +106,15 @@ public class IdentityApplicationService {
             if (!store.tryRecordLoginFailure(identifierHash,ipHash,Instant.now())) throw limited(900);
             throw invalidLogin();
         }
-        store.resetIdentifierFailures(identifierHash);
-        String credential=newCredential();
-        Instant expires=Instant.now().plus(SESSION_TTL);
-        store.createSession(account.userId(),sha256(credential),Instant.now(),expires);
-        return new LoginResult(account.userId(),account.handle(),credential,expires);
+        return transactions.execute(status -> {
+            Account current=store.accountForUpdate(account.userId()).orElseThrow(IdentityApplicationService::invalidLogin);
+            if (!constantEquals(current.passwordHash(),account.passwordHash())) throw invalidLogin();
+            store.resetIdentifierFailures(identifierHash);
+            String credential=newCredential();
+            Instant expires=Instant.now().plus(SESSION_TTL);
+            store.createSession(account.userId(),sha256(credential),Instant.now(),expires);
+            return new LoginResult(account.userId(),account.handle(),credential,expires);
+        });
     }
 
     public void logout(String credential) { if (credential!=null && !credential.isBlank()) store.revokeSession(sha256(credential),Instant.now()); }

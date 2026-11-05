@@ -50,3 +50,19 @@ requiere verificar los recorridos Web integrados. La compatibilidad del proveedo
 
 El [checker neutral](../../contracts/README.md) valida schemas, privacidad, SDL/queries y drift.
 Los tests Python introducen cambios aditivos y rupturas intencionales para comprobar esa puerta.
+
+## Subtítulos VOD (contrato, sin proveedor)
+
+`test_subtitle_contracts.py` verifica schemas P2Subtitle*, permisos declarados, referencias,
+paths relativos ligados al VOD, páginas sin duplicados y el perfil WebVTT de SPEC-22.
+`fixtures/subtitles` contiene dos idiomas ficticios con vídeo supuesto de 12000 ms, y pistas
+negativas. La suite común anterior las descubre; no requiere Docker ni dependencias adicionales.
+Prueba UTF-8/BOM/LF/CRLF/CR, cues solapados/ordenados, duración, límites y características rechazadas.
+No simula el backend VOD ni presenta estos resultados como autorización, sincronía audiovisual
+o aceptación de controles. Las pruebas con VOD, Web/móvil y P2-17 siguen pendientes.
+
+`fixtures/subtitles/languages.json` contiene los mismos casos para Python/jsonschema y Ajv.
+Con las dependencias Web instaladas, ejecutar `node tests/contracts/test_subtitle_schemas.mjs`
+desde la raíz; CI Web también lo ejecuta. Ambos schemas rechazan terminadores finales,
+espacios, controles y extensiones fuera del perfil. El checker CLI y su entrada compatible
+aplican las mismas reglas relacionales de ruta/pista/listado.

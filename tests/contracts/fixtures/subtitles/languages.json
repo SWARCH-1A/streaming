@@ -1,0 +1,4 @@
+{
+  "valid": ["es", "en-US", "zh-Hant-TW", "es-419"],
+  "invalid": ["es\n", "es\r", "es\r\n", "es\u2028", "es\u2029", "es ", " es", "es\t", "es\u0000", "es_CO", "en-US-extra", "", "ES"]
+}

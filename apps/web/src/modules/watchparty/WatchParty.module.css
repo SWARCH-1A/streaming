@@ -1,0 +1,75 @@
+.columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+  align-items: start;
+}
+.recent {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.recent li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+}
+.recent a {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-decoration: underline;
+}
+.heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.heading > div {
+  min-width: 0;
+  flex: 1 1 20rem;
+}
+.heading h1 {
+  overflow-wrap: anywhere;
+}
+/* One column on phones and tablets; 2 x 2 from 56rem so four sources fit without scrolling sideways. */
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+}
+@media (min-width: 56rem) {
+  .grid:not([data-count='1']) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.source {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sourceInfo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.sourceInfo h3 {
+  min-width: 0;
+  flex: 1 1 10rem;
+}
+@media (max-width: 800px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

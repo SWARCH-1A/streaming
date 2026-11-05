@@ -29,7 +29,11 @@ services:
       CORE_DB_USER: core
       CORE_DB_PASSWORD: ${CORE_DB_PASSWORD:?Run init}
       CORE_RATE_LIMIT_HMAC_SECRET: ${CORE_RATE_LIMIT_HMAC_SECRET:?Run init}
-      CORE_TRUSTED_PROXIES: ${LOCAL_PROXY_IP:?Run init}
+      CORE_RECOVERY_ENABLED: ${CORE_RECOVERY_ENABLED:-false}
+      CORE_RECOVERY_ENCRYPTION_KEY: ${CORE_RECOVERY_ENCRYPTION_KEY:-}
+      CORE_RECOVERY_SERVICE_TOKEN: ${CORE_RECOVERY_SERVICE_TOKEN:-}
+      # Caddy and the Gateway forward the observed client address; nobody else is trusted (SPEC-16).
+      CORE_TRUSTED_PROXIES: ${LOCAL_PROXY_IP:?Run init},${LOCAL_GATEWAY_IP:?Run init}
       CORE_SECURE_COOKIE: "true"
       CORE_PUBLIC_TLS_ENABLED: "true"
       CORE_PUBLIC_TLS_KEYSTORE: /run/secrets/core-internal.p12
@@ -44,7 +48,12 @@ services:
       CORE_STREAMING_CONSUMER_TOKEN: ${CORE_STREAMING_CONSUMER_TOKEN:?Run init}
       CORE_STREAMING_BASE_URL: https://live:8091
       CORE_STREAMING_DEVELOPMENT_HTTP: "false"
+      # Watch parties read each source from Streaming's public listener (no credentials); TLS is trusted through the local CA.
+      WATCHPARTY_STREAMING_BASE_URL: https://live:8080
       CHAT_CORE_SERVICE_TOKEN: ${CHAT_CORE_SERVICE_TOKEN:?Run init}
+      CORE_VOD_SERVICE_TOKEN: ${CORE_VOD_SERVICE_TOKEN:?Run init}
+      CORE_NOTIFICATIONS_SERVICE_TOKEN: ${CORE_NOTIFICATIONS_SERVICE_TOKEN:?Run python3 infra/local/dev.py init}
+      CORE_RECORDING_SETTINGS_SERVICE_TOKEN: ${CORE_RECORDING_SETTINGS_SERVICE_TOKEN:?Run python3 infra/local/dev.py init}
       WEB_ORIGIN: ${WEB_ORIGIN:?Run init}
       CORE_IMAGE_STORAGE_PROVIDER: filesystem
       PROFILE_AVATAR_STORAGE: /data/avatars
@@ -78,11 +87,33 @@ services:
       retries: 12
     restart: unless-stopped
 
+  # Chat P2 (ADR-024): copia durable para replay, bloqueos y retiros. Redis sigue sirviendo el vivo.
+  chat-pg:
+    image: postgres:18-alpine
+    entrypoint: ["/bin/sh", "/postgres-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tmp/p1-tls/server.crt", "-c", "ssl_key_file=/tmp/p1-tls/server.key"]
+    environment:
+      POSTGRES_DB: chat
+      POSTGRES_USER: chat
+      POSTGRES_PASSWORD: ${CHAT_DB_PASSWORD:?Run python3 infra/local/dev.py init}
+    volumes:
+      - chat-pg:/var/lib/postgresql
+      - ./infra/p1/postgres-tls.sh:/postgres-tls.sh:ro
+      - ${P1_STATE}/chat-pg.crt:/run/secrets/server.crt:ro
+      - ${P1_STATE}/chat-pg.key:/run/secrets/server.key:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chat -d chat"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
   chat:
     image: streaming-local-chat
     build: ./services/chat
     environment:
       CHAT_REDIS_URL: rediss://chat-db:6379/0
+      CHAT_DATABASE_URL: postgres://chat:${CHAT_DB_PASSWORD:?Run python3 infra/local/dev.py init}@chat-pg:5432/chat?sslmode=verify-full&sslrootcert=/run/secrets/ca.crt
       SSL_CERT_FILE: /run/secrets/ca.crt
       CHAT_ALLOWED_ORIGINS: ${WEB_ORIGIN:?Run init}
       CHAT_CORE_BASE_URL: https://core:8082
@@ -95,12 +126,18 @@ services:
       CHAT_INTERNAL_TLS_CERT_FILE: /run/secrets/chat.crt
       CHAT_INTERNAL_TLS_KEY_FILE: /run/secrets/chat.key
       CHAT_ENDED_RETENTION: 5m
+      # Replay (ADR-022/024): VOD autoriza la lectura y entrega el timeline por su listener privado.
+      CHAT_VOD_BASE_URL: https://vod:8099
+      CHAT_VOD_CA_FILE: /run/secrets/ca.crt
+      CHAT_VOD_SERVICE_TOKEN: ${VOD_CHAT_SERVICE_TOKEN:?Run init}
     volumes:
       - ${P1_STATE}/chat.crt:/run/secrets/chat.crt:ro
       - ${P1_STATE}/chat.key:/run/secrets/chat.key:ro
       - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
     depends_on:
       chat-db:
+        condition: service_healthy
+      chat-pg:
         condition: service_healthy
     restart: unless-stopped
 
@@ -130,6 +167,9 @@ services:
     image: streaming-local-live
     build: ./services/streaming
     environment:
+      STREAMING_RECORDING_ENABLED: "true"
+      STREAMING_RECORDING_CORE_URL: https://core:8082
+      STREAMING_RECORDING_SETTINGS_TOKEN: ${CORE_RECORDING_SETTINGS_SERVICE_TOKEN:?Run init}
       STREAMING_ENV: development
       STREAMING_BIND_ADDR: 0.0.0.0:8080
       STREAMING_PRIVATE_BIND_ADDR: 0.0.0.0:8091
@@ -170,6 +210,7 @@ services:
       MEDIA_HLS_URL: https://media-server:8888
       MEDIA_HLS_SECRET: ${MEDIA_HLS_SECRET:?Run init}
       MEDIA_MAX_OPEN_DEAD_LETTERS: "10000"
+      MEDIA_RECORDING_ENABLED: "true"
     volumes:
       - ${P1_STATE}/streaming.crt:/run/secrets/streaming.crt:ro
       - ${P1_STATE}/streaming.key:/run/secrets/streaming.key:ro
@@ -191,8 +232,17 @@ services:
     restart: unless-stopped
 
   media-server:
-    image: bluenviron/mediamtx:1.21.1@sha256:5ce2a948eb68df06ce2e13870db8df8e30d516ac4dc40e04bfe8aee3bdf7be40
+    image: streaming-local-mediamtx
+    build:
+      context: .
+      dockerfile: infra/media/Dockerfile.mediamtx
     environment:
+      MEDIA_NATIVE_RECORDING: "true"
+      MTX_PATHDEFAULTS_RECORD: "true"
+      MTX_PATHDEFAULTS_RECORDFORMAT: mpegts
+      MTX_PATHDEFAULTS_RECORDPARTDURATION: 200ms
+      MTX_PATHDEFAULTS_RECORDSEGMENTDURATION: 2s
+      MTX_PATHDEFAULTS_RECORDDELETEAFTER: 0s
       MTX_AUTHHTTPADDRESS: https://mediamtx:${MEDIA_AUTH_TOKEN:?Run init}@live:8090/internal/media/auth
       MTX_AUTHHTTPFINGERPRINT: ${STREAMING_CERT_FINGERPRINT:?Run init}
       MTX_HLSCDNSECRET: ${MEDIA_HLS_SECRET:?Run init}
@@ -208,6 +258,7 @@ services:
       MTX_RTMPSERVERKEY: /run/secrets/mediamtx.key
     volumes:
       - ./services/streaming/media-adapter/mediamtx.yml:/mediamtx.yml:ro
+      - media-native-recordings:/data/native
       - ${P1_STATE}/mediamtx.crt:/run/secrets/mediamtx.crt:ro
       - ${P1_STATE}/mediamtx.key:/run/secrets/mediamtx.key:ro
     ports:
@@ -221,20 +272,106 @@ services:
     security_opt: [no-new-privileges:true]
     restart: unless-stopped
 
+  notifications-db:
+    image: postgres:18-alpine
+    entrypoint: ["/bin/sh", "/postgres-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tmp/p1-tls/server.crt", "-c", "ssl_key_file=/tmp/p1-tls/server.key"]
+    environment:
+      POSTGRES_DB: notifications
+      POSTGRES_USER: notifications
+      POSTGRES_PASSWORD: ${NOTIFICATIONS_DB_PASSWORD:?Run python3 infra/local/dev.py init}
+    volumes:
+      - notifications-db:/var/lib/postgresql
+      - ./infra/p1/postgres-tls.sh:/postgres-tls.sh:ro
+      - ${P1_STATE}/notifications-db.crt:/run/secrets/server.crt:ro
+      - ${P1_STATE}/notifications-db.key:/run/secrets/server.key:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notifications -d notifications"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  # Local SMTP test provider: catches every email (UI on 127.0.0.1:8025) and never delivers outside.
+  mailpit:
+    image: axllent/mailpit:v1.27.0
+    environment:
+      MP_SMTP_TLS_CERT: /run/secrets/mailpit.crt
+      MP_SMTP_TLS_KEY: /run/secrets/mailpit.key
+      MP_SMTP_REQUIRE_STARTTLS: "true"
+      MP_MAX_MESSAGES: "1000"
+    ports:
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
+    volumes:
+      - ${P1_STATE}/mailpit.crt:/run/secrets/mailpit.crt:ro
+      - ${P1_STATE}/mailpit.key:/run/secrets/mailpit.key:ro
+    restart: unless-stopped
+
+  notifications:
+    image: streaming-local-notifications
+    build: ./services/notifications
+    environment:
+      NOTIFICATIONS_PORT: "8095"
+      NOTIFICATIONS_TLS_CERT_FILE: /run/secrets/notifications.crt
+      NOTIFICATIONS_TLS_KEY_FILE: /run/secrets/notifications.key
+      NOTIFICATIONS_CA_FILE: /run/secrets/ca.crt
+      NODE_EXTRA_CA_CERTS: /run/secrets/ca.crt
+      NOTIFICATIONS_DB_URL: postgres://notifications:${NOTIFICATIONS_DB_PASSWORD:?Run python3 infra/local/dev.py init}@notifications-db:5432/notifications?sslmode=verify-full
+      NOTIFICATIONS_CORE_INTERNAL_URL: https://core:8082
+      NOTIFICATIONS_CORE_PUBLIC_URL: https://core:8081
+      NOTIFICATIONS_CORE_SERVICE_TOKEN: ${CORE_NOTIFICATIONS_SERVICE_TOKEN:?Run python3 infra/local/dev.py init}
+      NOTIFICATIONS_CURSOR_SECRET: ${NOTIFICATIONS_CURSOR_SECRET:?Run python3 infra/local/dev.py init}
+      NOTIFICATIONS_SMTP_HOST: mailpit
+      NOTIFICATIONS_SMTP_PORT: "1025"
+      NOTIFICATIONS_SMTP_REQUIRE_TLS: "true"
+      WEB_ORIGIN: ${WEB_ORIGIN:?Run init}
+    volumes:
+      - ${P1_STATE}/notifications.crt:/run/secrets/notifications.crt:ro
+      - ${P1_STATE}/notifications.key:/run/secrets/notifications.key:ro
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('https://localhost:8095/health/ready').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 6
+    depends_on:
+      notifications-db:
+        condition: service_healthy
+      core:
+        condition: service_started
+    restart: unless-stopped
+
   web:
     image: streaming-local-web
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+    environment:
+      PORT: "3443"
+      WEB_TLS_CERT_FILE: /run/secrets/web.crt
+      WEB_TLS_KEY_FILE: /run/secrets/web.key
+      # SSR loaders read through this trusted upstream (the Gateway once SPEC-16 is deployed).
+      WEB_API_UPSTREAM: https://core:8081
+      WEB_STREAMING_UPSTREAM: https://live:8080
+      WEB_VOD_UPSTREAM: https://vod:8098
+      WEB_GATEWAY_UPSTREAM: https://gateway:8097
+      NODE_EXTRA_CA_CERTS: /run/secrets/ca.crt
     volumes:
       - ${P1_STATE}/web.crt:/run/secrets/web.crt:ro
       - ${P1_STATE}/web.key:/run/secrets/web.key:ro
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    depends_on: [core]
     restart: unless-stopped
 
   proxy:
     image: caddy:2-alpine
     ports:
-      - "127.0.0.1:${P1_HTTPS_PORT:-3445}:3443"
+      - "${LOCAL_HTTPS_BIND:-127.0.0.1}:${P1_HTTPS_PORT:-3445}:3443"
+    environment:
+      WEB_ORIGIN: ${WEB_ORIGIN:?Run init}
+      LOCAL_PUBLIC_HOST: ${LOCAL_PUBLIC_HOST:-localhost}
+      LOCAL_LAN_IP: ${LOCAL_LAN_IP:-127.0.0.1}
     volumes:
       - ${P1_STATE}/Caddyfile:/etc/caddy/Caddyfile:ro
       - ${P1_STATE}/web.crt:/run/secrets/web.crt:ro
@@ -243,7 +380,157 @@ services:
     networks:
       default:
         ipv4_address: ${LOCAL_PROXY_IP:?Run init}
-    depends_on: [core, chat, live, media-server, web]
+    depends_on: [core, chat, live, media-server, notifications, vod, gateway, web]
+    restart: unless-stopped
+
+  gateway:
+    image: streaming-local-gateway
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    environment:
+      GATEWAY_PUBLIC_ORIGIN: ${WEB_ORIGIN:?Run init}
+      GATEWAY_VOD_TOKEN: ${VOD_GATEWAY_SERVICE_TOKEN:?Run init}
+      GATEWAY_TLS_CERT_FILE: /run/secrets/gateway.crt
+      GATEWAY_TLS_KEY_FILE: /run/secrets/gateway.key
+      GATEWAY_TRUSTED_PROXIES: ${LOCAL_PROXY_IP:?Run init}
+      SSL_CERT_FILE: /run/secrets/ca.crt
+    volumes:
+      - ${P1_STATE}/gateway.crt:/run/secrets/gateway.crt:ro
+      - ${P1_STATE}/gateway.key:/run/secrets/gateway.key:ro
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    networks:
+      default:
+        ipv4_address: ${LOCAL_GATEWAY_IP:?Run init}
+    depends_on: [core, vod, live]
+    restart: unless-stopped
+
+  minio:
+    image: streaming-vod-minio
+    build:
+      context: .
+      dockerfile: infra/media/Dockerfile.minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Run init}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Run init}
+      MINIO_BROWSER: "off"
+      SSL_CERT_FILE: /run/secrets/ca.crt
+      MC_HOST_local: https://${MINIO_ROOT_USER}:${MINIO_ROOT_PASSWORD}@localhost:9000
+    volumes:
+      - vod-s3:/data
+      - ${P1_STATE}/minio.crt:/run/minio-certs/public.crt:ro
+      - ${P1_STATE}/minio.key:/run/minio-certs/private.key:ro
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 4s
+      start_period: 10s
+      retries: 20
+    restart: unless-stopped
+
+  minio-init:
+    image: streaming-vod-minio
+    entrypoint: ["/bin/sh", "/initialize.sh"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Run init}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Run init}
+      VOD_S3_PASSWORD: ${VOD_S3_PASSWORD:?Run init}
+      MEDIA_S3_PASSWORD: ${MEDIA_S3_PASSWORD:?Run init}
+      SSL_CERT_FILE: /run/secrets/ca.crt
+    volumes:
+      - ./infra/local/minio-init.sh:/initialize.sh:ro
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    depends_on:
+      minio:
+        condition: service_healthy
+
+  vod-db:
+    image: postgres:18.6-alpine3.24
+    entrypoint: ["/bin/sh", "/postgres-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tmp/p1-tls/server.crt", "-c", "ssl_key_file=/tmp/p1-tls/server.key"]
+    environment:
+      POSTGRES_DB: vod
+      POSTGRES_USER: vod
+      POSTGRES_PASSWORD: ${VOD_DB_PASSWORD:?Run init}
+    volumes:
+      - vod-db:/var/lib/postgresql
+      - ./infra/p1/postgres-tls.sh:/postgres-tls.sh:ro
+      - ${P1_STATE}/vod-db.crt:/run/secrets/server.crt:ro
+      - ${P1_STATE}/vod-db.key:/run/secrets/server.key:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "vod", "-d", "vod"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  vod:
+    image: streaming-local-vod
+    build: ./services/vod
+    environment:
+      VOD_DATABASE_URL: postgres://vod:${VOD_DB_PASSWORD:?Run init}@vod-db:5432/vod?sslmode=verify-full&sslrootcert=/run/secrets/ca.crt
+      VOD_MEDIA_URL: https://media-recorder:8890
+      MEDIA_VOD_DELIVERY_TOKEN: ${MEDIA_VOD_DELIVERY_TOKEN:?Run init}
+      VOD_CORE_URL: https://core:8082
+      VOD_CORE_TOKEN: ${CORE_VOD_SERVICE_TOKEN:?Run init}
+      VOD_SIGNING_SECRET: ${VOD_SIGNING_SECRET:?Run init}
+      VOD_CAPTURE_TOKEN: ${VOD_CAPTURE_SERVICE_TOKEN:?Run init}
+      VOD_CHAT_TOKEN: ${VOD_CHAT_SERVICE_TOKEN:?Run init}
+      VOD_GATEWAY_TOKEN: ${VOD_GATEWAY_SERVICE_TOKEN:?Run init}
+      VOD_PUBLIC_ORIGIN: ${WEB_ORIGIN:?Run init}
+      VOD_TLS_CERT_FILE: /run/secrets/vod.crt
+      VOD_TLS_KEY_FILE: /run/secrets/vod.key
+      SSL_CERT_FILE: /run/secrets/ca.crt
+      VOD_S3_ENDPOINT: ${VOD_S3_ENDPOINT:-https://minio:9000}
+      VOD_S3_BUCKET: ${VOD_S3_BUCKET:-streaming-vod}
+      VOD_S3_PREFIX: ${VOD_S3_PREFIX:-vod}
+      VOD_S3_REGION: ${VOD_S3_REGION:-us-east-1}
+      VOD_S3_ACCESS_KEY: ${VOD_S3_ACCESS_KEY-vod}
+      VOD_S3_SECRET_KEY: ${VOD_S3_SECRET_KEY:-${VOD_S3_PASSWORD:?Run init}}
+    volumes:
+      - ${P1_STATE}/vod.crt:/run/secrets/vod.crt:ro
+      - ${P1_STATE}/vod.key:/run/secrets/vod.key:ro
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    depends_on:
+      vod-db:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  media-recorder:
+    image: streaming-local-vod
+    build: ./services/vod
+    entrypoint: ["media-recorder"]
+    environment:
+      SSL_CERT_FILE: /run/secrets/ca.crt
+      STREAMING_MEDIA_ADAPTER_SERVICE_TOKEN: ${STREAMING_MEDIA_ADAPTER_SERVICE_TOKEN:?Run init}
+      VOD_CAPTURE_TOKEN: ${VOD_CAPTURE_SERVICE_TOKEN:?Run init}
+      RECORDER_SPOOL: /data/recordings
+      RECORDER_NATIVE_DIR: /data/native
+      MEDIA_VOD_DELIVERY_TOKEN: ${MEDIA_VOD_DELIVERY_TOKEN:?Run init}
+      MEDIA_TLS_CERT_FILE: /run/secrets/media-recorder.crt
+      MEDIA_TLS_KEY_FILE: /run/secrets/media-recorder.key
+      MEDIA_S3_ENDPOINT: ${VOD_S3_ENDPOINT:-https://minio:9000}
+      MEDIA_S3_BUCKET: ${VOD_S3_BUCKET:-streaming-vod}
+      MEDIA_S3_PREFIX: ${VOD_S3_PREFIX:-vod}
+      MEDIA_S3_REGION: ${VOD_S3_REGION:-us-east-1}
+      MEDIA_S3_ACCESS_KEY: ${MEDIA_S3_ACCESS_KEY-media-reader}
+      MEDIA_S3_SECRET_KEY: ${MEDIA_S3_SECRET_KEY:-${MEDIA_S3_PASSWORD:?Run init}}
+    volumes:
+      - media-recordings:/data/recordings
+      - media-native-recordings:/data/native
+      - ${P1_STATE}/media-recorder.crt:/run/secrets/media-recorder.crt:ro
+      - ${P1_STATE}/media-recorder.key:/run/secrets/media-recorder.key:ro
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    healthcheck:
+      test: ["CMD", "media-recorder", "health"]
+      interval: 10s
+      timeout: 4s
+      start_period: 20s
+      retries: 10
+    depends_on: [live, vod]
     restart: unless-stopped
 
 networks:
@@ -258,4 +545,10 @@ volumes:
   core-avatars:
   core-banners:
   chat-db:
+  chat-pg:
   live-db:
+  notifications-db:
+  vod-db:
+  vod-s3:
+  media-recordings:
+  media-native-recordings:

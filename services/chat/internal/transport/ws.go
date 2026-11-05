@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/google/uuid"
 
 	"streaming/chat/internal/chat"
 	"streaming/chat/internal/core"
@@ -88,11 +90,33 @@ func (s *Server) handleRealtime(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, r, http.StatusNotFound, chat.Fail(chat.CodeSessionNotFound))
 		return
 	}
-	if !s.originAllowed(r.Header.Get("Origin")) {
+	credential := ""
+	if ck, err := r.Cookie(s.cfg.SessionCookie); err == nil {
+		credential = ck.Value
+	}
+	auth := r.Header.Values("Authorization")
+	native := r.Header.Get("Origin") == "" && r.Header.Get("Cookie") == ""
+	if len(auth) > 0 {
+		parts := strings.Split(auth[0], " ")
+		if len(auth) != 1 || len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || parts[1] == "" || len(parts[1]) > 512 || credential != "" {
+			s.writeError(w, r, http.StatusUnauthorized, chat.Fail(chat.CodeAuthRequired))
+			return
+		}
+		credential = parts[1]
+	}
+	if !native && !s.originAllowed(r.Header.Get("Origin")) {
 		s.writeError(w, r, http.StatusForbidden, &chat.Error{Code: "ORIGIN_NOT_ALLOWED", Message: "Origen no permitido."})
 		return
 	}
 	ctx := core.WithRequestID(r.Context(), requestID(r))
+	if len(auth) > 0 {
+		// The same private authorization used by Send validates identity before Upgrade.
+		// A fresh ID avoids replaying a previous message's authorization context.
+		if cerr := s.svc.AuthenticateNative(ctx, sid, credential, uuid.NewString()); cerr != nil {
+			s.writeError(w, r, httpStatus(cerr.Code), cerr)
+			return
+		}
+	}
 	status, cerr := s.svc.ResolveRoom(ctx, sid, true)
 	if cerr != nil {
 		s.writeError(w, r, httpStatus(cerr.Code), cerr)
@@ -102,12 +126,7 @@ func (s *Server) handleRealtime(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, r, http.StatusConflict, chat.Fail(chat.CodeChatNotOpen))
 		return
 	}
-	var credential string
-	if ck, err := r.Cookie(s.cfg.SessionCookie); err == nil {
-		credential = ck.Value
-	}
-
-	// Origin ya se validó contra la lista exacta configurada.
+	// Browser Origin was checked; cookie-free native clients may read anonymously.
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
 	if err != nil {
 		return

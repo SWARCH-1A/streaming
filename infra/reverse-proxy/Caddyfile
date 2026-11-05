@@ -23,7 +23,6 @@
 }
 
 :3000 {
-  root * /srv
   header X-Content-Type-Options nosniff
   header Referrer-Policy same-origin
   route {
@@ -42,9 +41,17 @@
     }
     @chat_history {
       method GET
-      path_regexp chat_history ^/api/chat/sessions/[A-Za-z0-9_-]+/messages$
+      path_regexp chat_history ^/api/chat/(?:sessions|vods)/[A-Za-z0-9_-]+/messages$
     }
     reverse_proxy @chat_history {$CHAT_UPSTREAM:http://chat:8085} {
+      import proxy_headers
+    }
+    # SPEC-05 P2: replay, retiros y bloqueos; Chat valida método, sesión, CSRF y propietario.
+    @chat_p2 {
+      method GET PUT POST DELETE
+      path_regexp chat_p2 ^/api/chat/(vods/[A-Za-z0-9_-]+/messages|sessions/[A-Za-z0-9_-]+/messages/[A-Za-z0-9_-]+|channels/[A-Za-z0-9_-]+/(blocks/[A-Za-z0-9_-]+|message-removals|moderation-operations/[A-Za-z0-9_-]+))$
+    }
+    reverse_proxy @chat_p2 {$CHAT_UPSTREAM:http://chat:8085} {
       import proxy_headers
     }
     @chat_ws {
@@ -63,7 +70,19 @@
       import proxy_headers
       # Media owns availability, byte ranges, MIME types and playlist/segment cache policy.
     }
-    @core path /api/identity/* /api/profile/* /api/channels/* /api/taxonomy /api/discovery/graphql
+    @notifications path /api/notifications /api/notifications/*
+    reverse_proxy @notifications {$NOTIFICATIONS_UPSTREAM:http://notifications:8095} {
+      import proxy_headers
+    }
+    @vod path /api/vods /api/vods/* /api/me/vods /api/me/vods/* /vod-media/*
+    reverse_proxy @vod {$VOD_UPSTREAM:http://vod:8098} {
+      import proxy_headers
+    }
+    @screens path /api/screens/* /api/admin/content-removals
+    reverse_proxy @screens {$GATEWAY_UPSTREAM:http://gateway:8097} {
+      import proxy_headers
+    }
+    @core path /api/admin/* /api/identity/* /api/profile/* /api/channels/* /api/me/* /api/taxonomy /api/discovery/graphql /api/watch-parties /api/watch-parties/*
     reverse_proxy @core {$CORE_UPSTREAM:http://core:8081} {
       import proxy_headers
       transport http {
@@ -73,20 +92,13 @@
     @api path /api /api/* /realtime /realtime/* /hls /hls/*
     header @api Content-Type application/json
     respond @api `{"code":"NOT_FOUND","message":"Ruta no encontrada.","requestId":"proxy"}` 404
-    @assets path /assets/*
-    header @assets Cache-Control "public, max-age=31536000, immutable"
-    file_server @assets
-    @spa {
-      method GET HEAD
-      path / /search /login /register /profile /studio /studio/channel /channels/* /watch/* /design-system /design-system/* /prototype
-      header Accept *text/html*
+    # SSR web (SPEC-18): every other request is a page, its hydration data (*.data, /__manifest) or a
+    # hashed asset. The web server owns status codes (404 included) and per-user Cache-Control.
+    @web method GET HEAD POST
+    reverse_proxy @web {$WEB_UPSTREAM:http://web:3000} {
+      import proxy_headers
     }
-    handle @spa {
-      rewrite * /index.html
-      header Cache-Control no-cache
-      file_server
-    }
-    respond 404
+    respond 405
   }
   handle_errors {
     header Content-Type application/json

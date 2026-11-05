@@ -69,6 +69,35 @@ class DiscoveryMigrationIT {
         }
     }
 
+    @Test void brokerConflictUpgradePreservesExistingChecksumsInboxAndLifecycle() throws Exception {
+        migrate("7");
+        try(var c=connect(url);var s=c.createStatement()) {
+            s.executeUpdate("INSERT INTO discovery.broker_inbox(consumer,event_id,fingerprint,outcome) "
+                    +"VALUES ('core.lifecycle','11111111-1111-4111-8111-111111111111',repeat('a',64),'APPLIED')");
+            s.executeUpdate("INSERT INTO discovery.session_lifecycle(stream_id,channel_id,session_id,stream_generation,session_version,"
+                    +"status,availability,occurred_at_utc,state_fingerprint) "
+                    +"VALUES ('str_preserved','chn_preserved','ses_preserved',1,1,'PREPARING','OFFLINE',now(),repeat('a',64))");
+            String insert="INSERT INTO discovery.projection_conflicts(stream_id,reason,incoming_hash,payload,detected_at_utc) "
+                    +"VALUES ('str_preserved','%s',repeat('b',64),'{}',now())";
+            s.executeUpdate(insert.formatted("EVENT_ID_REUSED"));
+            var before=checksums(c);
+            assertThatThrownBy(()->s.executeUpdate(insert.formatted("LIFECYCLE_CONFLICT"))).isInstanceOf(SQLException.class)
+                    .extracting(e->((SQLException)e).getSQLState()).isEqualTo("23514");
+
+            migrate("8");
+
+            assertThat(checksums(c)).containsAllEntriesOf(before).hasSize(before.size()+1);
+            assertThat(scalar(c,"SELECT count(*) FROM discovery.broker_inbox WHERE outcome='APPLIED'")).isEqualTo(1);
+            assertThat(scalar(c,"SELECT session_version FROM discovery.session_lifecycle WHERE stream_id='str_preserved'")).isEqualTo(1);
+            assertThat(scalar(c,"SELECT count(*) FROM discovery.projection_conflicts WHERE reason='EVENT_ID_REUSED'")).isEqualTo(1);
+            for(String reason:new String[]{"EVENT_ID_REUSED","CHANNEL_MISMATCH","SAME_VERSION_DIFFERENT_CONTENT","LIFECYCLE_CONFLICT"})
+                s.executeUpdate(insert.formatted(reason));
+            assertThatThrownBy(()->s.executeUpdate(insert.formatted("NOT_A_REASON"))).isInstanceOf(SQLException.class)
+                    .extracting(e->((SQLException)e).getSQLState()).isEqualTo("23514");
+            assertThat(flyway("8").migrate().migrationsExecuted).isZero();
+        }
+    }
+
     @ParameterizedTest @ValueSource(strings={
             "'str_1','chn_1',0,1,'ONLINE','PLAYABLE'",                       // unknown status
             "'str_1','chn_1',1,1,'LIVE','WATCHABLE'",                        // unknown availability

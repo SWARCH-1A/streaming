@@ -108,7 +108,8 @@ public abstract class DiscoveryITBase {
     private HttpClient tls;
 
     @BeforeEach void resetEverything() throws Exception {
-        jdbc.sql("TRUNCATE discovery.stream_projection,discovery.inbox_events,discovery.projection_conflicts,discovery.ranking_snapshots").update();
+        jdbc.sql("TRUNCATE discovery.stream_projection,discovery.inbox_events,discovery.projection_conflicts,discovery.ranking_snapshots,"
+                +"discovery.broker_inbox,discovery.session_lifecycle").update();
         jdbc.sql("UPDATE discovery.reconciliation_state SET last_snapshot_id=NULL,last_watermark=NULL,last_cut_captured_at_utc=NULL,"
                 +"last_success_at_utc=NULL,last_attempt_at_utc=NULL,last_failure_at_utc=NULL,last_failure_code=NULL").update();
         jdbc.sql("TRUNCATE identity.accounts,identity.registrations,identity.sessions,identity.rate_limit_events,profile.profiles,profile.avatar_uploads,channels.channels CASCADE").update();

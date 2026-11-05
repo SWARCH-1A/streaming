@@ -49,6 +49,10 @@ public class JdbcProfileStore implements ProfileStore, ProfileInitializer {
         return jdbc.sql("DELETE FROM profile.avatar_uploads WHERE upload_id_hash IN (SELECT upload_id_hash FROM profile.avatar_uploads WHERE expires_at_utc<=:now ORDER BY expires_at_utc LIMIT :limit FOR UPDATE SKIP LOCKED) RETURNING object_key")
                 .param("now",java.sql.Timestamp.from(now)).param("limit",limit).query(String.class).list();
     }
+    @Override public boolean isPublicImageReadable(String objectKey) {
+        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM profile.profiles p JOIN identity.public_accounts a ON a.user_id=p.user_id WHERE p.avatar_key=:key)")
+                .param("key",objectKey).query(Boolean.class).single();
+    }
     @Override public boolean isObjectReferenced(String key,boolean published) {
         String sql=published?"SELECT EXISTS(SELECT 1 FROM profile.profiles WHERE avatar_key=:key)":"SELECT EXISTS(SELECT 1 FROM profile.avatar_uploads WHERE object_key=:key)";
         return jdbc.sql(sql).param("key",key).query(Boolean.class).single();

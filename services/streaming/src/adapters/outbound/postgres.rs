@@ -1,4 +1,5 @@
 mod discovery_projection;
+pub mod recordings;
 pub use discovery_projection::PostgresDiscoveryProjectionRepository;
 pub mod dead_letters;
 pub mod domain_event_outbox;

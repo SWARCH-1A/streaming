@@ -32,11 +32,19 @@ type acceptedFrame struct {
 }
 
 type errorFrame struct {
-	Type            string `json:"type"` // error
-	ClientMessageID string `json:"clientMessageId,omitempty"`
-	Code            string `json:"code"`
-	Message         string `json:"message"`
-	RetryAfterMs    *int64 `json:"retryAfterMs,omitempty"`
+	Type            string     `json:"type"` // error
+	ClientMessageID string     `json:"clientMessageId,omitempty"`
+	Code            string     `json:"code"`
+	Message         string     `json:"message"`
+	RetryAfterMs    *int64     `json:"retryAfterMs,omitempty"`
+	BlockMode       string     `json:"blockMode,omitempty"`       // CHAT_BLOCKED: TEMPORARY o PERMANENT
+	BlockedUntilUTC *time.Time `json:"blockedUntilUtc,omitempty"` // CHAT_BLOCKED temporal
+}
+
+// removedFrame avisa que el moderador retiró un mensaje; el cliente muestra el aviso en su lugar.
+type removedFrame struct {
+	Type string `json:"type"` // message.removed
+	chat.Removal
 }
 
 type inboundFrame struct {
@@ -51,6 +59,12 @@ func newErrorFrame(cmid string, e *chat.Error) errorFrame {
 		ms := max(e.RetryAfter.Milliseconds(), 1)
 		f.RetryAfterMs = &ms
 	}
+	if e.Code == chat.CodeChatBlocked {
+		f.BlockMode, f.BlockedUntilUTC = string(chat.BlockPermanent), e.BlockedUntil
+		if e.BlockedUntil != nil {
+			f.BlockMode = string(chat.BlockTemporary)
+		}
+	}
 	return f
 }
 
@@ -60,6 +74,9 @@ type historyResponse struct {
 	RoomStatus       chat.RoomStatus `json:"roomStatus"`
 	SnapshotSequence int64           `json:"snapshotSequence"`
 	Items            []chat.Message  `json:"items"`
+	// P2: marcas de mensajes retirados dentro de la misma ventana y versión de moderación.
+	ModerationVersion int64          `json:"moderationVersion"`
+	RemovedMessages   []chat.Removal `json:"removedMessages"`
 }
 
 type errorEnvelope struct {

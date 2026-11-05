@@ -1,5 +1,10 @@
 # SPEC-07 Descubrimiento P1
 
+> Perfil de la primera entrega. Para P2 rigen el [alcance vigente](../alcance_p2.md),
+> las [SPEC P2](../spec-p2/README.md) y [ADR-015](../adr/ADR-015-arquitectura-p2.md).
+> Este documento conserva contratos y aceptación de P1; no acredita las ampliaciones de P2.
+
+
 - **Módulo:** discovery
 - **Padre:** Ninguno
 - **Prioridad:** P1
@@ -72,7 +77,7 @@ Como espectador, quiero descubrir streams activos por popularidad, título, cate
 - CA-10: estado/conteo/metadata provienen de la proyección pública Streaming aplicada en SQL Core. Cambio <=5 s con presupuesto observación/publicación <=2 s y entrega/aplicación <=3 s. viewerCountFresh=false si observación >5 s; estado no confirmado/fuera de frescura se excluye de streams y se muestra UNKNOWN en canales. ENDED no es PLAYABLE; inbox/versiones y snapshot con watermark permiten recuperación comprobable.
 - CA-11: un valor de búsqueda `q` que contenga NUL en `streams` o `channels` produce `INVALID_FILTER` con `fieldErrors.q=INVALID_TEXT` (HTTP 200 y `extensions.httpStatus=422`), sin ejecutar la consulta del campo ni impedir resultados de otros root fields independientes.
 
-- CA-11: cada resultado LIVE expone `previewUri` derivada de sessionId, sin stream key, usuario, contraseña ni URI privada MediaMTX. La tarjeta muestra el JPEG real cuando está disponible; ausencia/error muestra el fondo gráfico sin simular una señal. Las consultas HTTP de imagen no cuentan como espectadores ni abren leases.
+- CA-12: cada resultado LIVE expone `previewUri` derivada de sessionId, sin stream key, usuario, contraseña ni URI privada MediaMTX. La tarjeta muestra el JPEG real cuando está disponible; ausencia/error muestra el fondo gráfico sin simular una señal. Las consultas HTTP de imagen no cuentan como espectadores ni abren leases.
 
 ## 7. Diseño técnico y datos
 

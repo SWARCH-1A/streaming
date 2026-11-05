@@ -1,0 +1,24 @@
+# The checked adaptation groups received H.264/AAC tracks into independent HLS
+# muxers and native recorders; it certifies disk inventories without transcoding.
+FROM golang:1.26-alpine AS build
+RUN apk add --no-cache git python3
+RUN git clone --depth 1 --branch v1.21.1 https://github.com/bluenviron/mediamtx.git /src && test "$(git -C /src rev-parse HEAD)" = 048255986f7e04b859b4c4efe651448ec785ecd4
+WORKDIR /src
+COPY infra/media/patch_recording.py /tmp/patch_recording.py
+COPY infra/media/journal/native_journal.go internal/recorder/native_journal.go
+COPY infra/media/journal/native_journal_test.go internal/recorder/native_journal_test.go
+COPY infra/media/rendition/ internal/rendition/
+COPY infra/media/hls/ internal/servers/hls/
+COPY infra/media/journal/multirendition.go internal/recorder/multirendition.go
+COPY infra/media/binding/ internal/recordbinding/
+RUN python3 /tmp/patch_recording.py /src
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build gofmt -w internal/rendition internal/servers/hls internal/recorder internal/protocols/rtmp && go generate ./internal/core ./internal/servers/hls ./internal/staticsources/rpicamera && CGO_ENABLED=0 go build -trimpath -o /out/mediamtx .
+FROM build AS test
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 go test -v -run '^TestNative' ./internal/recorder ./internal/recordbinding ./internal/rendition ./internal/servers/hls
+FROM alpine:3.23
+ENV MEDIA_NATIVE_RECORDING=true
+RUN apk add --no-cache ca-certificates && adduser -D -u 10001 media && mkdir -p /data/native && chown media /data/native
+COPY --from=build /out/mediamtx /mediamtx
+COPY --from=build /src/LICENSE /usr/share/licenses/mediamtx/LICENSE
+USER media
+ENTRYPOINT ["/mediamtx"]

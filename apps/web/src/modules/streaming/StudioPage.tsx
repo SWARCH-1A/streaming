@@ -8,13 +8,13 @@ import type {
   StreamPatched,
 } from '@contracts/p1';
 
-import { ActionLink } from '@/src/components/atoms/ActionLink';
 import { Badge } from '@/src/components/atoms/Badge';
 import { Button } from '@/src/components/atoms/Button';
 import { Icon } from '@/src/components/atoms/Icon';
 import { BroadcastPlaceholder } from '@/src/components/molecules/BroadcastPlaceholder';
 import { Notice } from '@/src/components/molecules/Notice';
 import { Panel } from '@/src/components/molecules/Panel';
+import { LiveChatPanel } from '@/src/modules/chat/entry';
 import { HlsPlayer } from '@/src/modules/streaming/components/HlsPlayer';
 import { LiveMetadataForm } from '@/src/modules/streaming/components/LiveMetadataForm';
 import { ObsIngestSettings } from '@/src/modules/streaming/components/ObsIngestSettings';
@@ -108,18 +108,6 @@ export function StudioPage() {
     <div className={styles.page}>
       <header className={styles.heading}>
         <h1>Estudio de emisión</h1>
-        <nav className={styles.navigation} aria-label="Herramientas del creador">
-          <span aria-current="page">Estudio de emisión</span>
-          <ActionLink to="/studio/channel" variant="ghost">
-            Mi canal & portada
-          </ActionLink>
-          <ActionLink to="/profile" variant="ghost">
-            Mi perfil
-          </ActionLink>
-          <ActionLink to={`/channels/${channel.data?.handle ?? ''}`} variant="ghost">
-            Ver canal
-          </ActionLink>
-        </nav>
       </header>
       {configuration.error ? <Notice tone="error">{configuration.error}</Notice> : null}
       {failure ? <Notice tone="error">{failure}</Notice> : null}
@@ -167,77 +155,59 @@ export function StudioPage() {
         </div>
       </Panel>
       <div className={styles.grid}>
-        <div className="stack">
-          <Panel className="stack">
-            <section className="stack" aria-label="Vista previa de la emisión">
-              <div className={styles.heading}>
-                <h2 className={styles.monitorTitle}>
-                  <Icon name="screen" />
-                  Monitor de retorno
-                </h2>
-                <Badge tone={availability === 'PLAYABLE' ? 'live' : 'neutral'}>{signalLabel}</Badge>
-              </div>
-              {session.data ? (
-                <HlsPlayer
-                  key={session.data.sessionId}
-                  session={session.data}
-                  title={config?.title ?? 'tu emisión'}
-                  poster={channel.data?.channel.bannerUri}
-                />
-              ) : (
-                <BroadcastPlaceholder
-                  title="Tu próxima emisión empieza aquí"
-                  description="Prepara el título y la categoría. Cuando llegue la señal, podrás verla en este espacio."
-                  image={channel.data?.channel.bannerUri}
-                />
-              )}
-              <div className={styles.metrics}>
-                <span>@{channel.data?.handle}</span>
-                <span>{session.data?.viewerCount ?? 0} espectadores</span>
-                <span>Señal de reproducción</span>
-              </div>
-            </section>
-          </Panel>
-
-          <section className="stack" aria-label="Conexión de emisión">
-            <Panel className={`stack ${styles.connection}`}>
-              {config ? (
-                <>
-                  <ObsIngestSettings
-                    rtmpUrl={config.rtmpUrl}
-                    streamKey={secret}
-                    onDiscard={() => setSecret('')}
+        <Panel className="stack">
+          <section className="stack" aria-label="Vista previa de la emisión">
+            <div className={styles.heading}>
+              <h2 className={styles.monitorTitle}>
+                <Icon name="screen" />
+                Monitor de retorno
+              </h2>
+              <Badge tone={availability === 'PLAYABLE' ? 'live' : 'neutral'}>{signalLabel}</Badge>
+            </div>
+            <div className={styles.previewChatGrid}>
+              <div className={styles.videoColumn}>
+                {session.data ? (
+                  <HlsPlayer
+                    key={session.data.sessionId}
+                    session={session.data}
+                    title={config?.title ?? 'tu emisión'}
+                    poster={channel.data?.channel.bannerUri}
                   />
-                  <div className={styles.actions}>
-                    <Button
-                      variant="secondary"
-                      disabled={pending || !['OFFLINE', 'ENDED'].includes(config.status)}
-                      onClick={() => {
-                        void command('rotate');
-                      }}
-                    >
-                      Rotar clave
-                    </Button>
+                ) : (
+                  <BroadcastPlaceholder
+                    title="Tu próxima emisión empieza aquí"
+                    description="Prepara el título y la categoría. Cuando llegue la señal, podrás verla en este espacio."
+                    image={channel.data?.channel.bannerUri}
+                  />
+                )}
+                <div className={styles.metrics}>
+                  <span>@{channel.data?.handle}</span>
+                  <span>{session.data?.viewerCount ?? 0} espectadores</span>
+                  <span>Señal de reproducción</span>
+                </div>
+              </div>
+              <section className={styles.chatColumn} aria-label="Chat de la emisión">
+                {session.data ? (
+                  <LiveChatPanel
+                    key={`${session.data.sessionId}:${user?.userId ?? 'anonymous'}`}
+                    sessionId={session.data.sessionId}
+                    readOnly={
+                      session.data.status === 'ENDED' || session.data.status === 'PREPARING'
+                    }
+                    channelId={channelId}
+                    moderator={!!user && user.userId === channel.data?.channel.ownerUserId}
+                  />
+                ) : (
+                  <div className={styles.chatPlaceholder}>
+                    <Icon name="chat" size={24} />
+                    <h3>Chat en vivo</h3>
+                    <p>Estará disponible cuando inicies la transmisión.</p>
                   </div>
-                </>
-              ) : (
-                <>
-                  <p className="eyebrow">Antes de salir en vivo</p>
-                  <h2>Prepara tu directo</h2>
-                  <ol className={styles.steps}>
-                    <li>Elige un título, una categoría y las etiquetas de tu emisión.</li>
-                    <li>Copia el servidor y la clave en tu programa de emisión.</li>
-                    <li>Inicia la transmisión. La señal aparecerá en la vista previa.</li>
-                  </ol>
-                  {configuration.loading ? <p role="status">Cargando configuración…</p> : null}
-                </>
-              )}
-            </Panel>
-            <p className={styles.note}>
-              La vista previa muestra la señal que reciben tus espectadores.
-            </p>
+                )}
+              </section>
+            </div>
           </section>
-        </div>
+        </Panel>
         <aside className="stack" aria-label="Metadatos de emisión">
           {catalog.error ? <Notice tone="error">{catalog.error}</Notice> : null}
           {catalog.data && !configuration.loading && !configuration.error ? (
@@ -271,6 +241,44 @@ export function StudioPage() {
             />
           ) : null}
         </aside>
+        <section className="stack" aria-label="Conexión de emisión">
+          <Panel className={`stack ${styles.connection}`}>
+            {config ? (
+              <>
+                <ObsIngestSettings
+                  rtmpUrl={config.rtmpUrl}
+                  streamKey={secret}
+                  onDiscard={() => setSecret('')}
+                />
+                <div className={styles.actions}>
+                  <Button
+                    variant="secondary"
+                    disabled={pending || !['OFFLINE', 'ENDED'].includes(config.status)}
+                    onClick={() => {
+                      void command('rotate');
+                    }}
+                  >
+                    Rotar clave
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="eyebrow">Antes de salir en vivo</p>
+                <h2>Prepara tu directo</h2>
+                <ol className={styles.steps}>
+                  <li>Elige un título, una categoría y las etiquetas de tu emisión.</li>
+                  <li>Copia el servidor y la clave en tu programa de emisión.</li>
+                  <li>Inicia la transmisión. La señal aparecerá en la vista previa.</li>
+                </ol>
+                {configuration.loading ? <p role="status">Cargando configuración…</p> : null}
+              </>
+            )}
+          </Panel>
+          <p className={styles.note}>
+            La vista previa muestra la señal que reciben tus espectadores.
+          </p>
+        </section>
       </div>
     </div>
   );

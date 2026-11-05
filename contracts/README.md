@@ -24,3 +24,69 @@ p1.d.ts deriva tipos TypeScript de los schemas JSON y tipos GraphQL del SDL; Web
 Los ejemplos verifican forma; las [pruebas de consumidores reales](../tests/contracts/README.md)
 verifican permisos, errores y comportamiento. Contextos Chat y bootstrap necesitan SPEC-11;
 schemas generados no acreditan que esos endpoints estén implementados.
+
+## Extensión P2 de eventos y recuperación
+
+La fuente p2.json extiende los schemas P1 sin modificar sus artefactos. Registra nueve familias
+y dieciséis suscripciones con efecto; las nueve familias tienen schemas ejecutables.
+RF-004 incorpora solicitud/confirmación públicas y claim/result privados. Cada operación declara
+su estado; las entradas pending-owner no admiten publicación como contratos validados.
+
+    python contracts/check_p2.py --write
+    python contracts/check_p2.py
+    python contracts/check_p2.py --event /ruta/a/envelope.json
+    python contracts/check_p2.py --payload P2RecoveryAccepted /ruta/a/respuesta.json --public
+
+El primer comando genera contracts/generated/p2.schema.json y los schemas/tipos/inventarios de
+contracts/generated/p2. Web importa @contracts/p2. No editar los derivados a mano. La validación
+es offline, comprueba referencias, ejemplos válidos/negativos, identidad/versiones, privacidad,
+permisos, idempotencia y trazabilidad de las operaciones, además de detectar drift.
+El arranque RabbitMQ y los SDK de cada lenguaje se documentan en infra/broker/README.md y ADR-016.
+`protocol-extensions.json` deriva las extensiones de cabeceras sobre operaciones privadas existentes.
+`media.recording-binding.v1` amplía la respuesta204 de `media.auth` con el schema ejecutable
+`P2MediaRecordingBinding`; no duplica la ruta ni modifica los artefactos P1.
+
+Chat añade moderación y `p2.chat.moderation-context` en `p2.chat.*`; consume
+`vod.availability.changed.v1` y `p2.vod.replay-context` definidos por VOD (ADR-022).
+
+Administración añade listados y cambios de estado en `p2.admin.*`, y el evento
+`account.status.changed.v1`. La integración local verifica suspensión de directo/VOD/replay e imágenes; la matriz completa de aceptación sigue en SPEC-23.
+
+## Calidades live
+
+`P2Rendition`, `P2Renditions` y `p2.streaming.renditions` describen la consulta implementada en
+[SPEC-04](../docs/spec-p2/spec_04_stream.md). El maestro pertenece a la sesión solicitada, con
+uno a cuatro IDs distintos y metadatos realmente anunciados por Media. El checker valida estas
+relaciones además de la forma; se generan con el mismo comando `check_p2.py --write` que los
+contratos del broker, Recuperación y Subtítulos. No se añaden eventos ni suscripciones de calidad:
+la consulta es HTTP y las variantes comparten el ciclo, la sesión y el cupo existentes.
+
+## Perfil de subtítulos VOD
+
+[SPEC-22](../docs/spec-p2/spec_22_subtitles.md) define el perfil p2-webvtt-text-v1 y su alcance.
+El checker `webvtt.py` valida bytes/tiempos sin publicar ni modificar archivos:
+
+```sh
+python contracts/webvtt.py tests/contracts/fixtures/subtitles/education-es.vtt --duration-ms 12000
+python -m unittest discover -s tests/contracts -p 'test_*.py'
+```
+
+`check_p2.py` comprueba además ejemplos, referencias de operaciones, paths y páginas de pistas.
+La duración usada en las pruebas de contrato es ficticia. El proveedor VOD consulta duración/mapping
+y aplica permisos; los recorridos funcionales con VOD real viven en tests/integration/vod-web.
+
+Las operaciones `p2.subtitles.*` mantienen su contrato generado y cuentan con proveedor VOD y consumidores Web/Android; su estado de aceptación se detalla en SPEC-22. El mismo generador conserva Recuperación y Administración.
+Prueba adicional con Ajv (tras instalar las dependencias Web):
+
+```sh
+node tests/contracts/test_subtitle_schemas.mjs
+```
+
+## Consumidor Kotlin móvil
+
+`python contracts/generate_mobile.py --write` genera DTO serializables y consultas GraphQL desde
+los schemas canónicos P1/P2 en `generated/mobile/MobileContracts.kt`. Sin argumentos comprueba
+drift y CI ejecuta ese check. `apps/mobile/shared` incluye directamente esa carpeta. Los DTO
+con secretos redactan `toString`; sus valores solo se serializan para el transporte autorizado.
+`P2NativeLogin` y las operaciones de login/logout móvil están implementados en Core; no requieren
+Idempotency-Key, igual que la sesión base. Las operaciones de registro/recuperación sí lo conservan.

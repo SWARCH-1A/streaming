@@ -22,8 +22,13 @@ public class PrivateCoreListener implements WebServerFactoryCustomizer<TomcatSer
     private final byte[] token;
     private final byte[] catalogToken;
     private final byte[] chatToken;
+    private final byte[] recoveryToken;
+    private final byte[] notificationsToken;
+    private final byte[] recordingSettingsToken;
+    private final byte[] vodToken;
     private Connector connector;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public PrivateCoreListener(@Value("${core.internal.enabled:false}") boolean enabled,
             @Value("${core.internal.port:8082}") int port,
             @Value("${core.internal.development-http:false}") boolean developmentHttp,
@@ -31,12 +36,20 @@ public class PrivateCoreListener implements WebServerFactoryCustomizer<TomcatSer
             @Value("${core.internal.tls-keystore-password:}") String keystorePassword,
             @Value("${core.internal.streaming-service-token:}") String token,
             @Value("${core.internal.streaming-catalog-service-token:}") String catalogToken,
-            @Value("${core.internal.chat-service-token:}") String chatToken) {
+            @Value("${core.internal.chat-service-token:}") String chatToken,
+            @Value("${core.internal.recovery-service-token:}") String recoveryToken,
+            @Value("${core.internal.notifications-service-token:}") String notificationsToken,
+            @Value("${core.internal.recording-settings-service-token:}") String recordingSettingsToken,
+            @Value("${core.internal.vod-service-token:}") String vodToken) {
         this.enabled=enabled; this.port=port; this.developmentHttp=developmentHttp;
         this.keystore=keystore; this.keystorePassword=keystorePassword;
         this.token=token.getBytes(StandardCharsets.UTF_8);
         this.catalogToken=catalogToken.getBytes(StandardCharsets.UTF_8);
         this.chatToken=chatToken.getBytes(StandardCharsets.UTF_8);
+        this.recoveryToken=recoveryToken.getBytes(StandardCharsets.UTF_8);
+        this.notificationsToken=notificationsToken.getBytes(StandardCharsets.UTF_8);
+        this.recordingSettingsToken=recordingSettingsToken.getBytes(StandardCharsets.UTF_8);
+        this.vodToken=vodToken.getBytes(StandardCharsets.UTF_8);
         if(enabled && (!token.matches("[A-Za-z0-9_-]{32,256}") || port<0 || port>65535))
             throw new IllegalStateException("Private Core requires a valid port and a 32+ character service secret");
         if(enabled && !catalogToken.isEmpty() && (!catalogToken.matches("[A-Za-z0-9_-]{32,256}")
@@ -47,6 +60,36 @@ public class PrivateCoreListener implements WebServerFactoryCustomizer<TomcatSer
             throw new IllegalStateException("Private Core requires a distinct 32+ character Chat secret when configured");
         if(enabled && !developmentHttp && (keystore.isBlank() || keystorePassword.isBlank()))
             throw new IllegalStateException("Private Core requires a PKCS12 keystore and its password; HTTP must be explicitly enabled for isolated development");
+        if(enabled && !recoveryToken.isEmpty() && (!recoveryToken.matches("[A-Za-z0-9_-]{32,256}")
+                || MessageDigest.isEqual(this.token,this.recoveryToken) || MessageDigest.isEqual(this.catalogToken,this.recoveryToken)
+                || MessageDigest.isEqual(this.chatToken,this.recoveryToken)))
+            throw new IllegalStateException("Private Core requires a distinct recovery-email secret when configured");
+        if(enabled) {
+            requireDistinct(vodToken,"vod",new byte[][]{this.token,this.catalogToken,this.chatToken,this.recoveryToken,this.notificationsToken,this.recordingSettingsToken});
+            // Each consumer has its own credential; a leaked one never grants another consumer's routes.
+            byte[][] earlier={this.token,this.catalogToken,this.chatToken,this.recoveryToken};
+            requireDistinct(notificationsToken,"notifications",earlier);
+            requireDistinct(recordingSettingsToken,"streaming-recording-settings",
+                    new byte[][]{this.token,this.catalogToken,this.chatToken,this.recoveryToken,this.notificationsToken});
+        }
+    }
+
+    public PrivateCoreListener(boolean enabled, int port, boolean developmentHttp, String keystore,
+            String keystorePassword, String token, String catalogToken, String chatToken) {
+        this(enabled,port,developmentHttp,keystore,keystorePassword,token,catalogToken,chatToken,"","","","");
+    }
+
+    public PrivateCoreListener(boolean enabled,int port,boolean developmentHttp,String keystore,String keystorePassword,
+            String token,String catalogToken,String chatToken,String recoveryToken,String notificationsToken,String recordingSettingsToken) {
+        this(enabled,port,developmentHttp,keystore,keystorePassword,token,catalogToken,chatToken,recoveryToken,notificationsToken,recordingSettingsToken,"");
+    }
+
+    private static void requireDistinct(String secret,String name,byte[][] others) {
+        if(secret.isEmpty()) return;
+        byte[] value=secret.getBytes(StandardCharsets.UTF_8);
+        boolean reused=java.util.Arrays.stream(others).anyMatch(other->other.length>0 && MessageDigest.isEqual(other,value));
+        if(!secret.matches("[A-Za-z0-9_-]{32,256}") || reused)
+            throw new IllegalStateException("Private Core requires a distinct 32+ character "+name+" secret when configured");
     }
 
     @Override public void customize(TomcatServletWebServerFactory factory) {
@@ -70,7 +113,8 @@ public class PrivateCoreListener implements WebServerFactoryCustomizer<TomcatSer
 
     public int localPort() { return connector==null?-1:connector.getLocalPort(); }
     public boolean isPrivate(HttpServletRequest request) { return enabled && localPort()>0 && request.getLocalPort()==localPort(); }
-    public enum Permission { OWNER_CONTEXT, CATALOG_VALUES, DISCOVERY_EVENTS, CHAT_CONTEXT, CHAT_SNAPSHOT }
+    public enum Permission { OWNER_CONTEXT, CATALOG_VALUES, DISCOVERY_EVENTS, CHAT_CONTEXT, CHAT_SNAPSHOT, CHAT_MODERATION,
+        RECOVERY_DELIVERY, NOTIFICATIONS, RECORDING_SETTINGS, VOD_ACCESS }
 
     public boolean permits(HttpServletRequest request,Permission permission) {
         if(!isPrivate(request) || java.util.Collections.list(request.getHeaders("X-Service-Name")).size()!=1
@@ -78,7 +122,16 @@ public class PrivateCoreListener implements WebServerFactoryCustomizer<TomcatSer
         String supplied=request.getHeader("X-Service-Token");
         if(supplied==null) return false;
         byte[] candidate=supplied.getBytes(StandardCharsets.UTF_8);
-        if(permission==Permission.CHAT_CONTEXT || permission==Permission.CHAT_SNAPSHOT)
+        if(permission==Permission.VOD_ACCESS)
+            return "vod".equals(request.getHeader("X-Service-Name")) && vodToken.length>0 && MessageDigest.isEqual(vodToken,candidate);
+        if(permission==Permission.RECOVERY_DELIVERY)
+            return "recovery-email".equals(request.getHeader("X-Service-Name")) && recoveryToken.length>0 && MessageDigest.isEqual(recoveryToken,candidate);
+        if(permission==Permission.NOTIFICATIONS)
+            return "notifications".equals(request.getHeader("X-Service-Name")) && notificationsToken.length>0 && MessageDigest.isEqual(notificationsToken,candidate);
+        if(permission==Permission.RECORDING_SETTINGS)
+            return "streaming-recording-settings".equals(request.getHeader("X-Service-Name")) && recordingSettingsToken.length>0
+                    && MessageDigest.isEqual(recordingSettingsToken,candidate);
+        if(permission==Permission.CHAT_CONTEXT || permission==Permission.CHAT_SNAPSHOT || permission==Permission.CHAT_MODERATION)
             return "chat".equals(request.getHeader("X-Service-Name")) && chatToken.length>0 && MessageDigest.isEqual(chatToken,candidate);
         if(!"streaming".equals(request.getHeader("X-Service-Name"))) return false;
         boolean full=MessageDigest.isEqual(token,candidate);
@@ -86,7 +139,7 @@ public class PrivateCoreListener implements WebServerFactoryCustomizer<TomcatSer
         return switch(permission) {
             case OWNER_CONTEXT, DISCOVERY_EVENTS -> full;
             case CATALOG_VALUES -> full || catalogOnly;
-            case CHAT_CONTEXT, CHAT_SNAPSHOT -> false;
+            case CHAT_CONTEXT, CHAT_SNAPSHOT, CHAT_MODERATION, RECOVERY_DELIVERY, NOTIFICATIONS, RECORDING_SETTINGS, VOD_ACCESS -> false;
         };
     }
 }

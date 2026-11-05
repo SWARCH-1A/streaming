@@ -1,0 +1,13 @@
+local.properties
+.gradle-home/
+.konan/
+.kotlin/
+*.xcuserstate
+xcuserdata/
+Pods/
+DerivedData/
+*.xcarchive
+*.mobileprovision
+GoogleService-Info.plist
+google-services.json
+iosApp/Config.local.xcconfig

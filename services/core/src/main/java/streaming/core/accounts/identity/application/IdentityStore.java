@@ -11,6 +11,7 @@ public interface IdentityStore {
     Optional<PublicIdentity> activeByUserId(String userId);
     Optional<PublicIdentity> activeByHandle(String canonicalHandle);
     Optional<Account> activeByLogin(String normalizedLogin, boolean email);
+    Optional<Account> accountForUpdate(String userId);
     boolean tryRecordRegistrationKey(String ipHash, String keyHash, Instant now);
     boolean loginLimitReached(String identifierHash, String ipHash, Instant since);
     boolean tryRecordLoginFailure(String identifierHash, String ipHash, Instant now);

@@ -46,11 +46,11 @@ def run(args, **kwargs):
 
 def render_proxy():
     source = (ROOT / "infra/reverse-proxy/Caddyfile").read_text()
-    if source.count(":3000 {") != 1 or source.count("      import proxy_headers") != 6:
+    if source.count(":3000 {") != 1 or source.count("      import proxy_headers") != 11:
         raise RuntimeError("Review P1 TLS renderer after reverse-proxy structure changes")
     source = source.replace(":3000 {", "https://localhost:3443 {\n  tls /run/secrets/web.crt /run/secrets/web.key")
     source = source.replace("      transport http {\n        response_header_timeout 10s\n      }\n", "")
-    for name in ("CORE", "STREAMING", "CHAT", "HLS"):
+    for name in ("CORE", "STREAMING", "CHAT", "HLS", "NOTIFICATIONS", "VOD", "GATEWAY", "WEB"):
         source = source.replace("{$" + name + "_UPSTREAM:http:" , "{$" + name + "_UPSTREAM:https:")
     source = source.replace("      import proxy_headers", """      import proxy_headers
       transport http {
@@ -58,11 +58,21 @@ def render_proxy():
         response_header_timeout 10s
       }""")
     if PROFILE == "local":
+        # The same TLS entry serves the Mac and LAN clients. Only configured names are accepted;
+        # aliases redirect to the canonical origin used by cookies, CSRF, WS and media URLs.
+        source = source.replace("https://localhost:3443 {", "https://:3443 {")
+        source = source.replace("  route {", """  route {
+    @foreignHost not host localhost 127.0.0.1 {$LOCAL_PUBLIC_HOST:localhost} {$LOCAL_LAN_IP:127.0.0.1}
+    respond @foreignHost 421
+    @aliasHost not host {$LOCAL_PUBLIC_HOST:localhost}
+    redir @aliasHost {$WEB_ORIGIN:https://localhost:3445}{uri} 307""", 1)
         source = source.replace("https://streaming:", "https://live:")
-        source = source.replace("  root * /srv\n", "")
-        transport = "transport http {\n        tls_trust_pool file /run/secrets/ca.crt\n      }"
-        source = source.replace("file_server @assets", "reverse_proxy @assets https://web:3443 {\n      " + transport + "\n    }")
-        source = source.replace("      file_server\n", "      reverse_proxy https://web:3443 {\n        " + transport + "\n      }\n")
+        # The SSR web container listens with TLS on 3443 (SPEC-18).
+        source = source.replace("{$WEB_UPSTREAM:https://web:3000}", "{$WEB_UPSTREAM:https://web:3443}")
+    # The SSR upstream reuses the existing web certificate (SAN web), including P1 web-ssr.
+    web_start = source.index("    reverse_proxy @web ")
+    trust_start = source.index("        tls_trust_pool", web_start)
+    source = source[:trust_start] + "        tls_server_name web\n" + source[trust_start:]
     # Host-only session cookies remain on the public origin; private credentials never enter logs.
     return source
 
@@ -81,17 +91,39 @@ def local_network():
         if subnet is None:
             raise RuntimeError("Choose an unused LOCAL_SUBNET and LOCAL_PROXY_IP before init")
     proxy_ip = ipaddress.ip_address(os.environ.get("LOCAL_PROXY_IP", str(subnet.network_address + 2)))
-    if subnet.version != 4 or not subnet.is_private or subnet.prefixlen > 28:
-        raise RuntimeError("LOCAL_SUBNET must be a private IPv4 network with room for nine services")
+    if subnet.version != 4 or not subnet.is_private or subnet.prefixlen > 27:
+        raise RuntimeError("LOCAL_SUBNET must be a private IPv4 network with room for the local services and test tools")
     dynamic_range = list(subnet.subnets(prefixlen_diff=1))[1]
     if proxy_ip not in subnet or proxy_ip in dynamic_range or proxy_ip in (subnet.network_address, subnet.broadcast_address, subnet.network_address + 1):
         raise RuntimeError("LOCAL_PROXY_IP must be a usable address in the private IPv4 LOCAL_SUBNET")
-    return {"LOCAL_SUBNET": str(subnet), "LOCAL_PROXY_IP": str(proxy_ip), "LOCAL_DYNAMIC_RANGE": str(dynamic_range)}
+    return {"LOCAL_SUBNET": str(subnet), "LOCAL_PROXY_IP": str(proxy_ip), "LOCAL_DYNAMIC_RANGE": str(dynamic_range),
+            "LOCAL_GATEWAY_IP": gateway_ip(subnet, proxy_ip)}
+
+
+def gateway_ip(subnet, proxy_ip):
+    """Fixed Gateway address in the static half: Core trusts it to forward the client address (SPEC-16)."""
+    subnet, proxy_ip = ipaddress.ip_network(subnet), ipaddress.ip_address(proxy_ip)
+    dynamic_range = list(subnet.subnets(prefixlen_diff=1))[1]
+    candidate = next(subnet.network_address + offset for offset in range(3, 16) if subnet.network_address + offset != proxy_ip)
+    if candidate in dynamic_range:
+        raise RuntimeError("LOCAL_SUBNET has no static address left for the Gateway")
+    return str(candidate)
 
 
 def initialize():
     if STATE.exists():
         env = environment()
+        path = STATE / "environment.env"
+        stored = path.read_text()
+        if PROFILE == "local" and "LOCAL_GATEWAY_IP" in env and not any(
+            line.startswith("LOCAL_GATEWAY_IP=") for line in stored.splitlines()
+        ):
+            # Persist the derived address so documented raw Compose commands work
+            # after upgrading a state initialized before SPEC-16, without rotation.
+            temporary = path.with_suffix(".network.tmp")
+            temporary.write_text(stored.rstrip("\n") + "\nLOCAL_GATEWAY_IP=" + env["LOCAL_GATEWAY_IP"] + "\n")
+            os.chmod(temporary, 0o600)
+            os.replace(temporary, path)
         print(f"Existing {PROJECT} state retained: {STATE}")
         return env
     https_port, rtmps_port = configured_ports(os.environ)
@@ -117,7 +149,7 @@ def initialize():
         env = {key: secrets.token_urlsafe(36) for key in keys}
         openssl("pkcs12","-export","-in","core.crt","-inkey","core.key","-certfile","ca.crt","-out","core-internal.p12",
                 "-passout","env:P1_KEYSTORE_PASSWORD",env={**os.environ,"P1_KEYSTORE_PASSWORD":env["CORE_INTERNAL_TLS_KEYSTORE_PASSWORD"]})
-        # Preserve JDK public roots for the optional HTTPS S3 provider; append our local CA.
+        # Preserve JDK public roots for HTTPS providers; append our local CA.
         run(["docker","run","--rm","--network","none","--user",f"{os.getuid()}:{os.getgid()}","-v",str(temporary)+":/state","eclipse-temurin:25-jdk",
              "sh","-c",'keytool -importkeystore -noprompt -srckeystore "$JAVA_HOME/lib/security/cacerts" -srcstorepass changeit -destkeystore /state/truststore.p12 -deststoretype PKCS12 -deststorepass changeit'])
         run(["docker","run","--rm","--network","none","--user",f"{os.getuid()}:{os.getgid()}","-v",str(temporary)+":/state","eclipse-temurin:25-jdk",
@@ -152,8 +184,16 @@ def environment():
         if not re.fullmatch(r"[A-Z_0-9]+",key): raise RuntimeError("Invalid environment key")
         env[key] = value
     if env.get("P1_STATE") != str(STATE): raise RuntimeError("State path differs from the selected profile")
+    if "LOCAL_SUBNET" in env and "LOCAL_GATEWAY_IP" not in env:
+        # States initialized before SPEC-16 derive the same fixed address instead of re-running init.
+        env["LOCAL_GATEWAY_IP"] = gateway_ip(env["LOCAL_SUBNET"], env["LOCAL_PROXY_IP"])
     https_port, _ = configured_ports(env)
-    if env["WEB_ORIGIN"]!="https://localhost:"+https_port:raise RuntimeError("Origin and HTTPS port differ; keep the initialized ports")
+    host = env.get("LOCAL_PUBLIC_HOST", "localhost") if PROFILE == "local" else "localhost"
+    if PROFILE == "local":
+        import runpy
+        network = runpy.run_path(str(ROOT / "infra/local/network_config.py"))
+        network["validate"](env)
+    if env["WEB_ORIGIN"]!="https://"+host+":"+https_port:raise RuntimeError("Origin and HTTPS port differ; keep the initialized ports")
     return env
 
 
@@ -172,12 +212,18 @@ def configured_ports(env):
     return https_port, rtmps_port
 
 
-def command(env, *args, s3=False, timeout=180):
+def command(env, *args, s3=False, broker=None, timeout=180):
     if env.get("P1_STATE") != str(STATE): raise RuntimeError("Command state differs from the selected profile")
     if PROFILE == "local" and s3:
-        raise RuntimeError("The local nine-service installation uses filesystem; use the P1 profile for external S3")
+        raise RuntimeError("The local installation uses filesystem; use the P1 profile for external S3")
+    if broker is None:
+        broker = PROFILE == "local"
     compose = ROOT / "compose.yaml" if PROFILE == "local" else HERE / ("compose.s3.yaml" if s3 else "compose.yaml")
     cmd = ["docker","compose","--env-file",str(STATE / "environment.env"),"-p",PROJECT,"-f",str(compose)]
+    if broker:
+        if PROFILE != "local": raise RuntimeError("The broker overlay currently targets the root local profile")
+        if not env.get("BROKER_STREAMING_PASSWORD"): raise RuntimeError("Run python3 infra/local/dev.py init first")
+        cmd += ["-f",str(ROOT / "infra/broker/compose.yaml")]
     if s3 and env.get("CORE_IMAGE_S3_ENDPOINT") and not env["CORE_IMAGE_S3_ENDPOINT"].startswith("https://"):
         raise RuntimeError("The TLS profile requires an HTTPS S3 endpoint")
     return run([*cmd,*args],cwd=ROOT,env=env,timeout=timeout)
@@ -203,39 +249,83 @@ def wait_local(env, timeout=180):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("init","build","up","status","down","reset"))
+    parser.add_argument("action", choices=("init","build","up","status","down","reset","lan"))
+    parser.add_argument("--host", help="LAN DNS name ending in .local, or private IPv4 address (lan action)")
+    parser.add_argument("--address", help="Current private IPv4 address of this host (lan action)")
+    parser.add_argument("--loopback", action="store_true", help="Disable LAN access and restore localhost (lan action)")
     parser.add_argument("--s3", action="store_true", help="External private S3; configure its environment first")
+    parser.add_argument("--broker", action="store_true", default=PROFILE == "local",
+                        help="RabbitMQ transport (already included in the local profile)")
     parser.add_argument("--replicas", type=int, choices=(1,2), default=1)
     parser.add_argument("--confirm-disposable", action="store_true", help="Required to remove only this project's volumes")
     args = parser.parse_args()
+    if args.action == "lan" and PROFILE != "local":
+        parser.error("LAN access is only available in infra/local/dev.py")
+    if args.action != "lan" and (args.host or args.address or args.loopback):
+        parser.error("--host, --address and --loopback require the lan action")
+    if args.loopback and (args.host or args.address):
+        parser.error("--loopback cannot be combined with --host or --address")
     if PROFILE == "local" and args.replicas != 1:
-        raise RuntimeError("The local installation has exactly nine services; use P1 for replica tests")
+        raise RuntimeError("The local installation uses one replica per service; use P1 for replica tests")
     # Lock outside .state so initialization is serialized too.
     with open(HERE / LOCK_NAME,"a") as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         env = initialize() if args.action=="init" else environment()
-        if args.action=="build": command(env,"build",s3=args.s3,timeout=1800); print("Current runtime images built")
+        if args.action == "lan":
+            import runpy
+            network = runpy.run_path(str(ROOT / "infra/local/network_config.py"))
+            network["configure"](env, STATE, run, host=args.host, address=args.address, loopback=args.loopback)
+            print("Network configuration saved; run python3 infra/local/dev.py up to apply it")
+            return
+        if args.broker and args.action=="init":
+            if PROFILE != "local": raise RuntimeError("Use infra/local/dev.py init")
+            import runpy
+            setup = runpy.run_path(str(ROOT / "infra/broker/bootstrap.py"))
+            env = setup["initialize"](env, STATE, run)
+            print("P2 broker certificates, credentials and topology ready; existing data retained")
+            recovery = runpy.run_path(str(ROOT / "infra/local/recovery_config.py"))
+            env = recovery["initialize"](env, STATE, run)
+            print("Cuentas recovery keys and broker publication configured")
+            notifications = runpy.run_path(str(ROOT / "infra/local/notifications_config.py"))
+            env = notifications["initialize"](env, STATE, run)
+            print("Notifications certificates, database and service credentials ready (emails visible at http://127.0.0.1:8025)")
+            vod = runpy.run_path(str(ROOT / "infra/local/vod_config.py"))
+            env = vod["initialize"](env, STATE, run)
+            print("VOD, MinIO and Gateway private configuration ready")
+            chat = runpy.run_path(str(ROOT / "infra/local/chat_config.py"))
+            env = chat["initialize"](env, STATE, run)
+            print("Chat PostgreSQL certificate and credentials ready")
+        if args.action=="build":
+            build_args = ("--profile","tools","build") if args.broker else ("build",)
+            command(env,*build_args,s3=args.s3,broker=args.broker,timeout=1800)
+            print("Current runtime images built")
         elif args.action=="up":
             (STATE / "Caddyfile").write_text(render_proxy())
-            command(env,"up","-d","--scale",f"core={args.replicas}","--scale",f"chat={args.replicas}",s3=args.s3)
+            up_args = ("up", "-d", "--remove-orphans", "--wait", "--wait-timeout", "180") if PROFILE == "local" else ("up", "-d")
+            command(env,*up_args,"--scale",f"core={args.replicas}","--scale",f"chat={args.replicas}",
+                    s3=args.s3,broker=args.broker,timeout=360 if PROFILE == "local" else 180)
             if PROFILE == "local":
                 wait_local(env)
-                print(f"Ready {PROJECT}: {env['WEB_ORIGIN']} (nine services; local CA required in the browser)")
+                print(f"Ready {PROJECT}: {env['WEB_ORIGIN']} (local CA required in the browser)")
+                print("Emails sent by Notifications are caught by Mailpit: http://127.0.0.1:8025")
                 return
-            web_id = command(env,"ps","-q","web",s3=args.s3).strip()
+            web_id = command(env,"ps","-q","web",s3=args.s3,broker=args.broker).strip()
             networks = json.loads(run(["docker","inspect",web_id]))[0]["NetworkSettings"]["Networks"]
             if len(networks)!=1: raise RuntimeError("Review trusted proxy when changing topology")
             env["WEB_PROXY_IP"] = next(iter(networks.values()))["IPAddress"]
             path = STATE / "environment.env"
             lines = [line for line in path.read_text().splitlines() if not line.startswith("WEB_PROXY_IP=")]
             path.write_text("\n".join([*lines,"WEB_PROXY_IP="+env["WEB_PROXY_IP"]])+"\n")
-            command(env,"up","-d","--no-deps","--scale",f"core={args.replicas}","core",s3=args.s3)
+            command(env,"up","-d","--no-deps","--scale",f"core={args.replicas}","core",s3=args.s3,broker=args.broker)
             print(f"Started {PROJECT}: {env['WEB_ORIGIN']}; wait for health/status before use")
-        elif args.action=="status": print(command(env,"ps",s3=args.s3))
-        elif args.action=="down": command(env,"down",s3=args.s3); print("Stopped; persistent volumes retained")
+        elif args.action=="status": print(command(env,"ps",s3=args.s3,broker=args.broker))
+        elif args.action=="down":
+            down_args = ("down", "--remove-orphans") if PROFILE == "local" else ("down",)
+            command(env,*down_args,s3=args.s3,broker=args.broker)
+            print("Stopped; persistent volumes retained")
         elif args.action=="reset":
             if not args.confirm_disposable: raise RuntimeError(f"Reset requires --confirm-disposable; only {PROJECT} volumes are removed")
-            command(env,"down","--volumes","--remove-orphans",s3=args.s3); print(f"Only {PROJECT} disposable volumes removed; private config retained")
+            command(env,"down","--volumes","--remove-orphans",s3=args.s3,broker=args.broker); print(f"Only {PROJECT} disposable volumes removed; private config retained")
 
 
 if __name__=="__main__": main()

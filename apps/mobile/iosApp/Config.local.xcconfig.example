@@ -1,0 +1,4 @@
+// Copy to Config.local.xcconfig (ignored). $() prevents // from starting an xcconfig comment.
+VAULT_API_ORIGIN = https:/$()/macbook-pro.local:3445
+// DEVELOPMENT_TEAM = YOUR_PERSONAL_TEAM_ID
+// PRODUCT_BUNDLE_IDENTIFIER = your.unique.vault.dev

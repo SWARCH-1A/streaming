@@ -10,18 +10,31 @@ y cuáles fueron sustituidos. Las fechas conservan el momento de cada decisión.
 | [ADR-002](ADR-002-profile-persistencia-y-avatar.md) | Aceptada | Perfil público en Cuentas, ciclo de avatar y URI inmutable; el almacén se actualiza por ADR-009. |
 | [ADR-003](ADR-003-servicios-cohesivos.md) | Sustituida por ADR-005 | Fronteras de la decisión de 2026-10-01. |
 | [ADR-004](ADR-004-canales-en-core.md) | Aceptada | Edición/portadas de Canales en Core, sesión local y retiro de provisión/proyección remota. |
-| [ADR-005](ADR-005-streaming-rust-y-proyeccion-discovery.md) | Aceptada | Streaming Rust/SQL privado, MediaMTX, Discovery en Core con proyección pública y contratos de contexto. |
+| [ADR-005](ADR-005-streaming-rust-y-proyeccion-discovery.md) | Aceptada en P1 | Streaming Rust/SQL privado, MediaMTX, Discovery en Core con proyección pública y contratos de contexto. |
 | [ADR-006](ADR-006-taxonomia-en-core.md) | Propuesta | Catálogo SQL Core, versión/tombstones y contratos privados owner/catálogo con Streaming. |
-| [ADR-010](ADR-010-chat-go-redis-efimero.md) | Aceptada | Chat en Go con Redis efímero: script atómico, AOF, Stream como outbox y retención de 5 min tras el fin. |
-| [ADR-007](ADR-007-web-react-typescript.md) | Aceptada | Web React/TypeScript/SWC, pnpm, componentes atómicos, calidad y muestras visuales (integración en ADR-013). |
-| [ADR-008](ADR-008-descubrimiento-en-core.md) | Aceptada | Descubrimiento en Core: graphql-java con controlador propio, recepción atómica de snapshots, reconstrucción con watermark, ranking paginado y límites públicos. |
+| [ADR-010](ADR-010-chat-go-redis-efimero.md) | Aceptada en P1 | Chat en Go con Redis efímero: script atómico, AOF, Stream como outbox y retención de 5 min tras el fin. |
+| [ADR-007](ADR-007-web-react-typescript.md) | Aceptada en P1 | Web React/TypeScript/SWC, pnpm, componentes atómicos, calidad y muestras visuales (integración en ADR-013). |
+| [ADR-008](ADR-008-descubrimiento-en-core.md) | Aceptada en P1 | Descubrimiento en Core: graphql-java con controlador propio, recepción atómica de snapshots, reconstrucción con watermark, ranking paginado y límites públicos. |
 | [ADR-009](ADR-009-s3-image-storage.md) | Aceptada | Bucket S3 privado para avatares/portadas y rutas públicas Core estables. |
-| [ADR-011](ADR-011-streaming-tres-contenedores-p1.md) | Aceptada | Stack Streaming P1 de tres contenedores; adaptador en el runtime Rust, bases separadas y preparación PostgreSQL sin job. |
+| [ADR-011](ADR-011-streaming-tres-contenedores-p1.md) | Aceptada en P1 | Stack Streaming P1 de tres contenedores; adaptador en el runtime Rust, bases separadas y preparación PostgreSQL sin job. |
 | [ADR-012](ADR-012-contratos-generados-p1.md) | Aceptada | Schemas JSON y SDL desde la fuente canónica; generación determinista, checks de drift y consumidores del checkout actual. |
-| [ADR-013](ADR-013-web-integrada-caddy-hls.md) | Aceptada | Web con APIs reales/CSRF, Caddy same-origin, HLS nativo/hls.js, leases y chat recuperable; tipos/validación desde contratos. |
-| [ADR-014](ADR-014-perfil-integrado-tls-p1.md) | Aceptada | Perfil académico persistente, TLS nativo por runtime, RTMPS, CA explícita y almacenamiento compartido. |
+| [ADR-013](ADR-013-web-integrada-caddy-hls.md) | Aceptada en P1 | Web con APIs reales/CSRF, Caddy same-origin, HLS nativo/hls.js, leases y chat recuperable; tipos/validación desde contratos. |
+| [ADR-014](ADR-014-perfil-integrado-tls-p1.md) | Aceptada en P1 | Perfil académico persistente, TLS nativo por runtime, RTMPS, CA explícita y almacenamiento compartido. |
+| [ADR-015](ADR-015-arquitectura-p2.md) | Aceptada para diseño P2 | React Router SSR, KMP + Compose, Gateway, broker único, VOD independiente, replay durable y Notificaciones. Tecnologías nuevas por responsable. |
+| [ADR-016](ADR-016-rabbitmq-eventos-p2.md) | Aceptada para integración inicial | RabbitMQ/AMQP, contratos de ciclo/Discovery, outbox/inbox, DLQ y operación; recuperación ampliada por ADR-017. |
+| [ADR-017](ADR-017-recuperacion-de-credenciales.md) | Aceptada para Cuentas | Recuperación de un uso, cuotas SQL, AES-GCM, revocación transaccional, publicación RabbitMQ y claim/result; consumidor y SMTP de Notificaciones definidos en ADR-020. |
+| [ADR-018](ADR-018-subtitulos-vod-webvtt.md) | Perfil ratificado para VOD en ADR-022 | WebVTT aportado por propietario, dentro de VOD; proveedor y Web implementados, reproducción Web/Android verificada; iOS y tecnología asistiva pendientes. |
+| [ADR-019](ADR-019-administracion-core.md) | Aceptada para integración local | Administración Core, revocación/outbox, acceso VOD/replay, suspensión live e imágenes verificados. |
+| [ADR-020](ADR-020-notificaciones-typescript-postgresql-smtp.md) | Aceptada para Notificaciones | Node.js 24/TypeScript, PostgreSQL propio, SMTP STARTTLS y Mailpit local; entrega e idempotencia durables. |
+| [ADR-021](ADR-021-cliente-mobile-nativo.md) | Aceptada para implementación inicial | Cliente KMP/Compose Android/iOS, Ktor, reproductores y credenciales nativas; integración por APIs públicas. |
+| [ADR-022](ADR-022-vod-go-postgresql-minio.md) | Aceptada para VOD | Go/PostgreSQL/MinIO, escritor VOD y entrega Media, compactación/mapping, permisos60s y pistas SPEC-22. |
+| [ADR-023](ADR-023-gateway-go-caddy.md) | Aceptada para integración VOD | Agregación Go, transporte Caddy, fallos parciales y presupuesto JSON3s. |
+| [ADR-025](ADR-025-watch-parties-en-core.md) | Aceptada para integración local | Watch parties en Core: sala privada por código, hasta 4 fuentes de Streaming, estado honesto por fuente, suspensión, comandos idempotentes y cierre terminal. |
+| [ADR-024](ADR-024-chat-redis-postgresql-replay-moderacion.md) | Aceptada para Chat | Redis para el vivo y PostgreSQL propio para replay, bloqueos y retiros; outbox Redis Stream y moderación del propietario. |
+| [ADR-026](ADR-026-multicalidad-enhanced-rtmp.md) | Aceptada para integración local | Enhanced RTMPS con hasta cuatro H.264, HLS y captura por rendición; una sola sesión/cupo e inventario completo. |
+| [ADR-027](ADR-027-suscripciones-con-efecto-y-retiro-auditable.md) | Aceptada para integración local | Dieciséis suscripciones con efecto, archivo privado de las dos colas sin consumidor y conversión del estado de reconexión P1/P2. |
 
-Chat está seleccionado en ADR-010; las herramientas pendientes de operación y despliegue se registran conforme
+Chat conserva Go; ADR-010 describe su perfil efímero P1 y ADR-024 su almacenamiento P2 (Redis + PostgreSQL); las herramientas pendientes de operación y despliegue se registran conforme
 a la [política ADR](../politica_ADR.md). Las alternativas candidatas requieren decisión del responsable.
 
 La [decisión de entrega durable de callbacks Media](../../services/streaming/docs/adr/0001-media-callback-delivery.md) documenta la persistencia, reintentos, DLQ y capacidad del adaptador de SPEC-04.

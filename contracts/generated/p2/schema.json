@@ -1,0 +1,4269 @@
+{
+  "$defs": {
+    "ActiveTaxonomyValue": {
+      "additionalProperties": true,
+      "examples": [{"active": true, "id": "cat_00000000000000000000000000000001", "name": "Conversación"}],
+      "properties": {
+        "active": {"const": true},
+        "id": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "name": {"type": "string"}
+      },
+      "required": ["id", "name", "active"],
+      "type": "object"
+    },
+    "Binary": {
+      "description": "Raw HTTP bytes: MIME/range/cache are transport assertions, not JSON.",
+      "examples": ["#EXTM3U\n"],
+      "type": "string"
+    },
+    "BootstrapStream": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "availability": "PLAYABLE",
+          "category": {"id": "cat_00000000000000000000000000000001", "name": "Conversación"},
+          "channelId": "chn_fixture",
+          "countVersion": 1,
+          "metadataVersion": 1,
+          "session": {
+            "availability": "PLAYABLE",
+            "channelId": "chn_fixture",
+            "countVersion": 1,
+            "metadataVersion": 1,
+            "playbackUrl": "/hls/ses_fixture/index.m3u8",
+            "sessionId": "ses_fixture",
+            "sessionVersion": 1,
+            "status": "LIVE",
+            "streamGeneration": 1,
+            "streamId": "str_fixture",
+            "timelinePositionMs": 1000,
+            "timelineSampledAtUtc": "2026-10-08T20:00:00Z",
+            "viewerCount": 1,
+            "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+          },
+          "sessionId": "ses_fixture",
+          "sessionVersion": 1,
+          "status": "LIVE",
+          "statusFresh": true,
+          "streamGeneration": 1,
+          "streamId": "str_fixture",
+          "tags": [],
+          "title": "Conversación",
+          "viewerCount": 1,
+          "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+        }
+      ],
+      "properties": {
+        "availability": {"enum": ["OFFLINE", "PLAYABLE", "RECONNECTING"]},
+        "category": {"$ref": "#/$defs/TaxonomyLabel"},
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "countVersion": {"anyOf": [{"maximum": 9007199254740991, "minimum": 0, "type": "integer"}, {"type": "null"}]},
+        "metadataVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "session": {"anyOf": [{"$ref": "#/$defs/PublicSession"}, {"type": "null"}]},
+        "sessionId": {
+          "anyOf": [{"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}, {"type": "null"}]
+        },
+        "sessionVersion": {"anyOf": [{"maximum": 9007199254740991, "minimum": 1, "type": "integer"}, {"type": "null"}]},
+        "status": {"enum": ["OFFLINE", "PREPARING", "LIVE", "ENDED"]},
+        "statusFresh": {"type": "boolean"},
+        "streamGeneration": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "streamId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "tags": {"items": {"$ref": "#/$defs/TaxonomyLabel"}, "maxItems": 5, "minItems": 0, "type": "array"},
+        "title": {"maxLength": 100, "minLength": 1, "type": "string"},
+        "viewerCount": {"anyOf": [{"maximum": 9007199254740991, "minimum": 0, "type": "integer"}, {"type": "null"}]},
+        "viewerCountObservedAtUtc": {"anyOf": [{"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"}, {"type": "null"}]}
+      },
+      "required": [
+        "streamId",
+        "channelId",
+        "sessionId",
+        "streamGeneration",
+        "title",
+        "category",
+        "tags",
+        "status",
+        "availability",
+        "statusFresh",
+        "metadataVersion",
+        "sessionVersion",
+        "session"
+      ],
+      "type": "object"
+    },
+    "CallbackAck": {
+      "additionalProperties": true,
+      "examples": [{"accepted": true, "duplicate": false, "eventId": "00000000-0000-4000-8000-000000000001"}],
+      "properties": {
+        "accepted": {"const": true},
+        "duplicate": {"type": "boolean"},
+        "eventId": {"format": "uuid", "type": "string"},
+        "ignored": {"type": "boolean"},
+        "reason": {"const": "STALE_GENERATION"}
+      },
+      "required": ["accepted", "eventId"],
+      "type": "object"
+    },
+    "CatalogRequest": {
+      "additionalProperties": false,
+      "examples": [{"ids": ["cat_00000000000000000000000000000001"]}],
+      "properties": {
+        "ids": {"items": {"maxLength": 64, "minLength": 1, "type": "string"}, "maxItems": 50, "minItems": 1, "type": "array"}
+      },
+      "required": ["ids"],
+      "type": "object"
+    },
+    "CatalogValues": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "catalogVersion": 1,
+          "values": [{"active": true, "id": "cat_00000000000000000000000000000001", "kind": "CATEGORY", "name": "Conversación"}]
+        }
+      ],
+      "properties": {
+        "catalogVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "values": {"items": {"$ref": "#/$defs/TaxonomyValue"}, "maxItems": 50, "minItems": 0, "type": "array"}
+      },
+      "required": ["catalogVersion", "values"],
+      "type": "object"
+    },
+    "Channel": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "bannerUri": null,
+          "channelId": "chn_fixture",
+          "channelVersion": 0,
+          "description": "",
+          "ownerUserId": "usr_fixture"
+        }
+      ],
+      "properties": {
+        "bannerUri": {"type": ["string", "null"]},
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "channelVersion": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "description": {"maxLength": 500, "type": "string"},
+        "ownerUserId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["channelId", "ownerUserId", "description", "bannerUri", "channelVersion"],
+      "type": "object"
+    },
+    "ChannelBatch": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "items": [
+            {
+              "channelId": "chn_fixture",
+              "configured": true,
+              "observedAtUtc": "2026-10-08T20:00:00Z",
+              "session": {
+                "availability": "PLAYABLE",
+                "channelId": "chn_fixture",
+                "countVersion": 1,
+                "metadataVersion": 1,
+                "playbackUrl": "/hls/ses_fixture/index.m3u8",
+                "sessionId": "ses_fixture",
+                "sessionVersion": 1,
+                "status": "LIVE",
+                "streamGeneration": 1,
+                "streamId": "str_fixture",
+                "timelinePositionMs": 1000,
+                "timelineSampledAtUtc": "2026-10-08T20:00:00Z",
+                "viewerCount": 1,
+                "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+              },
+              "stream": {
+                "availability": "PLAYABLE",
+                "category": {"id": "cat_00000000000000000000000000000001", "name": "Conversación"},
+                "channelId": "chn_fixture",
+                "countVersion": 1,
+                "metadataVersion": 1,
+                "sessionId": "ses_fixture",
+                "sessionVersion": 1,
+                "status": "LIVE",
+                "statusFresh": true,
+                "streamGeneration": 1,
+                "streamId": "str_fixture",
+                "tags": [],
+                "title": "Conversación",
+                "viewerCount": 1,
+                "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+              }
+            }
+          ]
+        }
+      ],
+      "properties": {"items": {"items": {"$ref": "#/$defs/ChannelSnapshot"}, "maxItems": 50, "minItems": 1, "type": "array"}},
+      "required": ["items"],
+      "type": "object"
+    },
+    "ChannelBatchRequest": {
+      "additionalProperties": false,
+      "examples": [{"channelIds": ["chn_fixture"]}],
+      "properties": {
+        "channelIds": {
+          "items": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+          "maxItems": 50,
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": ["channelIds"],
+      "type": "object"
+    },
+    "ChannelBootstrap": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "availability": "OFFLINE",
+          "channel": {
+            "bannerUri": null,
+            "channelId": "chn_fixture",
+            "channelVersion": 0,
+            "description": "",
+            "ownerUserId": "usr_fixture"
+          },
+          "handle": "fixture_01",
+          "profile": {
+            "avatarUri": null,
+            "bio": "",
+            "displayName": "Fixture",
+            "profileVersion": 0,
+            "updatedAtUtc": "2026-10-08T20:00:00Z",
+            "userId": "usr_fixture"
+          },
+          "stream": null,
+          "streamStatusFresh": true
+        }
+      ],
+      "properties": {
+        "availability": {"enum": ["OFFLINE", "PLAYABLE", "RECONNECTING", "UNKNOWN"]},
+        "channel": {"$ref": "#/$defs/Channel"},
+        "handle": {"pattern": "^[a-zA-Z0-9_]{4,25}$", "type": "string"},
+        "profile": {"$ref": "#/$defs/Profile"},
+        "stream": {"anyOf": [{"$ref": "#/$defs/BootstrapStream"}, {"type": "null"}]},
+        "streamStatusFresh": {"type": "boolean"}
+      },
+      "required": ["channel", "handle", "profile", "stream", "streamStatusFresh", "availability"],
+      "type": "object"
+    },
+    "ChannelPatch": {
+      "additionalProperties": false,
+      "examples": [{"description": "Canal de prueba"}],
+      "minProperties": 1,
+      "properties": {
+        "bannerUploadId": {
+          "anyOf": [{"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}, {"type": "null"}]
+        },
+        "description": {"anyOf": [{"maxLength": 500, "type": "string"}, {"type": "null"}]}
+      },
+      "required": [],
+      "type": "object"
+    },
+    "ChannelSnapshot": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "channelId": "chn_fixture",
+          "configured": true,
+          "observedAtUtc": "2026-10-08T20:00:00Z",
+          "session": {
+            "availability": "PLAYABLE",
+            "channelId": "chn_fixture",
+            "countVersion": 1,
+            "metadataVersion": 1,
+            "playbackUrl": "/hls/ses_fixture/index.m3u8",
+            "sessionId": "ses_fixture",
+            "sessionVersion": 1,
+            "status": "LIVE",
+            "streamGeneration": 1,
+            "streamId": "str_fixture",
+            "timelinePositionMs": 1000,
+            "timelineSampledAtUtc": "2026-10-08T20:00:00Z",
+            "viewerCount": 1,
+            "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+          },
+          "stream": {
+            "availability": "PLAYABLE",
+            "category": {"id": "cat_00000000000000000000000000000001", "name": "Conversación"},
+            "channelId": "chn_fixture",
+            "countVersion": 1,
+            "metadataVersion": 1,
+            "sessionId": "ses_fixture",
+            "sessionVersion": 1,
+            "status": "LIVE",
+            "statusFresh": true,
+            "streamGeneration": 1,
+            "streamId": "str_fixture",
+            "tags": [],
+            "title": "Conversación",
+            "viewerCount": 1,
+            "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+          }
+        }
+      ],
+      "properties": {
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "configured": {"type": "boolean"},
+        "observedAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "session": {"anyOf": [{"$ref": "#/$defs/PublicSession"}, {"type": "null"}]},
+        "stream": {"anyOf": [{"$ref": "#/$defs/PublicStream"}, {"type": "null"}]}
+      },
+      "required": ["channelId", "configured", "stream", "session", "observedAtUtc"],
+      "type": "object"
+    },
+    "ChatAuthor": {
+      "additionalProperties": true,
+      "examples": [{"avatarUri": null, "displayName": "Fixture", "handle": "fixture_01", "userId": "usr_fixture"}],
+      "properties": {
+        "avatarUri": {"type": ["string", "null"]},
+        "displayName": {"type": "string"},
+        "handle": {"pattern": "^[a-zA-Z0-9_]{4,25}$", "type": "string"},
+        "userId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["userId", "handle", "displayName", "avatarUri"],
+      "type": "object"
+    },
+    "ChatContext": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "authorizedAtUtc": "2026-10-08T20:00:00Z",
+          "availability": "PLAYABLE",
+          "avatarUri": null,
+          "denialCode": null,
+          "displayName": "Fixture",
+          "handle": "fixture_01",
+          "profileVersion": 0,
+          "sessionId": "ses_fixture",
+          "sessionVersion": 1,
+          "streamGeneration": 1,
+          "timelinePositionMs": 1000,
+          "timelineSampleVersion": 1,
+          "userId": "usr_fixture",
+          "writeAllowed": true
+        }
+      ],
+      "properties": {
+        "authorizedAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "availability": {"enum": ["OFFLINE", "PLAYABLE", "RECONNECTING"]},
+        "avatarUri": {"type": ["string", "null"]},
+        "denialCode": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        "displayName": {"type": "string"},
+        "handle": {"pattern": "^[a-zA-Z0-9_]{4,25}$", "type": "string"},
+        "profileVersion": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "sessionVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "streamGeneration": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "timelinePositionMs": {"anyOf": [{"maximum": 9007199254740991, "minimum": 0, "type": "integer"}, {"type": "null"}]},
+        "timelineSampleVersion": {"anyOf": [{"maximum": 9007199254740991, "minimum": 1, "type": "integer"}, {"type": "null"}]},
+        "userId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "writeAllowed": {"type": "boolean"}
+      },
+      "required": [
+        "userId",
+        "handle",
+        "displayName",
+        "avatarUri",
+        "profileVersion",
+        "sessionId",
+        "streamGeneration",
+        "sessionVersion",
+        "availability",
+        "authorizedAtUtc",
+        "timelinePositionMs",
+        "timelineSampleVersion",
+        "writeAllowed",
+        "denialCode"
+      ],
+      "type": "object"
+    },
+    "ChatContextRequest": {
+      "additionalProperties": false,
+      "examples": [{"clientMessageId": "00000000-0000-4000-8000-000000000001", "sessionId": "ses_fixture"}],
+      "properties": {
+        "clientMessageId": {"format": "uuid", "type": "string"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["sessionId", "clientMessageId"],
+      "type": "object"
+    },
+    "ChatError": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "clientMessageId": "00000000-0000-4000-8000-000000000001",
+          "code": "RATE_LIMITED",
+          "message": "Espera antes de enviar.",
+          "retryAfterMs": 1000,
+          "type": "error"
+        }
+      ],
+      "properties": {
+        "clientMessageId": {"format": "uuid", "type": "string"},
+        "code": {"type": "string"},
+        "message": {"type": "string"},
+        "retryAfterMs": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "type": {"const": "error"}
+      },
+      "required": ["type", "code", "message"],
+      "type": "object"
+    },
+    "ChatHistory": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "items": [
+            {
+              "author": {"avatarUri": null, "displayName": "Fixture", "handle": "fixture_01", "userId": "usr_fixture"},
+              "messageId": "msg_fixture",
+              "sequence": 1,
+              "serverCreatedAtUtc": "2026-10-08T20:00:00Z",
+              "sessionId": "ses_fixture",
+              "streamGeneration": 1,
+              "streamOffsetMs": 1000,
+              "text": "Hola"
+            }
+          ],
+          "roomStatus": "OPEN",
+          "sessionId": "ses_fixture",
+          "snapshotSequence": 1
+        }
+      ],
+      "properties": {
+        "items": {"items": {"$ref": "#/$defs/ChatMessage"}, "maxItems": 50, "minItems": 0, "type": "array"},
+        "roomStatus": {"enum": ["OPEN", "NOT_OPEN", "READ_ONLY"]},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "snapshotSequence": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"}
+      },
+      "required": ["sessionId", "roomStatus", "snapshotSequence", "items"],
+      "type": "object"
+    },
+    "ChatMessage": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "author": {"avatarUri": null, "displayName": "Fixture", "handle": "fixture_01", "userId": "usr_fixture"},
+          "messageId": "msg_fixture",
+          "sequence": 1,
+          "serverCreatedAtUtc": "2026-10-08T20:00:00Z",
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1,
+          "streamOffsetMs": 1000,
+          "text": "Hola"
+        }
+      ],
+      "properties": {
+        "author": {"$ref": "#/$defs/ChatAuthor"},
+        "messageId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "serverCreatedAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "streamGeneration": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "streamOffsetMs": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "text": {"maxLength": 500, "minLength": 1, "type": "string"}
+      },
+      "required": [
+        "messageId",
+        "sessionId",
+        "sequence",
+        "author",
+        "text",
+        "serverCreatedAtUtc",
+        "streamOffsetMs",
+        "streamGeneration"
+      ],
+      "type": "object"
+    },
+    "ChatReady": {
+      "additionalProperties": true,
+      "examples": [{"lastSequence": 0, "roomStatus": "OPEN", "sessionId": "ses_fixture", "type": "chat.ready"}],
+      "properties": {
+        "lastSequence": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "roomStatus": {"enum": ["OPEN", "NOT_OPEN", "READ_ONLY"]},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "type": {"const": "chat.ready"}
+      },
+      "required": ["type", "sessionId", "roomStatus", "lastSequence"],
+      "type": "object"
+    },
+    "ChatSnapshot": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "availability": "PLAYABLE",
+          "sessionId": "ses_fixture",
+          "sessionVersion": 1,
+          "status": "LIVE",
+          "streamGeneration": 1,
+          "streamId": "str_fixture",
+          "timelinePositionMs": 1000
+        }
+      ],
+      "properties": {
+        "availability": {"enum": ["OFFLINE", "PLAYABLE", "RECONNECTING"]},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "sessionVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "status": {"enum": ["PREPARING", "LIVE", "RECONNECT_GRACE", "ENDED"]},
+        "streamGeneration": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "streamId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "timelinePositionMs": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"}
+      },
+      "required": ["streamId", "sessionId", "streamGeneration", "sessionVersion", "status", "availability", "timelinePositionMs"],
+      "type": "object"
+    },
+    "ChatStatus": {
+      "additionalProperties": true,
+      "examples": [{"roomStatus": "READ_ONLY", "sessionId": "ses_fixture", "type": "chat.status"}],
+      "properties": {
+        "roomStatus": {"enum": ["OPEN", "NOT_OPEN", "READ_ONLY"]},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "type": {"const": "chat.status"}
+      },
+      "required": ["type", "sessionId", "roomStatus"],
+      "type": "object"
+    },
+    "Csrf": {
+      "additionalProperties": true,
+      "examples": [{"headerName": "X-XSRF-TOKEN", "token": "fictitious-csrf-token"}],
+      "properties": {"headerName": {"const": "X-XSRF-TOKEN"}, "token": {"type": "string"}},
+      "required": ["headerName", "token"],
+      "type": "object"
+    },
+    "DiscoveryEvent": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "aggregateId": "stream:str_fixture",
+          "eventId": "00000000-0000-4000-8000-000000000001",
+          "eventType": "StreamDiscoverySnapshot",
+          "occurredAtUtc": "2026-10-08T20:00:00Z",
+          "payload": {
+            "availability": "PLAYABLE",
+            "category": {"id": "cat_00000000000000000000000000000001", "name": "Conversación"},
+            "channelId": "chn_fixture",
+            "countVersion": 1,
+            "discoveryPosition": 1,
+            "metadataVersion": 1,
+            "projectionVersion": 1,
+            "sessionId": "ses_fixture",
+            "sessionVersion": 1,
+            "startedAtUtc": "2026-10-08T20:00:00Z",
+            "stateObservedAtUtc": "2026-10-08T20:00:00Z",
+            "status": "LIVE",
+            "streamGeneration": 1,
+            "streamId": "str_fixture",
+            "tags": [],
+            "title": "Conversación",
+            "viewerCount": 1,
+            "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+          },
+          "producer": "streaming",
+          "schemaVersion": 1,
+          "sequence": 1
+        }
+      ],
+      "properties": {
+        "aggregateId": {"type": "string"},
+        "eventId": {"format": "uuid", "type": "string"},
+        "eventType": {"const": "StreamDiscoverySnapshot"},
+        "occurredAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "payload": {"$ref": "#/$defs/DiscoverySnapshot"},
+        "producer": {"const": "streaming"},
+        "schemaVersion": {"const": 1},
+        "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": ["eventId", "eventType", "schemaVersion", "aggregateId", "sequence", "occurredAtUtc", "producer", "payload"],
+      "type": "object"
+    },
+    "DiscoveryPage": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "capturedAtUtc": "2026-10-08T20:00:00Z",
+          "expiresAtUtc": "2026-10-08T20:00:00Z",
+          "items": [
+            {
+              "availability": "PLAYABLE",
+              "category": {"id": "cat_00000000000000000000000000000001", "name": "Conversación"},
+              "channelId": "chn_fixture",
+              "countVersion": 1,
+              "discoveryPosition": 1,
+              "metadataVersion": 1,
+              "projectionVersion": 1,
+              "sessionId": "ses_fixture",
+              "sessionVersion": 1,
+              "startedAtUtc": "2026-10-08T20:00:00Z",
+              "stateObservedAtUtc": "2026-10-08T20:00:00Z",
+              "status": "LIVE",
+              "streamGeneration": 1,
+              "streamId": "str_fixture",
+              "tags": [],
+              "title": "Conversación",
+              "viewerCount": 1,
+              "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+            }
+          ],
+          "nextCursor": null,
+          "snapshotId": "snap_fixture",
+          "watermark": 1
+        }
+      ],
+      "properties": {
+        "capturedAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "expiresAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "items": {"items": {"$ref": "#/$defs/DiscoverySnapshot"}, "maxItems": 50, "minItems": 0, "type": "array"},
+        "nextCursor": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        "snapshotId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "watermark": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"}
+      },
+      "required": ["snapshotId", "watermark", "capturedAtUtc", "expiresAtUtc", "items", "nextCursor"],
+      "type": "object"
+    },
+    "DiscoverySnapshot": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "availability": "PLAYABLE",
+          "category": {"id": "cat_00000000000000000000000000000001", "name": "Conversación"},
+          "channelId": "chn_fixture",
+          "countVersion": 1,
+          "discoveryPosition": 1,
+          "metadataVersion": 1,
+          "projectionVersion": 1,
+          "sessionId": "ses_fixture",
+          "sessionVersion": 1,
+          "startedAtUtc": "2026-10-08T20:00:00Z",
+          "stateObservedAtUtc": "2026-10-08T20:00:00Z",
+          "status": "LIVE",
+          "streamGeneration": 1,
+          "streamId": "str_fixture",
+          "tags": [],
+          "title": "Conversación",
+          "viewerCount": 1,
+          "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+        }
+      ],
+      "properties": {
+        "availability": {"enum": ["OFFLINE", "PLAYABLE", "RECONNECTING"]},
+        "category": {"$ref": "#/$defs/TaxonomyLabel"},
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "countVersion": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "discoveryPosition": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "metadataVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "projectionVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "sessionId": {
+          "anyOf": [{"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}, {"type": "null"}]
+        },
+        "sessionVersion": {"anyOf": [{"maximum": 9007199254740991, "minimum": 1, "type": "integer"}, {"type": "null"}]},
+        "startedAtUtc": {"anyOf": [{"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"}, {"type": "null"}]},
+        "stateObservedAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "status": {"enum": ["OFFLINE", "PREPARING", "LIVE", "ENDED"]},
+        "streamGeneration": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "streamId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "tags": {"items": {"$ref": "#/$defs/TaxonomyLabel"}, "maxItems": 5, "minItems": 0, "type": "array"},
+        "title": {"maxLength": 100, "minLength": 1, "type": "string"},
+        "viewerCount": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "viewerCountObservedAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"}
+      },
+      "required": [
+        "streamId",
+        "channelId",
+        "sessionId",
+        "streamGeneration",
+        "title",
+        "category",
+        "tags",
+        "status",
+        "availability",
+        "metadataVersion",
+        "sessionVersion",
+        "viewerCount",
+        "countVersion",
+        "viewerCountObservedAtUtc",
+        "projectionVersion",
+        "discoveryPosition",
+        "startedAtUtc",
+        "stateObservedAtUtc"
+      ],
+      "type": "object"
+    },
+    "Error": {
+      "additionalProperties": true,
+      "examples": [{"code": "CORE_UNAVAILABLE", "message": "Servicio no disponible.", "requestId": "req_fixture"}],
+      "properties": {
+        "code": {"minLength": 1, "type": "string"},
+        "fieldErrors": {"additionalProperties": {"type": "string"}, "type": "object"},
+        "message": {"type": "string"},
+        "requestId": {"type": "string"}
+      },
+      "required": ["code", "message", "requestId"],
+      "type": "object"
+    },
+    "EventAck": {
+      "additionalProperties": true,
+      "examples": [{"accepted": true, "duplicate": false}],
+      "properties": {"accepted": {"type": "boolean"}, "duplicate": {"type": "boolean"}},
+      "required": [],
+      "type": "object"
+    },
+    "GraphQLError": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "extensions": {"code": "INVALID_FILTER", "httpStatus": 422, "requestId": "req_fixture"},
+          "message": "Filtro inválido.",
+          "path": ["streams"]
+        }
+      ],
+      "properties": {
+        "extensions": {
+          "additionalProperties": true,
+          "properties": {"code": {"type": "string"}, "httpStatus": {"type": "integer"}, "requestId": {"type": "string"}},
+          "required": ["code", "httpStatus", "requestId"],
+          "type": "object"
+        },
+        "message": {"type": "string"},
+        "path": {"items": {"type": ["string", "integer"]}, "maxItems": 20, "minItems": 0, "type": "array"}
+      },
+      "required": ["message", "extensions"],
+      "type": "object"
+    },
+    "GraphQLRequest": {
+      "additionalProperties": false,
+      "examples": [{"operationName": null, "query": "query { channels { items { channelId handle } } }", "variables": {}}],
+      "properties": {
+        "operationName": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        "query": {"minLength": 1, "type": "string"},
+        "variables": {"anyOf": [{"type": "object"}, {"type": "null"}]}
+      },
+      "required": ["query"],
+      "type": "object"
+    },
+    "GraphQLResponse": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "data": {"channels": {"generatedAtUtc": "2026-10-08T20:00:00Z", "items": [], "nextCursor": null, "statusFresh": true}}
+        }
+      ],
+      "minProperties": 1,
+      "properties": {
+        "data": {"anyOf": [{"type": "object"}, {"type": "null"}]},
+        "errors": {"items": {"$ref": "#/$defs/GraphQLError"}, "maxItems": 20, "minItems": 0, "type": "array"}
+      },
+      "required": [],
+      "type": "object"
+    },
+    "Health": {
+      "additionalProperties": true,
+      "examples": [{"status": "UP"}],
+      "properties": {"status": {"type": "string"}},
+      "required": ["status"],
+      "type": "object"
+    },
+    "IngestAuthorization": {
+      "additionalProperties": true,
+      "examples": [{"sessionId": "ses_fixture", "sourceGeneration": 1, "streamGeneration": 1, "streamId": "str_fixture"}],
+      "properties": {
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "sourceGeneration": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "streamGeneration": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "streamId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["streamId", "sessionId", "streamGeneration", "sourceGeneration"],
+      "type": "object"
+    },
+    "IngestKey": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "channelId": "chn_fixture",
+          "ingestKeyVersion": 1,
+          "rtmpUrl": "rtmp://localhost:1935/live",
+          "streamId": "str_fixture",
+          "streamKey": "fictitious-stream-key"
+        }
+      ],
+      "properties": {
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "ingestKeyVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "rtmpUrl": {"type": "string"},
+        "streamId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "streamKey": {"type": "string"}
+      },
+      "required": ["streamId", "channelId", "rtmpUrl", "streamKey", "ingestKeyVersion"],
+      "type": "object"
+    },
+    "IngestRequest": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "ingestAttemptId": "00000000-0000-4000-8000-000000000001",
+          "streamId": "str_fixture",
+          "streamKey": "fictitious-stream-key"
+        }
+      ],
+      "properties": {
+        "ingestAttemptId": {"format": "uuid", "type": "string"},
+        "streamId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "streamKey": {"maxLength": 4096, "minLength": 1, "type": "string"}
+      },
+      "required": ["ingestAttemptId", "streamKey"],
+      "type": "object"
+    },
+    "LeaseHeartbeat": {
+      "additionalProperties": true,
+      "examples": [{"expiresAtUtc": "2026-10-08T20:00:00Z", "leaseId": "lease_fixture", "sessionId": "ses_fixture"}],
+      "properties": {
+        "expiresAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "leaseId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["leaseId", "sessionId", "expiresAtUtc"],
+      "type": "object"
+    },
+    "LifecycleEvent": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "aggregateId": "session:ses_fixture",
+          "eventId": "00000000-0000-4000-8000-000000000001",
+          "eventType": "StreamSessionStarted",
+          "occurredAtUtc": "2026-10-08T20:00:00Z",
+          "payload": {
+            "availability": "PLAYABLE",
+            "sessionId": "ses_fixture",
+            "sessionVersion": 1,
+            "status": "LIVE",
+            "streamGeneration": 1,
+            "streamId": "str_fixture"
+          },
+          "producer": "streaming",
+          "schemaVersion": 1,
+          "sequence": 1
+        }
+      ],
+      "properties": {
+        "aggregateId": {"type": "string"},
+        "eventId": {"format": "uuid", "type": "string"},
+        "eventType": {"type": "string"},
+        "occurredAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "payload": {"$ref": "#/$defs/LifecyclePayload"},
+        "producer": {"const": "streaming"},
+        "schemaVersion": {"const": 1},
+        "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": ["eventId", "eventType", "schemaVersion", "aggregateId", "sequence", "occurredAtUtc", "producer", "payload"],
+      "type": "object"
+    },
+    "LifecyclePayload": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "availability": "PLAYABLE",
+          "sessionId": "ses_fixture",
+          "sessionVersion": 1,
+          "status": "LIVE",
+          "streamGeneration": 1,
+          "streamId": "str_fixture"
+        }
+      ],
+      "properties": {
+        "availability": {"enum": ["OFFLINE", "PLAYABLE", "RECONNECTING"]},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "sessionVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "status": {"enum": ["PREPARING", "LIVE", "RECONNECT_GRACE", "ENDED"]},
+        "streamGeneration": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "streamId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["streamId", "sessionId", "streamGeneration", "sessionVersion", "status", "availability"],
+      "type": "object"
+    },
+    "Login": {
+      "additionalProperties": true,
+      "examples": [{"expiresAtUtc": "2026-10-08T20:00:00Z", "userId": "usr_fixture"}],
+      "properties": {
+        "expiresAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "userId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["userId", "expiresAtUtc"],
+      "type": "object"
+    },
+    "LoginRequest": {
+      "additionalProperties": false,
+      "examples": [{"login": "fixture_01", "password": "Fictitious-password-123"}],
+      "properties": {"login": {"minLength": 1, "type": "string"}, "password": {"type": "string"}},
+      "required": ["login", "password"],
+      "type": "object"
+    },
+    "MediaAuthRequest": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "action": "publish",
+          "id": "00000000-0000-4000-8000-000000000001",
+          "password": "",
+          "path": "live/sk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "protocol": "rtmp",
+          "user": ""
+        }
+      ],
+      "properties": {
+        "action": {"type": "string"},
+        "id": {"anyOf": [{"format": "uuid", "type": "string"}, {"type": "null"}]},
+        "password": {"type": "string"},
+        "path": {"type": "string"},
+        "protocol": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        "user": {"type": "string"}
+      },
+      "required": ["action"],
+      "type": "object"
+    },
+    "MediaCallback": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "eventId": "00000000-0000-4000-8000-000000000001",
+          "sessionId": "ses_fixture",
+          "sourceGeneration": 1,
+          "streamGeneration": 1,
+          "streamId": "str_fixture"
+        }
+      ],
+      "properties": {
+        "eventId": {"format": "uuid", "type": "string"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "sourceGeneration": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "streamGeneration": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "streamId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["eventId", "streamId", "sessionId", "streamGeneration", "sourceGeneration"],
+      "type": "object"
+    },
+    "MediaControlError": {
+      "additionalProperties": true,
+      "examples": [{"error": "not found"}],
+      "properties": {"error": {"type": "string"}},
+      "required": ["error"],
+      "type": "object"
+    },
+    "MediaControlStatus": {
+      "additionalProperties": true,
+      "description": "Private control operations consume HTTP status only; additive JSON fields are intentionally opaque.",
+      "examples": [{}],
+      "properties": {},
+      "required": [],
+      "type": "object"
+    },
+    "MediaPath": {
+      "additionalProperties": true,
+      "examples": [{"online": true, "ready": true, "source": {"id": "00000000-0000-4000-8000-000000000001", "type": "rtmpConn"}}],
+      "properties": {
+        "online": {"type": "boolean"},
+        "ready": {"type": "boolean"},
+        "source": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "properties": {"id": {"format": "uuid", "type": "string"}, "type": {"type": "string"}},
+              "required": ["id", "type"],
+              "type": "object"
+            },
+            {"type": "null"}
+          ]
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "MediaPublisher": {
+      "additionalProperties": true,
+      "description": "Private publisher connection. Its secret ingest path is transient and never persisted, logged or exposed publicly.",
+      "examples": [
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "path": "live/sk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "state": "publish"
+        }
+      ],
+      "properties": {"id": {"format": "uuid", "type": "string"}, "path": {"type": "string"}, "state": {"type": "string"}},
+      "required": ["id", "state", "path"],
+      "type": "object"
+    },
+    "MessageAccepted": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "clientMessageId": "00000000-0000-4000-8000-000000000001",
+          "messageId": "msg_fixture",
+          "sequence": 1,
+          "serverCreatedAtUtc": "2026-10-08T20:00:00Z",
+          "sessionId": "ses_fixture",
+          "type": "message.accepted"
+        }
+      ],
+      "properties": {
+        "clientMessageId": {"format": "uuid", "type": "string"},
+        "messageId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "serverCreatedAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "type": {"const": "message.accepted"}
+      },
+      "required": ["type", "clientMessageId", "messageId", "sessionId", "sequence", "serverCreatedAtUtc"],
+      "type": "object"
+    },
+    "MessageCreated": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "message": {
+            "author": {"avatarUri": null, "displayName": "Fixture", "handle": "fixture_01", "userId": "usr_fixture"},
+            "messageId": "msg_fixture",
+            "sequence": 1,
+            "serverCreatedAtUtc": "2026-10-08T20:00:00Z",
+            "sessionId": "ses_fixture",
+            "streamGeneration": 1,
+            "streamOffsetMs": 1000,
+            "text": "Hola"
+          },
+          "type": "message.created"
+        }
+      ],
+      "properties": {"message": {"$ref": "#/$defs/ChatMessage"}, "type": {"const": "message.created"}},
+      "required": ["type", "message"],
+      "type": "object"
+    },
+    "MessageSend": {
+      "additionalProperties": false,
+      "examples": [{"clientMessageId": "00000000-0000-4000-8000-000000000001", "text": "Hola", "type": "message.send"}],
+      "properties": {
+        "clientMessageId": {"format": "uuid", "type": "string"},
+        "text": {"maxLength": 500, "minLength": 1, "type": "string"},
+        "type": {"const": "message.send"}
+      },
+      "required": ["type", "clientMessageId", "text"],
+      "type": "object"
+    },
+    "MultipartImage": {
+      "additionalProperties": false,
+      "examples": [{"file": "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="}],
+      "properties": {
+        "file": {
+          "contentEncoding": "base64",
+          "description": "Decoded JPEG/PNG/GIF <=10 MB; multipart field file, not a JSON HTTP body.",
+          "type": "string"
+        }
+      },
+      "required": ["file"],
+      "type": "object"
+    },
+    "OwnerContext": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "authorizedAtUtc": "2026-10-08T20:00:00Z",
+          "catalogVersion": 1,
+          "category": {"active": true, "id": "cat_00000000000000000000000000000001", "kind": "CATEGORY", "name": "Conversación"},
+          "channelId": "chn_fixture",
+          "commandId": "00000000-0000-4000-8000-000000000001",
+          "operation": "CREATE_CONFIG",
+          "tags": [],
+          "userId": "usr_fixture"
+        }
+      ],
+      "properties": {
+        "authorizedAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "catalogVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "category": {"$ref": "#/$defs/TaxonomyValue"},
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "commandId": {"format": "uuid", "type": "string"},
+        "operation": {"enum": ["CREATE_CONFIG", "PATCH_METADATA", "ROTATE_KEY", "STOP_SESSION"]},
+        "tags": {"items": {"$ref": "#/$defs/TaxonomyValue"}, "maxItems": 5, "minItems": 0, "type": "array"},
+        "userId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["commandId", "operation", "userId", "channelId", "authorizedAtUtc", "catalogVersion"],
+      "type": "object"
+    },
+    "OwnerRequest": {
+      "additionalProperties": true,
+      "allOf": [{"if": {"properties": {"operation": {"const": "CREATE_CONFIG"}}}, "then": {"required": ["categoryId"]}}],
+      "examples": [
+        {
+          "categoryId": "cat_00000000000000000000000000000001",
+          "channelId": "chn_fixture",
+          "commandId": "00000000-0000-4000-8000-000000000001",
+          "operation": "CREATE_CONFIG",
+          "tagIds": []
+        }
+      ],
+      "properties": {
+        "categoryId": {"maxLength": 64, "minLength": 1, "type": "string"},
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "commandId": {"format": "uuid", "type": "string"},
+        "operation": {"enum": ["CREATE_CONFIG", "PATCH_METADATA", "ROTATE_KEY", "STOP_SESSION"]},
+        "tagIds": {"items": {"maxLength": 64, "minLength": 1, "type": "string"}, "maxItems": 5, "minItems": 0, "type": "array"}
+      },
+      "required": ["commandId", "operation", "channelId"],
+      "type": "object"
+    },
+    "P2Accepted": {
+      "additionalProperties": false,
+      "examples": [{"operationId": "op_fixture", "status": "PENDING", "statusUri": "/api/vods/operations/op_fixture"}],
+      "properties": {
+        "operationId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "status": {"const": "PENDING"},
+        "statusUri": {"maxLength": 300, "type": "string"}
+      },
+      "required": ["operationId", "status", "statusUri"],
+      "type": "object"
+    },
+    "P2AccessContext": {
+      "additionalProperties": false,
+      "examples": [{"accountVersion": 0, "active": true, "administrator": false, "ownerUserId": "usr_fixture", "userId": null}],
+      "properties": {
+        "accountVersion": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "active": {"type": "boolean"},
+        "administrator": {"type": "boolean"},
+        "ownerUserId": {"type": ["string", "null"]},
+        "userId": {"type": ["string", "null"]}
+      },
+      "required": ["userId", "ownerUserId", "accountVersion", "active", "administrator"],
+      "type": "object"
+    },
+    "P2AccessRequest": {
+      "additionalProperties": false,
+      "examples": [{"channelId": "chn_fixture", "operation": "READ"}],
+      "properties": {
+        "categoryId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "channelId": {"maxLength": 128, "type": "string"},
+        "operation": {"enum": ["READ", "WRITE", "SESSION", "ADMIN"]},
+        "tagIds": {
+          "items": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+          "maxItems": 5,
+          "type": "array"
+        }
+      },
+      "required": ["channelId", "operation"],
+      "type": "object"
+    },
+    "P2AccountAdmin": {
+      "additionalProperties": false,
+      "examples": [{"accountVersion": 0, "handle": "fixture", "status": "ACTIVE", "userId": "usr_fixture"}],
+      "properties": {
+        "accountVersion": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "handle": {"maxLength": 25, "minLength": 4, "type": "string"},
+        "status": {"enum": ["ACTIVE", "SUSPENDED"]},
+        "userId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["userId", "handle", "status", "accountVersion"],
+      "type": "object"
+    },
+    "P2AccountAdminPage": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "items": [{"accountVersion": 0, "handle": "fixture", "status": "ACTIVE", "userId": "usr_fixture"}],
+          "nextCursor": null
+        }
+      ],
+      "properties": {
+        "items": {"items": {"$ref": "#/$defs/P2AccountAdmin"}, "maxItems": 50, "type": "array"},
+        "nextCursor": {"anyOf": [{"maxLength": 512, "minLength": 1, "type": "string"}, {"type": "null"}]}
+      },
+      "required": ["items", "nextCursor"],
+      "type": "object"
+    },
+    "P2AccountStatusCommand": {
+      "additionalProperties": false,
+      "examples": [{"expectedVersion": 0, "reason": "Fixture", "status": "SUSPENDED"}],
+      "properties": {
+        "expectedVersion": {"maximum": 9007199254740990, "minimum": 0, "type": "integer"},
+        "reason": {"maxLength": 500, "minLength": 1, "pattern": "\\S", "type": "string"},
+        "status": {"enum": ["ACTIVE", "SUSPENDED"]}
+      },
+      "required": ["status", "expectedVersion", "reason"],
+      "type": "object"
+    },
+    "P2AccountStatusPayload": {
+      "additionalProperties": false,
+      "examples": [{"accountVersion": 1, "status": "SUSPENDED", "userId": "usr_fixture"}],
+      "properties": {
+        "accountVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "status": {"enum": ["ACTIVE", "SUSPENDED"]},
+        "userId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["userId", "accountVersion", "status"],
+      "type": "object"
+    },
+    "P2Autopublish": {
+      "additionalProperties": false,
+      "examples": [{"channelId": "chn_fixture", "enabled": true, "version": 1}],
+      "properties": {
+        "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "enabled": {"type": "boolean"},
+        "version": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": ["channelId", "enabled", "version"],
+      "type": "object"
+    },
+    "P2AutopublishUpdate": {
+      "additionalProperties": false,
+      "examples": [{"enabled": false, "expectedVersion": 1}],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "expectedVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": ["enabled", "expectedVersion"],
+      "type": "object"
+    },
+    "P2CaptureFailure": {
+      "additionalProperties": false,
+      "examples": [{"code": "CAPTURE_SEGMENT_MISSING"}],
+      "properties": {"code": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}},
+      "required": ["code"],
+      "type": "object"
+    },
+    "P2ChannelAdmin": {
+      "additionalProperties": false,
+      "examples": [{"channelId": "chn_fixture", "channelVersion": 0, "ownerUserId": "usr_fixture"}],
+      "properties": {
+        "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "channelVersion": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "ownerUserId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["channelId", "ownerUserId", "channelVersion"],
+      "type": "object"
+    },
+    "P2ChannelAdminPage": {
+      "additionalProperties": false,
+      "examples": [{"items": [{"channelId": "chn_fixture", "channelVersion": 0, "ownerUserId": "usr_fixture"}], "nextCursor": null}],
+      "properties": {
+        "items": {"items": {"$ref": "#/$defs/P2ChannelAdmin"}, "maxItems": 50, "type": "array"},
+        "nextCursor": {"anyOf": [{"maxLength": 512, "minLength": 1, "type": "string"}, {"type": "null"}]}
+      },
+      "required": ["items", "nextCursor"],
+      "type": "object"
+    },
+    "P2ChannelPreference": {
+      "additionalProperties": false,
+      "description": "A medium is used for a channel only when both the general switch and this channel switch are on.",
+      "examples": [{"channelId": "chn_fixture", "emailEnabled": true, "pushEnabled": false, "version": 2}],
+      "properties": {
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "emailEnabled": {"type": "boolean"},
+        "pushEnabled": {"type": "boolean"},
+        "version": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": ["channelId", "emailEnabled", "pushEnabled", "version"],
+      "type": "object"
+    },
+    "P2ChannelPreferences": {
+      "additionalProperties": false,
+      "examples": [{"emailEnabled": true, "expectedVersion": 1, "pushEnabled": false}],
+      "properties": {
+        "emailEnabled": {"type": "boolean"},
+        "expectedVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "pushEnabled": {"type": "boolean"}
+      },
+      "required": ["emailEnabled", "pushEnabled", "expectedVersion"],
+      "type": "object"
+    },
+    "P2ChannelScreen": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "channel": {
+            "availability": "OFFLINE",
+            "channel": {
+              "bannerUri": null,
+              "channelId": "chn_fixture",
+              "channelVersion": 0,
+              "description": "",
+              "ownerUserId": "usr_fixture"
+            },
+            "handle": "fixture_01",
+            "profile": {
+              "avatarUri": null,
+              "bio": "",
+              "displayName": "Fixture",
+              "profileVersion": 0,
+              "updatedAtUtc": "2026-10-08T20:00:00Z",
+              "userId": "usr_fixture"
+            },
+            "stream": null,
+            "streamStatusFresh": true
+          },
+          "follow": {"error": {"code": "SESSION_REQUIRED", "requestId": "req_fixture", "retryable": false}, "status": "DENIED"},
+          "live": {"status": "EMPTY"},
+          "meta": {"partial": false, "requestId": "req_fixture"},
+          "vods": {"data": {"items": [], "nextCursor": null}, "status": "EMPTY"}
+        }
+      ],
+      "properties": {
+        "channel": {"$ref": "#/$defs/ChannelBootstrap"},
+        "follow": {"$ref": "#/$defs/P2FollowSection"},
+        "live": {"$ref": "#/$defs/P2LiveSection"},
+        "meta": {"$ref": "#/$defs/P2ScreenMeta"},
+        "vods": {"$ref": "#/$defs/P2VodSection"}
+      },
+      "required": ["channel", "vods", "live", "follow", "meta"],
+      "type": "object"
+    },
+    "P2ChannelSection": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {"data": {"$ref": "#/$defs/ChannelBootstrap"}, "status": {"const": "AVAILABLE"}},
+          "required": ["status", "data"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {"data": {"$ref": "#/$defs/ChannelBootstrap"}, "status": {"const": "EMPTY"}},
+          "required": ["status"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {"error": {"$ref": "#/$defs/P2SectionError"}, "status": {"enum": ["UNAVAILABLE", "DENIED"]}},
+          "required": ["status", "error"],
+          "type": "object"
+        }
+      ]
+    },
+    "P2ChatBlock": {
+      "additionalProperties": false,
+      "description": "version 0 means never blocked; lifting keeps and increments the version. active follows server time.",
+      "examples": [
+        {
+          "active": true,
+          "blockedAtUtc": "2026-10-28T20:00:00Z",
+          "channelId": "chn_fixture",
+          "duration": "PT1H",
+          "expiresAtUtc": "2026-10-28T21:00:00Z",
+          "mode": "TEMPORARY",
+          "userId": "usr_fixture",
+          "version": 1
+        },
+        {
+          "active": false,
+          "blockedAtUtc": null,
+          "channelId": "chn_fixture",
+          "duration": null,
+          "expiresAtUtc": null,
+          "mode": null,
+          "userId": "usr_fixture",
+          "version": 2
+        }
+      ],
+      "properties": {
+        "active": {"type": "boolean"},
+        "blockedAtUtc": {"format": "date-time", "pattern": "Z$", "type": ["string", "null"]},
+        "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "duration": {"enum": ["PT10M", "PT1H", "PT24H", "P7D", null]},
+        "expiresAtUtc": {"format": "date-time", "pattern": "Z$", "type": ["string", "null"]},
+        "mode": {"enum": ["TEMPORARY", "PERMANENT", null]},
+        "userId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "version": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"}
+      },
+      "required": ["channelId", "userId", "active", "mode", "duration", "expiresAtUtc", "blockedAtUtc", "version"],
+      "type": "object"
+    },
+    "P2ChatBlockCommand": {
+      "additionalProperties": false,
+      "description": "TEMPORARY requires one fixed duration; PERMANENT has no duration and lasts until removed. The server computes expiresAtUtc; the last write wins.",
+      "examples": [{"duration": "PT10M", "mode": "TEMPORARY"}, {"mode": "PERMANENT"}],
+      "properties": {"duration": {"enum": ["PT10M", "PT1H", "PT24H", "P7D", null]}, "mode": {"enum": ["TEMPORARY", "PERMANENT"]}},
+      "required": ["mode"],
+      "type": "object"
+    },
+    "P2ChatBlockedError": {
+      "additionalProperties": false,
+      "description": "ChatError variant for a blocked account; blockedUntilUtc is present only for TEMPORARY.",
+      "examples": [
+        {
+          "blockMode": "TEMPORARY",
+          "blockedUntilUtc": "2026-10-28T21:00:00Z",
+          "clientMessageId": "550e8400-e29b-41d4-a716-446655440000",
+          "code": "CHAT_BLOCKED",
+          "message": "Estás bloqueado en el chat de este canal hasta el 28/10/2026 21:00 UTC.",
+          "type": "error"
+        },
+        {
+          "blockMode": "PERMANENT",
+          "code": "CHAT_BLOCKED",
+          "message": "Estás bloqueado de forma permanente en el chat de este canal.",
+          "type": "error"
+        }
+      ],
+      "properties": {
+        "blockMode": {"enum": ["TEMPORARY", "PERMANENT"]},
+        "blockedUntilUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "clientMessageId": {"format": "uuid", "type": "string"},
+        "code": {"const": "CHAT_BLOCKED"},
+        "message": {"type": "string"},
+        "type": {"const": "error"}
+      },
+      "required": ["type", "code", "message", "blockMode"],
+      "type": "object"
+    },
+    "P2ChatHistory": {
+      "additionalProperties": false,
+      "description": "P2 shape of the P1 chat.history response (ChatHistory stays open to these fields). items and removedMessages cover the same sequence window.",
+      "examples": [
+        {
+          "items": [],
+          "moderationVersion": 1,
+          "removedMessages": [
+            {
+              "messageId": "msg_fixture",
+              "moderationVersion": 1,
+              "removedAtUtc": "2026-10-28T20:05:00Z",
+              "sequence": 7,
+              "sessionId": "ses_fixture"
+            }
+          ],
+          "roomStatus": "OPEN",
+          "sessionId": "ses_fixture",
+          "snapshotSequence": 7
+        }
+      ],
+      "properties": {
+        "items": {"items": {"$ref": "#/$defs/ChatMessage"}, "maxItems": 50, "type": "array"},
+        "moderationVersion": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "removedMessages": {"items": {"$ref": "#/$defs/P2ChatRemovedMessage"}, "maxItems": 50, "type": "array"},
+        "roomStatus": {"enum": ["OPEN", "NOT_OPEN", "READ_ONLY"]},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "snapshotSequence": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"}
+      },
+      "required": ["sessionId", "roomStatus", "snapshotSequence", "items", "moderationVersion", "removedMessages"],
+      "type": "object"
+    },
+    "P2ChatMessageRemovedFrame": {
+      "additionalProperties": false,
+      "description": "WebSocket frame. A removal is terminal: a later or replayed message.created never restores the text.",
+      "examples": [
+        {
+          "messageId": "msg_fixture",
+          "moderationVersion": 1,
+          "removedAtUtc": "2026-10-28T20:05:00Z",
+          "sequence": 7,
+          "sessionId": "ses_fixture",
+          "type": "message.removed"
+        }
+      ],
+      "properties": {
+        "messageId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "moderationVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "removedAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "type": {"const": "message.removed"}
+      },
+      "required": ["type", "messageId", "sessionId", "sequence", "moderationVersion", "removedAtUtc"],
+      "type": "object"
+    },
+    "P2ChatModerationContext": {
+      "additionalProperties": false,
+      "description": "Core confirms a current session whose account owns the channel. Chat requests one per moderation operation and never caches it.",
+      "examples": [{"authorizedAtUtc": "2026-10-28T20:00:00Z", "channelId": "chn_fixture", "userId": "usr_fixture"}],
+      "properties": {
+        "authorizedAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "userId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["userId", "channelId", "authorizedAtUtc"],
+      "type": "object"
+    },
+    "P2ChatModerationContextRequest": {
+      "additionalProperties": false,
+      "examples": [{"channelId": "chn_fixture"}],
+      "properties": {"channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}},
+      "required": ["channelId"],
+      "type": "object"
+    },
+    "P2ChatModerationOperation": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "channelId": "chn_fixture",
+          "completedAtUtc": "2026-10-28T20:06:00Z",
+          "createdAtUtc": "2026-10-28T20:06:00Z",
+          "moderationVersion": 2,
+          "operationId": "mop_fixture",
+          "removedCount": 3,
+          "scope": "SESSION",
+          "sessionId": "ses_fixture",
+          "status": "COMPLETED",
+          "statusUri": "/api/chat/channels/chn_fixture/moderation-operations/mop_fixture",
+          "targetUserId": "usr_fixture",
+          "upToSequence": 42
+        }
+      ],
+      "properties": {
+        "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "completedAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "createdAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "moderationVersion": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "operationId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "removedCount": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "scope": {"const": "SESSION"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "status": {"const": "COMPLETED"},
+        "statusUri": {"pattern": "^/api/chat/channels/[A-Za-z0-9_-]+/moderation-operations/[A-Za-z0-9_-]+$", "type": "string"},
+        "targetUserId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "upToSequence": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"}
+      },
+      "required": [
+        "operationId",
+        "channelId",
+        "sessionId",
+        "targetUserId",
+        "scope",
+        "upToSequence",
+        "removedCount",
+        "moderationVersion",
+        "status",
+        "createdAtUtc",
+        "completedAtUtc",
+        "statusUri"
+      ],
+      "type": "object"
+    },
+    "P2ChatRemoval": {
+      "additionalProperties": false,
+      "description": "Repeating a removal returns the original mark. The text is not kept.",
+      "examples": [
+        {
+          "channelId": "chn_fixture",
+          "messageId": "msg_fixture",
+          "moderationVersion": 1,
+          "removedAtUtc": "2026-10-28T20:05:00Z",
+          "sequence": 7,
+          "sessionId": "ses_fixture"
+        }
+      ],
+      "properties": {
+        "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "messageId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "moderationVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "removedAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["channelId", "messageId", "sessionId", "sequence", "moderationVersion", "removedAtUtc"],
+      "type": "object"
+    },
+    "P2ChatRemovalCommand": {
+      "additionalProperties": false,
+      "description": "Removes the account's messages of that broadcast only, up to the sequence observed when the order is accepted.",
+      "examples": [{"sessionId": "ses_fixture", "userId": "usr_fixture"}],
+      "properties": {
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "userId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["sessionId", "userId"],
+      "type": "object"
+    },
+    "P2ChatRemovedMessage": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "messageId": "msg_fixture",
+          "moderationVersion": 1,
+          "removedAtUtc": "2026-10-28T20:05:00Z",
+          "sequence": 7,
+          "sessionId": "ses_fixture"
+        }
+      ],
+      "properties": {
+        "messageId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "moderationVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "removedAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["messageId", "sessionId", "sequence", "moderationVersion", "removedAtUtc"],
+      "type": "object"
+    },
+    "P2ContentRemoval": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "expectedVersion": 2,
+          "reason": "Contenido retirado por administración",
+          "resourceId": "vod_fixture",
+          "resourceType": "VOD"
+        }
+      ],
+      "properties": {
+        "expectedVersion": {"minimum": 1, "type": "integer"},
+        "reason": {"maxLength": 500, "minLength": 1, "type": "string"},
+        "resourceId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "resourceType": {"const": "VOD"}
+      },
+      "required": ["resourceType", "resourceId", "expectedVersion", "reason"],
+      "type": "object"
+    },
+    "P2DeliveryResult": {
+      "additionalProperties": false,
+      "examples": [{"attempt": 1, "deliveryId": "del_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "status": "DELIVERED"}],
+      "properties": {
+        "attempt": {"maximum": 2147483647, "minimum": 1, "type": "integer"},
+        "deliveryId": {"pattern": "^del_[A-Za-z0-9_-]{32}$", "type": "string"},
+        "status": {"enum": ["DELIVERED", "RETRYABLE_FAILURE", "PERMANENT_FAILURE", "UNKNOWN"]}
+      },
+      "required": ["deliveryId", "attempt", "status"],
+      "type": "object"
+    },
+    "P2Device": {
+      "additionalProperties": false,
+      "examples": [{"enabled": true, "installationId": "ins_fixture", "platform": "ANDROID", "version": 1}],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "installationId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "platform": {"enum": ["ANDROID", "IOS", "WEB"]},
+        "version": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": ["installationId", "platform", "enabled", "version"],
+      "type": "object"
+    },
+    "P2DeviceRegister": {
+      "additionalProperties": false,
+      "examples": [{"installationId": "ins_fixture", "platform": "ANDROID", "providerToken": "fixture-provider-value"}],
+      "properties": {
+        "installationId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "platform": {"enum": ["ANDROID", "IOS", "WEB"]},
+        "providerToken": {"maxLength": 4096, "minLength": 1, "type": "string"}
+      },
+      "required": ["installationId", "platform", "providerToken"],
+      "type": "object"
+    },
+    "P2DiscoverySection": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {"data": {"additionalProperties": true, "type": "object"}, "status": {"const": "AVAILABLE"}},
+          "required": ["status", "data"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {"data": {"additionalProperties": true, "type": "object"}, "status": {"const": "EMPTY"}},
+          "required": ["status"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {"error": {"$ref": "#/$defs/P2SectionError"}, "status": {"enum": ["UNAVAILABLE", "DENIED"]}},
+          "required": ["status", "error"],
+          "type": "object"
+        }
+      ]
+    },
+    "P2EmailTarget": {
+      "additionalProperties": false,
+      "description": "Private; read only at delivery time and never stored by Notifications.",
+      "examples": [{"email": "fixture@example.test", "userId": "usr_fixture"}],
+      "properties": {
+        "email": {"format": "email", "maxLength": 320, "type": "string"},
+        "userId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["userId", "email"],
+      "type": "object"
+    },
+    "P2EmailTargetRequest": {
+      "additionalProperties": false,
+      "examples": [{"userId": "usr_fixture"}],
+      "properties": {"userId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}},
+      "required": ["userId"],
+      "type": "object"
+    },
+    "P2EventAccountStatusChanged": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "aggregateId": "account:usr_example",
+          "correlationId": "62c083c5-4b90-4b34-969d-5698d4d64300",
+          "eventId": "a38a5088-2178-444f-9ebd-a3a1dfbe7d01",
+          "eventType": "account.status.changed.v1",
+          "occurredAtUtc": "2026-10-24T12:00:00Z",
+          "payload": {"accountVersion": 1, "status": "SUSPENDED", "userId": "usr_example"},
+          "producer": "core",
+          "schemaVersion": 1,
+          "sequence": 1
+        }
+      ],
+      "properties": {
+        "aggregateId": {"pattern": "^account:[A-Za-z0-9_-]{1,64}$", "type": "string"},
+        "correlationId": {"pattern": "^[A-Za-z0-9_-]{1,128}$", "type": "string"},
+        "eventId": {"format": "uuid", "type": "string"},
+        "eventType": {"const": "account.status.changed.v1"},
+        "occurredAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "payload": {"$ref": "#/$defs/P2AccountStatusPayload"},
+        "producer": {"const": "core"},
+        "schemaVersion": {"const": 1},
+        "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "producer",
+        "payload",
+        "correlationId"
+      ],
+      "type": "object"
+    },
+    "P2EventChannelFollowChanged": {
+      "additionalProperties": false,
+      "description": "Consumers keep the highest followVersion per aggregate and discard older or equal versions.",
+      "examples": [
+        {
+          "aggregateId": "follow:chn_fixture:usr_fixture",
+          "correlationId": "req_fixture",
+          "eventId": "22222222-2222-4222-8222-222222222222",
+          "eventType": "channel.follow.changed.v1",
+          "occurredAtUtc": "2026-10-26T18:00:00Z",
+          "payload": {
+            "changedAtUtc": "2026-10-26T18:00:00Z",
+            "channelId": "chn_fixture",
+            "followVersion": 2,
+            "followerUserId": "usr_fixture",
+            "following": false
+          },
+          "producer": "core",
+          "schemaVersion": 1,
+          "sequence": 2
+        }
+      ],
+      "properties": {
+        "aggregateId": {"pattern": "^follow:[A-Za-z0-9_-]{1,64}:[A-Za-z0-9_-]{1,64}$", "type": "string"},
+        "correlationId": {"pattern": "^[A-Za-z0-9_-]{1,128}$", "type": "string"},
+        "eventId": {"format": "uuid", "type": "string"},
+        "eventType": {"const": "channel.follow.changed.v1"},
+        "occurredAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "changedAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+            "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+            "followVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+            "followerUserId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+            "following": {"type": "boolean"}
+          },
+          "required": ["channelId", "followerUserId", "following", "followVersion", "changedAtUtc"],
+          "type": "object"
+        },
+        "producer": {"const": "core"},
+        "schemaVersion": {"const": 1},
+        "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "producer",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "correlationId",
+        "payload"
+      ],
+      "type": "object"
+    },
+    "P2EventCredentialRecoveryDeliveryRequested": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "aggregateId": "recovery:rec_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "correlationId": "req_fixture",
+          "eventId": "11111111-1111-4111-8111-111111111111",
+          "eventType": "credential.recovery.delivery.requested.v1",
+          "occurredAtUtc": "2026-10-22T18:00:00Z",
+          "payload": {"deliveryId": "del_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "recoveryId": "rec_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+          "producer": "core",
+          "schemaVersion": 1,
+          "sequence": 1
+        }
+      ],
+      "properties": {
+        "aggregateId": {"pattern": "^recovery:rec_[A-Za-z0-9_-]{32}$", "type": "string"},
+        "correlationId": {"pattern": "^[A-Za-z0-9_-]{1,128}$", "type": "string"},
+        "eventId": {"format": "uuid", "type": "string"},
+        "eventType": {"const": "credential.recovery.delivery.requested.v1"},
+        "occurredAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "payload": {
+          "additionalProperties": false,
+          "examples": [{"deliveryId": "del_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "recoveryId": "rec_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],
+          "properties": {
+            "deliveryId": {"pattern": "^del_[A-Za-z0-9_-]{32}$", "type": "string"},
+            "recoveryId": {"pattern": "^rec_[A-Za-z0-9_-]{32}$", "type": "string"}
+          },
+          "required": ["recoveryId", "deliveryId"],
+          "type": "object"
+        },
+        "producer": {"const": "core"},
+        "schemaVersion": {"const": 1},
+        "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "producer",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "correlationId",
+        "payload"
+      ],
+      "type": "object"
+    },
+    "P2EventNotificationDeliveryRequested": {
+      "additionalProperties": false,
+      "description": "A pointer to one delivery row; the worker reads the address or device at send time. Routing key suffix = lower-case medium.",
+      "examples": [
+        {
+          "aggregateId": "delivery:dlv_fixture",
+          "correlationId": "req_fixture",
+          "eventId": "44444444-4444-4444-8444-444444444444",
+          "eventType": "notification.delivery.requested.v1",
+          "occurredAtUtc": "2026-10-26T18:00:00Z",
+          "payload": {"deliveryId": "dlv_fixture", "medium": "EMAIL", "notificationId": "ntf_fixture", "targetId": "usr_fixture"},
+          "producer": "notifications",
+          "schemaVersion": 1,
+          "sequence": 1
+        }
+      ],
+      "properties": {
+        "aggregateId": {"pattern": "^delivery:[A-Za-z0-9_-]{1,128}$", "type": "string"},
+        "correlationId": {"pattern": "^[A-Za-z0-9_-]{1,128}$", "type": "string"},
+        "eventId": {"format": "uuid", "type": "string"},
+        "eventType": {"const": "notification.delivery.requested.v1"},
+        "occurredAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "deliveryId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+            "medium": {"enum": ["INBOX", "EMAIL", "PUSH"]},
+            "notificationId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+            "targetId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+          },
+          "required": ["deliveryId", "notificationId", "medium", "targetId"],
+          "type": "object"
+        },
+        "producer": {"const": "notifications"},
+        "schemaVersion": {"const": 1},
+        "sequence": {"const": 1}
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "producer",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "correlationId",
+        "payload"
+      ],
+      "type": "object"
+    },
+    "P2EventRecordingClosed": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "aggregateId": "recording:ses_fixture",
+          "correlationId": "62c083c5-4b90-4b34-969d-5698d4d64300",
+          "eventId": "a38a5088-2178-444f-9ebd-a3a1dfbe7d01",
+          "eventType": "recording.closed.v1",
+          "occurredAtUtc": "2026-10-24T12:00:00Z",
+          "payload": {
+            "index": {
+              "byteLength": 1024,
+              "contentType": "application/json",
+              "objectId": "obj_fixture",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "sessionId": "ses_fixture",
+            "streamGeneration": 1
+          },
+          "producer": "streaming",
+          "schemaVersion": 1,
+          "sequence": 1
+        }
+      ],
+      "properties": {
+        "aggregateId": {"maxLength": 600, "minLength": 1, "type": "string"},
+        "correlationId": {"pattern": "^[A-Za-z0-9_-]{1,128}$", "type": "string"},
+        "eventId": {"format": "uuid", "type": "string"},
+        "eventType": {"const": "recording.closed.v1"},
+        "occurredAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "payload": {"$ref": "#/$defs/P2RecordingClosedPayload"},
+        "producer": {"enum": ["streaming", "media"]},
+        "schemaVersion": {"const": 1},
+        "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "producer",
+        "payload",
+        "correlationId"
+      ],
+      "type": "object"
+    },
+    "P2EventRecordingSegmentAvailable": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "aggregateId": "segment:ses_fixture:rend_720:1:0",
+          "correlationId": "62c083c5-4b90-4b34-969d-5698d4d64300",
+          "eventId": "a38a5088-2178-444f-9ebd-a3a1dfbe7d01",
+          "eventType": "recording.segment.available.v1",
+          "occurredAtUtc": "2026-10-24T12:00:00Z",
+          "payload": {
+            "discontinuity": false,
+            "durationMs": 1000,
+            "object": {
+              "byteLength": 1024,
+              "contentType": "video/mp2t",
+              "objectId": "obj_fixture",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "renditionId": "rend_720",
+            "sequence": 0,
+            "sessionId": "ses_fixture",
+            "sessionStartMs": 0,
+            "sourceGeneration": 1
+          },
+          "producer": "streaming",
+          "schemaVersion": 1,
+          "sequence": 1
+        }
+      ],
+      "properties": {
+        "aggregateId": {"maxLength": 600, "minLength": 1, "type": "string"},
+        "correlationId": {"pattern": "^[A-Za-z0-9_-]{1,128}$", "type": "string"},
+        "eventId": {"format": "uuid", "type": "string"},
+        "eventType": {"const": "recording.segment.available.v1"},
+        "occurredAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "payload": {"$ref": "#/$defs/P2Segment"},
+        "producer": {"enum": ["streaming", "media"]},
+        "schemaVersion": {"const": 1},
+        "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "producer",
+        "payload",
+        "correlationId"
+      ],
+      "type": "object"
+    },
+    "P2EventStreamDiscoverySnapshot": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "aggregateId": "stream:str_fixture",
+          "correlationId": "00000000-0000-4000-8000-000000000001",
+          "eventId": "00000000-0000-4000-8000-000000000001",
+          "eventType": "stream.discovery.snapshot.v1",
+          "occurredAtUtc": "2026-10-08T20:00:00Z",
+          "payload": {
+            "availability": "PLAYABLE",
+            "category": {"id": "cat_00000000000000000000000000000001", "name": "Conversación"},
+            "channelId": "chn_fixture",
+            "countVersion": 1,
+            "discoveryPosition": 1,
+            "metadataVersion": 1,
+            "projectionVersion": 1,
+            "sessionId": "ses_fixture",
+            "sessionVersion": 1,
+            "startedAtUtc": "2026-10-08T20:00:00Z",
+            "stateObservedAtUtc": "2026-10-08T20:00:00Z",
+            "status": "LIVE",
+            "streamGeneration": 1,
+            "streamId": "str_fixture",
+            "tags": [],
+            "title": "Conversación",
+            "viewerCount": 1,
+            "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+          },
+          "producer": "streaming",
+          "schemaVersion": 1,
+          "sequence": 1
+        }
+      ],
+      "properties": {
+        "aggregateId": {"pattern": "^stream:[A-Za-z0-9_-]{1,128}$", "type": "string"},
+        "correlationId": {"pattern": "^[A-Za-z0-9_-]{1,128}$", "type": "string"},
+        "eventId": {"format": "uuid", "type": "string"},
+        "eventType": {"const": "stream.discovery.snapshot.v1"},
+        "occurredAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "payload": {"$ref": "#/$defs/DiscoverySnapshot"},
+        "producer": {"const": "streaming"},
+        "schemaVersion": {"const": 1},
+        "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "producer",
+        "payload",
+        "correlationId"
+      ],
+      "type": "object"
+    },
+    "P2EventStreamSessionChanged": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "aggregateId": "session:ses_fixture",
+          "correlationId": "00000000-0000-4000-8000-000000000001",
+          "eventId": "00000000-0000-4000-8000-000000000001",
+          "eventType": "stream.session.changed.v1",
+          "occurredAtUtc": "2026-10-08T20:00:00Z",
+          "payload": {
+            "availability": "OFFLINE",
+            "channelId": "chn_fixture",
+            "firstLiveAtUtc": null,
+            "initialLive": false,
+            "sessionId": "ses_fixture",
+            "sessionVersion": 1,
+            "status": "PREPARING",
+            "streamGeneration": 1,
+            "streamId": "str_fixture"
+          },
+          "producer": "streaming",
+          "schemaVersion": 1,
+          "sequence": 1
+        },
+        {
+          "aggregateId": "session:ses_fixture",
+          "correlationId": "00000000-0000-4000-8000-000000000002",
+          "eventId": "00000000-0000-4000-8000-000000000002",
+          "eventType": "stream.session.changed.v1",
+          "occurredAtUtc": "2026-10-08T20:00:01Z",
+          "payload": {
+            "availability": "PLAYABLE",
+            "channelId": "chn_fixture",
+            "firstLiveAtUtc": "2026-10-08T20:00:01Z",
+            "initialLive": true,
+            "sessionId": "ses_fixture",
+            "sessionVersion": 2,
+            "status": "LIVE",
+            "streamGeneration": 1,
+            "streamId": "str_fixture"
+          },
+          "producer": "streaming",
+          "schemaVersion": 1,
+          "sequence": 2
+        },
+        {
+          "aggregateId": "session:ses_fixture",
+          "correlationId": "00000000-0000-4000-8000-000000000003",
+          "eventId": "00000000-0000-4000-8000-000000000003",
+          "eventType": "stream.session.changed.v1",
+          "occurredAtUtc": "2026-10-08T20:00:02Z",
+          "payload": {
+            "availability": "RECONNECTING",
+            "channelId": "chn_fixture",
+            "firstLiveAtUtc": "2026-10-08T20:00:01Z",
+            "initialLive": false,
+            "sessionId": "ses_fixture",
+            "sessionVersion": 3,
+            "status": "RECONNECT_GRACE",
+            "streamGeneration": 1,
+            "streamId": "str_fixture"
+          },
+          "producer": "streaming",
+          "schemaVersion": 1,
+          "sequence": 3
+        },
+        {
+          "aggregateId": "session:ses_fixture",
+          "correlationId": "00000000-0000-4000-8000-000000000004",
+          "eventId": "00000000-0000-4000-8000-000000000004",
+          "eventType": "stream.session.changed.v1",
+          "occurredAtUtc": "2026-10-08T20:00:03Z",
+          "payload": {
+            "availability": "PLAYABLE",
+            "channelId": "chn_fixture",
+            "firstLiveAtUtc": "2026-10-08T20:00:01Z",
+            "initialLive": false,
+            "sessionId": "ses_fixture",
+            "sessionVersion": 4,
+            "status": "LIVE",
+            "streamGeneration": 1,
+            "streamId": "str_fixture"
+          },
+          "producer": "streaming",
+          "schemaVersion": 1,
+          "sequence": 4
+        },
+        {
+          "aggregateId": "session:ses_fixture",
+          "correlationId": "00000000-0000-4000-8000-000000000005",
+          "eventId": "00000000-0000-4000-8000-000000000005",
+          "eventType": "stream.session.changed.v1",
+          "occurredAtUtc": "2026-10-08T20:00:04Z",
+          "payload": {
+            "availability": "OFFLINE",
+            "channelId": "chn_fixture",
+            "firstLiveAtUtc": "2026-10-08T20:00:01Z",
+            "initialLive": false,
+            "sessionId": "ses_fixture",
+            "sessionVersion": 5,
+            "status": "ENDED",
+            "streamGeneration": 1,
+            "streamId": "str_fixture"
+          },
+          "producer": "streaming",
+          "schemaVersion": 1,
+          "sequence": 5
+        }
+      ],
+      "properties": {
+        "aggregateId": {"pattern": "^session:[A-Za-z0-9_-]{1,128}$", "type": "string"},
+        "correlationId": {"pattern": "^[A-Za-z0-9_-]{1,128}$", "type": "string"},
+        "eventId": {"format": "uuid", "type": "string"},
+        "eventType": {"const": "stream.session.changed.v1"},
+        "occurredAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "payload": {"$ref": "#/$defs/P2StreamSessionChangedPayload"},
+        "producer": {"const": "streaming"},
+        "schemaVersion": {"const": 1},
+        "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "producer",
+        "payload",
+        "correlationId"
+      ],
+      "type": "object"
+    },
+    "P2EventVodAvailabilityChanged": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "aggregateId": "vod:vod_fixture",
+          "correlationId": "62c083c5-4b90-4b34-969d-5698d4d64300",
+          "eventId": "a38a5088-2178-444f-9ebd-a3a1dfbe7d01",
+          "eventType": "vod.availability.changed.v1",
+          "occurredAtUtc": "2026-10-24T12:00:00Z",
+          "payload": {
+            "available": true,
+            "channelId": "chn_fixture",
+            "mappingVersion": 1,
+            "publicationState": "PUBLISHED",
+            "restriction": "NONE",
+            "sessionId": "ses_fixture",
+            "version": 2,
+            "vodId": "vod_fixture"
+          },
+          "producer": "vod",
+          "schemaVersion": 1,
+          "sequence": 2
+        }
+      ],
+      "properties": {
+        "aggregateId": {"maxLength": 600, "minLength": 1, "type": "string"},
+        "correlationId": {"pattern": "^[A-Za-z0-9_-]{1,128}$", "type": "string"},
+        "eventId": {"format": "uuid", "type": "string"},
+        "eventType": {"const": "vod.availability.changed.v1"},
+        "occurredAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "payload": {"$ref": "#/$defs/P2VodAvailabilityPayload"},
+        "producer": {"enum": ["vod"]},
+        "schemaVersion": {"const": 1},
+        "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "producer",
+        "payload",
+        "correlationId"
+      ],
+      "type": "object"
+    },
+    "P2ExploreQuery": {
+      "additionalProperties": false,
+      "examples": [{"limit": 20}],
+      "properties": {
+        "categoryId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "channelCursor": {"maxLength": 2048, "type": "string"},
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "cursor": {"maxLength": 8192, "type": "string"},
+        "limit": {"default": 20, "maximum": 50, "minimum": 1, "type": "integer"},
+        "liveCursor": {"maxLength": 2048, "type": "string"},
+        "searchChannels": {"type": "boolean"},
+        "tagId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "title": {"maxLength": 140, "type": "string"}
+      },
+      "required": [],
+      "type": "object"
+    },
+    "P2ExploreScreen": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "discovery": {"data": {"streams": {"items": [], "nextCursor": null}}, "status": "AVAILABLE"},
+          "meta": {"partial": false, "requestId": "req_fixture"},
+          "vods": {"data": {"items": [], "nextCursor": null}, "status": "EMPTY"}
+        }
+      ],
+      "properties": {
+        "discovery": {"$ref": "#/$defs/P2DiscoverySection"},
+        "meta": {"$ref": "#/$defs/P2ScreenMeta"},
+        "vods": {"$ref": "#/$defs/P2VodSection"}
+      },
+      "required": ["vods", "discovery", "meta"],
+      "type": "object"
+    },
+    "P2Follow": {
+      "additionalProperties": false,
+      "description": "followVersion 0 means the relation never existed; unfollow keeps and increments the version.",
+      "examples": [
+        {"channelId": "chn_fixture", "followVersion": 1, "followedAtUtc": "2026-10-26T18:00:00Z", "following": true},
+        {"channelId": "chn_fixture", "followVersion": 2, "followedAtUtc": null, "following": false}
+      ],
+      "properties": {
+        "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "followVersion": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "followedAtUtc": {"format": "date-time", "pattern": "Z$", "type": ["string", "null"]},
+        "following": {"type": "boolean"}
+      },
+      "required": ["channelId", "following", "followVersion", "followedAtUtc"],
+      "type": "object"
+    },
+    "P2FollowPage": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "items": [{"channelId": "chn_fixture", "followVersion": 1, "followedAtUtc": "2026-10-26T18:00:00Z"}],
+          "nextCursor": null
+        }
+      ],
+      "properties": {
+        "items": {"items": {"$ref": "#/$defs/P2FollowedChannel"}, "maxItems": 50, "type": "array"},
+        "nextCursor": {"maxLength": 512, "type": ["string", "null"]}
+      },
+      "required": ["items", "nextCursor"],
+      "type": "object"
+    },
+    "P2FollowSection": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {"data": {"$ref": "#/$defs/P2Follow"}, "status": {"const": "AVAILABLE"}},
+          "required": ["status", "data"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {"data": {"$ref": "#/$defs/P2Follow"}, "status": {"const": "EMPTY"}},
+          "required": ["status"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {"error": {"$ref": "#/$defs/P2SectionError"}, "status": {"enum": ["UNAVAILABLE", "DENIED"]}},
+          "required": ["status", "error"],
+          "type": "object"
+        }
+      ]
+    },
+    "P2FollowedChannel": {
+      "additionalProperties": false,
+      "examples": [{"channelId": "chn_fixture", "followVersion": 1, "followedAtUtc": "2026-10-26T18:00:00Z"}],
+      "properties": {
+        "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "followVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "followedAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"}
+      },
+      "required": ["channelId", "followedAtUtc", "followVersion"],
+      "type": "object"
+    },
+    "P2LiveSection": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {"data": {"additionalProperties": true, "type": ["object", "null"]}, "status": {"const": "AVAILABLE"}},
+          "required": ["status", "data"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {"data": {"additionalProperties": true, "type": ["object", "null"]}, "status": {"const": "EMPTY"}},
+          "required": ["status"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {"error": {"$ref": "#/$defs/P2SectionError"}, "status": {"enum": ["UNAVAILABLE", "DENIED"]}},
+          "required": ["status", "error"],
+          "type": "object"
+        }
+      ]
+    },
+    "P2MediaBody": {
+      "additionalProperties": false,
+      "examples": [{"bytes": ""}],
+      "properties": {"bytes": {"maxLength": 1, "type": "string"}},
+      "required": ["bytes"],
+      "type": "object"
+    },
+    "P2MediaRecordingBinding": {
+      "additionalProperties": false,
+      "examples": [{"sessionId": "ses_00000000-0000-4000-8000-000000000014", "sourceGeneration": 1}],
+      "properties": {
+        "sessionId": {"pattern": "^ses_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", "type": "string"},
+        "sourceGeneration": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": ["sessionId", "sourceGeneration"],
+      "type": "object"
+    },
+    "P2MediumPreferences": {
+      "additionalProperties": false,
+      "examples": [{"emailEnabled": true, "expectedVersion": 1, "pushEnabled": false}],
+      "properties": {
+        "emailEnabled": {"type": "boolean"},
+        "expectedVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "pushEnabled": {"type": "boolean"}
+      },
+      "required": ["emailEnabled", "pushEnabled", "expectedVersion"],
+      "type": "object"
+    },
+    "P2NativeLogin": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "accessToken": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "expiresAtUtc": "2026-10-28T12:00:00Z",
+          "tokenType": "Bearer",
+          "userId": "usr_fixture"
+        }
+      ],
+      "properties": {
+        "accessToken": {"pattern": "^[A-Za-z0-9_-]{43}$", "type": "string"},
+        "expiresAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "tokenType": {"const": "Bearer"},
+        "userId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["accessToken", "tokenType", "userId", "expiresAtUtc"],
+      "type": "object"
+    },
+    "P2Notification": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "available": true,
+          "channelId": "chn_fixture",
+          "createdAtUtc": "2026-10-26T18:00:00Z",
+          "kind": "LIVE_STARTED",
+          "linkPath": "/channels/canal_laura",
+          "notificationId": "ntf_fixture",
+          "readAtUtc": null,
+          "sessionId": "ses_fixture",
+          "title": "Canal de Laura está en vivo"
+        }
+      ],
+      "properties": {
+        "available": {
+          "description": "false while the channel owner is suspended (SPEC-20 CA-09); the record stays but its link must not be offered.",
+          "type": "boolean"
+        },
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "createdAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "kind": {"enum": ["LIVE_STARTED"]},
+        "linkPath": {"maxLength": 512, "pattern": "^/[^\\s]*$", "type": "string"},
+        "notificationId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "readAtUtc": {"format": "date-time", "pattern": "Z$", "type": ["string", "null"]},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "title": {"maxLength": 200, "minLength": 1, "type": "string"}
+      },
+      "required": [
+        "notificationId",
+        "kind",
+        "channelId",
+        "sessionId",
+        "title",
+        "linkPath",
+        "createdAtUtc",
+        "readAtUtc",
+        "available"
+      ],
+      "type": "object"
+    },
+    "P2NotificationPage": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "items": [
+            {
+              "available": true,
+              "channelId": "chn_fixture",
+              "createdAtUtc": "2026-10-26T18:00:00Z",
+              "kind": "LIVE_STARTED",
+              "linkPath": "/channels/canal_laura",
+              "notificationId": "ntf_fixture",
+              "readAtUtc": null,
+              "sessionId": "ses_fixture",
+              "title": "Canal de Laura está en vivo"
+            }
+          ],
+          "nextCursor": null
+        }
+      ],
+      "properties": {
+        "items": {"items": {"$ref": "#/$defs/P2Notification"}, "maxItems": 50, "type": "array"},
+        "nextCursor": {"maxLength": 512, "type": ["string", "null"]}
+      },
+      "required": ["items", "nextCursor"],
+      "type": "object"
+    },
+    "P2NotificationSession": {
+      "additionalProperties": false,
+      "examples": [{"expiresAtUtc": "2026-10-27T18:00:00Z", "userId": "usr_fixture"}],
+      "properties": {
+        "expiresAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "userId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["userId", "expiresAtUtc"],
+      "type": "object"
+    },
+    "P2ObjectRef": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "byteLength": 1024,
+          "contentType": "video/mp2t",
+          "objectId": "obj_fixture",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ],
+      "properties": {
+        "byteLength": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "contentType": {"maxLength": 128, "type": "string"},
+        "objectId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "sha256": {"pattern": "^[a-f0-9]{64}$", "type": "string"}
+      },
+      "required": ["objectId", "byteLength", "sha256", "contentType"],
+      "type": "object"
+    },
+    "P2OperationStatus": {
+      "additionalProperties": false,
+      "examples": [{"errorCode": "", "operationId": "op_fixture", "replayCleanup": "DELEGATED_TO_CHAT", "status": "PENDING"}],
+      "properties": {
+        "errorCode": {"maxLength": 128, "type": "string"},
+        "operationId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "replayCleanup": {"const": "DELEGATED_TO_CHAT"},
+        "status": {"enum": ["PENDING", "RUNNING", "FAILED", "COMPLETED"]}
+      },
+      "required": ["operationId", "status", "errorCode", "replayCleanup"],
+      "type": "object"
+    },
+    "P2PageQuery": {
+      "additionalProperties": false,
+      "examples": [{}, {"limit": 20}, {"limit": 50}],
+      "properties": {
+        "cursor": {"maxLength": 512, "minLength": 1, "type": "string"},
+        "limit": {"default": 20, "maximum": 50, "minimum": 1, "type": "integer"}
+      },
+      "type": "object"
+    },
+    "P2Preferences": {
+      "additionalProperties": false,
+      "description": "Email and push are off by default (version 1); the inbox is always on.",
+      "examples": [{"emailEnabled": false, "pushEnabled": false, "version": 1}],
+      "properties": {
+        "emailEnabled": {"type": "boolean"},
+        "pushEnabled": {"type": "boolean"},
+        "version": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": ["emailEnabled", "pushEnabled", "version"],
+      "type": "object"
+    },
+    "P2Recipients": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "capturedAtUtc": "2026-10-26T18:00:00Z",
+          "channelId": "chn_fixture",
+          "expiresAtUtc": "2026-10-26T19:00:00Z",
+          "items": [{"userId": "usr_fixture"}],
+          "nextCursor": null,
+          "sessionId": "ses_fixture",
+          "snapshotId": "rsn_fixture",
+          "totalRecipients": 1
+        }
+      ],
+      "properties": {
+        "capturedAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "expiresAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {"userId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}},
+            "required": ["userId"],
+            "type": "object"
+          },
+          "maxItems": 50,
+          "type": "array"
+        },
+        "nextCursor": {"maxLength": 512, "type": ["string", "null"]},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "snapshotId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "totalRecipients": {"minimum": 0, "type": "integer"}
+      },
+      "required": [
+        "snapshotId",
+        "channelId",
+        "sessionId",
+        "capturedAtUtc",
+        "expiresAtUtc",
+        "totalRecipients",
+        "items",
+        "nextCursor"
+      ],
+      "type": "object"
+    },
+    "P2RecipientsRequest": {
+      "additionalProperties": false,
+      "description": "First page (no cursor) captures or reuses one cut per channelId/sessionId; later pages read only that cut.",
+      "examples": [{"channelId": "chn_fixture", "limit": 50, "sessionId": "ses_fixture"}],
+      "properties": {
+        "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "cursor": {"maxLength": 512, "minLength": 1, "type": "string"},
+        "limit": {"default": 20, "maximum": 50, "minimum": 1, "type": "integer"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["channelId", "sessionId"],
+      "type": "object"
+    },
+    "P2RecordingClosedPayload": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "index": {
+            "byteLength": 1024,
+            "contentType": "application/json",
+            "objectId": "obj_fixture",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1
+        }
+      ],
+      "properties": {
+        "index": {"$ref": "#/$defs/P2ObjectRef"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "streamGeneration": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": ["sessionId", "streamGeneration", "index"],
+      "type": "object"
+    },
+    "P2RecordingIndex": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "renditions": [
+            {
+              "audioCodec": "mp4a",
+              "bitrateBps": 2500000,
+              "height": 720,
+              "renditionId": "rend_720",
+              "videoCodec": "avc1",
+              "width": 1280
+            }
+          ],
+          "segments": [
+            {
+              "discontinuity": false,
+              "durationMs": 1000,
+              "object": {
+                "byteLength": 1024,
+                "contentType": "video/mp2t",
+                "objectId": "obj_fixture",
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              "renditionId": "rend_720",
+              "sequence": 0,
+              "sessionId": "ses_fixture",
+              "sessionStartMs": 0,
+              "sourceGeneration": 1
+            }
+          ],
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1
+        }
+      ],
+      "properties": {
+        "renditions": {"items": {"$ref": "#/$defs/P2Rendition"}, "maxItems": 4, "minItems": 1, "type": "array"},
+        "segments": {"items": {"$ref": "#/$defs/P2Segment"}, "minItems": 1, "type": "array"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "streamGeneration": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": ["sessionId", "streamGeneration", "renditions", "segments"],
+      "type": "object"
+    },
+    "P2RecordingSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "availability": {"enum": ["PREPARING", "PLAYABLE", "RECONNECTING", "OFFLINE"]},
+        "initialSourceGeneration": {
+          "description": "Immutable first source generation assigned to this session. It is preserved across reconnects and must not exceed sourceGeneration. Generations are monotonic per stream, not reset for each session.",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "sourceGeneration": {"minimum": 1, "type": "integer"},
+        "start": {"$ref": "#/$defs/P2RecordingStart"},
+        "startedAtUtc": {"anyOf": [{"format": "date-time", "type": "string"}, {"type": "null"}]},
+        "status": {"enum": ["PREPARING", "LIVE", "RECONNECT_GRACE", "ENDED"]},
+        "timelinePositionMs": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"}
+      },
+      "required": [
+        "start",
+        "initialSourceGeneration",
+        "sourceGeneration",
+        "status",
+        "availability",
+        "startedAtUtc",
+        "timelinePositionMs"
+      ],
+      "type": "object"
+    },
+    "P2RecordingSnapshots": {
+      "additionalProperties": false,
+      "examples": [{"items": []}],
+      "properties": {"items": {"items": {"$ref": "#/$defs/P2RecordingSnapshot"}, "maxItems": 100, "type": "array"}},
+      "required": ["items"],
+      "type": "object"
+    },
+    "P2RecordingStart": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "autopublish": true,
+          "categoryId": "cat_fixture",
+          "channelId": "chn_fixture",
+          "description": "",
+          "preferenceVersion": 0,
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1,
+          "streamId": "str_fixture",
+          "tagIds": [],
+          "title": "Clase grabada"
+        }
+      ],
+      "properties": {
+        "autopublish": {"type": "boolean"},
+        "categoryId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "description": {"maxLength": 4000, "type": "string"},
+        "preferenceVersion": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "streamGeneration": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "streamId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "tagIds": {
+          "items": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+          "maxItems": 5,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "title": {"maxLength": 140, "minLength": 1, "type": "string"}
+      },
+      "required": [
+        "sessionId",
+        "streamId",
+        "channelId",
+        "streamGeneration",
+        "title",
+        "description",
+        "categoryId",
+        "tagIds",
+        "autopublish",
+        "preferenceVersion"
+      ],
+      "type": "object"
+    },
+    "P2RecoveryAccepted": {
+      "additionalProperties": false,
+      "examples": [{"message": "Si existe una cuenta asociada, recibirás un correo para restablecer la contraseña."}],
+      "properties": {"message": {"const": "Si existe una cuenta asociada, recibirás un correo para restablecer la contraseña."}},
+      "required": ["message"],
+      "type": "object"
+    },
+    "P2RecoveryClaim": {
+      "additionalProperties": false,
+      "examples": [{"attempt": 1, "deliveryId": "del_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}],
+      "properties": {
+        "attempt": {"maximum": 2147483647, "minimum": 1, "type": "integer"},
+        "deliveryId": {"pattern": "^del_[A-Za-z0-9_-]{32}$", "type": "string"}
+      },
+      "required": ["deliveryId", "attempt"],
+      "type": "object"
+    },
+    "P2RecoveryConfirm": {
+      "additionalProperties": false,
+      "examples": [{"newPassword": "Fictitious-new-password-123", "recoveryToken": "ccccccccccccccccccccccccccccccccccccccccccc"}],
+      "properties": {
+        "newPassword": {"maxLength": 128, "minLength": 12, "type": "string"},
+        "recoveryToken": {"pattern": "^[A-Za-z0-9_-]{43}$", "type": "string"}
+      },
+      "required": ["recoveryToken", "newPassword"],
+      "type": "object"
+    },
+    "P2RecoveryDelivery": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "attempt": 1,
+          "deliveryId": "del_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "expiresAtUtc": "2026-10-22T18:30:00Z",
+          "recipient": "fixture@example.test",
+          "recoveryId": "rec_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "resetUrl": "https://vault.example.test/reset-password#token=ccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "properties": {
+        "attempt": {"maximum": 2147483647, "minimum": 1, "type": "integer"},
+        "deliveryId": {"pattern": "^del_[A-Za-z0-9_-]{32}$", "type": "string"},
+        "expiresAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "recipient": {"maxLength": 320, "minLength": 1, "pattern": "^[^\\r\\n]+$", "type": "string"},
+        "recoveryId": {"pattern": "^rec_[A-Za-z0-9_-]{32}$", "type": "string"},
+        "resetUrl": {"format": "uri", "maxLength": 2048, "type": "string"}
+      },
+      "required": ["recoveryId", "deliveryId", "attempt", "recipient", "resetUrl", "expiresAtUtc"],
+      "type": "object"
+    },
+    "P2RecoveryRequest": {
+      "additionalProperties": false,
+      "examples": [{"email": "fixture@example.test"}],
+      "properties": {"email": {"maxLength": 400, "minLength": 1, "type": "string"}},
+      "required": ["email"],
+      "type": "object"
+    },
+    "P2Rendition": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "audioCodec": "mp4a",
+          "bitrateBps": 2500000,
+          "height": 720,
+          "renditionId": "rend_720",
+          "videoCodec": "avc1",
+          "width": 1280
+        }
+      ],
+      "properties": {
+        "audioCodec": {"anyOf": [{"maxLength": 128, "minLength": 1, "type": "string"}, {"type": "null"}]},
+        "bitrateBps": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "height": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "renditionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "videoCodec": {"maxLength": 128, "minLength": 1, "type": "string"},
+        "width": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": ["renditionId", "width", "height", "bitrateBps", "videoCodec", "audioCodec"],
+      "type": "object"
+    },
+    "P2Renditions": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "masterPlaylistUri": "/hls/ses_fixture/master.m3u8",
+          "renditions": [
+            {
+              "audioCodec": "mp4a",
+              "bitrateBps": 2500000,
+              "height": 720,
+              "renditionId": "rend_720",
+              "videoCodec": "avc1",
+              "width": 1280
+            }
+          ],
+          "sessionId": "ses_fixture"
+        }
+      ],
+      "properties": {
+        "masterPlaylistUri": {"pattern": "^/hls/", "type": "string"},
+        "renditions": {"items": {"$ref": "#/$defs/P2Rendition"}, "maxItems": 4, "minItems": 1, "type": "array"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["sessionId", "renditions", "masterPlaylistUri"],
+      "type": "object"
+    },
+    "P2RenditionsSection": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {"data": {"$ref": "#/$defs/P2Renditions"}, "status": {"const": "AVAILABLE"}},
+          "required": ["status", "data"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {"status": {"const": "EMPTY"}},
+          "required": ["status"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {"error": {"$ref": "#/$defs/P2SectionError"}, "status": {"enum": ["UNAVAILABLE", "DENIED"]}},
+          "required": ["status", "error"],
+          "type": "object"
+        }
+      ]
+    },
+    "P2ReplayMessage": {
+      "additionalProperties": false,
+      "properties": {
+        "author": {"$ref": "#/$defs/ChatAuthor"},
+        "mediaOffsetMs": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "messageId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "moderationVersion": {"minimum": 1, "type": "integer"},
+        "sequence": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "serverCreatedAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "streamGeneration": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "streamOffsetMs": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "text": {"maxLength": 500, "minLength": 1, "type": "string"}
+      },
+      "required": [
+        "messageId",
+        "sessionId",
+        "sequence",
+        "author",
+        "text",
+        "serverCreatedAtUtc",
+        "streamOffsetMs",
+        "streamGeneration",
+        "mediaOffsetMs",
+        "moderationVersion"
+      ],
+      "type": "object"
+    },
+    "P2ReplayPage": {
+      "additionalProperties": false,
+      "examples": [{"items": [], "mappingVersion": 1, "moderationVersion": 1, "nextCursor": null, "vodId": "vod_fixture"}],
+      "properties": {
+        "items": {"items": {"$ref": "#/$defs/P2ReplayMessage"}, "maxItems": 50, "type": "array"},
+        "mappingVersion": {"minimum": 1, "type": "integer"},
+        "moderationVersion": {"minimum": 1, "type": "integer"},
+        "nextCursor": {"type": ["string", "null"]},
+        "vodId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["vodId", "mappingVersion", "moderationVersion", "items", "nextCursor"],
+      "type": "object"
+    },
+    "P2ReplayQuery": {
+      "additionalProperties": false,
+      "examples": [{"fromMs": 0, "limit": 20, "toMs": 10000}],
+      "properties": {
+        "cursor": {"maxLength": 8192, "type": "string"},
+        "fromMs": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "limit": {"default": 20, "maximum": 50, "minimum": 1, "type": "integer"},
+        "toMs": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"}
+      },
+      "required": ["fromMs", "toMs"],
+      "type": "object"
+    },
+    "P2ScreenMeta": {
+      "additionalProperties": false,
+      "examples": [{"partial": false, "requestId": "req_fixture"}],
+      "properties": {
+        "partial": {"type": "boolean"},
+        "requestId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["partial", "requestId"],
+      "type": "object"
+    },
+    "P2SectionError": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {"maxLength": 128, "type": "string"},
+        "requestId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "retryable": {"type": "boolean"}
+      },
+      "required": ["code", "retryable", "requestId"],
+      "type": "object"
+    },
+    "P2Segment": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "discontinuity": false,
+          "durationMs": 1000,
+          "object": {
+            "byteLength": 1024,
+            "contentType": "video/mp2t",
+            "objectId": "obj_fixture",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "renditionId": "rend_720",
+          "sequence": 0,
+          "sessionId": "ses_fixture",
+          "sessionStartMs": 0,
+          "sourceGeneration": 1
+        }
+      ],
+      "properties": {
+        "discontinuity": {"type": "boolean"},
+        "durationMs": {"maximum": 60000, "minimum": 1, "type": "integer"},
+        "initialization": {"$ref": "#/$defs/P2ObjectRef"},
+        "object": {"$ref": "#/$defs/P2ObjectRef"},
+        "renditionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "sequence": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "sessionStartMs": {
+          "description": "Offset from the authoritative first LIVE clock; only the session's initial source generation may include up to 120000 ms of retained PREPARING media before zero, without a discontinuity. Source generations are monotonic per stream and need not start at 1. Public timeline intervals remain nonnegative.",
+          "maximum": 9007199254740991,
+          "minimum": -120000,
+          "type": "integer"
+        },
+        "sourceGeneration": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": [
+        "sessionId",
+        "renditionId",
+        "sourceGeneration",
+        "sequence",
+        "sessionStartMs",
+        "durationMs",
+        "discontinuity",
+        "object"
+      ],
+      "type": "object"
+    },
+    "P2SegmentUploadMetadata": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "discontinuity": false,
+          "durationMs": 1000,
+          "renditionId": "rend_720",
+          "sequence": 0,
+          "sessionId": "ses_fixture",
+          "sessionStartMs": 0,
+          "sourceGeneration": 1
+        }
+      ],
+      "properties": {
+        "discontinuity": {"type": "boolean"},
+        "durationMs": {"maximum": 60000, "minimum": 1, "type": "integer"},
+        "initialization": {"$ref": "#/$defs/P2ObjectRef"},
+        "renditionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "sequence": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "sessionStartMs": {
+          "description": "Offset from the authoritative first LIVE clock; only the session's initial source generation may include up to 120000 ms of retained PREPARING media before zero, without a discontinuity. Source generations are monotonic per stream and need not start at 1. Public timeline intervals remain nonnegative.",
+          "maximum": 9007199254740991,
+          "minimum": -120000,
+          "type": "integer"
+        },
+        "sourceGeneration": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": ["sessionId", "renditionId", "sourceGeneration", "sequence", "sessionStartMs", "durationMs", "discontinuity"],
+      "type": "object"
+    },
+    "P2StreamSessionChangedPayload": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {"properties": {"initialLive": {"const": true}}, "required": ["initialLive"]},
+          "then": {
+            "properties": {"availability": {"const": "PLAYABLE"}, "firstLiveAtUtc": {"type": "string"}, "status": {"const": "LIVE"}}
+          }
+        },
+        {
+          "if": {"properties": {"status": {"const": "PREPARING"}}, "required": ["status"]},
+          "then": {"properties": {"availability": {"const": "OFFLINE"}}}
+        },
+        {
+          "if": {"properties": {"status": {"const": "LIVE"}}, "required": ["status"]},
+          "then": {"properties": {"availability": {"const": "PLAYABLE"}, "firstLiveAtUtc": {"type": "string"}}}
+        },
+        {
+          "if": {"properties": {"status": {"const": "RECONNECT_GRACE"}}, "required": ["status"]},
+          "then": {"properties": {"availability": {"const": "RECONNECTING"}, "firstLiveAtUtc": {"type": "string"}}}
+        },
+        {
+          "if": {"properties": {"status": {"const": "ENDED"}}, "required": ["status"]},
+          "then": {"properties": {"availability": {"const": "OFFLINE"}}}
+        }
+      ],
+      "properties": {
+        "availability": {"enum": ["OFFLINE", "PLAYABLE", "RECONNECTING"]},
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "firstLiveAtUtc": {"anyOf": [{"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"}, {"type": "null"}]},
+        "initialLive": {"type": "boolean"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "sessionVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "status": {"enum": ["PREPARING", "LIVE", "RECONNECT_GRACE", "ENDED"]},
+        "streamGeneration": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "streamId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": [
+        "streamId",
+        "sessionId",
+        "streamGeneration",
+        "sessionVersion",
+        "status",
+        "availability",
+        "channelId",
+        "firstLiveAtUtc",
+        "initialLive"
+      ],
+      "type": "object"
+    },
+    "P2SubtitlePage": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "items": [
+            {
+              "contentPath": "/vod-media/vod_fixture/subtitles/sub_fixture.vtt",
+              "format": "WEBVTT",
+              "kind": "subtitles",
+              "label": "Español",
+              "language": "es",
+              "mappingVersion": 1,
+              "mediaDurationMs": 12000,
+              "state": "READY",
+              "trackId": "sub_fixture",
+              "trackVersion": 1,
+              "vodId": "vod_fixture"
+            }
+          ],
+          "nextCursor": null
+        }
+      ],
+      "properties": {
+        "items": {"items": {"$ref": "#/$defs/P2SubtitleTrack"}, "maxItems": 50, "type": "array"},
+        "nextCursor": {"maxLength": 512, "type": ["string", "null"]}
+      },
+      "required": ["items", "nextCursor"],
+      "type": "object"
+    },
+    "P2SubtitleQuery": {
+      "additionalProperties": false,
+      "examples": [{}, {"limit": 20}],
+      "properties": {
+        "cursor": {"maxLength": 512, "minLength": 1, "type": "string"},
+        "limit": {"default": 20, "maximum": 50, "minimum": 1, "type": "integer"}
+      },
+      "type": "object"
+    },
+    "P2SubtitleTrack": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "contentPath": "/vod-media/vod_fixture/subtitles/sub_fixture.vtt",
+          "format": "WEBVTT",
+          "kind": "subtitles",
+          "label": "Español",
+          "language": "es",
+          "mappingVersion": 1,
+          "mediaDurationMs": 12000,
+          "state": "READY",
+          "trackId": "sub_fixture",
+          "trackVersion": 1,
+          "vodId": "vod_fixture"
+        }
+      ],
+      "properties": {
+        "contentPath": {
+          "maxLength": 300,
+          "pattern": "^/vod-media/[A-Za-z0-9_-]{1,128}/subtitles/[A-Za-z0-9_-]{1,128}\\.vtt$",
+          "type": "string"
+        },
+        "format": {"const": "WEBVTT"},
+        "kind": {"const": "subtitles"},
+        "label": {"maxLength": 80, "minLength": 1, "pattern": "^(?!.*[\\u0000-\\u001f\\u007f])\\S(?:.*\\S)?$", "type": "string"},
+        "language": {"pattern": "^[a-z]{2,3}(-[A-Z][a-z]{3})?(-([A-Z]{2}|[0-9]{3}))?(?![\\s\\S])", "type": "string"},
+        "mappingVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "mediaDurationMs": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "state": {"const": "READY"},
+        "trackId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "trackVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "vodId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": [
+        "trackId",
+        "vodId",
+        "language",
+        "label",
+        "kind",
+        "format",
+        "state",
+        "trackVersion",
+        "mappingVersion",
+        "mediaDurationMs",
+        "contentPath"
+      ],
+      "type": "object"
+    },
+    "P2SubtitleUploadMetadata": {
+      "additionalProperties": false,
+      "examples": [{"expectedMappingVersion": 1, "label": "Español", "language": "es"}],
+      "properties": {
+        "expectedMappingVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "label": {"maxLength": 80, "minLength": 1, "pattern": "^(?!.*[\\u0000-\\u001f\\u007f])\\S(?:.*\\S)?$", "type": "string"},
+        "language": {"pattern": "^[a-z]{2,3}(-[A-Z][a-z]{3})?(-([A-Z]{2}|[0-9]{3}))?(?![\\s\\S])", "type": "string"}
+      },
+      "required": ["language", "label", "expectedMappingVersion"],
+      "type": "object"
+    },
+    "P2Timeline": {
+      "additionalProperties": false,
+      "description": "Compacted VOD mapping. Media before the first interval is a retained PREPARING prefix without Chat messages; session offset zero maps to the first interval mediaStartMs. Subsequent intervals cover all remaining media through durationMs.",
+      "examples": [
+        {
+          "durationMs": 1000,
+          "gapPolicy": "COMPACT_NEAREST_SEAM",
+          "intervals": [{"durationMs": 1000, "mediaStartMs": 0, "sessionStartMs": 0, "sourceGeneration": 1}],
+          "mappingVersion": 1,
+          "sessionId": "ses_fixture",
+          "vodId": "vod_fixture"
+        }
+      ],
+      "properties": {
+        "durationMs": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "gapPolicy": {"const": "COMPACT_NEAREST_SEAM"},
+        "intervals": {"items": {"$ref": "#/$defs/P2TimelineInterval"}, "type": "array"},
+        "mappingVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "vodId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["vodId", "sessionId", "mappingVersion", "durationMs", "gapPolicy", "intervals"],
+      "type": "object"
+    },
+    "P2TimelineInterval": {
+      "additionalProperties": false,
+      "examples": [{"durationMs": 1000, "mediaStartMs": 0, "sessionStartMs": 0, "sourceGeneration": 1}],
+      "properties": {
+        "durationMs": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "mediaStartMs": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "sessionStartMs": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "sourceGeneration": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}
+      },
+      "required": ["sourceGeneration", "sessionStartMs", "mediaStartMs", "durationMs"],
+      "type": "object"
+    },
+    "P2VersionCommand": {
+      "additionalProperties": false,
+      "examples": [{"expectedVersion": 2}],
+      "properties": {"expectedVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"}},
+      "required": ["expectedVersion"],
+      "type": "object"
+    },
+    "P2Vod": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "categoryId": "cat_fixture",
+          "channelId": "chn_fixture",
+          "createdAtUtc": "2026-10-29T12:00:00Z",
+          "description": "",
+          "durationMs": 1000,
+          "mappingVersion": 1,
+          "playbackPath": "/vod-media/vod_fixture/master.m3u8",
+          "processingState": "READY",
+          "publicationState": "PUBLISHED",
+          "renditions": [
+            {
+              "audioCodec": "mp4a",
+              "bitrateBps": 2500000,
+              "height": 720,
+              "renditionId": "rend_720",
+              "videoCodec": "avc1",
+              "width": 1280
+            }
+          ],
+          "restriction": "NONE",
+          "sessionId": "ses_fixture",
+          "streamGeneration": 1,
+          "streamId": "str_fixture",
+          "tagIds": [],
+          "title": "Clase grabada",
+          "version": 2,
+          "vodId": "vod_fixture"
+        }
+      ],
+      "properties": {
+        "categoryId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "createdAtUtc": {"format": "date-time", "type": "string"},
+        "description": {"maxLength": 4000, "type": "string"},
+        "durationMs": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "failureCode": {"maxLength": 128, "type": "string"},
+        "mappingVersion": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "playbackPath": {"maxLength": 300, "type": "string"},
+        "processingState": {"enum": ["RECORDING", "VALIDATING", "READY", "FAILED"]},
+        "publicationState": {"enum": ["DRAFT", "PUBLISHED"]},
+        "renditions": {"items": {"$ref": "#/$defs/P2Rendition"}, "maxItems": 4, "type": "array"},
+        "restriction": {"enum": ["NONE", "RETIRED", "DELETED"]},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "streamGeneration": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "streamId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "tagIds": {
+          "items": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+          "maxItems": 5,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "title": {"maxLength": 140, "minLength": 1, "type": "string"},
+        "version": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "vodId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": [
+        "sessionId",
+        "streamId",
+        "channelId",
+        "streamGeneration",
+        "title",
+        "description",
+        "categoryId",
+        "tagIds",
+        "vodId",
+        "processingState",
+        "publicationState",
+        "restriction",
+        "version",
+        "mappingVersion",
+        "durationMs",
+        "renditions",
+        "playbackPath",
+        "createdAtUtc"
+      ],
+      "type": "object"
+    },
+    "P2VodAvailabilityPayload": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "available": true,
+          "channelId": "chn_fixture",
+          "mappingVersion": 1,
+          "publicationState": "PUBLISHED",
+          "restriction": "NONE",
+          "sessionId": "ses_fixture",
+          "version": 2,
+          "vodId": "vod_fixture"
+        }
+      ],
+      "properties": {
+        "available": {"type": "boolean"},
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "mappingVersion": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "publicationState": {"enum": ["DRAFT", "PUBLISHED"]},
+        "restriction": {"enum": ["NONE", "RETIRED", "DELETED"]},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "version": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "vodId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["vodId", "sessionId", "channelId", "version", "mappingVersion", "available", "restriction", "publicationState"],
+      "type": "object"
+    },
+    "P2VodPage": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "items": [
+            {
+              "categoryId": "cat_fixture",
+              "channelId": "chn_fixture",
+              "createdAtUtc": "2026-10-29T12:00:00Z",
+              "description": "",
+              "durationMs": 1000,
+              "mappingVersion": 1,
+              "playbackPath": "/vod-media/vod_fixture/master.m3u8",
+              "processingState": "READY",
+              "publicationState": "PUBLISHED",
+              "renditions": [
+                {
+                  "audioCodec": "mp4a",
+                  "bitrateBps": 2500000,
+                  "height": 720,
+                  "renditionId": "rend_720",
+                  "videoCodec": "avc1",
+                  "width": 1280
+                }
+              ],
+              "restriction": "NONE",
+              "sessionId": "ses_fixture",
+              "streamGeneration": 1,
+              "streamId": "str_fixture",
+              "tagIds": [],
+              "title": "Clase grabada",
+              "version": 2,
+              "vodId": "vod_fixture"
+            }
+          ],
+          "nextCursor": null
+        }
+      ],
+      "properties": {
+        "items": {"items": {"$ref": "#/$defs/P2Vod"}, "type": "array"},
+        "nextCursor": {"maxLength": 8192, "type": ["string", "null"]}
+      },
+      "required": ["items", "nextCursor"],
+      "type": "object"
+    },
+    "P2VodPatch": {
+      "additionalProperties": false,
+      "examples": [{"expectedVersion": 2, "title": "Clase editada"}],
+      "properties": {
+        "categoryId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "description": {"maxLength": 4000, "type": "string"},
+        "expectedVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "tagIds": {
+          "items": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+          "maxItems": 5,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "title": {"maxLength": 140, "minLength": 1, "type": "string"}
+      },
+      "required": ["expectedVersion"],
+      "type": "object"
+    },
+    "P2VodQuery": {
+      "additionalProperties": false,
+      "examples": [{"limit": 20}],
+      "properties": {
+        "categoryId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "cursor": {"maxLength": 8192, "type": "string"},
+        "limit": {"default": 20, "maximum": 50, "minimum": 1, "type": "integer"},
+        "tagId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "title": {"maxLength": 140, "type": "string"}
+      },
+      "required": [],
+      "type": "object"
+    },
+    "P2VodRemoval": {
+      "additionalProperties": false,
+      "examples": [{"expectedVersion": 2, "reason": "Motivo de prueba", "vodId": "vod_fixture"}],
+      "properties": {
+        "expectedVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "reason": {"maxLength": 500, "minLength": 1, "type": "string"},
+        "vodId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["vodId", "expectedVersion", "reason"],
+      "type": "object"
+    },
+    "P2VodScreen": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "channel": {
+            "error": {"code": "CHANNEL_UNAVAILABLE", "requestId": "req_fixture", "retryable": true},
+            "status": "UNAVAILABLE"
+          },
+          "mapping": {
+            "durationMs": 1000,
+            "gapPolicy": "COMPACT_NEAREST_SEAM",
+            "intervals": [{"durationMs": 1000, "mediaStartMs": 0, "sessionStartMs": 0, "sourceGeneration": 1}],
+            "mappingVersion": 1,
+            "sessionId": "ses_fixture",
+            "vodId": "vod_fixture"
+          },
+          "meta": {"partial": true, "requestId": "req_fixture"},
+          "vod": {
+            "categoryId": "cat_fixture",
+            "channelId": "chn_fixture",
+            "createdAtUtc": "2026-10-29T12:00:00Z",
+            "description": "",
+            "durationMs": 1000,
+            "mappingVersion": 1,
+            "playbackPath": "/vod-media/vod_fixture/master.m3u8",
+            "processingState": "READY",
+            "publicationState": "PUBLISHED",
+            "renditions": [
+              {
+                "audioCodec": "mp4a",
+                "bitrateBps": 2500000,
+                "height": 720,
+                "renditionId": "rend_720",
+                "videoCodec": "avc1",
+                "width": 1280
+              }
+            ],
+            "restriction": "NONE",
+            "sessionId": "ses_fixture",
+            "streamGeneration": 1,
+            "streamId": "str_fixture",
+            "tagIds": [],
+            "title": "Clase grabada",
+            "version": 2,
+            "vodId": "vod_fixture"
+          }
+        }
+      ],
+      "properties": {
+        "channel": {"$ref": "#/$defs/P2ChannelSection"},
+        "mapping": {"$ref": "#/$defs/P2Timeline"},
+        "meta": {"$ref": "#/$defs/P2ScreenMeta"},
+        "vod": {"$ref": "#/$defs/P2Vod"}
+      },
+      "required": ["vod", "mapping", "channel", "meta"],
+      "type": "object"
+    },
+    "P2VodSection": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {"data": {"$ref": "#/$defs/P2VodPage"}, "status": {"const": "AVAILABLE"}},
+          "required": ["status", "data"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {"data": {"$ref": "#/$defs/P2VodPage"}, "status": {"const": "EMPTY"}},
+          "required": ["status"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {"error": {"$ref": "#/$defs/P2SectionError"}, "status": {"enum": ["UNAVAILABLE", "DENIED"]}},
+          "required": ["status", "error"],
+          "type": "object"
+        }
+      ]
+    },
+    "P2WatchParty": {
+      "additionalProperties": false,
+      "description": "accessCode is non-null only in the response that creates or rotates it (the first time); a replay with the same Idempotency-Key returns the same room without it and the owner rotates the code to get a new one. partyVersion increases with every effective change.",
+      "examples": [
+        {
+          "accessCode": null,
+          "closedAtUtc": null,
+          "createdAtUtc": "2026-10-30T17:59:00Z",
+          "isOwner": false,
+          "maxSources": 4,
+          "memberCount": 2,
+          "owner": {"avatarUri": null, "displayName": "Cuenta de prueba", "handle": "fixture", "userId": "usr_fixture"},
+          "partyId": "wp_00000000000000000000000000000001",
+          "partyVersion": 2,
+          "sources": [
+            {
+              "addedAtUtc": "2026-10-30T18:00:00Z",
+              "category": "Conversación",
+              "channel": {"avatarUri": null, "channelId": "chn_fixture", "displayName": "Canal de prueba", "handle": "fixture"},
+              "sessionId": "ses_fixture",
+              "state": "PLAYABLE",
+              "statusFresh": true,
+              "streamId": "str_fixture",
+              "title": "Conversación",
+              "viewerCount": 3
+            },
+            {
+              "addedAtUtc": "2026-10-30T18:01:00Z",
+              "category": null,
+              "channel": null,
+              "sessionId": null,
+              "state": "SUSPENDED",
+              "statusFresh": false,
+              "streamId": "str_suspended",
+              "title": null,
+              "viewerCount": null
+            }
+          ],
+          "status": "OPEN",
+          "title": "Maratón de prueba",
+          "updatedAtUtc": "2026-10-30T18:01:00Z"
+        },
+        {
+          "accessCode": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ",
+          "closedAtUtc": null,
+          "createdAtUtc": "2026-10-30T17:59:00Z",
+          "isOwner": true,
+          "maxSources": 4,
+          "memberCount": 1,
+          "owner": {"avatarUri": null, "displayName": "Cuenta de prueba", "handle": "fixture", "userId": "usr_fixture"},
+          "partyId": "wp_00000000000000000000000000000001",
+          "partyVersion": 0,
+          "sources": [],
+          "status": "OPEN",
+          "title": "Maratón de prueba",
+          "updatedAtUtc": "2026-10-30T17:59:00Z"
+        },
+        {
+          "accessCode": null,
+          "closedAtUtc": "2026-10-30T18:05:00Z",
+          "createdAtUtc": "2026-10-30T17:59:00Z",
+          "isOwner": false,
+          "maxSources": 4,
+          "memberCount": 2,
+          "owner": {"avatarUri": null, "displayName": "Cuenta de prueba", "handle": "fixture", "userId": "usr_fixture"},
+          "partyId": "wp_00000000000000000000000000000001",
+          "partyVersion": 3,
+          "sources": [
+            {
+              "addedAtUtc": "2026-10-30T18:00:00Z",
+              "category": "Conversación",
+              "channel": {"avatarUri": null, "channelId": "chn_fixture", "displayName": "Canal de prueba", "handle": "fixture"},
+              "sessionId": null,
+              "state": "UNKNOWN",
+              "statusFresh": true,
+              "streamId": "str_fixture",
+              "title": "Conversación",
+              "viewerCount": 3
+            }
+          ],
+          "status": "CLOSED",
+          "title": "Maratón de prueba",
+          "updatedAtUtc": "2026-10-30T18:05:00Z"
+        }
+      ],
+      "properties": {
+        "accessCode": {"anyOf": [{"pattern": "^[A-Za-z0-9_-]{43}$", "type": "string"}, {"type": "null"}]},
+        "closedAtUtc": {"format": "date-time", "pattern": "Z$", "type": ["string", "null"]},
+        "createdAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "isOwner": {"type": "boolean"},
+        "maxSources": {"const": 4},
+        "memberCount": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "owner": {"$ref": "#/$defs/P2WatchPartyOwner"},
+        "partyId": {"pattern": "^wp_[0-9a-f]{32}$", "type": "string"},
+        "partyVersion": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "sources": {"items": {"$ref": "#/$defs/P2WatchPartySource"}, "maxItems": 4, "type": "array"},
+        "status": {"enum": ["OPEN", "CLOSED"]},
+        "title": {"maxLength": 100, "minLength": 1, "type": "string"},
+        "updatedAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"}
+      },
+      "required": [
+        "partyId",
+        "title",
+        "status",
+        "partyVersion",
+        "maxSources",
+        "memberCount",
+        "isOwner",
+        "accessCode",
+        "owner",
+        "sources",
+        "createdAtUtc",
+        "updatedAtUtc",
+        "closedAtUtc"
+      ],
+      "type": "object"
+    },
+    "P2WatchPartyChannel": {
+      "additionalProperties": false,
+      "examples": [{"avatarUri": null, "channelId": "chn_fixture", "displayName": "Canal de prueba", "handle": "fixture"}],
+      "properties": {
+        "avatarUri": {"type": ["string", "null"]},
+        "channelId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "displayName": {"maxLength": 100, "minLength": 1, "type": "string"},
+        "handle": {"maxLength": 25, "minLength": 4, "type": "string"}
+      },
+      "required": ["channelId", "handle", "displayName", "avatarUri"],
+      "type": "object"
+    },
+    "P2WatchPartyCreate": {
+      "additionalProperties": false,
+      "description": "Title is trimmed by Core and cannot be blank or contain control characters; it is counted in code points.",
+      "examples": [{"title": "Maratón de prueba"}],
+      "properties": {"title": {"maxLength": 100, "minLength": 1, "type": "string"}},
+      "required": ["title"],
+      "type": "object"
+    },
+    "P2WatchPartyJoin": {
+      "additionalProperties": false,
+      "description": "Opaque 256-bit access code in base64url without padding. A malformed or unknown code is indistinguishable from a missing room.",
+      "examples": [{"accessCode": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ"}],
+      "properties": {"accessCode": {"pattern": "^[A-Za-z0-9_-]{43}$", "type": "string"}},
+      "required": ["accessCode"],
+      "type": "object"
+    },
+    "P2WatchPartyOwner": {
+      "additionalProperties": false,
+      "examples": [{"avatarUri": null, "displayName": "Cuenta de prueba", "handle": "fixture", "userId": "usr_fixture"}],
+      "properties": {
+        "avatarUri": {"type": ["string", "null"]},
+        "displayName": {"maxLength": 100, "minLength": 1, "type": ["string", "null"]},
+        "handle": {"maxLength": 25, "minLength": 4, "type": ["string", "null"]},
+        "userId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["userId", "handle", "displayName", "avatarUri"],
+      "type": "object"
+    },
+    "P2WatchPartySource": {
+      "additionalProperties": false,
+      "description": "Only PLAYABLE carries a sessionId: an ended, offline, unknown or suspended source, or any source of a closed room, has none and cannot be consumed from the room. SUSPENDED also hides its channel and metadata. UNKNOWN means Streaming did not answer or its state is not fresh; it is never presented as live.",
+      "examples": [
+        {
+          "addedAtUtc": "2026-10-30T18:00:00Z",
+          "category": "Conversación",
+          "channel": {"avatarUri": null, "channelId": "chn_fixture", "displayName": "Canal de prueba", "handle": "fixture"},
+          "sessionId": "ses_fixture",
+          "state": "PLAYABLE",
+          "statusFresh": true,
+          "streamId": "str_fixture",
+          "title": "Conversación",
+          "viewerCount": 3
+        },
+        {
+          "addedAtUtc": "2026-10-30T18:01:00Z",
+          "category": null,
+          "channel": null,
+          "sessionId": null,
+          "state": "SUSPENDED",
+          "statusFresh": false,
+          "streamId": "str_suspended",
+          "title": null,
+          "viewerCount": null
+        }
+      ],
+      "properties": {
+        "addedAtUtc": {"format": "date-time", "pattern": "Z$", "type": "string"},
+        "category": {"maxLength": 100, "type": ["string", "null"]},
+        "channel": {"anyOf": [{"$ref": "#/$defs/P2WatchPartyChannel"}, {"type": "null"}]},
+        "sessionId": {
+          "anyOf": [{"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}, {"type": "null"}]
+        },
+        "state": {"enum": ["PLAYABLE", "RECONNECTING", "OFFLINE", "ENDED", "SUSPENDED", "UNKNOWN"]},
+        "statusFresh": {"type": "boolean"},
+        "streamId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "title": {"maxLength": 100, "type": ["string", "null"]},
+        "viewerCount": {"anyOf": [{"maximum": 9007199254740991, "minimum": 0, "type": "integer"}, {"type": "null"}]}
+      },
+      "required": ["streamId", "sessionId", "addedAtUtc", "state", "title", "category", "viewerCount", "statusFresh", "channel"],
+      "type": "object"
+    },
+    "P2WatchPartySourceAdd": {
+      "additionalProperties": false,
+      "examples": [{"streamId": "str_fixture"}],
+      "properties": {"streamId": {"maxLength": 64, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}},
+      "required": ["streamId"],
+      "type": "object"
+    },
+    "P2WatchScreen": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "channel": {
+            "data": {
+              "availability": "OFFLINE",
+              "channel": {
+                "bannerUri": null,
+                "channelId": "chn_fixture",
+                "channelVersion": 0,
+                "description": "",
+                "ownerUserId": "usr_fixture"
+              },
+              "handle": "fixture_01",
+              "profile": {
+                "avatarUri": null,
+                "bio": "",
+                "displayName": "Fixture",
+                "profileVersion": 0,
+                "updatedAtUtc": "2026-10-08T20:00:00Z",
+                "userId": "usr_fixture"
+              },
+              "stream": null,
+              "streamStatusFresh": true
+            },
+            "status": "AVAILABLE"
+          },
+          "meta": {"partial": false, "requestId": "req_fixture"},
+          "renditions": {
+            "data": {
+              "masterPlaylistUri": "/hls/ses_fixture/master.m3u8",
+              "renditions": [
+                {
+                  "audioCodec": "mp4a",
+                  "bitrateBps": 2500000,
+                  "height": 720,
+                  "renditionId": "rend_720",
+                  "videoCodec": "avc1",
+                  "width": 1280
+                }
+              ],
+              "sessionId": "ses_fixture"
+            },
+            "status": "AVAILABLE"
+          },
+          "session": {
+            "availability": "PLAYABLE",
+            "channelId": "chn_fixture",
+            "countVersion": 1,
+            "metadataVersion": 1,
+            "playbackUrl": "/hls/ses_fixture/index.m3u8",
+            "sessionId": "ses_fixture",
+            "sessionVersion": 1,
+            "status": "LIVE",
+            "streamGeneration": 1,
+            "streamId": "str_fixture",
+            "timelinePositionMs": 1000,
+            "timelineSampledAtUtc": "2026-10-08T20:00:00Z",
+            "viewerCount": 1,
+            "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+          },
+          "stream": {
+            "availability": "PLAYABLE",
+            "category": {"id": "cat_00000000000000000000000000000001", "name": "Conversación"},
+            "channelId": "chn_fixture",
+            "countVersion": 1,
+            "metadataVersion": 1,
+            "sessionId": "ses_fixture",
+            "sessionVersion": 1,
+            "status": "LIVE",
+            "statusFresh": true,
+            "streamGeneration": 1,
+            "streamId": "str_fixture",
+            "tags": [],
+            "title": "Conversación",
+            "viewerCount": 1,
+            "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+          }
+        },
+        {
+          "channel": {
+            "error": {"code": "CHANNEL_UNAVAILABLE", "requestId": "req_fixture", "retryable": true},
+            "status": "UNAVAILABLE"
+          },
+          "meta": {"partial": true, "requestId": "req_fixture"},
+          "renditions": {"status": "EMPTY"},
+          "session": null,
+          "stream": {
+            "availability": "OFFLINE",
+            "category": {"id": "cat_00000000000000000000000000000001", "name": "Conversación"},
+            "channelId": "chn_fixture",
+            "countVersion": null,
+            "metadataVersion": 1,
+            "sessionId": null,
+            "sessionVersion": null,
+            "status": "OFFLINE",
+            "statusFresh": true,
+            "streamGeneration": 1,
+            "streamId": "str_fixture",
+            "tags": [],
+            "title": "Conversación",
+            "viewerCount": null,
+            "viewerCountObservedAtUtc": null
+          }
+        }
+      ],
+      "properties": {
+        "channel": {"$ref": "#/$defs/P2ChannelSection"},
+        "meta": {"$ref": "#/$defs/P2ScreenMeta"},
+        "renditions": {"$ref": "#/$defs/P2RenditionsSection"},
+        "session": {"anyOf": [{"$ref": "#/$defs/PublicSession"}, {"type": "null"}]},
+        "stream": {"$ref": "#/$defs/PublicStream"}
+      },
+      "required": ["stream", "session", "channel", "renditions", "meta"],
+      "type": "object"
+    },
+    "PlaybackCallback": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "eventId": "00000000-0000-4000-8000-000000000001",
+          "playbackPath": "/hls/ses_fixture/index.m3u8",
+          "sessionId": "ses_fixture",
+          "sourceGeneration": 1,
+          "streamGeneration": 1,
+          "streamId": "str_fixture"
+        }
+      ],
+      "properties": {
+        "eventId": {"format": "uuid", "type": "string"},
+        "playbackPath": {"pattern": "^/hls/[A-Za-z0-9_-]+/[^?#]+\\.m3u8$", "type": "string"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "sourceGeneration": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "streamGeneration": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "streamId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["eventId", "streamId", "sessionId", "streamGeneration", "sourceGeneration", "playbackPath"],
+      "type": "object"
+    },
+    "Profile": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "avatarUri": null,
+          "bio": "",
+          "displayName": "Fixture",
+          "profileVersion": 0,
+          "updatedAtUtc": "2026-10-08T20:00:00Z",
+          "userId": "usr_fixture"
+        }
+      ],
+      "properties": {
+        "avatarUri": {"type": ["string", "null"]},
+        "bio": {"maxLength": 300, "type": "string"},
+        "displayName": {"maxLength": 50, "minLength": 1, "type": "string"},
+        "profileVersion": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "updatedAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "userId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["userId", "displayName", "bio", "avatarUri", "updatedAtUtc", "profileVersion"],
+      "type": "object"
+    },
+    "ProfilePatch": {
+      "additionalProperties": false,
+      "examples": [{"bio": null}],
+      "minProperties": 1,
+      "properties": {
+        "avatarUploadId": {
+          "anyOf": [{"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}, {"type": "null"}]
+        },
+        "bio": {"anyOf": [{"maxLength": 300, "type": "string"}, {"type": "null"}]},
+        "displayName": {"maxLength": 50, "minLength": 1, "type": "string"}
+      },
+      "required": [],
+      "type": "object"
+    },
+    "PublicIdentity": {
+      "additionalProperties": true,
+      "examples": [{"handle": "fixture_01", "userId": "usr_fixture"}],
+      "properties": {
+        "handle": {"pattern": "^[a-zA-Z0-9_]{4,25}$", "type": "string"},
+        "userId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["userId", "handle"],
+      "type": "object"
+    },
+    "PublicSession": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "availability": "PLAYABLE",
+          "channelId": "chn_fixture",
+          "countVersion": 1,
+          "metadataVersion": 1,
+          "playbackUrl": "/hls/ses_fixture/index.m3u8",
+          "sessionId": "ses_fixture",
+          "sessionVersion": 1,
+          "status": "LIVE",
+          "streamGeneration": 1,
+          "streamId": "str_fixture",
+          "timelinePositionMs": 1000,
+          "timelineSampledAtUtc": "2026-10-08T20:00:00Z",
+          "viewerCount": 1,
+          "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+        }
+      ],
+      "properties": {
+        "availability": {"enum": ["OFFLINE", "PLAYABLE", "RECONNECTING"]},
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "countVersion": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "metadataVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "playbackUrl": {"type": ["string", "null"]},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "sessionVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "status": {"enum": ["PREPARING", "LIVE", "RECONNECT_GRACE", "ENDED"]},
+        "streamGeneration": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "streamId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "timelinePositionMs": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "timelineSampledAtUtc": {"anyOf": [{"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"}, {"type": "null"}]},
+        "viewerCount": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "viewerCountObservedAtUtc": {"anyOf": [{"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"}, {"type": "null"}]}
+      },
+      "required": [
+        "sessionId",
+        "streamId",
+        "channelId",
+        "streamGeneration",
+        "status",
+        "availability",
+        "playbackUrl",
+        "timelinePositionMs",
+        "timelineSampledAtUtc",
+        "metadataVersion",
+        "sessionVersion",
+        "viewerCount",
+        "countVersion",
+        "viewerCountObservedAtUtc"
+      ],
+      "type": "object"
+    },
+    "PublicStream": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "availability": "PLAYABLE",
+          "category": {"id": "cat_00000000000000000000000000000001", "name": "Conversación"},
+          "channelId": "chn_fixture",
+          "countVersion": 1,
+          "metadataVersion": 1,
+          "sessionId": "ses_fixture",
+          "sessionVersion": 1,
+          "status": "LIVE",
+          "statusFresh": true,
+          "streamGeneration": 1,
+          "streamId": "str_fixture",
+          "tags": [],
+          "title": "Conversación",
+          "viewerCount": 1,
+          "viewerCountObservedAtUtc": "2026-10-08T20:00:00Z"
+        }
+      ],
+      "properties": {
+        "availability": {"enum": ["OFFLINE", "PLAYABLE", "RECONNECTING"]},
+        "category": {"$ref": "#/$defs/TaxonomyLabel"},
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "countVersion": {"anyOf": [{"maximum": 9007199254740991, "minimum": 0, "type": "integer"}, {"type": "null"}]},
+        "metadataVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "sessionId": {
+          "anyOf": [{"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}, {"type": "null"}]
+        },
+        "sessionVersion": {"anyOf": [{"maximum": 9007199254740991, "minimum": 1, "type": "integer"}, {"type": "null"}]},
+        "status": {"enum": ["OFFLINE", "PREPARING", "LIVE", "ENDED"]},
+        "statusFresh": {"type": "boolean"},
+        "streamGeneration": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "streamId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "tags": {"items": {"$ref": "#/$defs/TaxonomyLabel"}, "maxItems": 5, "minItems": 0, "type": "array"},
+        "title": {"maxLength": 100, "minLength": 1, "type": "string"},
+        "viewerCount": {"anyOf": [{"maximum": 9007199254740991, "minimum": 0, "type": "integer"}, {"type": "null"}]},
+        "viewerCountObservedAtUtc": {"anyOf": [{"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"}, {"type": "null"}]}
+      },
+      "required": [
+        "streamId",
+        "channelId",
+        "sessionId",
+        "streamGeneration",
+        "title",
+        "category",
+        "tags",
+        "status",
+        "availability",
+        "statusFresh",
+        "metadataVersion",
+        "sessionVersion"
+      ],
+      "type": "object"
+    },
+    "Registration": {
+      "additionalProperties": true,
+      "examples": [{"channelId": "chn_fixture", "registrationId": "reg_fixture", "status": "ACTIVE", "userId": "usr_fixture"}],
+      "properties": {
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "registrationId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "status": {"const": "ACTIVE"},
+        "userId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["registrationId", "status", "userId", "channelId"],
+      "type": "object"
+    },
+    "RegistrationRequest": {
+      "additionalProperties": false,
+      "examples": [{"email": "fixture@example.test", "handle": "fixture_01", "password": "Fictitious-password-123"}],
+      "properties": {
+        "email": {"maxLength": 400, "minLength": 1, "type": "string"},
+        "handle": {"pattern": "^[a-zA-Z0-9_]{4,25}$", "type": "string"},
+        "password": {"maxLength": 128, "minLength": 12, "type": "string"}
+      },
+      "required": ["email", "handle", "password"],
+      "type": "object"
+    },
+    "SessionContext": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "availability": "PLAYABLE",
+          "sessionId": "ses_fixture",
+          "sessionVersion": 1,
+          "status": "LIVE",
+          "streamGeneration": 1,
+          "streamId": "str_fixture",
+          "timelinePositionMs": 1000,
+          "timelineSampledAtUtc": "2026-10-08T20:00:00Z"
+        }
+      ],
+      "properties": {
+        "availability": {"enum": ["OFFLINE", "PLAYABLE", "RECONNECTING"]},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "sessionVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "status": {"enum": ["PREPARING", "LIVE", "RECONNECT_GRACE", "ENDED"]},
+        "streamGeneration": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "streamId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "timelinePositionMs": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "timelineSampledAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"}
+      },
+      "required": [
+        "streamId",
+        "sessionId",
+        "streamGeneration",
+        "sessionVersion",
+        "status",
+        "availability",
+        "timelinePositionMs",
+        "timelineSampledAtUtc"
+      ],
+      "type": "object"
+    },
+    "SnapshotRequest": {
+      "additionalProperties": false,
+      "examples": [{"limit": 50}],
+      "properties": {
+        "cursor": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        "limit": {"maximum": 50, "minimum": 1, "type": "integer"}
+      },
+      "required": ["limit"],
+      "type": "object"
+    },
+    "StreamConfig": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "availability": "OFFLINE",
+          "categoryId": "cat_00000000000000000000000000000001",
+          "channelId": "chn_fixture",
+          "metadataVersion": 1,
+          "rtmpUrl": "rtmp://localhost:1935/live",
+          "sessionId": null,
+          "sessionVersion": null,
+          "status": "OFFLINE",
+          "statusFresh": true,
+          "streamGeneration": 0,
+          "streamId": "str_fixture",
+          "tagIds": [],
+          "title": "Conversación"
+        }
+      ],
+      "properties": {
+        "availability": {"enum": ["OFFLINE", "PLAYABLE", "RECONNECTING"]},
+        "categoryId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "metadataVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "rtmpUrl": {"type": "string"},
+        "sessionId": {
+          "anyOf": [{"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}, {"type": "null"}]
+        },
+        "sessionVersion": {"anyOf": [{"maximum": 9007199254740991, "minimum": 1, "type": "integer"}, {"type": "null"}]},
+        "status": {"enum": ["OFFLINE", "PREPARING", "LIVE", "ENDED"]},
+        "statusFresh": {"type": "boolean"},
+        "streamGeneration": {"maximum": 9007199254740991, "minimum": 0, "type": "integer"},
+        "streamId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "tagIds": {
+          "items": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+          "maxItems": 5,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "title": {"maxLength": 100, "minLength": 1, "type": "string"}
+      },
+      "required": [
+        "streamId",
+        "channelId",
+        "title",
+        "categoryId",
+        "tagIds",
+        "metadataVersion",
+        "streamGeneration",
+        "rtmpUrl",
+        "status",
+        "availability",
+        "statusFresh",
+        "sessionId",
+        "sessionVersion"
+      ],
+      "type": "object"
+    },
+    "StreamCreateRequest": {
+      "additionalProperties": false,
+      "examples": [{"categoryId": "cat_00000000000000000000000000000001", "tagIds": [], "title": "Conversación"}],
+      "properties": {
+        "categoryId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "tagIds": {
+          "items": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+          "maxItems": 5,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "title": {"maxLength": 100, "minLength": 1, "type": "string"}
+      },
+      "required": ["title", "categoryId"],
+      "type": "object"
+    },
+    "StreamCreated": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "categoryId": "cat_00000000000000000000000000000001",
+          "channelId": "chn_fixture",
+          "metadataVersion": 1,
+          "rtmpUrl": "rtmp://localhost:1935/live",
+          "streamId": "str_fixture",
+          "streamKey": "fictitious-stream-key",
+          "tagIds": [],
+          "title": "Conversación"
+        }
+      ],
+      "properties": {
+        "categoryId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "metadataVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "rtmpUrl": {"type": "string"},
+        "streamId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "streamKey": {"type": "string"},
+        "tagIds": {
+          "items": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+          "maxItems": 5,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "title": {"maxLength": 100, "minLength": 1, "type": "string"}
+      },
+      "required": ["streamId", "channelId", "title", "categoryId", "tagIds", "metadataVersion", "rtmpUrl"],
+      "type": "object"
+    },
+    "StreamPatchRequest": {
+      "additionalProperties": false,
+      "examples": [{"title": "Nuevo título"}],
+      "minProperties": 1,
+      "properties": {
+        "categoryId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "tagIds": {
+          "items": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+          "maxItems": 5,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "title": {"maxLength": 100, "minLength": 1, "type": "string"}
+      },
+      "required": [],
+      "type": "object"
+    },
+    "StreamPatched": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "categoryId": "cat_00000000000000000000000000000001",
+          "changedFields": [],
+          "channelId": "chn_fixture",
+          "metadataVersion": 1,
+          "streamId": "str_fixture",
+          "tagIds": [],
+          "title": "Conversación"
+        }
+      ],
+      "properties": {
+        "categoryId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "changedFields": {"items": {"enum": ["title", "categoryId", "tagIds"]}, "maxItems": 3, "minItems": 0, "type": "array"},
+        "channelId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "metadataVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "streamId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "tagIds": {
+          "items": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+          "maxItems": 5,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "title": {"maxLength": 100, "minLength": 1, "type": "string"}
+      },
+      "required": ["streamId", "channelId", "title", "categoryId", "tagIds", "metadataVersion", "changedFields"],
+      "type": "object"
+    },
+    "Taxonomy": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "catalogVersion": 1,
+          "categories": [{"active": true, "id": "cat_00000000000000000000000000000001", "name": "Conversación"}],
+          "tags": [{"active": true, "id": "tag_00000000000000000000000000000001", "name": "Español"}]
+        }
+      ],
+      "properties": {
+        "catalogVersion": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
+        "categories": {"items": {"$ref": "#/$defs/ActiveTaxonomyValue"}, "type": "array"},
+        "tags": {"items": {"$ref": "#/$defs/ActiveTaxonomyValue"}, "type": "array"}
+      },
+      "required": ["catalogVersion", "categories", "tags"],
+      "type": "object"
+    },
+    "TaxonomyLabel": {
+      "additionalProperties": true,
+      "examples": [{"id": "cat_00000000000000000000000000000001", "name": "Conversación"}],
+      "properties": {
+        "id": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "name": {"type": "string"}
+      },
+      "required": ["id", "name"],
+      "type": "object"
+    },
+    "TaxonomyValue": {
+      "additionalProperties": true,
+      "examples": [{"active": true, "id": "cat_00000000000000000000000000000001", "kind": "CATEGORY", "name": "Conversación"}],
+      "properties": {
+        "active": {"type": "boolean"},
+        "id": {"maxLength": 64, "minLength": 1, "type": "string"},
+        "kind": {"enum": ["CATEGORY", "TAG"]},
+        "name": {"type": "string"}
+      },
+      "required": ["id", "kind", "name", "active"],
+      "type": "object"
+    },
+    "Upload": {
+      "additionalProperties": true,
+      "examples": [{"expiresAtUtc": "2026-10-08T20:00:00Z", "uploadId": "upl_fixture"}],
+      "properties": {
+        "expiresAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "uploadId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["uploadId", "expiresAtUtc"],
+      "type": "object"
+    },
+    "ViewerLease": {
+      "additionalProperties": true,
+      "examples": [
+        {
+          "expiresAfterSeconds": 30,
+          "heartbeatEverySeconds": 10,
+          "leaseId": "lease_fixture",
+          "leaseToken": "fictitious-lease-token",
+          "sessionId": "ses_fixture"
+        }
+      ],
+      "properties": {
+        "expiresAfterSeconds": {"const": 30},
+        "heartbeatEverySeconds": {"const": 10},
+        "leaseId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"},
+        "leaseToken": {"type": "string"},
+        "sessionId": {"maxLength": 128, "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "type": "string"}
+      },
+      "required": ["leaseId", "leaseToken", "sessionId", "heartbeatEverySeconds", "expiresAfterSeconds"],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

@@ -2,10 +2,14 @@ import { NavLink } from 'react-router';
 
 import { Badge } from '@/src/components/atoms/Badge';
 import { Icon } from '@/src/components/atoms/Icon';
+import { useAdministrator } from '@/src/shell/session/useAdministrator';
+import { useSession } from '@/src/shell/session/useSession';
 
 import styles from './Sidebar.module.css';
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+  const { user } = useSession();
+  const administrator = useAdministrator();
   return (
     <aside className={styles.sidebar}>
       <div className={styles.top}>
@@ -23,10 +27,30 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             <Icon name="users" size={18} />
             Canales
           </NavLink>
-          <NavLink to="/studio" onClick={onNavigate}>
+          <NavLink to="/studio" end onClick={onNavigate}>
             <Icon name="screen" size={18} />
             Estudio de emisión
           </NavLink>
+          <NavLink to="/videos" onClick={onNavigate}>
+            <Icon name="play" size={18} />
+            Grabaciones
+          </NavLink>
+          {user ? (
+            <NavLink to="/watch-parties" onClick={onNavigate}>
+              <Icon name="grid" size={18} />
+              Salas conjuntas
+            </NavLink>
+          ) : null}
+          <NavLink to="/notifications" onClick={onNavigate}>
+            <Icon name="bell" size={18} />
+            Notificaciones
+          </NavLink>
+          {administrator ? (
+            <NavLink to="/admin" onClick={onNavigate}>
+              <Icon name="shield" size={18} />
+              Administración
+            </NavLink>
+          ) : null}
           <NavLink to="/profile" onClick={onNavigate}>
             <Icon name="user" size={18} />
             Mi perfil
@@ -51,7 +75,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       ) : null}
       <div className={styles.footer}>
         <Badge tone="primary" dot>
-          PROTOTIPO 1
+          PROTOTIPO 2
         </Badge>
         <p>Descubre, crea y conecta.</p>
       </div>

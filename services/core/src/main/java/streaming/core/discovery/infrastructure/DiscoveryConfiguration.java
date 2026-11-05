@@ -10,6 +10,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Configuration
 class DiscoveryConfiguration {
+    DiscoveryConfiguration(@Value("${core.events-transport:http}") String transport) {
+        if(!java.util.Set.of("http","amqp").contains(transport))
+            throw new IllegalArgumentException("CORE_EVENTS_TRANSPORT must be http or amqp");
+    }
     @Bean RequestLimiter discoveryRateLimiter(@Value("${discovery.rate-limit.burst:20}") int burst,
             @Value("${discovery.rate-limit.window-max:600}") int windowMax,
             @Value("${discovery.rate-limit.window:PT60S}") Duration window,

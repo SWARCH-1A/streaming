@@ -1,0 +1,28 @@
+/* El botón ocupa la columna derecha del mensaje; el panel se despliega debajo, a todo el ancho. */
+.toggle {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+  opacity: 0.7;
+}
+.toggle:hover,
+.toggle:focus-visible,
+.toggle[aria-expanded='true'] {
+  opacity: 1;
+}
+.actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  margin-top: 0.25rem;
+  padding: 0.5rem;
+  border-radius: var(--radius-md, 8px);
+  background: rgb(255 255 255 / 4%);
+  font-size: 0.75rem;
+}
+.actions select {
+  width: auto;
+  min-width: 8rem;
+}

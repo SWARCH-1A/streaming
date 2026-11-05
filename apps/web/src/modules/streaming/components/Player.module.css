@@ -1,126 +1,492 @@
 .player {
   display: grid;
-  gap: 1rem;
+  gap: var(--space-3);
   min-width: 0;
 }
+
 .viewport {
   position: relative;
   aspect-ratio: 16 / 9;
-  background: var(--color-surface);
+  min-width: 0;
   overflow: hidden;
-  border-radius: var(--radius-lg);
+  background: var(--color-canvas);
+  border: 1px solid rgb(255 255 255 / 6%);
+  border-radius: var(--radius-md);
+  box-shadow:
+    0 18px 44px -24px rgb(0 0 0 / 90%),
+    0 0 0 1px rgb(255 255 255 / 2%);
   isolation: isolate;
 }
-.viewport > img {
+
+.viewport > img,
+.viewport > video {
+  position: relative;
+  z-index: 0;
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  background: var(--color-canvas);
 }
+
 .dimmed {
   opacity: 0.25;
 }
-.top {
+
+.viewport::after {
   position: absolute;
-  top: 1rem;
-  left: 1rem;
-  right: 1rem;
-  display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    180deg,
+    rgb(13 14 18 / 72%) 0%,
+    transparent 30%,
+    transparent 64%,
+    rgb(13 14 18 / 94%) 100%
+  );
+  content: '';
+  pointer-events: none;
 }
+
+.top,
+.overlayBar {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  left: var(--space-4);
+  z-index: 5;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  pointer-events: none;
+}
+
+.top > *,
+.overlayBar > * {
+  pointer-events: auto;
+}
+
+.overlayGroup,
+.controlGroup {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.viewerChip,
+.qualityFallback {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  padding: 0.25rem 0.65rem;
+  color: var(--color-text);
+  background: rgb(13 14 18 / 82%);
+  border: 1px solid rgb(255 255 255 / 7%);
+  border-radius: var(--radius-pill);
+  backdrop-filter: blur(12px);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.viewerChip {
+  gap: 0.4rem;
+}
+
+.viewerChip svg {
+  color: var(--color-live);
+}
+
+.viewerChip strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.viewerChip span {
+  color: var(--color-subtle);
+  font-weight: 400;
+}
+
 .controls {
   position: absolute;
+  right: 0;
   bottom: 0;
   left: 0;
-  right: 0;
+  z-index: 4;
+  display: grid;
+  gap: var(--space-2);
+  padding: 1rem var(--space-4) 0.85rem;
+  background: linear-gradient(transparent, rgb(13 14 18 / 96%));
+}
+
+.volume::-webkit-slider-thumb {
+  width: 0.6rem;
+  height: 0.6rem;
+  margin-top: -0.2rem;
+  appearance: none;
+  background: var(--color-on-live);
+  border: 0;
+  border-radius: 50%;
+  box-shadow: 0 1px 5px rgb(0 0 0 / 55%);
+  transition: transform 160ms ease;
+}
+
+.volume:hover::-webkit-slider-thumb {
+  transform: scale(1.25);
+}
+
+.volume::-moz-range-track {
+  height: 0.2rem;
+  border-radius: var(--radius-pill);
+}
+
+.volume::-moz-range-thumb {
+  width: 0.6rem;
+  height: 0.6rem;
+  background: var(--color-on-live);
+  border: 0;
+  border-radius: 50%;
+}
+
+.controlBar {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.playerButton,
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  color: var(--color-text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.playerButton:hover:not(:disabled),
+.iconButton:hover:not(:disabled) {
+  background: rgb(255 255 255 / 8%);
+  color: var(--color-primary-soft);
+}
+
+.playerButton:active:not(:disabled),
+.iconButton:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.playerButton:disabled,
+.iconButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.liveSync {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 1.75rem;
+  padding: 0.25rem 0.65rem;
+  color: var(--color-live);
+  background: rgb(209 0 48 / 20%);
+  border: 0;
+  border-radius: var(--radius-pill);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+button.liveSync {
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+button.liveSync:hover {
+  background: rgb(209 0 48 / 32%);
+}
+
+.liveSync > span:first-child {
+  width: 0.5rem;
+  height: 0.5rem;
+  background: currentColor;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgb(209 0 48 / 12%);
+}
+
+.volumeControl {
+  display: flex;
+  align-items: center;
   gap: 0.5rem;
-  padding: 1rem;
-  background: linear-gradient(transparent, rgb(0 0 0 / 95%));
 }
-.controls .quality {
-  font-size: 0.75rem;
-  font-weight: 600;
+
+.rangeTrack {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 0.28rem;
+  margin: 0;
+  border-radius: var(--radius-pill);
 }
-.controls button {
+
+.rangeTrack:focus-within {
+  outline: 2px solid var(--color-primary-soft);
+  outline-offset: 3px;
+}
+
+.rangeControl {
+  position: absolute;
+  inset: 50% 0 auto;
+  z-index: 1;
+  box-sizing: border-box;
+  width: 100% !important;
+  height: 1.5rem !important;
+  min-height: 0 !important;
+  margin: 0;
+  padding: 0 !important;
+  appearance: none;
+  cursor: pointer;
+  background: transparent !important;
+  border: 0 !important;
+  opacity: 0;
+  transform: translateY(-50%);
+}
+
+.rangeThumb {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  z-index: 0;
+  width: 0.72rem;
+  height: 0.72rem;
+  background: var(--color-live);
+  border-radius: 50%;
+  box-shadow: 0 1px 5px rgb(0 0 0 / 55%);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.rangeTrack:hover .rangeThumb {
+  transform: translate(-50%, -50%) scale(1.2);
+}
+
+.volumeTrack {
+  width: 3.75rem;
+  height: 0.2rem;
+}
+
+.volumeTrack .rangeThumb {
+  width: 0.6rem;
+  height: 0.6rem;
+  background: var(--color-on-live);
+}
+
+.media {
+  object-fit: contain !important;
+}
+
+.timecode {
+  color: var(--color-subtle);
+  font: 700 0.6875rem var(--font-mono);
+  white-space: nowrap;
+}
+
+.qualityControl {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.6rem;
+  color: var(--color-text);
+  background: var(--color-raised);
+  border: 1px solid rgb(255 255 255 / 5%);
+  border-radius: var(--radius-sm);
+}
+
+.qualityControl > select.qualitySelect:not([type='checkbox']):not([type='radio']) {
+  width: auto;
+  min-width: 6.8rem;
+  min-height: 1.35rem;
+  padding: 0 1.25rem 0 0;
+  color: var(--color-text);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  appearance: none;
+  cursor: pointer;
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+
+.qualityControl > select.qualitySelect:focus {
+  border: 0;
+  outline: 2px solid var(--color-primary-soft);
+  outline-offset: 2px;
+}
+
+.qualityControl > select.qualitySelect:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.qualityIcon {
+  flex: 0 0 auto;
   color: var(--color-text);
 }
+
+.qualityChevron {
+  position: absolute;
+  right: 0.45rem;
+  color: var(--color-subtle);
+  pointer-events: none;
+  transform: rotate(90deg);
+}
+
+.qualityFallback {
+  gap: 0.4rem;
+  color: var(--color-text);
+  background: var(--color-raised);
+  border-radius: var(--radius-sm);
+}
+
+.overlayMessage,
 .overlay {
   position: absolute;
-  inset: 3.5rem 0 4.5rem;
+  inset: 0;
+  z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  padding: 1rem;
+  padding: 5rem var(--space-4) 5.5rem;
+  color: var(--color-primary-soft);
+  background: rgb(13 14 18 / 72%);
+  backdrop-filter: blur(5px);
   text-align: center;
 }
-.overlay > svg {
-  color: var(--color-primary-soft);
+
+.overlayMessage h2,
+.overlay h2 {
+  color: var(--color-text);
+  font-size: clamp(1rem, 2vw, 1.4rem);
 }
+
+.overlayMessage p,
 .overlay p {
+  max-width: 42ch;
   color: var(--color-muted);
+  font-size: 0.8125rem;
 }
+
 .paused {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
-  background: rgb(0 0 0 / 80%);
+  z-index: 3;
   padding: 0.5rem 1rem;
+  color: var(--color-text);
+  background: rgb(13 14 18 / 86%);
   border-radius: var(--radius-sm);
+  transform: translate(-50%, -50%);
   white-space: nowrap;
-}
-.viewport:fullscreen {
-  border-radius: 0;
-  width: 100%;
-  height: 100%;
-}
-.viewport:fullscreen > img {
-  object-fit: contain;
-}
-@media (max-width: 600px) {
-  .viewport {
-    aspect-ratio: 16 / 9;
-  }
-  .top {
-    top: 0.6rem;
-    left: 0.6rem;
-    right: 0.6rem;
-  }
-  .top > span:last-child,
-  .quality {
-    display: none;
-  }
-  .controls {
-    padding: 0.5rem;
-  }
-  .controls > div {
-    gap: 0.25rem;
-  }
-  .overlay h2 {
-    font-size: 1rem;
-  }
-  .overlay p {
-    font-size: 0.75rem;
-  }
-  .overlay > svg {
-    display: none;
-  }
 }
 
 .endState {
   position: absolute;
   inset: 0;
+  z-index: 6;
 }
+
 .endState > div {
   height: 100%;
   aspect-ratio: auto;
 }
+
+.viewport:fullscreen {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+
+.viewport.theater {
+  position: fixed;
+  inset: var(--header-height) 0 0;
+  z-index: 30;
+  width: auto;
+  height: calc(100dvh - var(--header-height));
+  aspect-ratio: auto;
+  border-radius: 0;
+  background: var(--color-canvas);
+}
+
+.viewport.theater > img,
+.viewport.theater > video {
+  object-fit: contain;
+}
+
+.viewport:fullscreen > img,
+.viewport:fullscreen > video {
+  object-fit: contain;
+}
+
 .viewport:focus-within {
   outline: 3px solid var(--color-primary-soft);
   outline-offset: 4px;
+}
+
+@media (max-width: 700px) {
+  .top,
+  .overlayBar {
+    top: 0.65rem;
+    right: 0.65rem;
+    left: 0.65rem;
+  }
+
+  .viewerChip span,
+  .timecode,
+  .volumeTrack {
+    display: none;
+  }
+
+  .controls {
+    gap: 0.45rem;
+    padding: 0.9rem 0.65rem 0.6rem;
+  }
+
+  .controlBar {
+    gap: 0.4rem;
+  }
+
+  .controlGroup {
+    gap: 0.35rem;
+  }
+
+  .liveSync {
+    padding-inline: 0.5rem;
+  }
+
+  .liveSync > span:last-child {
+    display: none;
+  }
+
+  .qualityControl > select.qualitySelect:not([type='checkbox']):not([type='radio']) {
+    min-width: 5.6rem;
+    max-width: 7.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }

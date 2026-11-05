@@ -69,6 +69,18 @@ public class IdentityController {
         response.addHeader("Set-Cookie",ResponseCookie.from(cookieName,"").httpOnly(true).secure(secureCookie).sameSite("Lax").path("/").maxAge(Duration.ZERO).build().toString());
         return ResponseEntity.noContent().header("Cache-Control","no-store").build();
     }
+    @PostMapping(path="/api/identity/mobile-sessions",consumes=MediaType.APPLICATION_JSON_VALUE,produces=MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<NativeSessionResponse> mobileLogin(@Valid @RequestBody LoginRequest request,HttpServletRequest servletRequest) {
+        LoginResult result=identity.login(request.login(),request.password(),proxies.clientAddress(servletRequest.getRemoteAddr(),java.util.Collections.list(servletRequest.getHeaders("X-Forwarded-For"))));
+        return ResponseEntity.ok().header("Cache-Control","no-store")
+                .body(new NativeSessionResponse(result.credential(),"Bearer",result.userId(),result.expiresAt()));
+    }
+    @DeleteMapping("/api/identity/mobile-sessions/current")
+    public ResponseEntity<Void> mobileLogout(@org.springframework.web.bind.annotation.RequestAttribute(
+            name=streaming.core.security.SessionCredentialFilter.CREDENTIAL,required=false) String credential) {
+        identity.logout(credential);
+        return ResponseEntity.noContent().header("Cache-Control","no-store").build();
+    }
     @GetMapping(path="/api/identity/csrf", produces=MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<CsrfResponse> csrf(CsrfToken token) { return ResponseEntity.ok().header("Cache-Control","no-store, private").body(new CsrfResponse(token.getHeaderName(),token.getToken())); }
     @GetMapping(path="/api/identity/public/users/{userId}",produces=MediaType.APPLICATION_JSON_VALUE)
@@ -86,6 +98,7 @@ public class IdentityController {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record RegistrationResponse(String registrationId,String status,String userId,String channelId) { }
     public record SessionResponse(String userId,Instant expiresAtUtc) { }
+    public record NativeSessionResponse(String accessToken,String tokenType,String userId,Instant expiresAtUtc) { }
     public record CsrfResponse(String headerName,String token) { }
     public record PublicIdentityResponse(String userId,String handle) { }
 }

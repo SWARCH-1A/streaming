@@ -249,7 +249,76 @@ async fn migration_snapshots_timeline_and_metadata_remain_local_and_atomic() -> 
     let migrations: i64 = sqlx::query_scalar("SELECT count(*) FROM _sqlx_migrations")
         .fetch_one(&pool)
         .await?;
-    assert_eq!(migrations, 1);
+    assert_eq!(
+        migrations,
+        sqlx::migrate!("./migrations").iter().count() as i64
+    );
+    pool.close().await;
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requiere STREAMING_TEST_DATABASE_URL PostgreSQL desechable"]
+async fn broker_envelopes_capture_lifecycle_once_and_survive_outbox_claims() -> Result<(), TestError>
+{
+    let pool = database().await?;
+    let clock = MonotonicSessionClock::default();
+    let ingest = playable(&pool, &clock).await?;
+    let events = sqlx::query_as::<_, (Uuid, i64, serde_json::Value, serde_json::Value)>(
+        "SELECT event_id,sequence,payload,broker_envelope FROM streaming_outbox WHERE consumer='chat' ORDER BY sequence",
+    )
+    .fetch_all(&pool)
+    .await?;
+    assert_eq!(events.len(), 2);
+    for (id, sequence, legacy, body) in &events {
+        assert_eq!(body["eventId"], id.to_string());
+        assert_eq!(body["correlationId"], id.to_string());
+        assert_eq!(body["eventType"], "stream.session.changed.v1");
+        assert_eq!(body["schemaVersion"], 1);
+        assert_eq!(body["producer"], "streaming");
+        assert_eq!(
+            body["aggregateId"],
+            format!("session:{}", ingest.session_id.as_str())
+        );
+        assert_eq!(body["sequence"], *sequence);
+        assert_eq!(body["payload"]["channelId"], "channel_1");
+        assert_eq!(body["payload"]["sessionVersion"], *sequence);
+        assert_eq!(body["payload"]["streamId"], ingest.stream_id.as_str());
+        assert!(legacy.get("channelId").is_none());
+        assert!(
+            body["occurredAtUtc"]
+                .as_str()
+                .is_some_and(|value| value.ends_with('Z'))
+        );
+    }
+    assert_eq!(events[0].3["payload"]["status"], "PREPARING");
+    assert!(events[0].3["payload"]["firstLiveAtUtc"].is_null());
+    assert_eq!(events[0].3["payload"]["initialLive"], false);
+    assert_eq!(events[1].3["payload"]["status"], "LIVE");
+    assert!(events[1].3["payload"]["firstLiveAtUtc"].is_string());
+    assert_eq!(events[1].3["payload"]["initialLive"], true);
+
+    let outbox = PostgresDomainEventOutboxRepository::new(pool.clone()).durable_broker();
+    let claim = outbox
+        .claim_next("broker_test".into(), Duration::from_secs(5))
+        .await?
+        .ok_or("outbox vacío")?;
+    assert_eq!(claim.envelope.event_id, events[0].0);
+    let captured = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT broker_envelope FROM streaming_outbox WHERE event_id=$1",
+    )
+    .bind(events[0].0)
+    .fetch_one(&pool)
+    .await?;
+    assert_eq!(captured, events[0].3);
+    let error = sqlx::query(
+        "UPDATE streaming_outbox SET broker_envelope=jsonb_set(broker_envelope,'{correlationId}',to_jsonb('tampered'::text)) WHERE event_id=$1",
+    ).bind(events[0].0).execute(&pool).await.err().ok_or("mutable broker envelope")?;
+    assert!(
+        error
+            .as_database_error()
+            .is_some_and(|error| error.message().contains("immutable"))
+    );
     pool.close().await;
     Ok(())
 }
@@ -354,6 +423,15 @@ async fn reconnect_preserves_session_version_but_never_revives_an_expired_owner(
     callbacks
         .apply(claim, "test_owner".into(), None, &clock)
         .await?;
+    let (legacy, wire): (serde_json::Value, serde_json::Value) = sqlx::query_as(
+        "SELECT payload,broker_envelope FROM streaming_outbox WHERE consumer='chat' AND event_type='StreamSessionAvailabilityChanged' ORDER BY sequence DESC LIMIT 1",
+    ).fetch_one(&pool).await?;
+    assert_eq!(legacy["status"], "LIVE");
+    assert_eq!(legacy["availability"], "RECONNECTING");
+    assert_eq!(wire["payload"]["status"], "RECONNECT_GRACE");
+    assert_eq!(wire["payload"]["availability"], "RECONNECTING");
+    assert_eq!(wire["payload"]["initialLive"], false);
+    assert_eq!(wire["payload"]["sessionVersion"], legacy["sessionVersion"]);
     let deadline: time::OffsetDateTime =
         sqlx::query_scalar("SELECT grace_deadline_at FROM stream_sessions WHERE session_id=$1")
             .bind(ingest.session_id.as_str())
@@ -834,6 +912,307 @@ async fn media_receiver_durably_dedupes_and_fences_payload_reuse_and_old_generat
     );
     let counts: (i64,i64) = sqlx::query_as("SELECT count(*),count(*) FILTER(WHERE processing_error_code='STALE_GENERATION') FROM media_callback_inbox").fetch_one(&pool).await?;
     assert_eq!(counts, (2, 1));
+    pool.close().await;
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requiere STREAMING_TEST_DATABASE_URL PostgreSQL desechable"]
+async fn vod_snapshots_survive_metadata_changes_and_ack_requires_ended() -> Result<(), TestError> {
+    let pool = database().await?;
+    let clock = MonotonicSessionClock::default();
+    let ingest = playable(&pool, &clock).await?;
+    let start = json!({"sessionId":ingest.session_id.as_str(),"streamId":ingest.stream_id.as_str(),"channelId":"channel_1","streamGeneration":1,"title":"Título inicial","categoryId":"category_example","tagIds":[],"description":"","autopublish":false,"preferenceVersion":7});
+    sqlx::query("INSERT INTO recording_sessions(session_id,start_snapshot,initial_source_generation) VALUES($1,$2,$3)")
+        .bind(ingest.session_id.as_str())
+        .bind(start.clone())
+        .bind(ingest.source_generation)
+        .execute(&pool)
+        .await?;
+    sqlx::query("UPDATE stream_configs SET title='Título posterior' WHERE stream_id=$1")
+        .bind(ingest.stream_id.as_str())
+        .execute(&pool)
+        .await?;
+    let snapshots = recordings::snapshots(&pool).await?;
+    assert_eq!(snapshots["items"][0]["start"], start);
+    recordings::acknowledge(&pool, ingest.session_id.as_str()).await?;
+    assert_eq!(
+        recordings::snapshots(&pool).await?["items"]
+            .as_array()
+            .map(Vec::len),
+        Some(1)
+    );
+    sqlx::query("UPDATE stream_sessions SET status='ENDED',availability='OFFLINE',ended_at=clock_timestamp() WHERE session_id=$1").bind(ingest.session_id.as_str()).execute(&pool).await?;
+    recordings::acknowledge(&pool, ingest.session_id.as_str()).await?;
+    recordings::acknowledge(&pool, ingest.session_id.as_str()).await?;
+    assert_eq!(
+        recordings::snapshots(&pool).await?["items"]
+            .as_array()
+            .map(Vec::len),
+        Some(0)
+    );
+    Ok(())
+}
+
+struct AccountAuthority(std::sync::Mutex<Option<(bool, i64)>>);
+impl streaming_service::application::ports::channel_access::ChannelAccessGateway
+    for AccountAuthority
+{
+    fn channel_access(
+        &self,
+        _: String,
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<
+                    Output = Result<
+                        streaming_service::application::ports::channel_access::ChannelAccess,
+                        (),
+                    >,
+                > + Send
+                + '_,
+        >,
+    > {
+        Box::pin(async {
+            let value = self.0.lock().map_err(|_| ())?.ok_or(())?;
+            Ok(
+                streaming_service::application::ports::channel_access::ChannelAccess {
+                    owner_user_id: "user_1".into(),
+                    active: value.0,
+                    account_version: value.1,
+                },
+            )
+        })
+    }
+}
+
+#[tokio::test]
+#[ignore = "requiere STREAMING_TEST_DATABASE_URL PostgreSQL desechable"]
+async fn suspended_sources_are_fenced_across_reactivation_duplicate_events_and_new_ingest()
+-> Result<(), TestError> {
+    use streaming_service::{
+        adapters::outbound::{account_events, account_revocation},
+        application::use_cases::{GetPublicStreamSession, GetPublicStreamSessionError},
+    };
+    let pool = database().await?;
+    config(&pool, 1).await?;
+    let clock = Arc::new(MonotonicSessionClock::default());
+    let gate = Arc::new(AccountAuthority(std::sync::Mutex::new(Some((true, 0)))));
+    let authorizer = authorizer(&pool).with_channel_access(gate.clone());
+    let ingest = authorizer
+        .authorize(authorization(1), clock.as_ref())
+        .await?
+        .authorization;
+    let repo = Arc::new(PostgresStreamingRepository::new(pool.clone()));
+    assert_eq!(
+        repo.session_account_version(ingest.session_id.clone())
+            .await
+            .map_err(debug_error)?,
+        Some(0)
+    );
+    let public = GetPublicStreamSession::new(
+        repo.clone(),
+        Some("https://localhost".into()),
+        clock.clone(),
+    )
+    .with_channel_access(gate.clone());
+    assert!(
+        public
+            .execute(ingest.session_id.as_str().into())
+            .await
+            .is_ok()
+    );
+    *gate.0.lock().map_err(debug_error)? = Some((false, 1));
+    assert_eq!(
+        authorizer
+            .authorize(authorization(1), clock.as_ref())
+            .await
+            .err(),
+        Some(IngestAuthorizationError::InvalidStreamKey)
+    );
+    assert_eq!(
+        public
+            .execute(ingest.session_id.as_str().into())
+            .await
+            .err(),
+        Some(GetPublicStreamSessionError::NotFound)
+    );
+    *gate.0.lock().map_err(debug_error)? = None;
+    assert_eq!(
+        public
+            .execute(ingest.session_id.as_str().into())
+            .await
+            .err(),
+        Some(GetPublicStreamSessionError::Unavailable)
+    );
+    // Suspension and reactivation may both happen during a broker outage.
+    *gate.0.lock().map_err(debug_error)? = Some((true, 2));
+    assert_eq!(
+        public
+            .execute(ingest.session_id.as_str().into())
+            .await
+            .err(),
+        Some(GetPublicStreamSessionError::NotFound)
+    );
+    account_revocation::reconcile(&pool, gate.as_ref(), repo.as_ref(), clock.as_ref())
+        .await
+        .map_err(std::io::Error::other)?;
+    assert_eq!(
+        sqlx::query_scalar::<_, String>("SELECT status FROM stream_sessions WHERE session_id=$1")
+            .bind(ingest.session_id.as_str())
+            .fetch_one(&pool)
+            .await?,
+        "ENDED"
+    );
+    let new = authorizer
+        .authorize(authorization(1), clock.as_ref())
+        .await?
+        .authorization;
+    assert_ne!(new.session_id, ingest.session_id);
+    assert_eq!(
+        repo.session_account_version(new.session_id.clone())
+            .await
+            .map_err(debug_error)?,
+        Some(2)
+    );
+    let event = |version: i64, status: &str| json!({"eventId":Uuid::new_v4(),"eventType":"account.status.changed.v1","schemaVersion":1,"producer":"core","aggregateId":"account:user_1","sequence":version,"occurredAtUtc":"2026-11-02T12:00:00Z","correlationId":"fixture","payload":{"userId":"user_1","accountVersion":version,"status":status}});
+    let stale = serde_json::to_vec(&event(1, "SUSPENDED"))?;
+    account_events::apply(&pool, repo.as_ref(), clock.as_ref(), &stale)
+        .await
+        .map_err(std::io::Error::other)?;
+    assert_eq!(
+        sqlx::query_scalar::<_, String>("SELECT status FROM stream_sessions WHERE session_id=$1")
+            .bind(new.session_id.as_str())
+            .fetch_one(&pool)
+            .await?,
+        "PREPARING"
+    );
+    let mut change = event(3, "SUSPENDED");
+    let bytes = serde_json::to_vec(&change)?;
+    account_events::apply(&pool, repo.as_ref(), clock.as_ref(), &bytes)
+        .await
+        .map_err(std::io::Error::other)?;
+    account_events::apply(&pool, repo.as_ref(), clock.as_ref(), &bytes)
+        .await
+        .map_err(std::io::Error::other)?;
+    assert_eq!(
+        sqlx::query_scalar::<_, String>("SELECT status FROM stream_sessions WHERE session_id=$1")
+            .bind(new.session_id.as_str())
+            .fetch_one(&pool)
+            .await?,
+        "ENDED"
+    );
+    assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM streaming_outbox WHERE aggregate_id=$1 AND event_type='StreamSessionEnded'").bind(format!("session:{}",new.session_id.as_str())).fetch_one(&pool).await?,1);
+    change["payload"]["status"] = "ACTIVE".into();
+    assert_eq!(
+        account_events::apply(
+            &pool,
+            repo.as_ref(),
+            clock.as_ref(),
+            &serde_json::to_vec(&change)?
+        )
+        .await,
+        Err("EVENT_ID_CONFLICT")
+    );
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requiere STREAMING_TEST_DATABASE_URL PostgreSQL desechable"]
+async fn outbox_recovers_large_backlog_in_order_without_reclaiming_closed_rows()
+-> Result<(), TestError> {
+    let pool = database().await?;
+    config(&pool, 1).await?;
+    sqlx::query("INSERT INTO streaming_outbox(event_id,aggregate_id,sequence,event_type,payload,consumer) SELECT uuidv7(),aggregate_id,n,event_type,payload,consumer FROM streaming_outbox CROSS JOIN generate_series(2,30000) AS n WHERE consumer='discovery' AND sequence=1").execute(&pool).await?;
+    sqlx::query("UPDATE streaming_outbox SET closed_at=clock_timestamp() WHERE consumer='discovery' AND sequence=1").execute(&pool).await?;
+    sqlx::query("ANALYZE streaming_outbox")
+        .execute(&pool)
+        .await?;
+    let outbox = PostgresDomainEventOutboxRepository::for_discovery(pool.clone());
+    let claim = tokio::time::timeout(
+        Duration::from_secs(5),
+        outbox.claim_next("backlog-test".into(), Duration::from_secs(15)),
+    )
+    .await??
+    .ok_or("backlog not claimable")?;
+    assert_eq!(claim.envelope.sequence, 2);
+    assert!(
+        outbox
+            .claim_next("parallel-test".into(), Duration::from_secs(15))
+            .await?
+            .is_none()
+    );
+    outbox
+        .acknowledge(
+            claim.envelope.event_id,
+            "backlog-test".into(),
+            claim.claim_token,
+        )
+        .await?;
+    let next = outbox
+        .claim_next("backlog-test".into(), Duration::from_secs(15))
+        .await?
+        .ok_or("next delivery missing")?;
+    assert_eq!(next.envelope.sequence, 3);
+    // The freshness alert participates in every old delivery during recovery.
+    // Exercise it too: a claim-only benchmark misses its unindexed full scan.
+    tokio::time::timeout(Duration::from_secs(5), async {
+        let mut current = next;
+        for sequence in 3..103 {
+            assert_eq!(current.envelope.sequence, sequence);
+            assert!(
+                outbox
+                    .alert_once(
+                        current.envelope.event_id,
+                        "backlog-test".into(),
+                        current.claim_token
+                    )
+                    .await?
+            );
+            outbox
+                .acknowledge(
+                    current.envelope.event_id,
+                    "backlog-test".into(),
+                    current.claim_token,
+                )
+                .await?;
+            current = outbox
+                .claim_next("backlog-test".into(), Duration::from_secs(15))
+                .await?
+                .ok_or("recovery stopped")?;
+        }
+        Ok::<(), TestError>(())
+    })
+    .await??;
+    pool.close().await;
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requiere STREAMING_TEST_DATABASE_URL PostgreSQL desechable"]
+async fn active_account_with_stale_session_version_gets_a_new_session() -> Result<(), TestError> {
+    let pool = database().await?;
+    config(&pool, 1).await?;
+    let clock = Arc::new(MonotonicSessionClock::default());
+    let gate = Arc::new(AccountAuthority(std::sync::Mutex::new(Some((true, 0)))));
+    let authorizer = authorizer(&pool).with_channel_access(gate.clone());
+    let old = authorizer
+        .authorize(authorization(1), clock.as_ref())
+        .await?
+        .authorization;
+    // Suspended and reactivated while the broker was down: the old session was never reconciled.
+    *gate.0.lock().map_err(debug_error)? = Some((true, 2));
+    let result = authorizer
+        .authorize(authorization(1), clock.as_ref())
+        .await?;
+    assert_ne!(result.authorization.session_id, old.session_id);
+    assert_eq!(result.sessions_ended, vec![old.session_id.clone()]);
+    assert_eq!(
+        sqlx::query_scalar::<_, String>("SELECT status FROM stream_sessions WHERE session_id=$1")
+            .bind(old.session_id.as_str())
+            .fetch_one(&pool)
+            .await?,
+        "ENDED"
+    );
     pool.close().await;
     Ok(())
 }

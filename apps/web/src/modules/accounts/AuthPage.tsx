@@ -191,6 +191,11 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
                 <Icon name="arrow" />
               </Button>
             </fieldset>
+            {!register ? (
+              <p className={styles.alternate}>
+                <Link to="/forgot-password">¿Olvidaste tu contraseña?</Link>
+              </p>
+            ) : null}
           </form>
         )}
         <p className={styles.alternate}>

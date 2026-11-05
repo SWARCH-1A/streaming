@@ -1,5 +1,10 @@
 # Matriz de recorridos de integración P1
 
+> Perfil de aceptación y alcance P1. Las obligaciones actuales de P2 están en
+> [alcance P2](alcance_p2.md), [catálogo](catalogo_requisitos.md) y [SPEC-15](spec-p2/spec_15_int.md).
+> Los mínimos arquitectónicos, transporte de eventos, SSR y retención/replay de P2 se verifican allí.
+
+
 Esta matriz desarrolla [SPEC-09 CA-08](spec-p1/spec_09_int.md) y complementa la
 [matriz RNF](matriz_trazabilidad_rnf.md). Describe los recorridos que debemos probar y relaciona
 cada uno con sus requisitos y criterios de aceptación.

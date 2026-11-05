@@ -1,0 +1,5 @@
+FROM golang:1.26-alpine
+RUN apk add --no-cache ffmpeg gcc musl-dev
+ENV GOCACHE=/tmp/go-cache GOPATH=/tmp/go-mod
+USER 1000:1000
+WORKDIR /src

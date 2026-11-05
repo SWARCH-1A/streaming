@@ -18,11 +18,12 @@ La persistencia y validación de Catálogo se documentan en
 
 Código bajo `src/main/java/streaming/core`:
 
-- `accounts/identity`: registro, credenciales, sesiones, idempotencia y cuotas SQL.
+- `accounts/identity`: registro, credenciales, sesiones, recuperación de contraseña, idempotencia, cuotas SQL y outbox de correo.
 - `accounts/profile`: perfil, edición propia y archivos/permisos de avatar. Valida sesión localmente.
 - `channels`: creación inicial transaccional, edición propia, portadas y bootstrap público por handle/owner, con vistas SQL públicas de Cuentas.
 - `taxonomy`: catálogo público activo/versionado, semilla SQL, tombstones y validación local de IDs.
 - `discovery`: GraphQL público (`streams`, `channels`), inbox/proyección SQL de los snapshots públicos de Streaming y reconstrucción desde su corte consistente ([ADR-008](../../docs/adr/ADR-008-descubrimiento-en-core.md)).
+- `watchparty`: salas privadas de visualización conjunta con hasta 4 fuentes de Streaming, acceso por código, estado honesto por fuente, suspensión y comandos idempotentes ([ADR-025](../../docs/adr/ADR-025-watch-parties-en-core.md)); ver su [README](src/main/java/streaming/core/watchparty/README.md).
 - `streaming`: documentación de frontera; control de emisiones en el [servicio Rust](../streaming/README.md). Los contextos privados owner/catálogo están implementados en Core; el contexto Chat compone identidad/perfil locales con estado/timeline actual Streaming.
 - `security`, `api`: infraestructura común, sin orquestación de casos de uso de dominio.
 
@@ -32,7 +33,9 @@ canal versión 0 y resultado idempotente juntos. No inicia sesión. Las FK y UNI
 y unicidad. Un reintento recupera los mismos IDs; un fallo revierte todas las escrituras de negocio.
 Las cuotas se guardan aparte para limitar intentos fallidos.
 
-No hay HTTP entre estos módulos, worker de provisión, reservas PENDING ni outbox de identidad/perfil.
+Los módulos se comunican mediante interfaces locales. La provisión de cuenta/perfil/canal no
+necesita un worker ni un outbox. El outbox de recuperación guarda exclusivamente la intención
+de entrega de correo a otro proceso, conforme a ADR-017 y al broker de ADR-016.
 La consulta pública compone canal/handle/perfil en una sentencia SQL y un batch autoritativo
 Streaming. La ausencia confirmada devuelve `stream:null`, `streamStatusFresh=true` y OFFLINE;
 una dependencia fallida devuelve UNKNOWN/false preservando los datos locales. Edición/portada usa la sesión y CSRF de Core; los PATCH
@@ -41,6 +44,39 @@ replica permisos en Discovery. Las pruebas entre proveedores están en
 [la suite P1](../../tests/integration/p1-domains/README.md); Web y carga se verifican por separado.
 
 ## Configuración
+
+### Recuperación de contraseña
+
+`V9__credential_recovery.sql` añade el estado de tokens, idempotencia y outbox conservando
+las cuentas y sesiones existentes. La política vigente está en
+[ADR-017](../../docs/adr/ADR-017-recuperacion-de-credenciales.md).
+
+| Variable | Uso |
+| --- | --- |
+| CORE_RECOVERY_ENABLED | `true` habilita solicitud, confirmación y publicación de recuperación; default `false` en Core aislado |
+| CORE_RECOVERY_ENCRYPTION_KEY | Base64 de 32 bytes aleatorios; clave AES-256-GCM independiente y persistente |
+| CORE_RECOVERY_SERVICE_TOKEN | Secreto privado de entrega para Notificaciones, identidad lógica `recovery-email`, distinto de Streaming/Catálogo/Chat |
+| WEB_ORIGIN | Origen HTTPS usado para el enlace; HTTP se admite únicamente en loopback para desarrollo |
+
+Las dos APIs públicas requieren CSRF e Idempotency-Key UUID. `/internal/core/recovery-deliveries/*`
+solo está disponible en el listener privado mediante `X-Service-Name: recovery-email` y su
+`X-Service-Token`, con la pareja recoveryId/deliveryId e intento monotónico 1..2147483647. Nunca admite una sesión de
+usuario como credencial de servicio. El consumidor de Notificaciones usará claim/result y no
+leerá las tablas Core; el nombre lógico de la credencial no selecciona su tecnología.
+
+Solicitud, confirmación y contratos privados están implementados. El publicador usa el puerto
+`RecoveryPublisher`: solo confirma el outbox después del ACK durable; un fallo recupera la misma
+identidad con lease de 60 s y backoff 1/2/5/10 s. `RabbitRecoveryPublisher` publica el cuerpo
+original con confirmación y detección de mensajes sin ruta, hacia `notifications.recovery.email`
+del broker compartido (ADR-016). El consumidor, almacenamiento de intentos y SMTP están pendientes
+del responsable de Notificaciones; el [contrato de integración](../../docs/contratos_p2_eventos.md#integración-de-recuperación-entre-cuentas-y-notificaciones)
+define lo que debe consumir. Publicar el trabajo no acredita entrega de correo. En instalaciones existentes,
+configurar la clave sin sustituir secretos ni borrar `.state-local` o bases de datos.
+
+`RecoveryIT` verifica uniformidad, cuotas, consumo concurrente, revocación, rollback, aislamiento
+del listener, reintentos privados y recuperación del outbox sobre PostgreSQL desechable.
+
+### Variables comunes
 
 | Variable | Uso |
 | --- | --- |
@@ -66,6 +102,7 @@ replica permisos en Discovery. Las pruebas entre proveedores están en
 | CORE_STREAMING_CONSUMER_TOKEN | Secreto de 32+ caracteres enviado como `Authorization: Bearer` a las lecturas privadas; mismo valor que `STREAMING_CORE_CONSUMER_TOKEN` en Streaming. Sin él no hay reconstrucción. Nunca se registra |
 | CORE_STREAMING_DEVELOPMENT_HTTP | `false`; `true` permite HTTP solo en desarrollo aislado |
 | CHAT_CORE_SERVICE_TOKEN | Credencial distinta de las dos Streaming; habilita solo message-context y snapshot Chat en el listener privado |
+| WATCHPARTY_STREAMING_BASE_URL | URL base de la lectura pública de Streaming `GET /api/streams/{streamId}` (sin credenciales) que usa Watch parties para el estado de cada fuente. Vacía (default) deshabilita la lectura: las fuentes quedan `UNKNOWN` y añadir una responde 503. En el stack local, `https://live:8080` |
 | DISCOVERY_RECONCILE_INTERVAL | Duración ISO-8601 de inicio a inicio entre cortes completos; default `PT4S`. Streaming conserva cada corte un día: súbela si el volumen preocupa, sabiendo que la ausencia de una configuración solo se confirma con un corte de menos de 5 s (continua mientras un corte tarde menos de un segundo; si no, esos canales quedan `UNKNOWN` en parte del ciclo) |
 | CORE_TRUSTED_PROXIES | CIDR separados por coma de los reverse proxies cuyo `X-Forwarded-For` se acepta (de derecha a izquierda). Vacío (default) usa siempre la IP del socket; una lista mal formada impide arrancar |
 
@@ -203,7 +240,7 @@ Streaming real.
 ## Base nueva e historiales anteriores
 
 `db/migration/V1__core.sql` es el baseline de una **base nueva**. El historial Flyway se ubica en
-schema `core`; las tablas tienen schemas `identity`, `profile`, `channels` y `taxonomy`.
+schema `core`; las tablas tienen schemas `identity`, `profile`, `channels` y `taxonomy` (más `discovery` y `watchparty`).
 `V2__channel_editing_and_banners.sql` amplía la descripción a 500 caracteres y agrega clave/permisos
 de portada; se aplica tanto a bases nuevas como a una base Core con V1 sin modificar su checksum.
 `V5__discovery.sql` agrega el schema `discovery` (proyección, recepción, conflictos, estado de reconciliación y
@@ -221,3 +258,74 @@ rechazar schemas no vacíos sin historial Core; no activar baseline-on-migrate n
 La base actual está vacía: se inicializa con Flyway V1 y no requiere importar datos ni archivos de
 prototipos anteriores. La secuencia anterior solo describe evolución del esquema Core, no una
 migración de datos.
+
+## Transporte P2 por RabbitMQ
+
+CORE_EVENTS_TRANSPORT=http (por defecto) conserva recepción HTTP P1. Con amqp, consume core.lifecycle/core.discovery mediante Spring AMQP y deshabilita la entrega HTTP de eventos. El inbox P2 es SQL local sin TTL automático; la barrera de ciclo no reemplaza metadatos/contadores. Configurar host/puerto/vhost/usuario/password spring.rabbitmq y truststore JVM con CA/hostname verificados.
+
+BrokerEventIngestService escribe mediante los puertos Discovery BrokerEventStore y ProjectionStore.
+JdbcBrokerEventStore posee el SQL del inbox P2 y la barrera de ciclo; JdbcProjectionStore posee
+el de proyección y conflictos. La aplicación mantiene una sola TransactionTemplate para ambos
+repositorios; la confirmación AMQP ocurre después del commit. No hay transacciones independientes
+por repositorio ni cambios en los envelopes del contrato.
+
+BrokerRepositoryBoundaryTest comprueba la dependencia de esos puertos. BrokerEventIngestIT usa
+PostgreSQL desechable para verificar dedupe, versiones, conflictos, concurrencia y rollback de inbox
+y efectos ante un fallo SQL posterior a insertar o actualizar ciclo/proyección. Se ejecutan con
+las suites Unit/Integration anteriores.
+
+`V12__watchparty.sql` agrega el schema `watchparty` (salas, miembros, fuentes y resultados de `Idempotency-Key`); se aplica sobre V11 sin
+modificar migraciones anteriores y `WatchPartyMigrationIT` comprueba la conservación de datos y checksums.
+
+V8__broker_lifecycle_conflicts.sql amplía los motivos de conflicto de Discovery con
+LIFECYCLE_CONFLICT, conservando los de P1. Se aplica sobre V7 sin modificar migraciones anteriores;
+la prueba de actualización verifica conservación del inbox, ciclo y checksums existentes.
+
+Ver [perfil compartido](../../infra/broker/README.md) y [ADR-016](../../docs/adr/ADR-016-rabbitmq-eventos-p2.md).
+
+## Administración P2
+
+Crear primero una cuenta normal desde Web. El operador ejecuta el script sobre PostgreSQL Core
+con el ID de esa cuenta ACTIVE (nunca una contraseña). Desde la raíz del repositorio, en WSL:
+
+```sh
+docker compose --env-file infra/p1/.state-local/environment.env -f compose.yaml -f infra/broker/compose.yaml exec -T core-db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v target_user="$1"' sh usr_ejemplo < services/core/scripts/provision-admin.sql
+```
+
+Sustituir `usr_ejemplo` por el ID de la cuenta destinada a operar. El script requiere acceso de
+operador a la base; no se expone por HTTP. Valida la cuenta, provisiona ADMIN, audita y revoca
+sesiones anteriores. Volver a iniciar sesión y abrir `/admin` desde el origen público.
+Si se repite no duplica la auditoría de provisión; vuelve a revocar sesiones existentes.
+
+V11 incorpora seguimiento y autopublicación de canal; V10 queda reservada a Administración.
+Si una instalación experimental aplicó `V10__channel_follows.sql`, detener la actualización y
+conservar el volumen y un respaldo: ese historial necesita una transición explícita antes de
+aplicar V10 de develop y V11. No usar `repair` para ocultar la colisión ni borrar datos.
+
+V10 preserva identidades/perfiles/canales y asigna USER/ACTIVE/version 0 a cuentas previas.
+V9 corresponde exclusivamente a recuperación de credenciales (ADR-017); Administración
+usa V10 y ADR-019. Antes de actualizar una base de una revisión experimental de este PR,
+consultar `SELECT version,description,checksum FROM flyway_schema_history ORDER BY installed_rank;`.
+Si V9 indica `account administration`, detener la actualización y conservar el volumen:
+su historial no corresponde a develop. No ejecutar `repair`, borrar volúmenes ni sustituir
+checksums para ocultar esa colisión; acordar una transición respaldada de esa base aparte.
+Las pruebas cubren actualización desde V8 y desde V9 de recuperación, además de instalación limpia.
+No modifica migraciones aplicadas. El cambio de estado usa cookie, CSRF, versión e idempotencia.
+Los datos administrativos solo se obtienen con rol válido. `CORE_EVENTS_TRANSPORT=amqp` activa
+el outbox mediante el broker existente; el perfil HTTP P1 conserva pendientes los eventos.
+No borrar registros pendientes para recuperar una caída. La retirada de contenido, consumidores
+de suspensión y revocación de URLs/cachés de imágenes siguen pendientes de P2-17.
+
+Pruebas: `./mvnw -P integration verify` (Java 25 y Docker); las clases AdministrationIT y
+AdministrationInfrastructureIT usan proveedores desechables. Un resultado Core no acredita
+corte de emisiones ni acceso revocable integrado en otros servicios.
+
+## Contexto privado VOD
+
+`CORE_VOD_SERVICE_TOKEN` habilita exclusivamente POST `/internal/core/access-context` en el
+listener privado; es distinto de Streaming, Chat, Notificaciones y recording-settings. La ruta
+pública devuelve404. Core verifica sesión vigente, estado/versión del propietario, propiedad del
+canal y rol para READ/WRITE/SESSION/ADMIN; las selecciones de categoría/etiquetas modificadas se
+validan mediante el repositorio publicado de Catálogo. No accede a PostgreSQL VOD.
+`VodAccessIT` verifica separación de conectores/credenciales, propietario/tercero, revocación y
+suspensión. El permiso corto de medios lo emite VOD según [ADR-022](../../docs/adr/ADR-022-vod-go-postgresql-minio.md).

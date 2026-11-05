@@ -225,6 +225,7 @@ const (
 	cm1 = "11111111-1111-4111-8111-111111111111"
 	cm2 = "22222222-2222-4222-8222-222222222222"
 	cm3 = "33333333-3333-4333-8333-333333333333"
+	cm4 = "44444444-4444-4444-8444-444444444444"
 )
 
 func TestAnonymousReadsLiveMessagesButCannotSend(t *testing.T) {
@@ -334,7 +335,7 @@ func TestCoreFailuresRejectWithoutPersisting(t *testing.T) {
 func TestOriginIsValidatedBeforeUpgradeEvenForAnonymous(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	url := "ws" + strings.TrimPrefix(h.public.URL, "http") + "/realtime/chat/sessions/ses_live"
-	for _, origin := range []string{"https://evil.example", ""} {
+	for _, origin := range []string{"https://evil.example", "null"} {
 		hdr := http.Header{}
 		if origin != "" {
 			hdr.Set("Origin", origin)

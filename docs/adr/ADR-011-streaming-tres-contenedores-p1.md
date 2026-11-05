@@ -1,5 +1,9 @@
 # ADR-011: Streaming y Media en tres contenedores para P1
 
+> Ámbito: perfil P1. [ADR-015](ADR-015-arquitectura-p2.md) define la arquitectura P2:
+> SSR, Gateway, broker, VOD y chat durable. Este ADR conserva la decisión de la primera entrega.
+
+
 - Estado: aceptada
 - Fecha: 2026-10-08
 - Responsable: Streaming e Integración

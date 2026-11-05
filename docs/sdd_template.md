@@ -7,10 +7,10 @@
 
 ## 1. Contexto y problema
 
-Explica qué necesita el usuario y qué problema resuelve esta SPEC. Indica de dónde viene esa
-necesidad y separa los hechos, los acuerdos y las propuestas. Usa referencias comprobables;
-las citas de reuniones deben corresponder a registros reales. Enlaza los requisitos del catálogo
-y los documentos de arquitectura de `docs/`.
+Describe la necesidad y el comportamiento esperado con lenguaje directo. Enlaza los requisitos
+y la arquitectura aplicables. Las políticas vigentes se redactan como definición del sistema;
+las alternativas sin resolver se registran como preguntas pendientes, sin narración de reuniones
+ni atribuciones personales.
 
 ## 2. Definición del componente
 
@@ -91,9 +91,9 @@ indica la interfaz de aplicación correspondiente.
 
 ## 9. Decisiones y preguntas abiertas
 
-### Decisiones tomadas
+### Definición vigente
 
-- **D-01** — … (origen y fecha).
+- **D-01** — … (referencia al ADR aplicable).
 
 ### Preguntas abiertas
 

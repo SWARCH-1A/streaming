@@ -12,6 +12,7 @@ public interface ProfileStore {
     void saveUpload(String userId,String uploadHash,String objectKey,String contentType,Instant created,Instant expires);
     Profile update(String userId,String displayName,String bio,String avatarKey,Instant now);
     List<String> deleteExpiredUploads(Instant now,int limit);
+    boolean isPublicImageReadable(String objectKey);
     boolean isObjectReferenced(String objectKey,boolean published);
     record Profile(String userId,String displayName,String bio,String avatarKey,long version,Instant createdAt,Instant updatedAt) { }
     record Upload(String userId,String objectKey,String contentType,Instant expiresAt) { }

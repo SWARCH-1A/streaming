@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import streaming.core.api.CoreErrorHandler;
 import streaming.core.discovery.application.ProjectionIngestService;
 import tools.jackson.databind.JsonNode;
@@ -17,6 +18,7 @@ import tools.jackson.databind.JsonNode;
  * 202 first delivery, 200 identical redelivery, 409 conflicting content, 422 invalid, 400 malformed JSON.
  */
 @RestController
+@ConditionalOnProperty(name="core.events-transport",havingValue="http",matchIfMissing=true)
 public class StreamEventsController {
     private final ProjectionIngestService ingest;
 

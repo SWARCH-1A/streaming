@@ -25,26 +25,40 @@ public class CoreSecurityConfiguration {
 
     @Bean @org.springframework.core.annotation.Order(2)
     SecurityFilterChain securityFilterChain(HttpSecurity http,ObjectMapper json,
-            @Value("${core.secure-cookie:false}") boolean secureCookie) throws Exception {
+            @Value("${core.secure-cookie:false}") boolean secureCookie,
+            @Value("${core.cookie-name:stream_session}") String cookieName,
+            streaming.core.accounts.identity.application.IdentityApplicationService identity) throws Exception {
         CookieCsrfTokenRepository csrf=CookieCsrfTokenRepository.withHttpOnlyFalse();
         csrf.setCookieCustomizer(cookie->cookie.sameSite("Lax").secure(secureCookie).path("/"));
-        http.cors(Customizer.withDefaults())
+        http.addFilterBefore(new SessionCredentialFilter(identity,json,cookieName),org.springframework.security.web.csrf.CsrfFilter.class)
+            .cors(Customizer.withDefaults())
             // The JSON endpoint and cookie expose the same token accepted by X-XSRF-TOKEN.
             .csrf(c->c.csrfTokenRepository(csrf).csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
                     // Public, anonymous, read-only query endpoint: it ignores the session cookie and requires application/json.
-                    .ignoringRequestMatchers("/api/discovery/graphql"))
+                    .ignoringRequestMatchers("/api/discovery/graphql")
+                    .ignoringRequestMatchers(SessionCredentialFilter::nativeRequest))
             .sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .requestCache(c->c.disable())
             .authorizeHttpRequests(a->a
+                    // Role and current opaque session are checked by AdministrationService, as with other Core APIs.
+                    .requestMatchers(HttpMethod.GET,"/api/admin/users","/api/admin/channels").permitAll()
+                    .requestMatchers(HttpMethod.PUT,"/api/admin/users/*/status").permitAll()
                     .requestMatchers(HttpMethod.GET,"/api/identity/registrations/**","/api/identity/public/**",
                             "/api/identity/csrf","/api/profile/csrf","/api/profile/me","/api/profile/users/**",
                             "/api/profile/avatars/**","/api/channels/by-handle/*","/api/channels/by-owner/*","/api/channels/*",
                             "/api/channels/csrf","/api/channels/banners/*","/api/taxonomy",
+                            "/api/channels/*/followers/me","/api/me/followed-channels","/api/channels/*/vod-settings",
+                            "/api/watch-parties/*",
                             "/actuator/health","/actuator/health/**","/actuator/info").permitAll()
-                    .requestMatchers(HttpMethod.POST,"/api/identity/registrations","/api/identity/sessions",
-                            "/api/profile/me/avatar-uploads","/api/channels/*/banner-uploads","/api/discovery/graphql").permitAll()
+                    .requestMatchers(HttpMethod.POST,"/api/identity/registrations","/api/identity/sessions","/api/identity/mobile-sessions",
+                            "/api/identity/recovery-requests","/api/identity/recoveries/confirm",
+                            "/api/profile/me/avatar-uploads","/api/channels/*/banner-uploads","/api/discovery/graphql",
+                            "/api/watch-parties","/api/watch-parties/join","/api/watch-parties/*/streams",
+                            "/api/watch-parties/*/access-code/rotate","/api/watch-parties/*/close").permitAll()
                     .requestMatchers(HttpMethod.PATCH,"/api/profile/me","/api/channels/*").permitAll()
-                    .requestMatchers(HttpMethod.DELETE,"/api/identity/sessions/current").permitAll()
+                    .requestMatchers(HttpMethod.PUT,"/api/channels/*/followers/me","/api/channels/*/vod-settings").permitAll()
+                    .requestMatchers(HttpMethod.DELETE,"/api/identity/sessions/current","/api/identity/mobile-sessions/current","/api/channels/*/followers/me",
+                            "/api/watch-parties/*/streams/*").permitAll()
                     .anyRequest().denyAll())
             .exceptionHandling(e->e.accessDeniedHandler((request,response,error)-> {
                 response.setStatus(403); response.setCharacterEncoding(java.nio.charset.StandardCharsets.UTF_8);
@@ -63,7 +77,7 @@ public class CoreSecurityConfiguration {
 
     @Bean CorsConfigurationSource corsConfigurationSource(@Value("${core.public-origin}") String origin) {
         CorsConfiguration c=new CorsConfiguration();
-        c.setAllowedOrigins(List.of(origin)); c.setAllowedMethods(List.of("GET","POST","PATCH","DELETE","OPTIONS"));
+        c.setAllowedOrigins(List.of(origin)); c.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
         c.setAllowedHeaders(List.of("Content-Type","Idempotency-Key","X-XSRF-TOKEN","X-Request-Id"));
         c.setExposedHeaders(List.of("X-Request-Id","Retry-After")); c.setAllowCredentials(true); c.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source=new UrlBasedCorsConfigurationSource(); source.registerCorsConfiguration("/**",c); return source;
