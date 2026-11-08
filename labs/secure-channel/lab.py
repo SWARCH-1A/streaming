@@ -78,6 +78,20 @@ def compose(args, *, mode=None, capture=False, check=True):
     return execute(command + args, capture=capture, check=check, env=env)
 
 
+def certificates(force=False):
+    """Group 2: OpenSSL runs in the tools container; the host only owns the password."""
+    configuration()
+    tls = STATE / 'tls'
+    tls.mkdir(exist_ok=True)
+    # UID 10001 (Core) must traverse the read-only mount; listing stays private.
+    os.chmod(tls, 0o711)
+    password = tls / 'keystore-password.txt'
+    if not password.is_file() or not password.read_text(encoding='utf-8').strip():
+        password.write_text(secrets.token_urlsafe(32), encoding='utf-8')
+        os.chmod(password, 0o600)
+    compose(['run', '--rm', '--no-deps', 'pki'] + (['--force'] if force else []), mode='http')
+
+
 def client(action, mode, *, capture=False, check=True):
     return compose(['run', '--rm', '--no-deps', 'client', '/lab/client.py', action,
                     '--mode', mode], mode=mode, capture=capture, check=check)
@@ -142,8 +156,10 @@ def capture_traffic(mode):
 def main():
     os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['init', 'build', 'up', 'status', 'logs', 'seed', 'capture', 'verify', 'down'])
+    parser.add_argument('action', choices=['init', 'build', 'certs', 'up', 'status', 'logs', 'seed',
+                                           'capture', 'verify', 'down'])
     parser.add_argument('--mode', choices=['http', 'https'])
+    parser.add_argument('--force', action='store_true', help='certs: reissue CA and server certificate')
     args = parser.parse_args()
     if args.action == 'init':
         initialize()
@@ -152,6 +168,8 @@ def main():
     mode = args.mode or config['mode']
     if args.action == 'build':
         compose(['build', 'core-lab', 'client'], mode=mode)
+    elif args.action == 'certs':
+        certificates(args.force)
     elif args.action == 'up':
         up(mode)
     elif args.action == 'status':

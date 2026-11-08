@@ -60,6 +60,17 @@ services:
     volumes:
       - ./.state:/state
     entrypoint: [tcpdump]
+  pki:
+    image: ${LAB_PROJECT}-tools
+    profiles: [tools]
+    network_mode: none
+    cap_drop: [ALL]
+    # CHOWN hands core.p12 to Core's UID 10001; DAC_OVERRIDE writes the private host folder.
+    cap_add: [CHOWN, DAC_OVERRIDE]
+    volumes:
+      - ./:/lab:ro
+      - ./.state:/state
+    entrypoint: [python3, /lab/pki.py]
 volumes:
   database:
   images:

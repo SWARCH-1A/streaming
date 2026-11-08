@@ -220,9 +220,10 @@ labs/secure-channel/.state/tls/
 
 El certificado debe incluir los SAN DNS `core-lab` y `localhost`, y el SAN IP `127.0.0.1`. El usuario `10001` de Core debe poder recorrer el directorio montado y leer `core.p12`; el montaje es de solo lectura. En Linux/WSL, `init` crea el directorio privado `tls` con permisos restrictivos: el Grupo 2 debe preparar permisos de recorrido del directorio y lectura del almacén para ese UID. No basta con ajustar únicamente el archivo. La contraseña del almacén se guarda en `keystore-password.txt`, sin espacios añadidos; la lee el helper anfitrión, no Core directamente. Conserva restringidos ese archivo y cualquier clave privada PEM. La clave privada y la contraseña no se comparten por Git.
 
-Cuando el Grupo 2 haya preparado y revisado esos archivos:
+El Grupo 2 genera esos archivos con `python labs/secure-channel/lab.py certs`. El procedimiento completo está en [GRUPO-2.md](GRUPO-2.md). Después:
 
 ```powershell
+python labs/secure-channel/lab.py certs
 python labs/secure-channel/lab.py up --mode https
 python labs/secure-channel/lab.py capture --mode https
 python labs/secure-channel/lab.py verify --mode https
@@ -230,7 +231,7 @@ python labs/secure-channel/lab.py verify --mode https
 
 El cliente usa explícitamente `--cacert /state/tls/ca.crt`; no desactiva la validación mediante `-k`. No es necesario importar la CA en Windows para ejecutar este cliente dentro de Docker. Una prueba adicional desde un navegador requerirá el procedimiento de confianza correspondiente.
 
-Estos comandos describen el soporte preparado para la comparación. No afirman que la generación del certificado ni la aceptación TLS de los otros grupos ya se hayan ejecutado. El Grupo 3 debe comprobar operación funcional, handshake y registros TLS, además de los casos negativos de CA y nombre. La mera ausencia del marcador no prueba que el canal sea seguro. Wireshark no debe tener cargadas claves de sesión TLS durante esa comparación.
+La generación y el recorrido HTTPS del Grupo 2 se validaron según [GRUPO-2.md](GRUPO-2.md), que también incluye una receta general para otros proyectos. La aceptación TLS sigue a cargo del Grupo 3. El Grupo 3 debe comprobar operación funcional, handshake y registros TLS, además de los casos negativos de CA y nombre. La mera ausencia del marcador no prueba que el canal sea seguro. Wireshark no debe tener cargadas claves de sesión TLS durante esa comparación.
 
 ## 9 Diagnóstico y cierre
 
@@ -247,7 +248,7 @@ Estos comandos describen el soporte preparado para la comparación. No afirman q
 | `capture` pide `seed` | Preparar primero la cuenta ficticia mediante `seed`. |
 | Falta tráfico o marcador | Verificar que se abrió el PCAP nuevo y que la captura terminó. Usar `8081`, no `18081`, en el filtro de esta captura. |
 | La verificación falla | No presentar la ejecución como aprobada. Conservar el error y revisar el flujo que falta. |
-| HTTPS exige archivos | Coordinar la generación PKCS#12 y CA con el Grupo 2. No usar `-k` para ocultar el problema. |
+| HTTPS exige archivos | Ejecutar `certs` ([GRUPO-2.md](GRUPO-2.md)). No usar `-k` para ocultar el problema. |
 
 Para detener únicamente los contenedores del laboratorio y conservar datos y evidencia:
 

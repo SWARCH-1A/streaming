@@ -131,7 +131,9 @@ def verify(state, mode):
     else:
         handshake = tshark(pcap, '-d', 'tcp.port==8081,tls', '-Y', 'tls.handshake.type == 1',
                            '-T', 'fields', '-e', 'frame.number').strip()
-        encrypted = tshark(pcap, '-d', 'tcp.port==8081,tls', '-Y', 'tls.record.content_type == 23',
+        # TLS 1.3 hides the real type: Wireshark exposes the outer record as opaque_type.
+        encrypted = tshark(pcap, '-d', 'tcp.port==8081,tls', '-Y',
+                           'tls.record.content_type == 23 || tls.record.opaque_type == 23',
                            '-T', 'fields', '-e', 'frame.number').strip()
         marker = b'LAB5_CANAL_INSEGURO'
         if not handshake or not encrypted or any(marker in side for pair in streams for side in pair):
