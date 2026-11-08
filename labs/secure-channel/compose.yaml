@@ -1,0 +1,65 @@
+services:
+  core-db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: core
+      POSTGRES_USER: lab
+      POSTGRES_PASSWORD: ${LAB_DB_PASSWORD:?Run lab.py init}
+    volumes:
+      - database:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U lab -d core]
+      interval: 2s
+      timeout: 3s
+      retries: 40
+  core-lab:
+    image: ${LAB_PROJECT:?Run lab.py init}-core
+    build:
+      context: ../../services/core
+    environment:
+      PORT: '8081'
+      CORE_DB_URL: jdbc:postgresql://core-db:5432/core
+      CORE_DB_USER: lab
+      CORE_DB_PASSWORD: ${LAB_DB_PASSWORD}
+      CORE_RATE_LIMIT_HMAC_SECRET: ${LAB_HMAC_SECRET}
+      CORE_IMAGE_STORAGE_PROVIDER: filesystem
+      CORE_INTERNAL_ENABLED: 'false'
+      CORE_RECOVERY_ENABLED: 'false'
+      CORE_EVENTS_TRANSPORT: http
+      CORE_PUBLIC_TLS_ENABLED: ${LAB_TLS_ENABLED:-false}
+      CORE_PUBLIC_TLS_KEYSTORE: ${LAB_TLS_KEYSTORE:-}
+      CORE_PUBLIC_TLS_KEYSTORE_PASSWORD: ${LAB_TLS_PASSWORD:-}
+      CORE_SECURE_COOKIE: ${LAB_TLS_ENABLED:-false}
+      WEB_ORIGIN: ${LAB_ORIGIN:-http://localhost:18081}
+    ports:
+      - '127.0.0.1:18081:8081'
+    volumes:
+      - images:/data
+      - ./.state/tls:/tls:ro
+    depends_on:
+      core-db:
+        condition: service_healthy
+  client:
+    image: ${LAB_PROJECT}-tools
+    build:
+      context: .
+      dockerfile: Dockerfile.tools
+    profiles: [tools]
+    cap_drop: [ALL]
+    cap_add: [DAC_OVERRIDE]
+    volumes:
+      - ./:/lab:ro
+      - ./.state:/state
+    entrypoint: [python3]
+  observer:
+    image: ${LAB_PROJECT}-tools
+    profiles: [tools]
+    network_mode: service:core-lab
+    cap_drop: [ALL]
+    cap_add: [NET_RAW, DAC_OVERRIDE]
+    volumes:
+      - ./.state:/state
+    entrypoint: [tcpdump]
+volumes:
+  database:
+  images:
