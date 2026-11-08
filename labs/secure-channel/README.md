@@ -1,301 +1,213 @@
-# Laboratorio 5 - Grupo 1: HTTP sin canal seguro
+# Laboratorio 5. Un canal HTTP a la vista
 
-**Guía general de reproducción - 8 de noviembre de 2026.**
+**Grupo 1 | Guía para reproducir la parte insegura | 8 de noviembre de 2026**
 
-[Descargar la guía completa en PDF](docs/Guia-Grupo-1.pdf). En GitHub, abre el archivo y utiliza **Download raw file / Descargar archivo** si el visor no lo muestra.
+[Guía en PDF](docs/Guia-Grupo-1.pdf) · [Descargar el ejemplo y la guía en ZIP](https://github.com/SWARCH-1A/streaming/raw/refs/heads/feature/lab-05-secure-channel-g1/labs/secure-channel/docs/Grupo-1-HTTP-Wireshark.zip)
 
-Este laboratorio demuestra que el inicio de sesión real de Vault tv expone sus datos cuando el conector **cliente de prueba → Core** utiliza HTTP. El Grupo 1 prepara ese contraejemplo y obtiene una captura de paquetes. Los grupos 2 y 3 utilizarán el mismo recorrido para configurar TLS y comprobar su protección.
+## 1. Qué vamos a comprobar
 
-El perfil HTTP es deliberadamente inseguro y exclusivo del laboratorio. No es una configuración de entrega del producto. No se modifican los defaults de Core, la autenticación, CSRF ni el hashing de contraseñas.
+Un cliente y un servidor intercambian datos a través de un canal de comunicación. En este ejercicio el cliente será curl y el servidor será un programa pequeño de Node.js. Ambos se ejecutan en el mismo computador. Curl enviará un mensaje por HTTP y el servidor responderá que lo recibió.
 
-## 1 Alcance y aislamiento
+La petición funcionará. Pero funcionará sin TLS: no habrá cifrado del canal ni un certificado que permita comprobar la identidad del servidor. Con Wireshark buscaremos el mensaje dentro del tráfico capturado. Leerlo desde allí será la evidencia de que el contenido viajó en texto plano.
 
-La base de código es `develop` en el commit `1d8c562a55cab419d8c95657c399932d5ddc01ce`. La rama exclusiva es `feature/lab-05-secure-channel-g1`. Cada participante utilizará un clon nuevo en la carpeta que elija. No se debe ejecutar este perfil desde la carpeta del despliegue personal ni incorporar el perfil inseguro mediante un PR hacia `develop`.
+Usamos un ejemplo independiente para que cualquier grupo pueda repetirlo. No hace falta instalar Vault TV, Docker, Python ni una base de datos. Tampoco hay un inicio de sesión: `usuario` es un dato ficticio del mensaje, no una cuenta que el servidor autentique.
 
-| Pieza | Función en el ensayo |
-| --- | --- |
-| Core | APIs reales de registro, sesión y perfil. |
-| PostgreSQL | Cuenta ficticia y datos exclusivos del laboratorio. |
-| Cliente | Ejecuta solicitudes reproducibles mediante `curl`. |
-| Observador | Captura con `tcpdump`; `tshark` reconstruye y verifica las conversaciones. |
+### Herramientas y archivos
 
-El helper utiliza un nombre de proyecto Compose generado, una red y volúmenes propios. Core se publica exclusivamente en `127.0.0.1:18081`; PostgreSQL no publica un puerto del equipo. El despliegue normal de Vault tv no interviene: no se utiliza Caddy ni el API Gateway en este conector.
+Necesitas Node.js 22 o posterior, curl y Wireshark. En Windows, Wireshark debe contar con Npcap para capturar loopback. Si no aparece ese adaptador, revisa su instalación antes de seguir.
 
-El observador comparte el espacio de red de Core y filtra TCP `8081`. Se eliminan las capacidades por defecto: conserva `NET_RAW` para capturar sin modo promiscuo y `DAC_OVERRIDE` para escribir la evidencia en el directorio privado montado desde Linux. No usa `NET_ADMIN`, modo privilegiado ni la red del host. La prueba supone acceso autorizado al trayecto del tráfico. Estar conectado a la misma red Wi-Fi no permite, por sí solo, leer las conversaciones unicast de otros equipos.
+Descarga el ZIP, usa **Extraer todo** y abre la carpeta extraída. En GitHub puede ser necesario pulsar **Download raw file** para descargarlo. Si no tienes acceso al repositorio, pide a quien comparte la guía que te envíe el ZIP: una vez descargado, funciona por su cuenta. El paquete contiene esta guía, el PDF y una carpeta `ejemplo-http` con tres archivos: `server.mjs`, `handler.mjs` y `solicitud.json`. Puedes guardarlo donde quieras.
 
-## 2 Herramientas y carpeta de trabajo
-
-Se necesitan Git, acceso al repositorio, Docker Desktop con contenedores Linux y Docker Compose compatible con `up --wait`, Python 3.10 o posterior y Wireshark para la inspección visual. La primera construcción requiere conectividad para descargar imágenes y dependencias, y espacio libre en Docker. No se necesitan un IDE, Java instalado en Windows ni herramientas de captura instaladas dentro de Ubuntu: se construyen en las imágenes del laboratorio.
-
-Abre Docker Desktop y espera a que su motor esté disponible. Si ejecutas desde Ubuntu, habilita su integración en Docker Desktop.
-
-Abre PowerShell en cualquier carpeta donde quieras guardar un clon nuevo. Primero comprueba las herramientas:
+En esa carpeta abre PowerShell. Todos los comandos de Windows se ejecutan desde la carpeta que contiene `ejemplo-http`, no desde dentro del ZIP. Comprueba:
 
 ```powershell
-git --version
-python --version
-docker compose version
-docker info
+node --version
+curl.exe --version
 ```
 
-`docker info` debe mostrar información del servidor sin error de conexión. Si `python` abre la tienda o no está disponible, configura Python o comprueba `py -3 --version` y utiliza `py -3` en todos los comandos posteriores.
+`server.mjs` abre el puerto HTTP. `handler.mjs` lee el JSON y prepara la respuesta; después podrá reutilizarse con un servidor HTTPS. `solicitud.json` contiene únicamente estos datos de prueba:
 
-### Clonación en Windows / PowerShell
+```json
+{
+  "usuario": "estudiante-demo",
+  "mensaje": "LAB_CANAL_INSEGURO: mensaje de prueba para el laboratorio."
+}
+```
 
-Clona la rama publicada. Si GitHub solicita autenticación, necesitarás acceso al repositorio; disponer del PDF no concede ese acceso. La variable evita partir el comando al copiarlo:
+Si ya tienes el repositorio, estos mismos archivos están en `labs/secure-channel`. Utiliza la rama `feature/lab-05-secure-channel-g1`. El [ensayo anterior con Core](https://github.com/SWARCH-1A/streaming/blob/feature/lab-05-secure-channel-g1/labs/secure-channel/VAULT-TV.md) se conserva como antecedente y tiene un procedimiento distinto.
+
+<!-- pagebreak -->
+
+## 2. Arrancar el servidor y preparar Wireshark
+
+### Terminal 1: servidor
+
+Desde la carpeta extraída ejecuta:
 
 ```powershell
-$labBranch = 'feature/lab-05-secure-channel-g1'
-$labRepo = 'https://github.com/SWARCH-1A/streaming.git'
-git clone --single-branch --branch $labBranch $labRepo streaming-lab5
-cd streaming-lab5
-git branch --show-current
-git rev-parse HEAD
+node ejemplo-http/server.mjs
 ```
 
-La rama debe ser `feature/lab-05-secure-channel-g1`. Registra el hash completo: identifica tu ejecución. Si la carpeta `streaming-lab5` ya existe, elige otro nombre para el clon; no borres el anterior. Comprueba que exista `labs/secure-channel/lab.py` y continúa con la sección 3. Cada instalación genera su cuenta ficticia y sus secretos. Para comparar HTTP y HTTPS conserva su propia `.state/` y sus volúmenes. No copies `.state/` entre compañeros.
-
-### Alternativa Ubuntu / WSL
-
-Con Docker disponible desde la distribución, abre una terminal en la carpeta donde quieras clonar:
-
-```bash
-lab_branch=feature/lab-05-secure-channel-g1
-lab_repo=https://github.com/SWARCH-1A/streaming.git
-git clone --single-branch --branch "$lab_branch" "$lab_repo" streaming-lab5
-cd streaming-lab5
-git branch --show-current
-git rev-parse HEAD
-python3 --version
-docker compose version
-docker info
-```
-
-Sustituye `python` por `python3` en los pasos siguientes. Ejecuta todo desde la misma terminal y clon. La ejecución HTTP acreditada se realizó desde Windows con Docker Desktop; esta variante explica el uso compatible y no acredita una reproducción independiente en todas las plataformas.
-
-## 3 Inicializar construir e iniciar
-
-Desde la raíz del clon `streaming-lab5`, ejecuta cada comando por separado. Si uno falla, no continúes y consulta la sección 9:
-
-```powershell
-python labs/secure-channel/lab.py init
-python labs/secure-channel/lab.py build
-python labs/secure-channel/lab.py up --mode http
-python labs/secure-channel/lab.py status
-```
-
-| Comando | Resultado esperado |
-| --- | --- |
-| `init` | Genera proyecto, secretos y cuenta ficticia en `.state/`. Repetirlo conserva el estado existente. |
-| `build` | Construye Core con su Dockerfile existente y la imagen de herramientas del ensayo. |
-| `up --mode http` | Inicia la base y Core; espera la respuesta de salud `UP`. |
-| `status` | Muestra los contenedores propios del laboratorio. |
-
-La dirección local es `http://localhost:18081`. Core ofrece APIs: no se despliega aquí la Web de Vault tv. El cliente del ensayo habla con `http://core-lab:8081` dentro de la red Docker. Por eso el puerto visible en el PCAP es **8081**, aunque Windows accede mediante **18081**.
-
-En el perfil HTTP no se genera ni se instala un certificado de confianza. La preparación del certificado corresponde al Grupo 2 para el perfil HTTPS.
-
-Si el arranque falla, no continúes suponiendo que Core está listo:
-
-```powershell
-python labs/secure-channel/lab.py logs
-```
-
-## 4 Crear la cuenta ficticia
-
-```powershell
-python labs/secure-channel/lab.py seed
-```
-
-El helper llama a `POST /api/identity/registrations` con correo del dominio reservado `example.test`, handle y contraseña ficticios. La contraseña contiene el marcador `LAB5_CANAL_INSEGURO`, seguido de una parte aleatoria. Se conserva el UUID de idempotencia y el mismo cuerpo para que repetir `seed` no cree otra cuenta.
-
-El resultado esperado es registro `201`. La cuenta y sus IDs quedan guardados exclusivamente en `.state/`. El registro se realiza **antes de iniciar la captura principal** para que la evidencia se concentre en autenticación y consulta del perfil.
-
-No publiques `.state/credentials.json`, cookies, cabeceras, PCAP, claves o archivos de configuración privada. Aunque todos los datos sean ficticios, una sesión del ensayo sigue siendo una credencial durante su vigencia. `.state/` está ignorado por Git.
-
-## 5 Capturar el recorrido real
-
-```powershell
-python labs/secure-channel/lab.py capture --mode http
-python labs/secure-channel/lab.py verify --mode http
-```
-
-`capture` espera a que `tcpdump` esté escuchando, ejecuta el cliente y detiene la captura de forma controlada. El cliente realiza:
-
-1. `GET /api/identity/csrf`: obtiene token y cookie CSRF.
-2. `POST /api/identity/sessions`: envía JSON con **`login` y `password`**, la cookie y la cabecera `X-XSRF-TOKEN`.
-3. Conserva la cookie de sesión `stream_session` obtenida en el login.
-4. `GET /api/profile/me`: utiliza esa sesión para consultar el perfil.
-
-Se esperan respuestas `200` y el mismo `userId` que produjo el registro. El script no imprime la contraseña ni la cookie en la terminal.
-
-`verify` comprueba la captura TCP reconstruida, las credenciales ficticias exactas, el éxito del login, la sesión utilizada por la consulta de perfil y la identidad de sus respuestas. Un marcador aislado o un `200` de salud no bastan para aprobar el ensayo.
-
-Los campos `reassembledLogin`, `exactFictitiousCredentialsReadable`, `csrfPreserved`, `sessionCookieReadable` y `authenticatedProfileMatches` deben aparecer en `true`. Si el comando termina con error o falta alguna comprobación, la ejecución no está aprobada.
-
-### Archivos locales producidos
-
-Todos se guardan bajo `labs/secure-channel/.state/`:
-
-| Archivo | Uso |
-| --- | --- |
-| `http/traffic.pcap` | Evidencia de red que se abre en Wireshark. |
-| `http/capture.json` | Fecha UTC, referencia de código y hash de la captura. |
-| `http/verification.json` | Comprobaciones realizadas sobre el PCAP. |
-| `http/follow-streams.txt` | Conversaciones reconstruidas para inspección local. Contiene credenciales ficticias. |
-| `http/client-result.json` | Resultado funcional del cliente. |
-| `http/tcpdump.log` | Diagnóstico del observador. |
-
-Repetir `capture` en el mismo modo reemplaza la captura y sus resultados. Si debes conservar una ejecución, copia primero su carpeta `http` a otra ubicación privada fuera del repositorio. No uses los archivos de una ejecución anterior para describir como aprobada una ejecución nueva que haya fallado.
-
-## 6 Inspeccionar la captura en Wireshark
-
-1. Abre Wireshark en Windows.
-2. Pulsa **Ctrl + O** o selecciona **Archivo → Abrir / File → Open**. Navega a tu clon y abre `labs/secure-channel/.state/http/traffic.pcap`. Es una ruta relativa al clon, no una ubicación fija del computador. Si clonaste dentro de WSL, utiliza el acceso Linux del Explorador para llegar a la distribución y carpeta; muestra archivos ocultos si no ves `.state`.
-3. En el filtro de visualización introduce:
-
-   ```text
-   tcp.port == 8081
-   ```
-
-4. Si no se reconocen las peticiones HTTP, selecciona un paquete del flujo y utiliza **Analyze → Decode As → HTTP** para el puerto TCP `8081`.
-5. Localiza la petición `POST /api/identity/sessions`. Después de decodificar HTTP, utiliza este filtro:
-
-   ```text
-   http.request.method == "POST"
-   ```
-
-6. Haz clic derecho y selecciona **Seguir → Flujo TCP / Follow → TCP Stream**. Selecciona conversación completa y formato ASCII o UTF-8. El diálogo reconstruye la conversación aunque el JSON esté repartido entre paquetes.
-7. Identifica método, ruta, JSON con `login` y `password`, marcador `LAB5_CANAL_INSEGURO`, respuesta `200` y cabecera `Set-Cookie` de `stream_session`.
-8. Cierra la ventana de seguimiento, limpia el filtro aplicado por Follow y localiza `GET /api/profile/me`. Comprueba la cookie enviada y el perfil devuelto. El perfil puede pertenecer a otro flujo TCP porque cada solicitud de `curl` abre su conexión.
-
-   ```text
-   http.request.uri == "/api/profile/me"
-   ```
-
-No necesitas mantener los servidores encendidos para abrir el PCAP guardado. No pulses «Iniciar captura» ni selecciones Wi-Fi: el observador ya generó el archivo. Usa 8081, no 18081, como filtro. La captura de pantalla de `curl` no sustituye esta evidencia: muestra qué quiso enviar el cliente. El PCAP y Follow TCP Stream permiten observar qué información pudo reconstruir el observador del trayecto.
-
-Para compartir capturas en el informe, oculta la contraseña completa, los tokens y las cookies. Conserva visible el marcador, las rutas y los estados HTTP necesarios para explicar el resultado. No distribuyas el PCAP públicamente.
-
-## 7 Qué demostrar y cómo explicarlo
-
-| Comprobación | Qué permite concluir |
-| --- | --- |
-| Registro `201`, login `200`, perfil `200` e identidad coincidente | Se utilizó un recorrido funcional del sistema, no un servidor de eco. |
-| JSON de login legible en el flujo TCP | HTTP expone las credenciales de la cuenta ficticia en tránsito. |
-| Cookie de sesión legible y reutilizada en el perfil | También queda expuesta la credencial de sesión transportada por HTTP. |
-| Token y cookie CSRF conservados | La exposición no depende de haber desactivado CSRF. |
-| Captura restringida al conector del laboratorio | La demostración tiene un alcance concreto y autorizado. |
-
-RNF-025 exige HTTPS/TLS para credenciales, tokens y datos privados en comunicaciones accesibles por red. Este perfil constituye el contraejemplo deliberado que el laboratorio busca corregir. RNF-026 exige hashing apropiado de contraseñas en almacenamiento: Core mantiene ese mecanismo, pero el hash de la base no cifra el trayecto cliente-servidor.
-
-CSRF protege frente a determinadas solicitudes no autorizadas desde otros sitios; HttpOnly restringe el acceso de scripts a la cookie. Ninguno cifra los paquetes ni sustituye TLS.
-
-Explicación para la demostración:
-
-> El cliente inicia sesión en Core usando su API real. La cuenta y la sesión funcionan, pero el transporte HTTP permite reconstruir el identificador, la contraseña ficticia y la cookie. El hashing protege la contraseña almacenada; TLS es necesario para proteger su tránsito. Esta observación requiere acceso al trayecto de red, como el observador autorizado que preparamos en Docker.
-
-El Grupo 1 no demuestra ataques activos, acceso a redes ajenas ni seguridad de todo Vault tv. La comparación TLS posterior debe evaluar confidencialidad, integridad y autenticación del servidor para este mismo conector; no constituye una prueba de disponibilidad.
-
-## 8 Entrega a los grupos 2 y 3
-
-Antes de comparar resultados, los grupos deben confirmar el mismo conector, estructura del cuerpo de login, endpoints y punto de captura. Cada instalación conserva su propia cuenta para comparar HTTP con HTTPS; no se comparte una cuenta entre computadores. El perfil HTTPS conservará el puerto interno `8081` y el publicado `18081`; los modos se ejecutan de manera excluyente.
-
-| Grupo | Responsabilidad |
-| --- | --- |
-| Grupo 1 | Perfil HTTP aislado, cuenta ficticia, captura, análisis y reproducción de la exposición. |
-| Grupo 2 | Generar llaves y certificado con OpenSSL; configurar TLS directo en Core y la confianza del cliente. |
-| Grupo 3 | Repetir el recorrido por HTTPS; comprobar tráfico TLS y rechazo de certificados no confiables o nombres incorrectos. |
-
-Core ya permite configurar TLS público mediante `CORE_PUBLIC_TLS_ENABLED`, `CORE_PUBLIC_TLS_KEYSTORE`, `CORE_PUBLIC_TLS_KEYSTORE_PASSWORD` y `CORE_SECURE_COOKIE`. Su almacén es **PKCS#12**: no basta con montar únicamente un certificado PEM y una llave.
-
-El helper reserva esta interfaz local para el material del Grupo 2:
+Debe aparecer:
 
 ```text
-labs/secure-channel/.state/tls/
-  core.p12
-  ca.crt
-  keystore-password.txt
+Servidor del laboratorio: http://127.0.0.1:18080/mensaje
+Déjalo abierto. Para terminar, pulsa Ctrl+C en esta terminal.
 ```
 
-El certificado debe incluir los SAN DNS `core-lab` y `localhost`, y el SAN IP `127.0.0.1`. El usuario `10001` de Core debe poder recorrer el directorio montado y leer `core.p12`; el montaje es de solo lectura. En Linux/WSL, `init` crea el directorio privado `tls` con permisos restrictivos: el Grupo 2 debe preparar permisos de recorrido del directorio y lectura del almacén para ese UID. No basta con ajustar únicamente el archivo. La contraseña del almacén se guarda en `keystore-password.txt`, sin espacios añadidos; la lee el helper anfitrión, no Core directamente. Conserva restringidos ese archivo y cualquier clave privada PEM. La clave privada y la contraseña no se comparten por Git.
+Conserva esa terminal abierta. Node atiende las peticiones mientras el programa está en ejecución. La dirección `127.0.0.1` es loopback: el tráfico vuelve al mismo computador y no sale por Wi-Fi. Por eso capturaremos en el adaptador de loopback.
 
-El Grupo 2 genera esos archivos con `python labs/secure-channel/lab.py certs`. El procedimiento completo está en [GRUPO-2.md](GRUPO-2.md). Después:
+### Wireshark: antes de enviar el mensaje
+
+1. Abre Wireshark. Entra en **Capture → Options** o **Captura → Opciones**. También puedes usar **Ctrl+K**.
+2. Selecciona solamente **Adapter for loopback traffic capture**. Comprueba que no queden otras interfaces seleccionadas.
+3. En **Capture filter for selected interfaces / Filtro de captura para interfaces seleccionadas** escribe:
+
+```text
+tcp port 18080
+```
+
+4. Toma la primera captura de pantalla. Deben verse el adaptador elegido y el filtro. Luego pulsa **Start / Iniciar**.
+
+Este es un filtro de captura: decide qué paquetes se guardan. Más adelante usaremos otro filtro para elegir cuáles se muestran. No tienen la misma sintaxis.
+
+> **Captura 1 pendiente.** Aquí irá la imagen real de las opciones de Wireshark: adaptador de loopback seleccionado y filtro `tcp port 18080`.
+
+No envíes todavía la petición si Wireshark no está capturando. Una captura iniciada después no recupera los paquetes que ya pasaron.
+
+<!-- pagebreak -->
+
+## 3. Enviar el mensaje y guardar la captura
+
+### Terminal 2: cliente
+
+Abre otra ventana de PowerShell en la misma carpeta que contiene `ejemplo-http`. Deja el servidor funcionando en la primera. Cuando Wireshark esté capturando, ejecuta:
 
 ```powershell
-python labs/secure-channel/lab.py certs
-python labs/secure-channel/lab.py up --mode https
-python labs/secure-channel/lab.py capture --mode https
-python labs/secure-channel/lab.py verify --mode https
+curl.exe --noproxy "*" --http1.1 --include `
+  --header "Content-Type: application/json" `
+  --data-binary "@ejemplo-http/solicitud.json" `
+  http://127.0.0.1:18080/mensaje
 ```
 
-El cliente usa explícitamente `--cacert /state/tls/ca.crt`; no desactiva la validación mediante `-k`. No es necesario importar la CA en Windows para ejecutar este cliente dentro de Docker. Una prueba adicional desde un navegador requerirá el procedimiento de confianza correspondiente.
+El acento grave al final de cada una de las tres primeras líneas permite continuar el comando en PowerShell. No añadas espacios después de él. `--data-binary` envía el archivo y hace que curl use POST. `--include` muestra también las cabeceras de la respuesta. `--noproxy` mantiene la petición local aunque el equipo tenga un proxy configurado.
 
-La generación y el recorrido HTTPS del Grupo 2 se validaron según [GRUPO-2.md](GRUPO-2.md), que también incluye una receta general para otros proyectos. La aceptación TLS sigue a cargo del Grupo 3. El Grupo 3 debe comprobar operación funcional, handshake y registros TLS, además de los casos negativos de CA y nombre. La mera ausencia del marcador no prueba que el canal sea seguro. Wireshark no debe tener cargadas claves de sesión TLS durante esa comparación.
+En la terminal deben aparecer `HTTP/1.1 200 OK` y un JSON con `recibido: true`, el usuario de prueba y el mensaje completo. El estado 200 confirma que el servidor atendió la petición; por sí solo no demuestra que la conexión estuviera protegida.
 
-## 9 Diagnóstico y cierre
+### Volver a Wireshark
 
-| Síntoma | Comprobación |
+1. Comprueba que aparecieron paquetes y pulsa el botón rojo **Stop / Detener**. También puedes usar **Ctrl+E**.
+2. Guarda la captura con **File → Save As / Archivo → Guardar como**, con el nombre `http-grupo-1.pcapng`, en la carpeta que prefieras.
+3. En la barra de filtro de visualización, situada sobre la lista de paquetes, escribe y pulsa Enter:
+
+```text
+tcp.port == 18080 && http
+```
+
+4. Busca una petición `POST /mensaje` y su respuesta `HTTP/1.1 200 OK`. Toma la segunda captura de pantalla con el filtro y ambas filas visibles. Los números de paquete y los puertos del cliente pueden cambiar entre ejecuciones.
+
+> **Captura 2 pendiente.** Aquí irá la lista real de paquetes con la petición POST y la respuesta HTTP 200.
+
+Si ves TCP pero no aparece HTTP, consulta **Decode As** en la sección de problemas frecuentes. No hace falta repetir una captura que ya contiene la conversación completa.
+
+<!-- pagebreak -->
+
+## 4. Leer la conversación
+
+La lista de paquetes muestra que hubo un intercambio. Ahora vamos a leer su contenido.
+
+1. Selecciona la fila `POST /mensaje`.
+2. Pulsa el botón derecho y elige **Follow → TCP Stream / Seguir → Flujo TCP**. También está en **Analyze / Analizar**.
+3. Elige **Entire conversation / Conversación completa** y **Show data as: ASCII**. Según el idioma de Wireshark, los nombres pueden variar un poco.
+4. Localiza `POST /mensaje HTTP/1.1`, el usuario `estudiante-demo` y el marcador `LAB_CANAL_INSEGURO` dentro del JSON enviado.
+5. Busca también `HTTP/1.1 200 OK` y el JSON de respuesta. Debe contener el mismo mensaje y `"recibido":true`.
+6. Toma la tercera captura de pantalla. Ajusta el tamaño de la ventana para que se lean la solicitud y la respuesta, manteniendo visible el título de Wireshark o de Follow TCP Stream.
+
+> **Captura 3 pendiente.** Aquí irá la conversación real reconstruida en Follow TCP Stream, con el JSON de la petición y la confirmación del servidor legibles.
+
+Wireshark reúne los bytes de esa conexión TCP para mostrarlos seguidos. No está consultando una base de datos ni leyendo el archivo original: trabaja con los paquetes que acabas de capturar. Puedes cerrar el servidor y volver a abrir el archivo `.pcapng`; la conversación seguirá disponible en la captura.
+
+Cuando termines, vuelve a la terminal del servidor y pulsa **Ctrl+C**. Puedes cerrar la otra terminal. Para repetir el ejercicio, arranca el servidor, inicia una captura nueva y vuelve a enviar el mismo archivo.
+
+### Qué enviar para completar el informe
+
+Guarda las tres imágenes como PNG. Evita incluir otras ventanas o información personal. Si la conversación no cabe en una imagen, envía dos capturas consecutivas de esa misma ventana. Conserva también el PCAP en tu computador para revisar cualquier duda.
+
+Junto con las imágenes, anota la fecha, las versiones de Node.js, curl y Wireshark, si recibiste 200 y si pudiste leer el marcador en Follow TCP Stream. El PDF se completará con esas imágenes y con lo que realmente observaste.
+
+<!-- pagebreak -->
+
+## 5. Qué demuestra el ensayo
+
+Si el marcador se lee en Follow TCP Stream, el cuerpo de la petición quedó expuesto a quien pudo capturar ese tráfico. En este ejemplo también se ve la respuesta. JSON organiza el contenido, pero no lo cifra. TCP se encarga del transporte; tampoco aporta cifrado por sí mismo.
+
+El problema no depende de Node.js o curl. Lo provoca el uso de HTTP sin TLS en este trayecto. En una aplicación con información sensible, esa exposición podría permitir leer datos que solo deberían conocer el cliente y el servidor. Aquí usamos un mensaje ficticio para comprobarlo sin introducir contraseñas ni cuentas reales.
+
+Hay un límite importante: el observador necesita acceso al trayecto del tráfico. En esta práctica capturamos loopback desde el mismo equipo. El resultado no demuestra que cualquier persona conectada al mismo Wi-Fi pueda leer todas las conversaciones de los demás. Tampoco prueba modificación de mensajes, suplantación o una intrusión.
+
+### Estado de esta edición
+
+El 8 de noviembre de 2026 se ejecutó el servidor en Windows con Node.js **24.14.1** y curl **8.13.0**. La solicitud válida recibió 200 y devolvió el marcador completo. También se comprobaron las respuestas a JSON inválido (400), método incorrecto (405), ruta inexistente (404) y tipo de contenido incorrecto (415). Wireshark **4.4.7** reconoce el adaptador de loopback instalado.
+
+**La captura manual y su inspección visual están pendientes.** Las tres posiciones reservadas en esta guía todavía no son evidencia. La captura anterior del ensayo con Core corresponde a otro procedimiento y no se utiliza como resultado de este ejemplo.
+
+| Comprobación manual | Resultado que debes registrar |
 | --- | --- |
-| Docker no responde | Abrir Docker Desktop; revisar integración WSL si corresponde. |
-| Python no existe o abre la tienda | Configurar Python; comprobar `py -3 --version` como alternativa. |
-| Git deniega acceso | Comprobar permisos del repositorio y autenticación. No compartir tokens. |
-| Compose no reconoce `--wait` | Actualizar Docker Desktop/Compose a una versión compatible. |
-| `Run init first` | Ejecutar `init` desde la raíz del clon dedicado. |
-| Puerto `18081` ocupado | Identificar el proceso que lo utiliza. No detener otros despliegues sin comprobar su propietario. |
-| Build falla | Revisar el primer error y la conectividad para descargar imágenes y dependencias. |
-| Core no queda listo | Ejecutar `logs`; revisar migraciones, conexión a la base y variables. No omitir readiness. |
-| `capture` pide `seed` | Preparar primero la cuenta ficticia mediante `seed`. |
-| Falta tráfico o marcador | Verificar que se abrió el PCAP nuevo y que la captura terminó. Usar `8081`, no `18081`, en el filtro de esta captura. |
-| La verificación falla | No presentar la ejecución como aprobada. Conservar el error y revisar el flujo que falta. |
-| HTTPS exige archivos | Ejecutar `certs` ([GRUPO-2.md](GRUPO-2.md)). No usar `-k` para ocultar el problema. |
+| Interfaz y filtro | Solo loopback; filtro `tcp port 18080`. |
+| Petición y respuesta | POST `/mensaje` y respuesta 200 presentes. |
+| Lectura del cuerpo | Marcador y usuario legibles en Follow TCP Stream. |
+| Evidencia | Fecha, versiones y tres imágenes reales. |
 
-Para detener únicamente los contenedores del laboratorio y conservar datos y evidencia:
+### Continuidad para los grupos 2 y 3
 
-```powershell
-python labs/secure-channel/lab.py down
-```
+Conserven `POST /mensaje`, el archivo `solicitud.json` y la respuesta del ejemplo. Así podrán comparar el mismo intercambio antes y después de protegerlo.
 
-Para repetir otro día sin reconstruir:
+El Grupo 2 ya publicó una [receta general de TLS](https://github.com/SWARCH-1A/streaming/blob/feature/lab-05-secure-channel-g1/labs/secure-channel/GRUPO-2.md). Su aplicación en Vault TV usa Core y el puerto 18081; este ejemplo independiente usa Node.js y el puerto 18080.
 
-```powershell
-python labs/secure-channel/lab.py up --mode http
-python labs/secure-channel/lab.py seed
-python labs/secure-channel/lab.py capture --mode http
-python labs/secure-channel/lab.py verify --mode http
-python labs/secure-channel/lab.py down
-```
+Para proteger este ejemplo puede reutilizar `handleRequest`, exportado por `handler.mjs`, al crear su servidor HTTPS. Deberá generar las llaves y el certificado con OpenSSL, configurar TLS y explicar cómo el cliente confía en la CA y comprueba el nombre del servidor. Si conservan `127.0.0.1`, deberán contemplar esa IP en el SAN del certificado.
 
-No uses `down -v`, borres volúmenes ni elimines `.state/` durante el recorrido. Si cambias el código de Core o la imagen de herramientas, ejecuta `build` antes de repetirlo.
+El Grupo 3 repetirá la captura con el puerto HTTPS acordado. Deberá comprobar que la petición sigue funcionando con validación del certificado y que el cuerpo no se lee en la captura normal de TLS, sin claves de descifrado. También revisará el rechazo de un certificado que no sea confiable o no corresponda al servidor. Estas comprobaciones quedan fuera del resultado del Grupo 1.
 
-### Evidencia para la entrega
+<!-- pagebreak -->
 
-Cada participante completa su ejecución. La revisión por otra persona es una comprobación posterior, no un requisito para ejecutar el trabajo completo del Grupo 1.
+## 6. Si algo no sale y variante Linux
 
-| Dato o comprobación | Resultado observado |
+### Problemas frecuentes
+
+| Lo que ocurre | Qué revisar |
 | --- | --- |
-| Fecha, sistema operativo y terminal | ______________________________ |
-| Commit: `git rev-parse HEAD` | ______________________________ |
-| Versiones de Python, Docker y Compose | ______________________________ |
-| Versión de Wireshark | ______________________________ |
-| Build y Core UP | Aprobado / Fallido / No probado |
-| Registro 201; CSRF, login y perfil 200 | Aprobado / Fallido / No probado |
-| Todos los checks de verify HTTP en true | Aprobado / Fallido / No probado |
-| Login legible en Follow TCP Stream | Aprobado / Fallido / No probado |
-| Cookie y perfil de la misma sesión | Aprobado / Fallido / No probado |
-| Hash del PCAP: campo pcapSha256 de verification.json | ______________________________ |
-| Parada conservando datos | Aprobado / Fallido / No probado |
-| Error, conclusión y evidencia redactada | ______________________________ |
+| `node` no se reconoce | Instala Node.js y abre una terminal nueva. |
+| `EADDRINUSE` al arrancar | Ya hay un proceso en 18080. Si es tu servidor de esta práctica, reutilízalo o detenlo con Ctrl+C. No cierres procesos ajenos. |
+| Curl no encuentra `solicitud.json` | Abre PowerShell en la carpeta que contiene `ejemplo-http`; comprueba que extrajiste el ZIP. |
+| Curl no conecta | Mantén abierta la terminal del servidor y revisa la dirección y el puerto. |
+| No aparece loopback | Revisa que Wireshark tenga Npcap instalado. En Linux se llama `lo`. |
+| No aparecen paquetes | Selecciona loopback, inicia la captura y luego envía otra petición. |
+| Hay TCP, pero el filtro HTTP deja la lista vacía | Borra `&& http`. Selecciona un paquete del puerto 18080, abre **Analyze → Decode As**, elige HTTP para ese puerto y acepta. Reaplica el filtro. |
+| Follow TCP Stream muestra otra conversación | Cierra el diálogo y selecciona el POST de esta prueba. Revisa que el destino sea 18080. |
 
-El hash de otra captura será diferente aunque el recorrido pase: cada instalación y sesión produce su tráfico. No distribuyas el PCAP, las transcripciones ni `.state/` con el informe público.
+### Ubuntu u otro Linux
 
-**Antecedentes de validación:** el recorrido HTTP, la conservación de datos tras reiniciar y 12 pruebas del laboratorio se aprobaron en Windows con Docker Desktop. La captura acreditada corresponde a `606fbbbbecbbd11316ccf0dde902cbd41f1849fd`; `da1cbaad8bb64e9c2d7aafcf9491949477a33470` añadió documentación. Esta edición general cambia solo documentación. No atribuye aprobación a la ejecución de otro participante, a la inspección visual pendiente ni a la comparación TLS. Registra siempre el commit de tu clon.
+Esta variante indica los cambios respecto a Windows. La ejecución registrada en esta edición fue en Windows; no acredita una reproducción independiente en Linux ni WSL.
 
-## Referencias
+Ejecuta Node.js, curl y Wireshark en el mismo entorno Linux. En una terminal, desde la carpeta extraída:
 
-- [SPEC-01 Cuentas y sesión](../../docs/spec-p2/spec_01_auth.md).
-- [Catálogo de requisitos RNF-025 y RNF-026](../../docs/catalogo_requisitos.md).
-- [Configuración actual de Core](../../services/core/src/main/resources/application.yml).
-- [Follow TCP Stream en Wireshark](https://www.wireshark.org/docs/wsug_html_chunked/ChAdvFollowStreamSection.html).
-- [OpenSSL PKCS12](https://docs.openssl.org/3.0/man1/openssl-pkcs12/).
-- [TLS 1.3 RFC 8446](https://www.rfc-editor.org/rfc/rfc8446.html).
+```bash
+node ejemplo-http/server.mjs
+```
+
+En Wireshark selecciona **lo** y usa el filtro de captura `tcp port 18080`. Inicia la captura. En otra terminal, desde la misma carpeta:
+
+```bash
+curl --noproxy '*' --http1.1 --include \
+  --header 'Content-Type: application/json' \
+  --data-binary '@ejemplo-http/solicitud.json' \
+  http://127.0.0.1:18080/mensaje
+```
+
+Después detén y guarda la captura; usa los mismos filtros de visualización y Follow TCP Stream. Tu instalación debe permitir capturar en `lo`. Evita mezclar un servidor en WSL con Wireshark en Windows para esta variante: el trayecto cambia y ya no es el procedimiento que acabamos de describir.
+
+### Referencias para consultar
+
+[Captura de loopback en Wireshark](https://wiki.wireshark.org/captureSetup/loopback), [opciones de captura](https://www.wireshark.org/docs/wsug_html_chunked/ChCapCaptureOptions.html) y [Follow TCP Stream](https://www.wireshark.org/docs/wsug_html_chunked/ChAdvFollowStreamSection.html).
+
+[Servidor HTTP de Node.js](https://nodejs.org/docs/latest-v24.x/api/http.html) y [opciones de curl](https://curl.se/docs/manpage.html).

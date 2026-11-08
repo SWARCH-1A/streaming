@@ -169,7 +169,7 @@ Todo queda en `labs/secure-channel/.state/`, que Git ignora:
 
 ## B3 Pasos
 
-Parte del clon del Grupo 1, con `init`, `build` y `seed` hechos ([README](README.md)). Si ya tenías el clon, actualízalo y reconstruye, porque la imagen ahora trae `openssl`:
+Parte del clon del ensayo con Core, con `init`, `build` y `seed` hechos ([guía de Vault TV](VAULT-TV.md)). Si ya tenías el clon, actualízalo y reconstruye, porque la imagen ahora trae `openssl`:
 
 ```powershell
 git pull
@@ -225,7 +225,7 @@ No publiques `.state/`: tiene llaves, contraseñas, PCAP y cookies.
 
 ## Referencias
 
-- [README del laboratorio](README.md#8-entrega-a-los-grupos-2-y-3).
+- [Ensayo con Core y continuidad TLS](VAULT-TV.md#8-entrega-a-los-grupos-2-y-3).
 - [Configuración TLS de Core](../../services/core/src/main/resources/application.yml).
 - [OpenSSL req](https://docs.openssl.org/3.0/man1/openssl-req/), [x509](https://docs.openssl.org/3.0/man1/openssl-x509/), [verify](https://docs.openssl.org/3.0/man1/openssl-verify/), [pkcs12](https://docs.openssl.org/3.0/man1/openssl-pkcs12/).
 - [Spring Boot SSL](https://docs.spring.io/spring-boot/reference/features/ssl.html).
