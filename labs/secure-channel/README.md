@@ -37,6 +37,19 @@ docker info
 
 La rama debe ser `feature/lab-05-secure-channel-g1`; `docker info` debe comunicarse con el motor. En otro equipo se utilizará la raíz del checkout dedicado de esa rama. Comprueba que exista `labs/secure-channel/lab.py` antes de continuar.
 
+### Preparación en el equipo de Daniel o de los otros grupos
+
+Una vez publicada la rama, clona una carpeta nueva, separada de tu despliegue habitual:
+
+```powershell
+git clone --branch feature/lab-05-secure-channel-g1 https://github.com/SWARCH-1A/streaming.git streaming-lab5
+cd streaming-lab5
+python labs/secure-channel/lab.py init
+python labs/secure-channel/lab.py build
+```
+
+Después continúa con `up --mode http`, `seed`, `capture --mode http` y `verify --mode http`. Cada equipo genera su cuenta ficticia y sus secretos. Para comparar HTTP y HTTPS en ese equipo, conserva su propia `.state/` y sus volúmenes. No copies `.state/` entre compañeros ni compartas contraseñas para intentar utilizar la misma identidad en máquinas diferentes.
+
 Si prefieres Ubuntu, entra a la misma raíz mediante su ruta `/mnt/c/...` y sustituye `python` por `python3` en todos los comandos siguientes. Ejecuta el recorrido completo desde una misma terminal para evitar confundir carpetas y estados.
 
 ## 3 Inicializar construir e iniciar
@@ -171,7 +184,7 @@ labs/secure-channel/.state/tls/
   keystore-password.txt
 ```
 
-El certificado debe incluir los SAN DNS `core-lab` y `localhost`, y el SAN IP `127.0.0.1`. `core.p12` debe poder ser leído por el usuario `10001` de Core; el directorio se monta como solo lectura. La contraseña del almacén se guarda únicamente en `keystore-password.txt`, sin espacios añadidos. La clave privada y ese archivo no se comparten por Git.
+El certificado debe incluir los SAN DNS `core-lab` y `localhost`, y el SAN IP `127.0.0.1`. El usuario `10001` de Core debe poder recorrer el directorio montado y leer `core.p12`; el montaje es de solo lectura. En Linux/WSL, `init` crea el directorio privado `tls` con permisos restrictivos: el Grupo 2 debe preparar permisos de recorrido del directorio y lectura del almacén para ese UID. No basta con ajustar únicamente el archivo. La contraseña del almacén se guarda en `keystore-password.txt`, sin espacios añadidos; la lee el helper anfitrión, no Core directamente. Conserva restringidos ese archivo y cualquier clave privada PEM. La clave privada y la contraseña no se comparten por Git.
 
 Cuando el Grupo 2 haya preparado y revisado esos archivos:
 
