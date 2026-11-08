@@ -1,4 +1,8 @@
-# Laboratorio 5 Canal seguro en Vault tv
+# Laboratorio 5 - Grupo 1: HTTP sin canal seguro
+
+**Guía general de reproducción - 8 de noviembre de 2026.**
+
+[Descargar la guía completa en PDF](docs/Guia-Grupo-1.pdf). En GitHub, abre el archivo y utiliza **Download raw file / Descargar archivo** si el visor no lo muestra.
 
 Este laboratorio demuestra que el inicio de sesión real de Vault tv expone sus datos cuando el conector **cliente de prueba → Core** utiliza HTTP. El Grupo 1 prepara ese contraejemplo y obtiene una captura de paquetes. Los grupos 2 y 3 utilizarán el mismo recorrido para configurar TLS y comprobar su protección.
 
@@ -6,7 +10,7 @@ El perfil HTTP es deliberadamente inseguro y exclusivo del laboratorio. No es un
 
 ## 1 Alcance y aislamiento
 
-La base de trabajo es `develop` en el commit `1d8c562a55cab419d8c95657c399932d5ddc01ce`. La rama exclusiva es `feature/lab-05-secure-channel-g1` y utiliza un worktree separado. No se debe ejecutar este perfil desde la carpeta del despliegue personal ni incorporar el perfil inseguro mediante un PR hacia `develop`.
+La base de código es `develop` en el commit `1d8c562a55cab419d8c95657c399932d5ddc01ce`. La rama exclusiva es `feature/lab-05-secure-channel-g1`. Cada participante utilizará un clon nuevo en la carpeta que elija. No se debe ejecutar este perfil desde la carpeta del despliegue personal ni incorporar el perfil inseguro mediante un PR hacia `develop`.
 
 | Pieza | Función en el ensayo |
 | --- | --- |
@@ -21,40 +25,57 @@ El observador comparte el espacio de red de Core y filtra TCP `8081`. Se elimina
 
 ## 2 Herramientas y carpeta de trabajo
 
-Se necesitan Git, Docker Desktop con contenedores Linux y Docker Compose, Python 3.10 o posterior y Wireshark para la inspección visual. En Ubuntu/WSL se usa `python3`; en PowerShell, `python` o el ejecutable Python configurado en el equipo. No se necesitan un IDE, Java instalado en Windows ni herramientas de captura instaladas dentro de Ubuntu: se construyen en las imágenes del laboratorio.
+Se necesitan Git, acceso al repositorio, Docker Desktop con contenedores Linux y Docker Compose compatible con `up --wait`, Python 3.10 o posterior y Wireshark para la inspección visual. La primera construcción requiere conectividad para descargar imágenes y dependencias, y espacio libre en Docker. No se necesitan un IDE, Java instalado en Windows ni herramientas de captura instaladas dentro de Ubuntu: se construyen en las imágenes del laboratorio.
 
 Abre Docker Desktop y espera a que su motor esté disponible. Si ejecutas desde Ubuntu, habilita su integración en Docker Desktop.
 
-En este equipo, abre PowerShell y entra a la raíz del worktree:
+Abre PowerShell en cualquier carpeta donde quieras guardar un clon nuevo. Primero comprueba las herramientas:
 
 ```powershell
-cd "C:\Users\Asus ROG\.codex\visualizations\2026\10\03\01a102bb-4781-7a81-9028-c5056c480029\lab-05-secure-channel-g1"
-git branch --show-current
+git --version
 python --version
 docker compose version
 docker info
 ```
 
-La rama debe ser `feature/lab-05-secure-channel-g1`; `docker info` debe comunicarse con el motor. En otro equipo se utilizará la raíz del checkout dedicado de esa rama. Comprueba que exista `labs/secure-channel/lab.py` antes de continuar.
+`docker info` debe mostrar información del servidor sin error de conexión. Si `python` abre la tienda o no está disponible, configura Python o comprueba `py -3 --version` y utiliza `py -3` en todos los comandos posteriores.
 
-### Preparación en el equipo de Daniel o de los otros grupos
+### Clonación en Windows / PowerShell
 
-Una vez publicada la rama, clona una carpeta nueva, separada de tu despliegue habitual:
+Clona la rama publicada. Si GitHub solicita autenticación, necesitarás acceso al repositorio; disponer del PDF no concede ese acceso. La variable evita partir el comando al copiarlo:
 
 ```powershell
-git clone --branch feature/lab-05-secure-channel-g1 https://github.com/SWARCH-1A/streaming.git streaming-lab5
+$labBranch = 'feature/lab-05-secure-channel-g1'
+$labRepo = 'https://github.com/SWARCH-1A/streaming.git'
+git clone --single-branch --branch $labBranch $labRepo streaming-lab5
 cd streaming-lab5
-python labs/secure-channel/lab.py init
-python labs/secure-channel/lab.py build
+git branch --show-current
+git rev-parse HEAD
 ```
 
-Después continúa con `up --mode http`, `seed`, `capture --mode http` y `verify --mode http`. Cada equipo genera su cuenta ficticia y sus secretos. Para comparar HTTP y HTTPS en ese equipo, conserva su propia `.state/` y sus volúmenes. No copies `.state/` entre compañeros ni compartas contraseñas para intentar utilizar la misma identidad en máquinas diferentes.
+La rama debe ser `feature/lab-05-secure-channel-g1`. Registra el hash completo: identifica tu ejecución. Si la carpeta `streaming-lab5` ya existe, elige otro nombre para el clon; no borres el anterior. Comprueba que exista `labs/secure-channel/lab.py` y continúa con la sección 3. Cada instalación genera su cuenta ficticia y sus secretos. Para comparar HTTP y HTTPS conserva su propia `.state/` y sus volúmenes. No copies `.state/` entre compañeros.
 
-Si prefieres Ubuntu, entra a la misma raíz mediante su ruta `/mnt/c/...` y sustituye `python` por `python3` en todos los comandos siguientes. Ejecuta el recorrido completo desde una misma terminal para evitar confundir carpetas y estados.
+### Alternativa Ubuntu / WSL
+
+Con Docker disponible desde la distribución, abre una terminal en la carpeta donde quieras clonar:
+
+```bash
+lab_branch=feature/lab-05-secure-channel-g1
+lab_repo=https://github.com/SWARCH-1A/streaming.git
+git clone --single-branch --branch "$lab_branch" "$lab_repo" streaming-lab5
+cd streaming-lab5
+git branch --show-current
+git rev-parse HEAD
+python3 --version
+docker compose version
+docker info
+```
+
+Sustituye `python` por `python3` en los pasos siguientes. Ejecuta todo desde la misma terminal y clon. La ejecución HTTP acreditada se realizó desde Windows con Docker Desktop; esta variante explica el uso compatible y no acredita una reproducción independiente en todas las plataformas.
 
 ## 3 Inicializar construir e iniciar
 
-Desde la raíz del worktree:
+Desde la raíz del clon `streaming-lab5`, ejecuta cada comando por separado. Si uno falla, no continúes y consulta la sección 9:
 
 ```powershell
 python labs/secure-channel/lab.py init
@@ -110,6 +131,8 @@ Se esperan respuestas `200` y el mismo `userId` que produjo el registro. El scri
 
 `verify` comprueba la captura TCP reconstruida, las credenciales ficticias exactas, el éxito del login, la sesión utilizada por la consulta de perfil y la identidad de sus respuestas. Un marcador aislado o un `200` de salud no bastan para aprobar el ensayo.
 
+Los campos `reassembledLogin`, `exactFictitiousCredentialsReadable`, `csrfPreserved`, `sessionCookieReadable` y `authenticatedProfileMatches` deben aparecer en `true`. Si el comando termina con error o falta alguna comprobación, la ejecución no está aprobada.
+
 ### Archivos locales producidos
 
 Todos se guardan bajo `labs/secure-channel/.state/`:
@@ -128,7 +151,7 @@ Repetir `capture` en el mismo modo reemplaza la captura y sus resultados. Si deb
 ## 6 Inspeccionar la captura en Wireshark
 
 1. Abre Wireshark en Windows.
-2. Selecciona **File → Open** y abre `labs/secure-channel/.state/http/traffic.pcap` del worktree.
+2. Pulsa **Ctrl + O** o selecciona **Archivo → Abrir / File → Open**. Navega a tu clon y abre `labs/secure-channel/.state/http/traffic.pcap`. Es una ruta relativa al clon, no una ubicación fija del computador. Si clonaste dentro de WSL, utiliza el acceso Linux del Explorador para llegar a la distribución y carpeta; muestra archivos ocultos si no ves `.state`.
 3. En el filtro de visualización introduce:
 
    ```text
@@ -136,12 +159,21 @@ Repetir `capture` en el mismo modo reemplaza la captura y sus resultados. Si deb
    ```
 
 4. Si no se reconocen las peticiones HTTP, selecciona un paquete del flujo y utiliza **Analyze → Decode As → HTTP** para el puerto TCP `8081`.
-5. Localiza la petición `POST /api/identity/sessions`. Puedes utilizar el filtro `http.request.method == "POST"` después de decodificar HTTP.
-6. Haz clic derecho y selecciona **Follow → TCP Stream**. Muestra la conversación como ASCII o UTF-8.
+5. Localiza la petición `POST /api/identity/sessions`. Después de decodificar HTTP, utiliza este filtro:
+
+   ```text
+   http.request.method == "POST"
+   ```
+
+6. Haz clic derecho y selecciona **Seguir → Flujo TCP / Follow → TCP Stream**. Selecciona conversación completa y formato ASCII o UTF-8. El diálogo reconstruye la conversación aunque el JSON esté repartido entre paquetes.
 7. Identifica método, ruta, JSON con `login` y `password`, marcador `LAB5_CANAL_INSEGURO`, respuesta `200` y cabecera `Set-Cookie` de `stream_session`.
 8. Cierra la ventana de seguimiento, limpia el filtro aplicado por Follow y localiza `GET /api/profile/me`. Comprueba la cookie enviada y el perfil devuelto. El perfil puede pertenecer a otro flujo TCP porque cada solicitud de `curl` abre su conexión.
 
-La captura de pantalla de `curl` no sustituye esta evidencia: muestra qué quiso enviar el cliente. El PCAP y Follow TCP Stream permiten observar qué información pudo reconstruir el observador del trayecto.
+   ```text
+   http.request.uri == "/api/profile/me"
+   ```
+
+No necesitas mantener los servidores encendidos para abrir el PCAP guardado. No pulses «Iniciar captura» ni selecciones Wi-Fi: el observador ya generó el archivo. Usa 8081, no 18081, como filtro. La captura de pantalla de `curl` no sustituye esta evidencia: muestra qué quiso enviar el cliente. El PCAP y Follow TCP Stream permiten observar qué información pudo reconstruir el observador del trayecto.
 
 Para compartir capturas en el informe, oculta la contraseña completa, los tokens y las cookies. Conserva visible el marcador, las rutas y los estados HTTP necesarios para explicar el resultado. No distribuyas el PCAP públicamente.
 
@@ -157,6 +189,8 @@ Para compartir capturas en el informe, oculta la contraseña completa, los token
 
 RNF-025 exige HTTPS/TLS para credenciales, tokens y datos privados en comunicaciones accesibles por red. Este perfil constituye el contraejemplo deliberado que el laboratorio busca corregir. RNF-026 exige hashing apropiado de contraseñas en almacenamiento: Core mantiene ese mecanismo, pero el hash de la base no cifra el trayecto cliente-servidor.
 
+CSRF protege frente a determinadas solicitudes no autorizadas desde otros sitios; HttpOnly restringe el acceso de scripts a la cookie. Ninguno cifra los paquetes ni sustituye TLS.
+
 Explicación para la demostración:
 
 > El cliente inicia sesión en Core usando su API real. La cuenta y la sesión funcionan, pero el transporte HTTP permite reconstruir el identificador, la contraseña ficticia y la cookie. El hashing protege la contraseña almacenada; TLS es necesario para proteger su tránsito. Esta observación requiere acceso al trayecto de red, como el observador autorizado que preparamos en Docker.
@@ -165,7 +199,7 @@ El Grupo 1 no demuestra ataques activos, acceso a redes ajenas ni seguridad de t
 
 ## 8 Entrega a los grupos 2 y 3
 
-Antes de comparar resultados, los grupos deben confirmar el mismo conector, cuenta, cuerpo de login, endpoints y punto de captura. El perfil HTTPS conservará el puerto interno `8081` y el publicado `18081`; los modos se ejecutan de manera excluyente.
+Antes de comparar resultados, los grupos deben confirmar el mismo conector, estructura del cuerpo de login, endpoints y punto de captura. Cada instalación conserva su propia cuenta para comparar HTTP con HTTPS; no se comparte una cuenta entre computadores. El perfil HTTPS conservará el puerto interno `8081` y el publicado `18081`; los modos se ejecutan de manera excluyente.
 
 | Grupo | Responsabilidad |
 | --- | --- |
@@ -203,7 +237,10 @@ Estos comandos describen el soporte preparado para la comparación. No afirman q
 | Síntoma | Comprobación |
 | --- | --- |
 | Docker no responde | Abrir Docker Desktop; revisar integración WSL si corresponde. |
-| `Run init first` | Ejecutar `init` desde el worktree dedicado. |
+| Python no existe o abre la tienda | Configurar Python; comprobar `py -3 --version` como alternativa. |
+| Git deniega acceso | Comprobar permisos del repositorio y autenticación. No compartir tokens. |
+| Compose no reconoce `--wait` | Actualizar Docker Desktop/Compose a una versión compatible. |
+| `Run init first` | Ejecutar `init` desde la raíz del clon dedicado. |
 | Puerto `18081` ocupado | Identificar el proceso que lo utiliza. No detener otros despliegues sin comprobar su propietario. |
 | Build falla | Revisar el primer error y la conectividad para descargar imágenes y dependencias. |
 | Core no queda listo | Ejecutar `logs`; revisar migraciones, conexión a la base y variables. No omitir readiness. |
@@ -232,7 +269,26 @@ No uses `down -v`, borres volúmenes ni elimines `.state/` durante el recorrido.
 
 ### Evidencia para la entrega
 
-Registra commit probado, fecha, versiones de Docker y Wireshark, resultado funcional, hash del PCAP y hallazgos observados. Distingue la ejecución HTTP del Grupo 1 de las comprobaciones HTTPS posteriores. Daniel debe repetir la guía en su equipo para verificar que sea reproducible por otra persona.
+Cada participante completa su ejecución. La revisión por otra persona es una comprobación posterior, no un requisito para ejecutar el trabajo completo del Grupo 1.
+
+| Dato o comprobación | Resultado observado |
+| --- | --- |
+| Fecha, sistema operativo y terminal | ______________________________ |
+| Commit: `git rev-parse HEAD` | ______________________________ |
+| Versiones de Python, Docker y Compose | ______________________________ |
+| Versión de Wireshark | ______________________________ |
+| Build y Core UP | Aprobado / Fallido / No probado |
+| Registro 201; CSRF, login y perfil 200 | Aprobado / Fallido / No probado |
+| Todos los checks de verify HTTP en true | Aprobado / Fallido / No probado |
+| Login legible en Follow TCP Stream | Aprobado / Fallido / No probado |
+| Cookie y perfil de la misma sesión | Aprobado / Fallido / No probado |
+| Hash del PCAP: campo pcapSha256 de verification.json | ______________________________ |
+| Parada conservando datos | Aprobado / Fallido / No probado |
+| Error, conclusión y evidencia redactada | ______________________________ |
+
+El hash de otra captura será diferente aunque el recorrido pase: cada instalación y sesión produce su tráfico. No distribuyas el PCAP, las transcripciones ni `.state/` con el informe público.
+
+**Antecedentes de validación:** el recorrido HTTP, la conservación de datos tras reiniciar y 12 pruebas del laboratorio se aprobaron en Windows con Docker Desktop. La captura acreditada corresponde a `606fbbbbecbbd11316ccf0dde902cbd41f1849fd`; `da1cbaad8bb64e9c2d7aafcf9491949477a33470` añadió documentación. Esta edición general cambia solo documentación. No atribuye aprobación a la ejecución de otro participante, a la inspección visual pendiente ni a la comparación TLS. Registra siempre el commit de tu clon.
 
 ## Referencias
 
