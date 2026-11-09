@@ -2,8 +2,6 @@
 
 **Guía general de reproducción - 8 de noviembre de 2026.**
 
-[Descargar la guía completa en PDF](docs/Guia-Vault-TV-anterior.pdf). En GitHub, abre el archivo y utiliza **Download raw file / Descargar archivo** si el visor no lo muestra.
-
 Este laboratorio demuestra que el inicio de sesión real de Vault tv expone sus datos cuando el conector **cliente de prueba → Core** utiliza HTTP. El Grupo 1 prepara ese contraejemplo y obtiene una captura de paquetes. Los grupos 2 y 3 utilizarán el mismo recorrido para configurar TLS y comprobar su protección.
 
 El perfil HTTP es deliberadamente inseguro y exclusivo del laboratorio. No es una configuración de entrega del producto. No se modifican los defaults de Core, la autenticación, CSRF ni el hashing de contraseñas.

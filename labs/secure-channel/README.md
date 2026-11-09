@@ -26,7 +26,7 @@ El ZIP está en el repositorio público `SWARCH-1A/streaming`, en la rama `featu
 
 El mensaje incluye el texto `LAB_CANAL_INSEGURO`, que nos permitirá reconocerlo dentro de la captura.
 
-<!-- pagebreak -->
+<!-- page:portrait -->
 
 ## 2. Iniciar el servidor
 
@@ -64,14 +64,25 @@ tcp port 18080
 ```
 
 5. No pulses Enter. Pulsa **Tab** para salir del campo y comprobar que el filtro no aparece como inválido.
-6. Guarda una imagen de esta ventana en la que se vean la interfaz seleccionada y el filtro.
-7. Pulsa **Iniciar**, en la parte inferior derecha. Deja que Wireshark capture mientras envías la petición.
-
 El doble clic sobre una interfaz puede iniciar la captura directamente. Por eso seleccionamos con un solo clic y usamos el botón Iniciar cuando la configuración está lista. El filtro limita la captura al puerto del ejemplo.
 
-<!-- pagebreak -->
+<!-- page:landscape -->
 
-## 4. Enviar la petición y guardar los paquetes
+Deberías ver algo parecido a esta configuración, con loopback seleccionado y el filtro del puerto 18080:
+
+![Opciones de captura con loopback seleccionado y filtro tcp port 18080](docs/imagenes/01-configuracion.png)
+
+*Figura 1. Interfaz y filtro preparados antes de iniciar la captura.*
+
+Pulsa **Iniciar**, en la parte inferior derecha. La lista puede estar vacía hasta que envíes el mensaje con curl:
+
+![Wireshark capturando en loopback antes de enviar la petición](docs/imagenes/02-captura-iniciada.png)
+
+*Figura 2. Captura en curso, todavía sin paquetes de la petición.*
+
+<!-- page:portrait -->
+
+## 4. Enviar la petición y observar el tráfico
 
 En la segunda terminal, situada en la misma carpeta, ejecuta:
 
@@ -96,48 +107,43 @@ La respuesta debe comenzar por `HTTP/1.1 200 OK` e incluir estos datos:
 
 El estado 200 indica que el servidor atendió la petición. No demuestra que el canal esté protegido.
 
-Vuelve a Wireshark y sigue estos pasos:
+Después de enviar el mensaje, vuelve a Wireshark. Cuando aparezcan los paquetes, pulsa el **cuadrado rojo de Detener** en la barra superior. Así podrás revisar la conversación con calma.
 
-1. Comprueba que aparecieron paquetes y pulsa el **cuadrado rojo de Detener** en la barra superior.
-2. Abre **Archivo → Guardar como** y guarda la captura con el nombre `canal-inseguro.pcapng`.
-3. En la barra de filtro situada encima de la lista de paquetes, escribe y pulsa Enter:
+<!-- page:landscape -->
+
+La lista debería verse parecida a esta. Aparecen paquetes TCP del inicio y cierre de la conexión, además de la petición y la respuesta HTTP:
+
+![Paquetes TCP y HTTP de la conversación entre curl y el servidor](docs/imagenes/03-paquetes.png)
+
+*Figura 3. Lista de paquetes de nuestra prueba. El POST aparece en el número 4 y la respuesta en el 6.*
+
+En la barra situada encima de los paquetes, escribe este filtro y pulsa Enter:
 
 ```text
 tcp.port == 18080 && http
 ```
 
-4. Busca las filas `POST /mensaje HTTP/1.1` y `HTTP/1.1 200 OK`. Guarda una segunda imagen con el filtro y ambas filas visibles.
+Al aplicarlo deberías ver algo parecido a esta captura: una fila con `POST /mensaje` y otra con `HTTP/1.1 200 OK`. Los números de paquete pueden cambiar en otra ejecución.
 
-Este es un filtro de visualización: selecciona cuáles de los paquetes guardados se muestran. Su sintaxis es distinta de la del filtro de captura utilizado antes de iniciar.
+![Filtro HTTP que muestra únicamente la petición POST y la respuesta 200](docs/imagenes/04-http.png)
 
-Si la lista queda vacía, prueba `tcp.port == 18080`. Si aparecen paquetes TCP, selecciona uno y entra en **Analizar → Decodificar como / Analyze → Decode As**. Elige HTTP para el puerto 18080, acepta y vuelve a aplicar el filtro completo.
+*Figura 4. Vista de la lista después de aplicar el filtro HTTP.*
 
-<!-- pagebreak -->
+Este filtro solo cambia lo que se muestra en pantalla. Su sintaxis es distinta de la del filtro de captura utilizado antes de iniciar.
+
+<!-- page:landscape -->
 
 ## 5. Leer el contenido del canal
 
-1. Selecciona la fila `POST /mensaje` y pulsa el botón derecho.
-2. Abre **Seguir → Flujo TCP / Follow → TCP Stream**.
-3. Selecciona **Conversación completa / Entire conversation** y **Mostrar datos como: ASCII / Show data as: ASCII**.
-4. Busca la línea `POST /mensaje HTTP/1.1`, el usuario `estudiante-demo` y el texto `LAB_CANAL_INSEGURO` dentro del JSON.
-5. Localiza también `HTTP/1.1 200 OK` y el JSON de respuesta, que debe contener `"recibido":true` y el mismo mensaje.
-6. Guarda una tercera imagen con la solicitud y la respuesta legibles. Amplía la ventana o toma dos imágenes consecutivas si no cabe toda la conversación.
+1. Selecciona la fila `POST /mensaje`, pulsa el botón derecho y abre **Seguir → Flujo TCP / Follow → TCP Stream**.
+2. En la parte inferior del diálogo, selecciona **Conversación completa / Entire conversation** y **Mostrar datos como: ASCII / Show data as: ASCII**.
 
-Wireshark reconstruye la conversación a partir de los paquetes capturados. Si puedes leer el mensaje desde esa ventana, has comprobado que su contenido quedó expuesto en el trayecto observado. JSON organiza los datos y TCP los transporta; ninguno de los dos aporta cifrado por sí mismo.
+Deberías ver la solicitud y la respuesta juntas, como en esta imagen. En nuestra captura, el texto rojo corresponde al cliente y el azul al servidor:
 
-El observador necesita acceso al trayecto del tráfico. Capturar loopback en el propio computador no demuestra que cualquier persona conectada al mismo Wi-Fi pueda leer todas las conversaciones de los demás.
+![Conversación reconstruida con el mensaje ficticio legible en la petición y la respuesta](docs/imagenes/05-conversacion.png)
 
-Para terminar, vuelve a la terminal del servidor y pulsa **Ctrl+C**. Conserva el archivo `.pcapng`: permite abrir y revisar la conversación después, aunque el servidor esté apagado.
+*Figura 5. Contenido de la conversación reconstruida en ASCII.*
 
-## 6. Problemas frecuentes
+En nuestra prueba se pudo leer el usuario `estudiante-demo`, el mensaje `LAB_CANAL_INSEGURO` y la respuesta `"recibido":true`. Wireshark obtuvo ese contenido de los paquetes capturados. El mensaje viajó sin cifrar: JSON organiza los datos y TCP los transporta, pero ninguno aporta cifrado por sí mismo.
 
-| Lo que ocurre | Qué revisar |
-| --- | --- |
-| `node` no se reconoce | Comprueba que Node.js esté instalado y abre una terminal nueva. |
-| Aparece `EADDRINUSE` | El puerto 18080 ya está ocupado. Si es otra ejecución de esta práctica, reutilízala o detenla con Ctrl+C. |
-| Curl no encuentra el archivo JSON | La terminal debe estar en la carpeta que contiene `ejemplo-http`. |
-| Curl no conecta | Revisa que el servidor siga funcionando y que la dirección termine en `:18080/mensaje`. |
-| No aparece la interfaz de loopback | Revisa la instalación de Npcap en Windows. |
-| No aparecen paquetes | Inicia una captura en loopback y después vuelve a enviar la petición. |
-
-Para repetir el ensayo, inicia el servidor, prepara una captura nueva y envía otra vez el mismo archivo JSON.
+Esta observación requiere acceso al trayecto del tráfico; no demuestra que cualquier persona conectada al mismo Wi-Fi pueda leer las conversaciones de los demás. Para terminar, pulsa **Ctrl+C** en la terminal del servidor.
