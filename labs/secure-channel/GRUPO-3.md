@@ -4,7 +4,7 @@ El Grupo 1 mostró que un mensaje enviado por HTTP se lee en Wireshark. El Grupo
 
 El caso principal es el ejemplo de Node.js (`ejemplo-http` y `ejemplo-https`). El caso complementario es el login real de Core (Vault tv), que demuestra que el resultado se mantiene en el proyecto.
 
-> **Estado de esta guía.** El caso principal (Node, secciones 3 a 7) se ejecutó en Windows el 9 de noviembre de 2026; los resultados verificados se muestran en las figuras. Los resultados marcados «por completar» o «pendiente» no están verificados. La sección 8 (Core) la desarrolla otra integrante del grupo.
+> **Estado de esta guía.** Los dos casos se ejecutaron en Windows el 9 de noviembre de 2026: el caso principal (Node, secciones 3 a 7) y el complemento con Core (sección 8). Los resultados verificados se muestran en las figuras.
 
 ## 1. Qué vamos a comprobar
 
@@ -189,8 +189,6 @@ Anota el mensaje exacto en la sección 10. Con Schannel (curl de Windows) los me
 
 ## 8. Complemento: el login real de Core
 
-> **Pendiente: esta sección la desarrolla otra integrante del grupo.** No se ejecutó en esta corrida; las figuras 11 a 13 y las filas de Core de la tabla comparativa quedan por completar.
-
 Este caso repite la comparación con el recorrido real de Vault tv. Sigue [VAULT-TV.md](VAULT-TV.md) y [GRUPO-2.md](GRUPO-2.md), parte B. Desde la **raíz del repositorio**, con Docker Desktop abierto y un comando a la vez:
 
 ```powershell
@@ -208,25 +206,27 @@ python labs/secure-channel/lab.py verify --mode https
 
 Si un comando falla, no continúes: revisa `lab.py logs` y la sección de problemas de [VAULT-TV.md](VAULT-TV.md). Core usa el puerto 8081 en ambos modos.
 
-Abre en Wireshark `labs/secure-channel/.state/http/traffic.pcap` y después `labs/secure-channel/.state/https/traffic.pcap`, con el filtro `tcp.port == 8081`.
+En nuestra ejecución los diez comandos terminaron sin errores. `capture` respondió `CSRF: 200; login: 200; authenticated profile: 200` en los dos modos. `verify --mode http` dio `true` en `reassembledLogin`, `exactFictitiousCredentialsReadable` y `sessionCookieReadable`: por HTTP, la contraseña y la cookie de sesión se leen en la captura. `certs` emitió el certificado `CN=core-lab`, firmado por `Vault tv Lab5 private CA`, con SAN `DNS:core-lab`, `DNS:localhost` e `IP Address:127.0.0.1` y vigente hasta el 9 de diciembre de 2026.
+
+Abre en Wireshark `labs/secure-channel/.state/http/traffic.pcap` y después `labs/secure-channel/.state/https/traffic.pcap`, con el filtro `tcp.port == 8081`. Si Wireshark no encuentra el archivo por estar dentro de la carpeta oculta `.state`, cópialo a una carpeta de evidencia fuera del repositorio y ábrelo desde allí. Si la columna Protocol solo muestra TCP, usa **Analizar → Decodificar como…** con el puerto 8081 y elige HTTP o TLS según el modo.
 
 1. En HTTP, localiza `POST /api/identity/sessions` y sigue el flujo TCP. Se leen `login` y `password`. **Oculta la contraseña completa antes de publicar la imagen**; deja visible el marcador `LAB5_CANAL_INSEGURO`.
 
-   ![Login de Core por HTTP](docs/imagenes/g3-11-core-http-login.png)
+   ![Login de Core por HTTP](docs/imagenes/g3-14-core-http-login.png)
 
-   *Figura 11. Credenciales ficticias legibles en HTTP.*
+   *Figura 11. Credenciales ficticias legibles en HTTP. Se leen el correo, el comienzo de la contraseña (`LAB5_CANAL_INSEGURO`), el token CSRF y la cookie de sesión que devuelve Core.*
 
 2. En HTTPS, el mismo recorrido solo muestra handshake y datos cifrados.
 
-   ![Login de Core por HTTPS](docs/imagenes/g3-12-core-https-cifrado.png)
+   ![Login de Core por HTTPS](docs/imagenes/g3-15-core-https-cifrado.png)
 
-   *Figura 12. El mismo recorrido por HTTPS: sin contenido legible.*
+   *Figura 12. El mismo recorrido por HTTPS: el flujo TCP es ilegible. Solo se distinguen `core-lab` y `h2.http/1.1`, que el cliente envía sin cifrar en el `Client Hello` (nombre del servidor, SNI, y protocolo, ALPN). Las credenciales, cookies y respuestas no aparecen.*
 
 3. La salida de `verify --mode https` debe mostrar `tlsClientHello`, `encryptedApplicationRecords`, `clientFlowWithExplicitCa` y `markerNotReadable` en `true`. El campo `negativeCaAndHostnameTests` aparece como `PENDING GROUP 3`: el script no lo comprueba. Esta guía solo cubre en la sección 7 el rechazo de una CA no confiable, no el caso del nombre incorrecto.
 
-   ![Salida de verify en HTTPS](docs/imagenes/g3-13-core-verify-https.png)
+   ![Salida de verify en HTTPS](docs/imagenes/g3-16-core-verify-https.png)
 
-   *Figura 13. Comprobaciones automáticas del modo HTTPS.*
+   *Figura 13. Comprobaciones automáticas del modo HTTPS: las cuatro en `true`.*
 
 Los PCAP y `.state/` contienen sesiones y credenciales ficticias. No los publiques.
 
@@ -246,8 +246,9 @@ Completa la columna HTTPS con lo que observaste. Una celda vacía significa que 
 | Certificado | No aplica | Emitido por `Lab5 CA`, SAN `localhost` y `127.0.0.1` | Figura 9 |
 | CA no confiable | No aplica | Rechazada: `SEC_E_UNTRUSTED_ROOT` | Figura 10 |
 | Respuesta funcional | 200 | 200 | Figura 4 |
-| Login de Core (credenciales) | _pendiente_ | _pendiente_ | Figuras 11 y 12 |
-| Comprobaciones automáticas de Core | _pendiente_ | _pendiente_ | Figura 13 |
+| Login de Core (credenciales) | Correo, contraseña y cookie de sesión legibles | Ilegibles; solo handshake TLS y datos cifrados | Figuras 11 y 12 |
+| Comprobaciones automáticas de Core | `exactFictitiousCredentialsReadable: true` | `tlsClientHello`, `encryptedApplicationRecords`, `clientFlowWithExplicitCa` y `markerNotReadable` en `true` | Figura 13 |
+| Respuesta funcional de Core | Login 200 | Login 200 | Salida de `capture` |
 
 ## 10. Registro de la ejecución
 
@@ -261,11 +262,12 @@ Completa la columna HTTPS con lo que observaste. Una celda vacía significa que 
 | Versión de Node | v24.13.1 |
 | Versión de Wireshark | 4.6.8 |
 | Versión de Npcap | 1.88 (libpcap 1.10.6, 64-bit time_t) |
-| Versiones de Python, Docker y Compose (caso Core) | _pendiente (otra integrante)_ |
+| Versiones de Python, Docker y Compose (caso Core) | Python 3.11.1; Docker 29.1.2; Docker Compose 2.40.3 |
+| Certificado de Core | `CN=core-lab`, emitido por `Vault tv Lab5 private CA`; vigente hasta el 9 de diciembre de 2026 |
 | Versión de TLS y cifrado negociados | TLS 1.3, `TLS_AES_256_GCM_SHA384` |
 | Vigencia del certificado del servidor | 9 de noviembre al 9 de diciembre de 2026 (30 días) |
 | Error sin confiar en la CA | `curl: (60) schannel: SEC_E_UNTRUSTED_ROOT (0x80090325) - La cadena de certificación fue emitida por una entidad en la que no se confía.` |
-| Ajustes necesarios | `--ssl-revoke-best-effort` en curl para Windows (la CA no publica lista de revocación) |
+| Ajustes necesarios | `--ssl-revoke-best-effort` en curl para Windows (la CA no publica lista de revocación). Caso Core: con `core.autocrlf=true`, `services/core/mvnw` queda con fin de línea CRLF y `build` falla con `./mvnw: not found` (código 127); se convirtió a LF solo para construir y se restauró después |
 
 ## 11. Conclusión
 
@@ -274,6 +276,8 @@ Resultados verificados en el caso Node:
 - **Confidencialidad.** Por HTTP, el usuario y `LAB_CANAL_INSEGURO` se leen en el flujo TCP (figura 2). Por HTTPS, la captura solo muestra el handshake TLS 1.3 y datos de aplicación cifrados (figuras 5 y 6), y la búsqueda del marcador no encuentra nada en el flujo (figura 7).
 - **Autenticación del servidor.** `openssl s_client` verifica la cadena contra `Lab5 CA` con `Verify return code: 0 (ok)` (figura 8), y el certificado incluye `localhost` y `127.0.0.1` en el SAN (figura 9).
 - **Rechazo de lo no confiable.** curl rechaza el servidor cuando no confía en la CA (figura 10).
+
+En el login real de Core se repite el resultado. Por HTTP se leen el correo, la contraseña y la cookie de sesión (figura 11). Por HTTPS el mismo login funciona igual, pero la captura solo contiene el handshake y datos cifrados (figuras 12 y 13).
 
 No se probaron el rechazo por nombre incorrecto, el rechazo de una CA distinta ni qué versiones de TLS acepta el servidor (solo se observó TLS 1.3). Por eso no se afirma nada sobre esos puntos. Una captura ilegible por sí sola no prueba que el canal sea seguro: la prueba es el conjunto de las tres comprobaciones.
 
