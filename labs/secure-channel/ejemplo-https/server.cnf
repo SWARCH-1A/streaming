@@ -1,0 +1,15 @@
+# Certificado del servidor. subjectAltName lista los nombres con los que el cliente lo llama.
+[req]
+prompt = no
+distinguished_name = dn
+
+[dn]
+CN = localhost
+
+[server]
+basicConstraints = critical, CA:FALSE
+keyUsage = critical, digitalSignature
+extendedKeyUsage = serverAuth
+subjectAltName = DNS:localhost, IP:127.0.0.1
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid, issuer

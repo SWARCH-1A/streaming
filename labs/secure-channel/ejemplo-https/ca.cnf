@@ -1,0 +1,13 @@
+# Autoridad certificadora (CA) privada del laboratorio.
+[req]
+prompt = no
+distinguished_name = dn
+x509_extensions = ca
+
+[dn]
+CN = Lab5 CA
+
+[ca]
+basicConstraints = critical, CA:TRUE, pathlen:0
+keyUsage = critical, keyCertSign, cRLSign
+subjectKeyIdentifier = hash

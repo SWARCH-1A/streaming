@@ -1,232 +1,170 @@
-# Laboratorio 5 - Grupo 2: construir el canal seguro con TLS
+# Laboratorio 5. Canal seguro con TLS.
 
-Esta guía tiene dos partes:
+El Grupo 1 mostró que un mensaje enviado por HTTP se puede leer en Wireshark. En esta parte ponemos TLS en el mismo canal. La guía tiene dos partes:
 
-- **Parte A - Receta general.** Sirve para cualquier proyecto con un cliente y un servidor que hablan por HTTP.
-- **Parte B - Cómo lo aplicamos en Vault tv.** El mismo recorrido, con nuestros archivos y comandos.
+- **Parte A.** El mismo ejemplo de Node.js del Grupo 1, ahora por HTTPS. Sirve como receta para cualquier proyecto.
+- **Parte B.** Cómo lo aplicamos en Vault TV, en la conexión entre el cliente de prueba y Core.
 
-El Grupo 1 mostró el problema: por HTTP se lee la contraseña y la cookie. El Grupo 2 construye el canal seguro. El Grupo 3 demuestra que protege (sección B4).
+Demostrar que el tráfico va cifrado y que el cliente rechaza certificados falsos le corresponde al Grupo 3.
 
----
+# Parte A. Receta general
 
-# Parte A - Receta general
+## A1. Qué necesita TLS
 
-## A1 El patrón en una página
+El servidor necesita una llave privada y un certificado. El certificado dice para qué nombres vale la llave, por ejemplo `localhost`. Una autoridad certificadora (CA) lo firma. El cliente confía en esa CA, así que puede comprobar que habla con el servidor correcto antes de enviar datos.
 
-**Canal seguro:** cliente y servidor hablan por TLS. Así se logran tres cosas:
+En producción la CA es pública, como Let's Encrypt. En el laboratorio creamos una CA privada con OpenSSL. Los pasos en el servidor y en el cliente son los mismos.
 
-| Propiedad | Qué significa |
+Usaremos estos archivos de la carpeta `ejemplo-https`:
+
+| Archivo | Para qué sirve |
 | --- | --- |
-| Confidencialidad | Quien mira la red no puede leer los datos. |
-| Integridad | Nadie puede cambiar los datos sin que se note. |
-| Autenticación del servidor | El cliente sabe que habla con el servidor real. |
+| `ca.cnf` | Datos de la CA del laboratorio. |
+| `server.cnf` | Datos del certificado del servidor. `subjectAltName` lista sus nombres: `localhost` y `127.0.0.1`. |
+| `server.mjs` | Inicia el servidor HTTPS en `127.0.0.1:18443`. Usa el mismo `handler.mjs` del Grupo 1. |
 
-Piezas que se necesitan:
+Los archivos generados quedan en `ejemplo-https/certs/`, que Git ignora. `ca.key` y `server.key` son secretos: no se suben al repositorio ni se comparten.
+
+## A2. Generar la CA, la llave y el certificado
+
+En Windows, abre **Git Bash** en la carpeta `ejemplo-https`; Git for Windows ya incluye OpenSSL. En macOS o Linux usa una terminal normal. Ejecuta:
+
+```sh
+mkdir certs
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out certs/ca.key
+openssl req -x509 -new -key certs/ca.key -sha256 -days 30 -config ca.cnf -out certs/ca.crt
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out certs/server.key
+openssl req -new -key certs/server.key -config server.cnf -out certs/server.csr
+openssl x509 -req -in certs/server.csr -CA certs/ca.crt -CAkey certs/ca.key -CAcreateserial -sha256 -days 30 -extfile server.cnf -extensions server -out certs/server.crt
+openssl verify -CAfile certs/ca.crt -verify_hostname localhost certs/server.crt
+```
+
+Las dos primeras líneas de OpenSSL crean la CA. Las dos siguientes crean la llave del servidor y una solicitud de certificado (CSR). La quinta hace que la CA firme esa solicitud. La última comprueba el resultado y debe mostrar:
 
 ```text
-            firma                         confía en
-   CA  ───────────────►  certificado  ◄─────────────── cliente
- (ca.key, ca.crt)        del servidor                 (tiene ca.crt)
-                         (server.crt)
-                              │ se usa con
-                              ▼
-                         llave privada
-                         (server.key)  → solo la tiene el servidor
+certs/server.crt: OK
 ```
 
-| Pieza | Archivo | Quién lo tiene | ¿Secreto? |
-| --- | --- | --- | --- |
-| Llave de la CA | `ca.key` | Solo quien firma | Sí |
-| Certificado de la CA | `ca.crt` | Cliente | No |
-| Llave del servidor | `server.key` | Solo el servidor | Sí |
-| Certificado del servidor | `server.crt` | Servidor (lo envía al cliente) | No |
+Si no tienes OpenSSL pero sí Docker, puedes reemplazar `openssl` por `docker run --rm -v "$PWD:/w" -w /w alpine/openssl`.
 
-En un laboratorio usamos una **CA privada**. En producción se usa una CA pública, por ejemplo Let's Encrypt. Los pasos del servidor y del cliente son los mismos.
+## A3. Iniciar el servidor HTTPS
 
-## A2 Generar llaves y certificado con OpenSSL
-
-Usa Git Bash, WSL, macOS o Linux. Si no tienes OpenSSL, puedes cambiar `openssl` por:
-
-```sh
-docker run --rm -v "$PWD:/w" -w /w alpine/openssl
-```
-
-Cambia `mi-servicio` por el nombre con el que el cliente llama al servidor. En Docker Compose, es el nombre del servicio.
-
-```sh
-# 1. CA privada: llave y certificado
-openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out ca.key
-openssl req -x509 -new -key ca.key -sha256 -days 30 -subj "/CN=Lab5 CA" \
-  -addext "basicConstraints=critical,CA:TRUE" \
-  -addext "keyUsage=critical,keyCertSign,cRLSign" -out ca.crt
-
-# 2. Llave del servidor y solicitud de certificado (CSR)
-openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out server.key
-openssl req -new -key server.key -subj "/CN=mi-servicio" -out server.csr
-
-# 3. Nombres válidos del servidor (SAN)
-cat > server.ext <<'EOF'
-basicConstraints = CA:FALSE
-keyUsage = digitalSignature
-extendedKeyUsage = serverAuth
-subjectAltName = DNS:mi-servicio, DNS:localhost, IP:127.0.0.1
-EOF
-
-# 4. La CA firma el certificado del servidor
-openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
-  -sha256 -days 30 -extfile server.ext -out server.crt
-
-# 5. Comprobar antes de usarlo
-openssl verify -CAfile ca.crt -verify_hostname mi-servicio server.crt   # server.crt: OK
-openssl verify -CAfile ca.crt -verify_hostname otro-nombre server.crt   # debe fallar
-```
-
-Tres reglas:
-
-1. El **SAN** (nombres válidos) debe tener cada nombre que usa el cliente. El `CN` ya no basta.
-2. `ca.key` y `server.key` **nunca** van a Git. Agrega `*.key`, `*.p12` y `*.pem` a `.gitignore`.
-3. El servidor recibe `server.key`, pero nunca `ca.key`.
-
-## A3 Configurar el servidor
-
-Elige la fila de tu tecnología. Algunas piden un archivo PKCS#12 (llave y certificado juntos, con contraseña):
-
-```sh
-openssl pkcs12 -export -name servidor -inkey server.key -in server.crt \
-  -certfile ca.crt -passout pass:$KEYSTORE_PASSWORD -out server.p12
-```
-
-| Tecnología | Archivos | Configuración |
-| --- | --- | --- |
-| Spring Boot | `server.p12` | `server.ssl.enabled=true`, `server.ssl.key-store=server.p12`, `server.ssl.key-store-type=PKCS12`, `server.ssl.key-store-password=${KEYSTORE_PASSWORD}` |
-| Node.js / Express | `server.key`, `server.crt` | `https.createServer({ key, cert }, app)` |
-| Python / Uvicorn | `server.key`, `server.crt` | `uvicorn app:app --ssl-keyfile server.key --ssl-certfile server.crt` |
-| Go | `server.key`, `server.crt` | `http.ListenAndServeTLS(":8443", "server.crt", "server.key", h)` |
-| Nginx (proxy) | `server.key`, `server.crt` | `listen 443 ssl; ssl_certificate server.crt; ssl_certificate_key server.key;` |
-
-En todos los casos:
-
-- Permite solo TLS 1.2 y 1.3.
-- Marca las cookies de sesión como `Secure`.
-- Pasa contraseñas por variables de entorno, no en el código.
-- En Docker, monta los archivos como solo lectura (`:ro`).
-
-## A4 Configurar el cliente
-
-El cliente debe confiar en `ca.crt`. **Nunca** apagues la verificación (`curl -k`, `verify=False`, `rejectUnauthorized: false`).
-
-| Cliente | Cómo confiar en la CA |
-| --- | --- |
-| curl | `curl --cacert ca.crt https://mi-servicio:8443/...` |
-| Node.js | `NODE_EXTRA_CA_CERTS=ca.crt` |
-| Python requests | `requests.get(url, verify="ca.crt")` |
-| Java | `keytool -importcert -file ca.crt -keystore truststore.p12` y `-Djavax.net.ssl.trustStore=truststore.p12` |
-| Navegador | Importar `ca.crt` como CA de confianza (solo en tu equipo de pruebas). |
-
-## A5 Prueba rápida
-
-```sh
-curl --cacert ca.crt https://localhost:8443/       # responde
-curl https://localhost:8443/                       # falla: (60) certificado no confiable
-```
-
-Si la primera responde y la segunda falla, el canal está montado. Probar que protege es el trabajo del Grupo 3.
-
----
-
-# Parte B - Cómo lo aplicamos en Vault tv
-
-## B1 Qué protegimos
-
-El conector **cliente de prueba → Core**, el mismo del Grupo 1. Core es Spring Boot y ya soportaba TLS por variables. No cambiamos su código.
-
-| Paso de la receta | En Vault tv |
-| --- | --- |
-| A2 Generar | `lab.py certs` corre [pki.py](pki.py) con los mismos comandos OpenSSL. |
-| Nombre del servidor | `core-lab`, `localhost`, `127.0.0.1` |
-| A3 Servidor | PKCS#12 `core.p12` + variables `CORE_PUBLIC_TLS_*` y `CORE_SECURE_COOKIE` |
-| A4 Cliente | `curl --cacert /state/tls/ca.crt` en [client.py](client.py) |
-| A5 Prueba | `lab.py up --mode https` y `lab.py capture --mode https` |
-
-Diferencias con la receta general:
-
-- OpenSSL corre en un contenedor **sin red**. Nadie tiene que instalarlo.
-- `pki.py` comprueba los tres nombres antes de publicar los archivos.
-- `core.p12` queda con dueño `10001` (el usuario de Core) y permisos `0400`.
-- `ca.key` queda en `.state/pki/`, fuera del montaje de Core.
-
-## B2 Archivos
-
-Todo queda en `labs/secure-channel/.state/`, que Git ignora:
-
-| Archivo | Uso | ¿Secreto? |
-| --- | --- | --- |
-| `pki/ca.key` | Firmar | Sí |
-| `tls/ca.crt` | El cliente confía en ella | No |
-| `tls/core.crt` | Certificado de Core | No |
-| `tls/core.p12` | Llave y certificado para Core | Sí |
-| `tls/keystore-password.txt` | Contraseña de `core.p12` | Sí |
-
-## B3 Pasos
-
-Parte del clon del ensayo con Core, con `init`, `build` y `seed` hechos ([guía de Vault TV](VAULT-TV.md)). Si ya tenías el clon, actualízalo y reconstruye, porque la imagen ahora trae `openssl`:
+Vuelve a la carpeta donde están `ejemplo-http` y `ejemplo-https` y ejecuta:
 
 ```powershell
-git pull
-python labs/secure-channel/lab.py build
+node ejemplo-https/server.mjs
 ```
 
-Luego:
+Debe aparecer:
+
+```text
+Servidor del laboratorio: https://localhost:18443/mensaje
+Déjalo abierto. Para terminar, pulsa Ctrl+C en esta terminal.
+```
+
+Frente al `server.mjs` del Grupo 1, el cambio es usar `node:https` en lugar de `node:http` y pasarle la llave y el certificado. `handler.mjs` no cambia.
+
+## A4. Enviar la petición confiando en la CA
+
+En una segunda terminal, desde la misma carpeta:
+
+```powershell
+curl.exe --noproxy "*" --http1.1 --include `
+  --cacert "ejemplo-https/certs/ca.crt" `
+  --header "Content-Type: application/json" `
+  --data-binary "@ejemplo-http/solicitud.json" `
+  https://localhost:18443/mensaje
+```
+
+La respuesta debe ser la misma del Grupo 1: `HTTP/1.1 200 OK` y el JSON con `"recibido": true`.
+
+`--cacert` le dice a curl que confíe en nuestra CA. No uses `-k` ni `--insecure`: esas opciones apagan la comprobación del certificado.
+
+Si curl en Windows muestra `CERT_TRUST_REVOCATION_STATUS_UNKNOWN`, agrega `--ssl-revoke-best-effort`. Nuestra CA no publica una lista de certificados revocados. No lo probamos en Windows.
+
+## A5. Aplicarlo en otro proyecto
+
+Cambia `subjectAltName` en `server.cnf` por los nombres que usa tu cliente. En Docker Compose suele ser el nombre del servicio, por ejemplo `DNS:api, DNS:localhost`. Luego configura el servidor y el cliente:
+
+| Tecnología | Servidor | Cliente |
+| --- | --- | --- |
+| Node.js | `https.createServer({ key, cert }, app)` | `NODE_EXTRA_CA_CERTS=ca.crt` |
+| Python (Uvicorn, requests) | `uvicorn app:app --ssl-keyfile server.key --ssl-certfile server.crt` | `requests.get(url, verify="ca.crt")` |
+| Spring Boot | `server.ssl.*` con un archivo PKCS#12 (ver B2) | `keytool -importcert -file ca.crt -keystore truststore.p12` |
+| Go | `http.ListenAndServeTLS(":8443", "server.crt", "server.key", h)` | `tls.Config{RootCAs: pool}` |
+| Nginx | `ssl_certificate server.crt; ssl_certificate_key server.key;` | Depende del cliente |
+
+En todos los casos, permite solo TLS 1.2 y 1.3 y marca las cookies de sesión como `Secure`. Pasa las contraseñas por variables de entorno.
+
+# Parte B. Cómo lo aplicamos en Vault TV
+
+## B1. Qué protegimos
+
+Protegimos la conexión entre el cliente de prueba y Core, la misma de [VAULT-TV.md](VAULT-TV.md). Core es Spring Boot y ya podía usar TLS mediante variables de entorno. No cambiamos su código.
+
+`python labs/secure-channel/lab.py certs` ejecuta [pki.py](pki.py). Ese script corre los mismos comandos de A2 dentro de un contenedor sin red, así nadie tiene que instalar OpenSSL. El certificado vale para `core-lab`, `localhost` y `127.0.0.1`.
+
+## B2. Servidor y cliente
+
+Spring Boot no lee `server.key` y `server.crt` por separado. Necesita un archivo PKCS#12 que guarda la llave y el certificado juntos, protegidos con una contraseña. `pki.py` lo crea así:
+
+```sh
+openssl pkcs12 -export -name core-lab -inkey core.key -in core.crt -certfile ca.crt -passout file:keystore-password.txt -out core.p12
+```
+
+`lab.py up --mode https` pasa estas variables a Core:
+
+```text
+CORE_PUBLIC_TLS_ENABLED=true
+CORE_PUBLIC_TLS_KEYSTORE=/tls/core.p12
+CORE_PUBLIC_TLS_KEYSTORE_PASSWORD=<contenido de keystore-password.txt>
+CORE_SECURE_COOKIE=true
+```
+
+El cliente, [client.py](client.py), llama a `https://core-lab:8081` con `curl --cacert /state/tls/ca.crt`.
+
+Los archivos quedan en `labs/secure-channel/.state/`, que Git ignora:
+
+| Archivo | Uso |
+| --- | --- |
+| `pki/ca.key` | Llave de la CA. No se monta en Core. |
+| `tls/ca.crt` | CA en la que confía el cliente. |
+| `tls/core.crt` | Certificado de Core. |
+| `tls/core.p12` | Llave y certificado de Core. Solo lo lee el usuario `10001` de Core. |
+| `tls/keystore-password.txt` | Contraseña de `core.p12`. |
+
+## B3. Pasos
+
+Parte de un clon con `init`, `build` y `seed` hechos, según [VAULT-TV.md](VAULT-TV.md). Si tu clon es anterior a esta guía, ejecuta `git pull` y luego `build`, porque la imagen de herramientas ahora incluye OpenSSL.
 
 ```powershell
 python labs/secure-channel/lab.py certs
 python labs/secure-channel/lab.py up --mode https
-python labs/secure-channel/lab.py seed
 python labs/secure-channel/lab.py capture --mode https
 ```
 
-| Comando | Resultado esperado |
-| --- | --- |
-| `certs` | `Issued private CA and Core keystore` y SAN `DNS:core-lab, DNS:localhost, IP Address:127.0.0.1` |
-| `up --mode https` | `Core UP: https://localhost:18081 (only loopback).` |
-| `seed` | `Registration: 201`, o idempotente si ya existía la cuenta |
-| `capture --mode https` | `CSRF: 200; login: 200; authenticated profile: 200; identity matches seed.` |
+`certs` debe terminar con `Issued private CA and Core keystore` y mostrar `DNS:core-lab, DNS:localhost, IP Address:127.0.0.1`. `up` debe mostrar `Core UP: https://localhost:18081 (only loopback).` `capture` debe mostrar `CSRF: 200; login: 200; authenticated profile: 200; identity matches seed.`
 
-Repetir `certs` conserva el material. `certs --force` crea todo de nuevo; después repite `up --mode https`.
+Con eso el login real de Core funciona por HTTPS. La captura queda en `.state/https/traffic.pcap` para el Grupo 3.
 
-Probado en macOS con Docker Desktop: los cuatro pasos pasaron con TLS 1.3. Registra tu propio commit y resultado.
+Repetir `certs` conserva los archivos. `certs --force` crea todo de nuevo; después repite `up --mode https`.
 
-## B4 Entrega al Grupo 3
+Lo probamos en macOS con Docker Desktop. La conexión usó TLS 1.3.
 
-El Grupo 2 entrega:
+## B4. Problemas comunes
 
-- `ca.crt` y `core.crt` para revisar.
-- Core en HTTPS con el login real funcionando.
-- `capture --mode https` deja `.state/https/traffic.pcap`.
-
-El Grupo 3 demuestra, con su propia guía:
-
-- Que el tráfico va cifrado (`lab.py verify --mode https` y Wireshark).
-- Que el cliente rechaza una CA no confiable.
-- Que el cliente rechaza un nombre que no está en el SAN.
-
-## B5 Problemas comunes
-
-| Síntoma | Qué hacer |
+| Mensaje | Qué hacer |
 | --- | --- |
 | `openssl: not found` en `certs` | Ejecutar `build`. |
 | `HTTPS requires .state/tls/...` | Ejecutar `certs` antes de `up --mode https`. |
-| Core no arranca en HTTPS | Ejecutar `logs`. Buscar `keystore password was incorrect` o `AccessDeniedException`. Repetir `certs --force`. |
-| curl `(60) self-signed certificate in certificate chain` | El cliente no tiene la CA correcta. No usar `-k`. |
-| curl `(60) no alternative certificate subject name` | El nombre no está en el SAN. |
-| `certificate has expired` | `certs --force` y luego `up --mode https`. |
+| Core no arranca en HTTPS | Ejecutar `logs`. Si dice `keystore password was incorrect` o `AccessDeniedException`, ejecutar `certs --force`. |
+| `certificate has expired` | Ejecutar `certs --force` y luego `up --mode https`. |
 
-No publiques `.state/`: tiene llaves, contraseñas, PCAP y cookies.
+No publiques `.state/` ni `ejemplo-https/certs/`: contienen llaves y contraseñas.
 
 ## Referencias
 
-- [Ensayo con Core y continuidad TLS](VAULT-TV.md#8-entrega-a-los-grupos-2-y-3).
 - [Configuración TLS de Core](../../services/core/src/main/resources/application.yml).
-- [OpenSSL req](https://docs.openssl.org/3.0/man1/openssl-req/), [x509](https://docs.openssl.org/3.0/man1/openssl-x509/), [verify](https://docs.openssl.org/3.0/man1/openssl-verify/), [pkcs12](https://docs.openssl.org/3.0/man1/openssl-pkcs12/).
+- [OpenSSL req](https://docs.openssl.org/3.0/man1/openssl-req/), [x509](https://docs.openssl.org/3.0/man1/openssl-x509/), [verify](https://docs.openssl.org/3.0/man1/openssl-verify/) y [pkcs12](https://docs.openssl.org/3.0/man1/openssl-pkcs12/).
+- [Node.js HTTPS](https://nodejs.org/api/https.html).
 - [Spring Boot SSL](https://docs.spring.io/spring-boot/reference/features/ssl.html).
-- [TLS 1.3, RFC 8446](https://www.rfc-editor.org/rfc/rfc8446.html).
