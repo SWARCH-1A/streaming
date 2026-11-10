@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 190" width="780" height="190" font-family="Arial, sans-serif">
+<rect width="780" height="190" fill="#ffffff"/>
+<rect x="30" y="30" width="230" height="130" rx="6" fill="#ffffff" stroke="#000" stroke-width="2"/>
+<text x="145" y="52" text-anchor="middle" font-size="12" fill="#000">«componente»</text>
+<text x="145" y="72" text-anchor="middle" font-size="15" font-weight="bold" fill="#000">Cliente (curl)</text>
+<rect x="252" y="87" width="16" height="16" fill="#ffffff" stroke="#000" stroke-width="2"/>
+<text x="244" y="99" text-anchor="end" font-size="13" fill="#000">https-out</text>
+<rect x="520" y="30" width="230" height="130" rx="6" fill="#ffffff" stroke="#000" stroke-width="2"/>
+<text x="635" y="52" text-anchor="middle" font-size="12" fill="#000">«componente»</text>
+<text x="635" y="72" text-anchor="middle" font-size="15" font-weight="bold" fill="#000">Servidor (Node.js)</text>
+<text x="635" y="136" text-anchor="middle" font-size="12" fill="#000">handler.mjs</text>
+<rect x="512" y="87" width="16" height="16" fill="#ffffff" stroke="#000" stroke-width="2"/>
+<text x="536" y="99" font-size="13" fill="#000">https-in :18443</text>
+<line x1="268" y1="95" x2="512" y2="95" stroke="#000" stroke-width="4"/>
+<text x="390" y="80" text-anchor="middle" font-size="13" fill="#000">«secure channel»</text>
+<text x="390" y="116" text-anchor="middle" font-size="13" fill="#000">HTTPS request/reply (TLS 1.3)</text>
+</svg>

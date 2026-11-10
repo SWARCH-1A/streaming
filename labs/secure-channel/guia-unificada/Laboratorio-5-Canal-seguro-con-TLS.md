@@ -1,6 +1,6 @@
 # Laboratorio 5. Canal seguro con TLS
 
-**Grupo 1A · Proyecto Vault TV**
+**Grupo 1A**
 
 **Docente:** Jeisson Andres Vergara Vargas
 
@@ -27,59 +27,64 @@ Arquitectura de Software · Periodo 2026-II
 
 - [1. Introducción](#1-introducción)
   - [1.1 Objetivo](#11-objetivo)
-  - [1.2 Estructura del documento](#12-estructura-del-documento)
-  - [1.3 Requisitos](#13-requisitos)
-  - [1.4 Alcance y precauciones](#14-alcance-y-precauciones)
+  - [1.2 El patrón Canal Seguro](#12-el-patrón-canal-seguro)
+  - [1.3 Escenario de calidad](#13-escenario-de-calidad)
+  - [1.4 Vista arquitectónica](#14-vista-arquitectónica)
+  - [1.5 Requisitos y precauciones](#15-requisitos-y-precauciones)
 - [2. Canal inseguro con HTTP](#2-canal-inseguro-con-http)
-  - [2.1 Qué vamos a comprobar](#21-qué-vamos-a-comprobar)
-  - [2.2 Iniciar el servidor](#22-iniciar-el-servidor)
-  - [2.3 Preparar la captura en Wireshark](#23-preparar-la-captura-en-wireshark)
-  - [2.4 Enviar la petición y observar el tráfico](#24-enviar-la-petición-y-observar-el-tráfico)
-  - [2.5 Leer el contenido del canal](#25-leer-el-contenido-del-canal)
 - [3. Canal seguro con TLS: certificados con OpenSSL](#3-canal-seguro-con-tls-certificados-con-openssl)
-  - [3.1 Qué necesita TLS](#31-qué-necesita-tls)
-  - [3.2 Generar la CA, la llave y el certificado](#32-generar-la-ca-la-llave-y-el-certificado)
-  - [3.3 Iniciar el servidor HTTPS](#33-iniciar-el-servidor-https)
-  - [3.4 Enviar la petición confiando en la CA](#34-enviar-la-petición-confiando-en-la-ca)
-  - [3.5 Aplicarlo en otro proyecto](#35-aplicarlo-en-otro-proyecto)
-- [4. Verificación del canal seguro](#4-verificación-del-canal-seguro)
-  - [4.1 Qué vamos a comprobar](#41-qué-vamos-a-comprobar)
-  - [4.2 Herramientas y carpeta de trabajo](#42-herramientas-y-carpeta-de-trabajo)
-  - [4.3 Antes: el canal HTTP](#43-antes-el-canal-http)
-  - [4.4 Certificados con OpenSSL](#44-certificados-con-openssl)
-  - [4.5 Después: el canal HTTPS](#45-después-el-canal-https)
-  - [4.6 Verificar el certificado y el handshake](#46-verificar-el-certificado-y-el-handshake)
-  - [4.7 Rechazo de una CA no confiable](#47-rechazo-de-una-ca-no-confiable)
-  - [4.8 Tabla comparativa antes y después](#48-tabla-comparativa-antes-y-después)
-  - [4.9 Registro de la ejecución](#49-registro-de-la-ejecución)
-  - [4.10 Conclusión](#410-conclusión)
-  - [4.11 Problemas comunes](#411-problemas-comunes)
+- [4. Verificación y resultados](#4-verificación-y-resultados)
+- [5. Recomendaciones](#5-recomendaciones)
 - [Referencias](#referencias)
 
 ## 1. Introducción
 
 ### 1.1 Objetivo
 
-Este documento explica, paso a paso, cómo comprobar que un canal de comunicación sin cifrar expone la información que transporta y cómo protegerlo con TLS usando certificados generados con OpenSSL. Está escrito para que cualquier grupo pueda reproducir el ejercicio. Los archivos del ejemplo (servidor, solicitud y configuración de los certificados) están en el repositorio del proyecto: `SWARCH-1A/streaming`, rama `feature/lab-05-secure-channel-g1`, carpeta `labs/secure-channel`.
+Implementar el patrón de seguridad **Canal Seguro** en un ejemplo reproducible (un servidor Node.js y un cliente curl) y documentar el proceso para que otro equipo pueda repetirlo. El capítulo 2 muestra el problema, el capítulo 3 aplica el patrón con TLS y certificados de OpenSSL, el capítulo 4 verifica el resultado y el capítulo 5 reúne recomendaciones.
 
-### 1.2 Estructura del documento
+### 1.2 El patrón Canal Seguro
 
-| Parte | Contenido |
-| --- | --- |
-| Capítulo 2 | Un servidor y un cliente sencillos (Node.js y curl) se comunican por HTTP. Con Wireshark se lee el mensaje dentro de la captura. |
-| Capítulo 3 | Se crea una autoridad certificadora privada y un certificado con OpenSSL, y el mismo servidor pasa a HTTPS. |
-| Capítulo 4 | Se comprueba que el canal protege: el tráfico va cifrado, el servidor es quien dice ser y el cliente rechaza una CA desconocida. Termina con una tabla comparativa antes y después. |
+**Propósito.** Proteger los datos en tránsito entre dos extremos para que un observador del trayecto no pueda leerlos y el cliente sepa con quién habla.
 
-### 1.3 Requisitos
+**Cómo funciona.** Los extremos negocian una sesión TLS. El servidor presenta un certificado firmado por una autoridad certificadora (CA) en la que el cliente confía. Si la verificación pasa, los datos viajan cifrados.
 
-Se necesitan Node.js 22 o posterior, curl, OpenSSL y Wireshark. En Windows, OpenSSL viene con Git Bash y Wireshark necesita Npcap para capturar el tráfico de loopback. Los comandos de Node y curl se escriben para PowerShell; los de OpenSSL, para Git Bash o una terminal de macOS o Linux.
+**Componentes:** cliente, servidor, protocolo TLS, certificado y llave privada del servidor, y CA de confianza.
 
-### 1.4 Alcance y precauciones
+**Costos:** hay que emitir, distribuir y renovar certificados, proteger las llaves privadas y asumir una pequeña sobrecarga en el handshake.
 
-- Todos los datos son ficticios. Las capturas se hacen en loopback (`127.0.0.1`), por lo que el tráfico no sale del computador.
-- Observar el tráfico requiere acceso al trayecto. El ejercicio no demuestra que cualquier persona conectada al mismo Wi-Fi pueda leer las conversaciones de los demás.
-- El ejercicio demuestra confidencialidad y autenticación del servidor en un trayecto concreto. No demuestra que todo Vault TV sea seguro ni cubre ataques activos.
-- Las llaves privadas (`ca.key`, `server.key`) son secretos: no se suben a ningún repositorio ni se comparten. Los archivos de captura se guardan fuera de la carpeta del proyecto.
+### 1.3 Escenario de calidad
+
+El atributo de calidad que trabajamos es la seguridad, en concreto la confidencialidad de los datos en tránsito y la autenticación del servidor. Para el escenario pensamos en alguien que tiene acceso al trayecto entre el cliente y el servidor y captura el tráfico mientras el cliente envía un usuario y un mensaje por `POST /mensaje`. El sistema está en operación normal; nosotros lo probamos en loopback y con datos ficticios.
+
+Lo que esperamos es que lo capturado no se pueda leer, que el cliente pueda comprobar que habla con el servidor correcto y que rechace a uno cuya CA no conoce. Lo medimos con tres resultados: por HTTP el marcador `LAB_CANAL_INSEGURO` se lee completo en Wireshark, por HTTPS ese marcador no aparece, y `openssl s_client` termina con `Verify return code: 0 (ok)` mientras que curl sin la CA falla.
+
+### 1.4 Vista arquitectónica
+
+Vista de componentes y conectores (C&C) del mismo sistema en dos configuraciones. Solo cambia el conector entre el cliente y el servidor: de HTTP a HTTPS con TLS.
+
+![Vista C&C antes (HTTP) y después (HTTPS con TLS)](imagenes/Diagramas.jpeg)
+
+*Figura 1. A la izquierda, el cliente y el servidor se comunican por HTTP en el puerto 18080 y Wireshark lee el mensaje. A la derecha, el conector es HTTPS con TLS 1.3 en el puerto 18443 y Wireshark solo ve datos cifrados.*
+
+**Leyenda:** caja con borde continuo = componente; flecha = conector; caja con borde punteado = observador externo (Wireshark), que no forma parte del sistema; flecha punteada = captura del tráfico.
+
+**Componentes y conectores: descripción**
+
+| Elemento | Tipo | Responsabilidad y propiedades |
+| --- | --- | --- |
+| Cliente (curl) | Componente | Envía `POST /mensaje` con un JSON. Con HTTPS usa `ca.crt` como CA de confianza. |
+| Servidor Node.js (`handler.mjs`) | Componente | Valida el JSON y responde 200. Escucha en `18080` (HTTP) o `18443` (HTTPS). Con HTTPS usa `server.crt` y `server.key`. |
+| HTTP | Conector | Solicitud y respuesta síncronas en texto plano. Sin cifrado y sin autenticación del servidor. |
+| HTTPS con TLS | Conector | Mismo protocolo de aplicación sobre TLS 1.3 (`TLS_AES_256_GCM_SHA384`). Cifra el contenido y autentica al servidor con su certificado. |
+| Wireshark | Observador externo | Captura el tráfico del trayecto. Es la fuente del escenario de calidad, no un componente del sistema. |
+
+### 1.5 Requisitos y precauciones
+
+- Node.js 22 o posterior, curl, OpenSSL y Wireshark. En Windows, OpenSSL viene con Git Bash y Wireshark necesita Npcap para capturar el tráfico de loopback. Los comandos de Node y curl se escriben para PowerShell; los de OpenSSL, para Git Bash o una terminal de macOS o Linux.
+- Todos los datos son ficticios y las capturas se hacen en loopback (`127.0.0.1`): el tráfico no sale del computador.
+- Observar el tráfico requiere acceso al trayecto. El ejercicio no demuestra que alguien en el mismo Wi-Fi pueda leer las conversaciones de otros ni cubre ataques activos.
+- `ca.key` y `server.key` son secretos: no se suben a ningún repositorio ni se comparten.
 
 ## 2. Canal inseguro con HTTP
 
@@ -95,17 +100,77 @@ Este canal utiliza HTTP sin TLS, por lo que el contenido viaja sin cifrar. Quien
 
 En la práctica observaremos tráfico local con Wireshark. La dirección `127.0.0.1` corresponde a loopback: la comunicación vuelve al mismo computador y no sale por Wi-Fi. La demostración consiste en leer el mensaje desde la captura; no implica intervenir una red ajena ni modificar lo enviado.
 
-#### Herramientas y archivos
+#### Archivos
 
-Se necesitan Node.js 22 o posterior, curl y Wireshark. En Windows, Wireshark debe contar con Npcap para capturar el tráfico de loopback.
+Crea una carpeta de trabajo con una subcarpeta `ejemplo-http` y estos archivos:
 
-Los tres archivos están en el repositorio del proyecto (`SWARCH-1A/streaming`, rama `feature/lab-05-secure-channel-g1`), en la carpeta `labs/secure-channel/ejemplo-http`. Crea una carpeta de trabajo y copia allí la carpeta `ejemplo-http`. Usaremos esa carpeta para iniciar el servidor y enviar la petición.
+`ejemplo-http/server.mjs`
 
-| Archivo | Para qué sirve |
-| --- | --- |
-| `server.mjs` | Inicia el servidor HTTP en `127.0.0.1:18080`. |
-| `handler.mjs` | Recibe el JSON, comprueba sus campos y prepara la respuesta. |
-| `solicitud.json` | Contiene el usuario y el mensaje ficticios que enviará curl. |
+```js
+import { createServer } from 'node:http';
+import { handleRequest } from './handler.mjs';
+
+const server = createServer(handleRequest);
+server.on('error', (error) => {
+  console.error(`No se pudo iniciar el servidor: ${error.message}`);
+  process.exitCode = 1;
+});
+server.listen(18080, '127.0.0.1', () => {
+  console.log('Servidor del laboratorio: http://127.0.0.1:18080/mensaje');
+  console.log('Déjalo abierto. Para terminar, pulsa Ctrl+C en esta terminal.');
+});
+```
+
+`ejemplo-http/solicitud.json`
+
+```json
+{
+  "usuario": "estudiante-demo",
+  "mensaje": "LAB_CANAL_INSEGURO: mensaje de prueba para el laboratorio."
+}
+```
+
+`ejemplo-http/handler.mjs` recibe el JSON, comprueba que tenga `usuario` y `mensaje` y responde 200 con el contenido recibido:
+
+```js
+export async function handleRequest(request, response) {
+  const reply = (status, body) => {
+    const payload = JSON.stringify(body);
+    response.writeHead(status, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Length': Buffer.byteLength(payload),
+      'Cache-Control': 'no-store',
+    });
+    response.end(payload);
+  };
+
+  if (request.url !== '/mensaje') { reply(404, { error: 'La ruta del ejemplo es /mensaje.' }); return; }
+  if (request.method !== 'POST') { reply(405, { error: 'Envía una solicitud POST.' }); return; }
+  if (request.headers['content-type']?.split(';')[0].trim() !== 'application/json') {
+    reply(415, { error: 'Usa Content-Type: application/json.' }); return;
+  }
+
+  try {
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of request) {
+      size += chunk.length;
+      if (size > 16384) { reply(413, { error: 'El ejemplo admite hasta 16 KiB.' }); return; }
+      chunks.push(chunk);
+    }
+    const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    if (!body || typeof body.usuario !== 'string' || !body.usuario.trim()
+      || typeof body.mensaje !== 'string' || !body.mensaje.trim()) {
+      reply(400, { error: 'Incluye usuario y mensaje como textos no vacíos.' }); return;
+    }
+    reply(200, { recibido: true, usuario: body.usuario, mensaje: body.mensaje });
+  } catch {
+    if (!response.headersSent && !response.destroyed) {
+      reply(400, { error: 'Revisa que el cuerpo sea un JSON válido.' });
+    }
+  }
+}
+```
 
 El mensaje incluye el texto `LAB_CANAL_INSEGURO`, que nos permitirá reconocerlo dentro de la captura.
 
@@ -145,19 +210,10 @@ tcp port 18080
 ```
 
 5. No pulses Enter. Pulsa **Tab** para salir del campo y comprobar que el filtro no aparece como inválido.
-El doble clic sobre una interfaz puede iniciar la captura directamente. Por eso seleccionamos con un solo clic y usamos el botón Iniciar cuando la configuración está lista. El filtro limita la captura al puerto del ejemplo.
 
-Deberías ver algo parecido a esta configuración, con loopback seleccionado y el filtro del puerto 18080:
+El doble clic sobre una interfaz puede iniciar la captura directamente; por eso se selecciona con un solo clic. El filtro limita la captura al puerto del ejemplo.
 
-![Opciones de captura con loopback seleccionado y filtro tcp port 18080](imagenes/01-configuracion.png)
-
-*Figura 1. Interfaz y filtro preparados antes de iniciar la captura.*
-
-Pulsa **Iniciar**, en la parte inferior derecha. La lista puede estar vacía hasta que envíes el mensaje con curl:
-
-![Wireshark capturando en loopback antes de enviar la petición](imagenes/02-captura-iniciada.png)
-
-*Figura 2. Captura en curso, todavía sin paquetes de la petición.*
+Pulsa **Iniciar**, en la parte inferior derecha. La lista puede estar vacía hasta que envíes el mensaje con curl.
 
 ### 2.4 Enviar la petición y observar el tráfico
 
@@ -190,7 +246,7 @@ La lista debería verse parecida a esta. Aparecen paquetes TCP del inicio y cier
 
 ![Paquetes TCP y HTTP de la conversación entre curl y el servidor](imagenes/03-paquetes.png)
 
-*Figura 3. Lista de paquetes de nuestra prueba. El POST aparece en el número 4 y la respuesta en el 6.*
+*Figura 2. Lista de paquetes de nuestra prueba. El POST aparece en el número 4 y la respuesta en el 6.*
 
 En la barra situada encima de los paquetes, escribe este filtro y pulsa Enter:
 
@@ -202,7 +258,7 @@ Al aplicarlo deberías ver algo parecido a esta captura: una fila con `POST /men
 
 ![Filtro HTTP que muestra únicamente la petición POST y la respuesta 200](imagenes/04-http.png)
 
-*Figura 4. Vista de la lista después de aplicar el filtro HTTP.*
+*Figura 3. Vista de la lista después de aplicar el filtro HTTP.*
 
 Este filtro solo cambia lo que se muestra en pantalla. Su sintaxis es distinta de la del filtro de captura utilizado antes de iniciar.
 
@@ -215,7 +271,7 @@ Deberías ver la solicitud y la respuesta juntas, como en esta imagen. En nuestr
 
 ![Conversación reconstruida con el mensaje ficticio legible en la petición y la respuesta](imagenes/05-conversacion.png)
 
-*Figura 5. Contenido de la conversación reconstruida en ASCII.*
+*Figura 4. Contenido de la conversación reconstruida en ASCII.*
 
 En nuestra prueba se pudo leer el usuario `estudiante-demo`, el mensaje `LAB_CANAL_INSEGURO` y la respuesta `"recibido":true`. Wireshark obtuvo ese contenido de los paquetes capturados. El mensaje viajó sin cifrar: JSON organiza los datos y TCP los transporta, pero ninguno aporta cifrado por sí mismo.
 
@@ -231,13 +287,51 @@ El servidor necesita una llave privada y un certificado. El certificado dice par
 
 En producción la CA es pública, como Let's Encrypt. En el laboratorio creamos una CA privada con OpenSSL. Los pasos en el servidor y en el cliente son los mismos.
 
-Usaremos estos archivos de la carpeta `ejemplo-https` (en `labs/secure-channel/ejemplo-https` del repositorio):
+Usaremos estos archivos de la carpeta `ejemplo-https`:
 
 | Archivo | Para qué sirve |
 | --- | --- |
 | `ca.cnf` | Datos de la CA del laboratorio. |
 | `server.cnf` | Datos del certificado del servidor. `subjectAltName` lista sus nombres: `localhost` y `127.0.0.1`. |
 | `server.mjs` | Inicia el servidor HTTPS en `127.0.0.1:18443`. Usa el mismo `handler.mjs` del capítulo 2. |
+
+Crea la carpeta `ejemplo-https` junto a `ejemplo-http`. Contenido de los archivos de configuración:
+
+`ejemplo-https/ca.cnf`
+
+```ini
+[req]
+prompt = no
+distinguished_name = dn
+x509_extensions = ca
+
+[dn]
+CN = Lab5 CA
+
+[ca]
+basicConstraints = critical, CA:TRUE, pathlen:0
+keyUsage = critical, keyCertSign, cRLSign
+subjectKeyIdentifier = hash
+```
+
+`ejemplo-https/server.cnf`
+
+```ini
+[req]
+prompt = no
+distinguished_name = dn
+
+[dn]
+CN = localhost
+
+[server]
+basicConstraints = critical, CA:FALSE
+keyUsage = critical, digitalSignature
+extendedKeyUsage = serverAuth
+subjectAltName = DNS:localhost, IP:127.0.0.1
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid, issuer
+```
 
 Los archivos generados quedan en `ejemplo-https/certs/`, que Git ignora. `ca.key` y `server.key` son secretos: no se suben al repositorio ni se comparten.
 
@@ -264,6 +358,37 @@ certs/server.crt: OK
 Si no tienes OpenSSL pero sí Docker, puedes reemplazar `openssl` por `docker run --rm -v "$PWD:/w" -w /w alpine/openssl`.
 
 ### 3.3 Iniciar el servidor HTTPS
+
+Crea `ejemplo-https/server.mjs`. Reutiliza el `handler.mjs` del capítulo 2; solo cambia el transporte: `node:https` en lugar de `node:http`, con la llave y el certificado.
+
+```js
+import { readFileSync } from 'node:fs';
+import { createServer } from 'node:https';
+import { handleRequest } from '../ejemplo-http/handler.mjs';
+
+const certs = new URL('./certs/', import.meta.url);
+let options;
+try {
+  options = {
+    key: readFileSync(new URL('server.key', certs)),
+    cert: readFileSync(new URL('server.crt', certs)),
+    minVersion: 'TLSv1.2',
+  };
+} catch (error) {
+  console.error(`Faltan la llave o el certificado en ejemplo-https/certs: ${error.message}`);
+  process.exit(1);
+}
+
+const server = createServer(options, handleRequest);
+server.on('error', (error) => {
+  console.error(`No se pudo iniciar el servidor: ${error.message}`);
+  process.exitCode = 1;
+});
+server.listen(18443, '127.0.0.1', () => {
+  console.log('Servidor del laboratorio: https://localhost:18443/mensaje');
+  console.log('Déjalo abierto. Para terminar, pulsa Ctrl+C en esta terminal.');
+});
+```
 
 Vuelve a la carpeta donde están `ejemplo-http` y `ejemplo-https` y ejecuta:
 
@@ -312,184 +437,63 @@ Cambia `subjectAltName` en `server.cnf` por los nombres que usa tu cliente. En D
 
 En todos los casos, permite solo TLS 1.2 y 1.3 y marca las cookies de sesión como `Secure`. Pasa las contraseñas por variables de entorno.
 
-## 4. Verificación del canal seguro
+## 4. Verificación y resultados
 
-El capítulo 2 mostró que un mensaje enviado por HTTP se lee en Wireshark y el capítulo 3 puso TLS en el mismo canal con OpenSSL. Este capítulo comprueba que el canal ahora va cifrado, que el servidor es quien dice ser y que el cliente no acepta un servidor cuya CA no conoce. Termina con una tabla comparativa antes/después.
+El capítulo 2 mostró el mensaje legible en Wireshark y el capítulo 3 puso TLS sobre el mismo servicio. Este capítulo comprueba el resultado: lo que se leía en el capítulo 2 ya no se puede leer, el servidor demuestra su identidad y el cliente rechaza una CA desconocida.
 
-Este capítulo trabaja con el ejemplo de Node.js (`ejemplo-http` y `ejemplo-https`).
+Se usan el servidor HTTPS del apartado 3.3, los certificados del apartado 3.2 y la captura HTTP del capítulo 2 como referencia. Todo se ejecuta desde la carpeta que contiene `ejemplo-http` y `ejemplo-https`, con el servidor HTTPS encendido.
 
-> **Ejecución.** Las pruebas se ejecutaron en Windows el 9 de noviembre de 2026 (secciones 4.3 a 4.7). Los resultados verificados se muestran en las figuras.
-
-### 4.1 Qué vamos a comprobar
-
-| Propiedad | Qué significa | Cómo la comprobamos |
+| Propiedad | Qué significa | Cómo se comprueba |
 | --- | --- | --- |
-| Confidencialidad | Un observador del trayecto no puede leer el mensaje | Wireshark: el marcador `LAB_CANAL_INSEGURO` deja de ser legible |
-| Autenticación del servidor | El cliente comprueba que habla con el servidor correcto | `openssl s_client` y rechazo de curl cuando no confía en la CA |
+| Confidencialidad | Un observador del trayecto no puede leer el mensaje | 4.1: el marcador `LAB_CANAL_INSEGURO` ya no aparece en Wireshark |
+| Autenticación del servidor | El cliente comprueba que habla con el servidor correcto | 4.2: `openssl s_client` y certificado; 4.3: rechazo sin la CA |
 
-Los datos son ficticios. La captura se hace en loopback (`127.0.0.1`): el tráfico no sale del computador.
+### 4.1 El tráfico ya no se puede leer
 
-### 4.2 Herramientas y carpeta de trabajo
-
-Se necesitan Node.js 22 o posterior, curl, Wireshark (en Windows, con Npcap para el loopback) y OpenSSL. En Windows, OpenSSL viene con **Git Bash**.
-
-Trabaja en la carpeta de los capítulos anteriores, que contiene `ejemplo-http` y `ejemplo-https`. Todos los comandos de las secciones 4.3 a 4.7 se ejecutan desde esa carpeta.
-
-Comprueba las versiones y anótalas en la sección 4.9:
-
-```powershell
-node --version
-curl.exe --version
-```
-
-```sh
-openssl version
-```
-
-Guarda los archivos de captura (`.pcapng`) **fuera de la carpeta del proyecto**, por ejemplo en `C:\Users\<tu-usuario>\Desktop\lab5-evidencia\`.
-
-No fotografíes ni abras `ca.key` ni `server.key`. Son secretos y no se suben al repositorio.
-
-### 4.3 Antes: el canal HTTP
-
-Este paso repite la captura del capítulo 2 para tener una línea base propia.
-
-1. Terminal 1, inicia el servidor:
-
-   ```powershell
-   node ejemplo-http/server.mjs
-   ```
-
-   Debe mostrar `Servidor del laboratorio: http://127.0.0.1:18080/mensaje`.
-
-2. En Wireshark pulsa **Ctrl+K**. En **Entrada**, selecciona con un solo clic **Adapter for loopback traffic capture**. En el filtro de captura escribe `tcp port 18080`, pulsa Tab y luego **Iniciar**.
-
-3. Terminal 2, envía el mensaje:
-
-   ```powershell
-   curl.exe --noproxy "*" --http1.1 --include `
-     --header "Content-Type: application/json" `
-     --data-binary "@ejemplo-http/solicitud.json" `
-     http://127.0.0.1:18080/mensaje
-   ```
-
-   La respuesta debe ser `HTTP/1.1 200 OK` con `"recibido": true`.
-
-4. Detén la captura con el cuadrado rojo. En el filtro de visualización escribe `tcp.port == 18080 && http` y pulsa Enter. Debes ver `POST /mensaje` y `HTTP/1.1 200 OK`.
-
-   ![Lista de paquetes HTTP filtrada](imagenes/g3-01-http-lista-paquetes.png)
-
-   *Figura 6. Petición y respuesta HTTP en la captura del puerto 18080.*
-
-5. Clic derecho en `POST /mensaje` y **Seguir → Flujo TCP**. Selecciona **Conversación completa** y **ASCII**. El usuario y `LAB_CANAL_INSEGURO` se leen sin esfuerzo.
-
-   ![Flujo TCP con el mensaje legible](imagenes/g3-02-http-flujo-tcp.png)
-
-   *Figura 7. El contenido viaja en texto plano.*
-
-6. Guarda la captura como `http-18080.pcapng` en la carpeta de evidencia. Cierra el servidor con Ctrl+C.
-
-### 4.4 Certificados con OpenSSL
-
-Abre **Git Bash** en `ejemplo-https` y ejecuta los comandos de la sección 3.2. Resumen:
-
-```sh
-mkdir certs
-openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out certs/ca.key
-openssl req -x509 -new -key certs/ca.key -sha256 -days 30 -config ca.cnf -out certs/ca.crt
-openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out certs/server.key
-openssl req -new -key certs/server.key -config server.cnf -out certs/server.csr
-openssl x509 -req -in certs/server.csr -CA certs/ca.crt -CAkey certs/ca.key -CAcreateserial -sha256 -days 30 -extfile server.cnf -extensions server -out certs/server.crt
-openssl verify -CAfile certs/ca.crt -verify_hostname localhost certs/server.crt
-```
-
-El último comando debe mostrar `certs/server.crt: OK`.
-
-![Comprobación del certificado con openssl verify](imagenes/g3-03-openssl-verify-ok.png)
-
-*Figura 8. El certificado del servidor es válido para `localhost` y está firmado por la CA del laboratorio.*
-
-Si `mkdir certs` indica que la carpeta existe, ya generaste los archivos antes. Borra `certs/` solo si quieres rehacerlos.
-
-### 4.5 Después: el canal HTTPS
-
-1. Terminal 1, desde `labs/secure-channel`:
-
-   ```powershell
-   node ejemplo-https/server.mjs
-   ```
-
-   Debe mostrar `Servidor del laboratorio: https://localhost:18443/mensaje`.
-
-2. En Wireshark inicia una captura nueva en loopback con filtro de captura `tcp port 18443`.
-
-3. Terminal 2:
-
-   ```powershell
-   curl.exe --noproxy "*" --http1.1 --include `
-     --cacert "ejemplo-https/certs/ca.crt" `
-     --header "Content-Type: application/json" `
-     --data-binary "@ejemplo-http/solicitud.json" `
-     https://localhost:18443/mensaje
-   ```
-
-   La respuesta debe ser la misma que por HTTP. No uses `-k` ni `--insecure`. En Windows, curl usa Schannel y comprueba la revocación del certificado; como nuestra CA no publica una lista de revocación, en nuestra ejecución fue necesario agregar `--ssl-revoke-best-effort` al final del comando (figura 9). Esa opción solo tolera que no haya información de revocación: la cadena de confianza y el nombre se siguen validando.
-
-   ![Respuesta de curl por HTTPS](imagenes/g3-04-https-respuesta-curl.png)
-
-   *Figura 9. El servidor responde igual que por HTTP, pero ahora con TLS.*
-
-4. Detén la captura. Aplica el filtro `tcp.port == 18443 && tls`. Debes ver `Client Hello`, `Server Hello` y paquetes `Application Data`. Si Wireshark no los reconoce como TLS, usa **Analizar → Decodificar como… → TLS** para el puerto 18443.
+1. En Wireshark pulsa **Ctrl+K**, selecciona **Adapter for loopback traffic capture**, escribe el filtro de captura `tcp port 18443` y pulsa **Iniciar**.
+2. Envía la petición del apartado 3.4. En Windows, añade `--ssl-revoke-best-effort` al final si curl lo exige.
+3. Detén la captura y aplica el filtro `tcp.port == 18443 && tls`. Debes ver `Client Hello`, `Server Hello` y paquetes `Application Data`. Si Wireshark no los reconoce como TLS, usa **Analizar → Decodificar como… → TLS** para el puerto 18443.
 
    ![Handshake TLS y datos cifrados](imagenes/g3-05-https-handshake.png)
 
-   *Figura 10. Handshake TLS seguido de datos de aplicación cifrados.*
+   *Figura 5. Handshake TLS seguido de datos de aplicación cifrados.*
 
-5. Clic derecho en un paquete del flujo y **Seguir → Flujo TCP**. El contenido es ilegible.
+4. Clic derecho en un paquete y **Seguir → Flujo TCP**. A diferencia de la figura 4, el contenido es ilegible.
 
    ![Flujo TCP cifrado](imagenes/g3-06-https-flujo-cifrado.png)
 
-   *Figura 11. El mismo mensaje, ahora ilegible para el observador.*
+   *Figura 6. El mismo mensaje de la figura 4, ahora ilegible para el observador.*
 
-6. Busca el marcador: **Ctrl+F**, tipo de búsqueda **Cadena**, campo **Bytes del paquete**, texto `LAB_CANAL_INSEGURO`. No debe haber resultados.
+5. Busca el marcador: **Ctrl+F**, tipo **Cadena**, campo **Bytes del paquete**, texto `LAB_CANAL_INSEGURO`. No debe haber resultados.
 
    ![Búsqueda del marcador sin resultados](imagenes/g3-07-https-busqueda-marcador.png)
 
-   *Figura 12. El marcador no aparece en los paquetes del flujo de la petición (`tcp.stream eq 39`).*
+   *Figura 7. El marcador no aparece en los paquetes del flujo de la petición.*
 
-7. Guarda la captura como `https-18443.pcapng`. No cargues claves de sesión TLS en Wireshark: invalidaría la comparación. Deja el servidor encendido para la sección 4.6.
+No cargues claves de sesión TLS en Wireshark: permitirían descifrar el flujo e invalidarían la comprobación.
 
-### 4.6 Verificar el certificado y el handshake
+### 4.2 El servidor es quien dice ser
 
-Con el servidor HTTPS encendido, abre **Git Bash** en `ejemplo-https`.
+Abre **Git Bash** en `ejemplo-https` y ejecuta:
 
-1. Handshake completo, confiando en la CA del laboratorio:
+```sh
+openssl s_client -connect localhost:18443 -CAfile certs/ca.crt -servername localhost </dev/null
+openssl x509 -in certs/server.crt -noout -subject -issuer -dates -ext subjectAltName
+```
 
-   ```sh
-   openssl s_client -connect localhost:18443 -CAfile certs/ca.crt -servername localhost </dev/null
-   ```
+El primer comando debe mostrar la versión de TLS, el cifrado negociado y terminar con `Verify return code: 0 (ok)`. El segundo debe mostrar como emisor `Lab5 CA`, fechas vigentes y un SAN con `DNS:localhost` e `IP Address:127.0.0.1`.
 
-   Anota la versión del protocolo, el cifrado y que termine con `Verify return code: 0 (ok)`.
+![Salida de openssl s_client](imagenes/g3-08-s_client-handshake.png)
 
-   ![Salida de openssl s_client](imagenes/g3-08-s_client-handshake.png)
+*Figura 8. Handshake verificado contra la CA del laboratorio: TLS 1.3, `TLS_AES_256_GCM_SHA384`.*
 
-   *Figura 13. Handshake verificado contra la CA del laboratorio.*
+![Datos del certificado](imagenes/g3-09-certificado-san.png)
 
-2. Datos del certificado:
+*Figura 9. Asunto, emisor, vigencia y nombres del certificado.*
 
-   ```sh
-   openssl x509 -in certs/server.crt -noout -subject -issuer -dates -ext subjectAltName
-   ```
+### 4.3 Rechazo de una CA no confiable
 
-   Comprueba que el emisor es `Lab5 CA`, que las fechas son vigentes y que el SAN contiene `DNS:localhost` e `IP Address:127.0.0.1`.
-
-   ![Datos del certificado](imagenes/g3-09-certificado-san.png)
-
-   *Figura 14. Asunto, emisor, vigencia y nombres del certificado.*
-
-### 4.7 Rechazo de una CA no confiable
-
-Un cliente seguro no debe aceptar un servidor cuyo certificado no puede verificar. Con el servidor HTTPS encendido, en PowerShell desde `labs/secure-channel`, repite la petición **sin** `--cacert`. El sistema no conoce a `Lab5 CA`, así que la conexión debe fallar:
+Repite la petición **sin** `--cacert`. El sistema no conoce a `Lab5 CA`, así que la conexión debe fallar:
 
 ```powershell
 curl.exe --noproxy "*" --http1.1 https://localhost:18443/mensaje
@@ -497,67 +501,30 @@ curl.exe --noproxy "*" --http1.1 https://localhost:18443/mensaje
 
 ![Error sin CA](imagenes/g3-10-error-sin-ca.png)
 
-*Figura 15. El cliente rechaza un servidor cuya CA no conoce.*
+*Figura 10. El cliente rechaza un servidor cuya CA no conoce (`SEC_E_UNTRUSTED_ROOT` con Schannel; con OpenSSL el mensaje difiere).*
 
-Anota el mensaje exacto en la sección 4.9. Con Schannel (curl de Windows) los mensajes difieren de los de OpenSSL.
+### 4.4 Resultados
 
-### 4.8 Tabla comparativa antes y después
-
-La tabla resume lo observado en cada caso; la última columna indica la figura o la salida que lo respalda.
-
-| Aspecto | HTTP (antes) | HTTPS (después) | Evidencia |
+| Propiedad | HTTP (capítulo 2) | HTTPS (este capítulo) | Evidencia |
 | --- | --- | --- | --- |
-| Puerto del ejemplo Node | 18080 | 18443 | Salida del servidor |
-| Protocolo en Wireshark | HTTP | TLS | Figuras 6 y 10 |
-| Contenido de la petición | JSON legible | `Application Data` ilegible | Figuras 7 y 11 |
-| Marcador `LAB_CANAL_INSEGURO` | Visible | No aparece | Figura 12 |
-| Handshake | No existe | Client Hello, Server Hello y certificado | Figura 10 |
-| Versión y cifrado | No aplica | TLS 1.3, `TLS_AES_256_GCM_SHA384` | Figura 13 |
-| Identidad del servidor | No se comprueba | `Verify return code: 0 (ok)` | Figura 13 |
-| Certificado | No aplica | Emitido por `Lab5 CA`, SAN `localhost` y `127.0.0.1` | Figura 14 |
-| CA no confiable | No aplica | Rechazada: `SEC_E_UNTRUSTED_ROOT` | Figura 15 |
-| Respuesta funcional | 200 | 200 | Figura 9 |
+| Contenido de la petición | JSON legible | `Application Data` ilegible | Figuras 4 y 6 |
+| Marcador `LAB_CANAL_INSEGURO` | Visible | No aparece | Figura 7 |
+| Identidad del servidor | No se comprueba | `Verify return code: 0 (ok)`, SAN `localhost` y `127.0.0.1` | Figuras 8 y 9 |
+| CA desconocida | No aplica | Conexión rechazada | Figura 10 |
 
-### 4.9 Registro de la ejecución
+La captura ilegible por sí sola no prueba que el canal sea seguro: la prueba es el conjunto de las tres comprobaciones. Con ellas, el contenido que el capítulo 2 permitía leer ya no se expone a un observador del trayecto.
 
-| Dato | Valor |
-| --- | --- |
-| Fecha, sistema operativo y terminal | 9 de noviembre de 2026; Windows 11; PowerShell (curl) y Git Bash (OpenSSL) |
-| Rama | `feature/lab-05-secure-channel-g1` |
-| Commit base del laboratorio (`git rev-parse HEAD` antes de agregar esta guía) | `a1bc68940506b780e3653cad30efa5fd10f096cd` |
-| Versión de curl | 8.21.0 (según el `User-Agent` de la figura 7); usa Schannel |
-| Versión de OpenSSL | 3.5.5 (Git Bash) |
-| Versión de Node | v24.13.1 |
-| Versión de Wireshark | 4.6.8 |
-| Versión de Npcap | 1.88 (libpcap 1.10.6, 64-bit time_t) |
-| Versión de TLS y cifrado negociados | TLS 1.3, `TLS_AES_256_GCM_SHA384` |
-| Vigencia del certificado del servidor | 9 de noviembre al 9 de diciembre de 2026 (30 días) |
-| Error sin confiar en la CA | `curl: (60) schannel: SEC_E_UNTRUSTED_ROOT (0x80090325) - La cadena de certificación fue emitida por una entidad en la que no se confía.` |
-| Ajustes necesarios | `--ssl-revoke-best-effort` en curl para Windows (la CA no publica lista de revocación). |
+Alcance: el laboratorio demuestra confidencialidad y autenticación del servidor en un trayecto concreto, en loopback.
 
-### 4.10 Conclusión
+## 5. Recomendaciones
 
-Resultados verificados:
+Si otro grupo quiere repetir esto, lo primero que le diríamos es que ajuste el `subjectAltName` de `server.cnf` a los nombres con los que su cliente llama al servidor. En nuestro caso eran `localhost` y `127.0.0.1`, pero en Docker Compose suele ser el nombre del servicio, por ejemplo `api`. Si el nombre no está en el certificado, el cliente lo rechaza aunque la CA sea la correcta.
 
-- **Confidencialidad.** Por HTTP, el usuario y `LAB_CANAL_INSEGURO` se leen en el flujo TCP (figura 7). Por HTTPS, la captura solo muestra el handshake TLS 1.3 y datos de aplicación cifrados (figuras 10 y 11), y la búsqueda del marcador no encuentra nada en el flujo (figura 12).
-- **Autenticación del servidor.** `openssl s_client` verifica la cadena contra `Lab5 CA` con `Verify return code: 0 (ok)` (figura 13), y el certificado incluye `localhost` y `127.0.0.1` en el SAN (figura 14).
-- **Rechazo de lo no confiable.** curl rechaza el servidor cuando no confía en la CA (figura 15).
+También les diríamos que no se acostumbren a apagar la verificación con `-k` o `--insecure`. Es tentador cuando algo falla, pero con eso el cifrado deja de servir, porque el cliente aceptaría a cualquier servidor. Lo correcto es darle al cliente la CA con `--cacert` o con `NODE_EXTRA_CA_CERTS`. La CA que creamos con OpenSSL es solo para el laboratorio; en producción conviene una CA pública como Let's Encrypt o la de la organización.
 
-No se probaron el rechazo por nombre incorrecto, el rechazo de una CA distinta ni qué versiones de TLS acepta el servidor (solo se observó TLS 1.3). Por eso no se afirma nada sobre esos puntos. Una captura ilegible por sí sola no prueba que el canal sea seguro: la prueba es el conjunto de las tres comprobaciones.
+Del lado del servidor, nosotros fijamos `minVersion: 'TLSv1.2'` para aceptar solo TLS 1.2 y 1.3, y recomendamos marcar las cookies de sesión como `Secure`. Las llaves `ca.key` y `server.key` nunca deben subirse al repositorio, y los certificados hay que renovarlos antes de que venzan: los nuestros duran 30 días.
 
-Alcance: este laboratorio demuestra confidencialidad y autenticación del servidor para un trayecto concreto, en loopback. No demuestra que todo Vault TV sea seguro ni cubre ataques activos.
-
-### 4.11 Problemas comunes
-
-| Síntoma | Qué hacer |
-| --- | --- |
-| Wireshark no ofrece la interfaz de loopback | Instalar Npcap y reiniciar Wireshark |
-| `Faltan la llave o el certificado en ejemplo-https/certs` | Ejecutar la sección 4.4 |
-| `EADDRINUSE` al iniciar un servidor | Cerrar el servidor anterior con Ctrl+C |
-| La captura HTTPS no muestra TLS | **Analizar → Decodificar como… → TLS** para el puerto 18443 |
-| curl indica `CERT_TRUST_REVOCATION_STATUS_UNKNOWN` | Agregar `--ssl-revoke-best-effort` |
-| `certificate has expired` | Regenerar los certificados (duran 30 días) |
-| La petición de la sección 4.7 no falla | Revisar que no usaste `-k` ni `--cacert` |
+La receta es la misma en cualquier tecnología: llave y certificado en el servidor, CA de confianza en el cliente; la tabla de la sección 3.5 muestra dónde se configura cada pieza.
 
 ## Referencias
 
