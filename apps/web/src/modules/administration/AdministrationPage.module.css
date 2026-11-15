@@ -339,6 +339,10 @@
   margin: 0;
 }
 
+.resultPanel > button {
+  white-space: normal;
+}
+
 @media (max-width: 760px) {
   .hero {
     align-items: flex-start;
