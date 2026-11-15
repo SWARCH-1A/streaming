@@ -103,7 +103,7 @@ El reintento vuelve a cargar las pistas sin desmontar el motor HLS ni cambiar la
 
 La gestión de pistas y el reproductor con replay se adaptan al ancho útil del navegador,
 incluido el espacio ocupado por barras de desplazamiento. La regresión cubre ventanas de
-320, 390, 768 y 1440 px con barra vertical de 15 px, controles completos y foco visible;
+320, 390, 768 y 1440 px con y sin espacio reservado por la barra vertical, controles completos y foco visible;
 no sustituye la comprobación de zoom real ni la observación con lector de pantalla.
 
 ## 8. Criterios de aceptación

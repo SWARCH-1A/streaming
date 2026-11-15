@@ -12,11 +12,8 @@ try {
     .replace(/^@import.*$/m, '');
   await page.setContent(`<style>${css}</style><main style="min-height:1500px">
     <h1>Grabaciones y administración</h1><button>Continuar</button></main>`);
-  await page.setViewportSize({ width: 320, height: 900 });
-  await page.addStyleTag({ content: 'html { overflow-y: hidden; }' });
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
   await responsive(page, expect);
-  console.log('PASS shared CSS reflow: 320/390/768/1440 windows with a 15px scrollbar');
+  console.log('PASS shared CSS reflow: 320/390/768/1440 windows with 15px and 0px scrollbar gutters');
 } finally {
   await browser.close();
 }

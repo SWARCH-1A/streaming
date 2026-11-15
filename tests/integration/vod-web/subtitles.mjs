@@ -30,7 +30,9 @@ try {
   await page.goto('/studio/vods');
   // Wait for SSR hydration and the initial catalogue request before toggling native details.
   await page.waitForLoadState('networkidle');
-  const panel = page.getByRole('link', { name: vod.title, exact: true }).locator('..').locator('..');
+  const panel = page.getByRole('article').filter({
+    has: page.getByRole('heading', { level: 3, name: vod.title, exact: true }),
+  });
   await panel.locator('summary').filter({ hasText: /^Subtítulos$/ }).click();
   await expect(panel.locator('details').filter({ has: page.locator('summary', { hasText: /^Subtítulos$/ }) })).toHaveAttribute('open', '');
   await panel.getByRole('button', { name: 'Cargar pista' }).click();
