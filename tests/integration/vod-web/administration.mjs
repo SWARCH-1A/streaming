@@ -4,13 +4,14 @@ import { readFileSync } from 'node:fs';
 import { fixture as f } from './fixture.mjs';
 import { randomUUID } from 'node:crypto';
 import { replayAvailable, replayDenied } from './replay_checks.mjs';
+import { browserOptions, responsive } from './responsive.mjs';
 
 const require = createRequire(new URL('../../../apps/web/package.json', import.meta.url));
 const { chromium, expect } = require('@playwright/test');
 const { default: AxeBuilder } = require('@axe-core/playwright');
 if (!/^https:\/\/(127\.0\.0\.1|localhost):\d+$/.test(f.origin) || !/^streaming-vod-web-[a-f0-9]{10}$/.test(f.prefix)) throw new Error('Use run.py or full_stack.py');
 const container = (role) => f.containers?.[role] ?? f.prefix + '-' + role;
-const browser = await chromium.launch();
+const browser = await chromium.launch(browserOptions);
 try {
   const owner = await browser.newContext({ baseURL: f.origin, ignoreHTTPSErrors: true });
   const admin = await browser.newContext({ baseURL: f.origin, ignoreHTTPSErrors: true });
@@ -60,6 +61,7 @@ try {
   await page.getByRole('button', { name: 'Consultar grabación', exact: true }).click();
   await expect(page.getByRole('heading', { name: removedVod.title, exact: true })).toBeVisible();
   await expect(page.getByLabel('Motivo de la retirada')).toBeFocused();
+  await responsive(page, expect, page.getByLabel('Motivo de la retirada'));
   await assertAccessible();
   await page.getByLabel('Motivo de la retirada').fill('Retirada verificada con proveedores reales');
   await page.getByRole('checkbox', { name: 'Confirmo la retirada de esta grabación.' }).check();
@@ -103,10 +105,7 @@ try {
   await page.getByRole('button', { name: 'Consultar estado de la retirada' }).click();
   await expect(page.getByText(/El replay se gestiona en Chat/)).toBeVisible();
   expect((await admin.request.get(accepted.statusUri)).status()).toBe(200);
-  for (const width of [320, 390, 768, 1440]) {
-    await page.setViewportSize({ width, height: 900 });
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
-  }
+  await responsive(page, expect);
   await assertAccessible();
 
   // A fresh grant permits actual media before suspension. Its lifetime is 60 seconds.

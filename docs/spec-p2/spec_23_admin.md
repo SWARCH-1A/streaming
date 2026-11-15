@@ -104,6 +104,9 @@ La respuesta 202 significa retirada aceptada y acceso restringido, no limpieza f
 La UI permite consultar la operación VOD y distingue PENDING, RUNNING, FAILED y COMPLETED.
 Un fallo de limpieza no republica el contenido; el replay continúa siendo responsabilidad de Chat.
 Ayudas, errores, estados y recuperación del foco forman parte de la aceptación de accesibilidad.
+La consola debe ajustarse al ancho útil, incluso a 320 px de ventana con una barra vertical
+que reserve espacio. Las pruebas comprueban controles completos y foco, sin ocultar el
+desbordamiento; zoom real y lectura asistiva se registran por separado.
 
 Para VOD, [ADR-022](../adr/ADR-022-vod-go-postgresql-minio.md) fija autorización Core por
 manifiesto, permisos firmados de 60 segundos y renovación Web a los 45 segundos. Los eventos

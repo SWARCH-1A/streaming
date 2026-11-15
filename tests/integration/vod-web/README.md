@@ -13,6 +13,11 @@ python tests/integration/vod-web/run.py --browser ESCENARIO.mjs
 Construye las imágenes del checkout y crea contenedores/red con un prefijo aleatorio propio.
 Antes de construir, ambos runners comprueban las referencias de sus scripts con ESLint.
 También puede ejecutarse solo esa comprobación: `node tests/integration/vod-web/check-scripts.mjs`.
+La regresión de CSS compartido se ejecuta sin proveedores con
+`node tests/integration/vod-web/check-reflow.mjs`, después de instalar Chromium.
+Los escenarios comprueban 320, 390, 768 y 1440 px con una barra vertical de 15 px:
+320 px de ventana dejan 305 px útiles. Se comprueba el ancho útil y los controles,
+sin ocultar desbordamientos; el zoom real y la lectura asistiva requieren revisión aparte.
 Elige el escenario disponible en la rama: `subtitles.mjs` para SPEC-22 o
 `administration.mjs` para SPEC-23. Cada SPEC documenta su entrada y cobertura.
 `--skip-build` solo es válido si las cinco imágenes de prueba ya corresponden a este checkout;

@@ -7,6 +7,7 @@ on:
       - 'apps/web/**'
       - 'contracts/generated/**'
       - '.github/workflows/web.yml'
+      - 'tests/integration/vod-web/**'
       - '!apps/web/**/*.md'
       - '!contracts/generated/**/*.md'
   pull_request:
@@ -14,6 +15,7 @@ on:
       - 'apps/web/**'
       - 'contracts/generated/**'
       - '.github/workflows/web.yml'
+      - 'tests/integration/vod-web/**'
       - '!apps/web/**/*.md'
       - '!contracts/generated/**/*.md'
   workflow_dispatch:
@@ -46,4 +48,6 @@ jobs:
           run_install: false
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: node ../../tests/integration/vod-web/check-reflow.mjs
       - run: node ../../tests/contracts/test_subtitle_schemas.mjs

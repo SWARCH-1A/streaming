@@ -2,12 +2,13 @@ import { createRequire } from 'node:module';
 import { fixture } from './fixture.mjs';
 import { randomUUID } from 'node:crypto';
 import { replayAvailable, replayWithVideo } from './replay_checks.mjs';
+import { browserOptions, mobileNavigation, responsive } from './responsive.mjs';
 
 const require = createRequire(new URL('../../../apps/web/package.json', import.meta.url));
 const { chromium, expect } = require('@playwright/test');
 const { default: AxeBuilder } = require('@axe-core/playwright');
 if (!/^https:\/\/(127\.0\.0\.1|localhost):\d+$/.test(fixture.origin) || !/^streaming-vod-web-[a-f0-9]{10}$/.test(fixture.prefix)) throw new Error('Use run.py or full_stack.py');
-const browser = await chromium.launch();
+const browser = await chromium.launch(browserOptions);
 const vtt = (language) => `WEBVTT\n\n00:00.000 --> 00:30.000\n${language} primera parte\n\n00:30.000 --> 01:04.000\n${language} segunda parte\n`;
 try {
   // Only this disposable context accepts its ephemeral test certificate. The runner verifies it with its CA.
@@ -16,8 +17,16 @@ try {
   await owner.addCookies(fixture.cookies);
   const [vod, nextVod] = fixture.vods;
   expect(vod.durationMs).toBeGreaterThanOrEqual(64000);
+  const titleCsrf = await (await owner.request.get('/api/identity/csrf')).json();
+  const renamed = await owner.request.patch(`/api/vods/${vod.vodId}`, {
+    headers: { Origin: fixture.origin, [titleCsrf.headerName]: titleCsrf.token, 'Idempotency-Key': randomUUID() },
+    data: { expectedVersion: vod.version, title: 'Clase de arquitectura: accesibilidad y subtítulos en una grabación con título largo para revisar su presentación en móvil' },
+  });
+  expect(renamed.status()).toBe(200);
+  Object.assign(vod, await renamed.json());
   await replayAvailable(fixture, viewer, 0, expect);
   const page = await owner.newPage();
+  await mobileNavigation(page, expect);
   await page.goto('/studio/vods');
   // Wait for SSR hydration and the initial catalogue request before toggling native details.
   await page.waitForLoadState('networkidle');
@@ -27,7 +36,7 @@ try {
   await panel.getByRole('button', { name: 'Cargar pista' }).click();
   await expect(panel.getByLabel('Archivo WebVTT')).toBeFocused();
   await expect(panel.getByLabel('Archivo WebVTT')).toHaveAttribute('aria-invalid', 'true');
-  for (const [language, label] of [['es', 'Español'], ['en', 'English']]) {
+  for (const [language, label] of [['es', 'Español'], ['en', 'English captions for the recorded architecture and accessibility practice']]) {
     await panel.getByLabel('Idioma', { exact: true }).fill(language);
     await panel.getByLabel('Nombre de la pista').fill(label);
     await panel.getByLabel('Archivo WebVTT').setInputFiles({ name: language + '.vtt', mimeType: 'text/vtt', buffer: Buffer.from(vtt(language)) });
@@ -35,6 +44,7 @@ try {
     await expect(panel.getByText(`Pista ${label} cargada.`, { exact: true })).toBeVisible();
   }
   const tracks = (await (await owner.request.get(`/api/vods/${vod.vodId}/subtitles`)).json()).items;
+  await responsive(page, expect, panel.getByLabel('Idioma', { exact: true }));
   expect(tracks).toHaveLength(2);
   const es = tracks.find((track) => track.language === 'es'), en = tracks.find((track) => track.language === 'en');
   async function upload(api, metadata, text = vtt('es')) {
@@ -97,10 +107,7 @@ try {
   await selector.selectOption(es.trackId);
   await watch.getByRole('combobox', { name: 'Calidad', exact: true }).selectOption('0');
   await expect(selector).toHaveValue(es.trackId);
-  for (const width of [320, 390, 768, 1440]) {
-    await watch.setViewportSize({ width, height: 900 });
-    expect(await watch.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
-  }
+  await responsive(watch, expect, selector);
   const axe = await new AxeBuilder({ page: watch }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
   expect(axe.violations.map(({ id, nodes }) => ({ id, targets: nodes.map((node) => node.target) }))).toEqual([]);
   await replayWithVideo(fixture, watch, expect);
