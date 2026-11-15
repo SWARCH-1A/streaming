@@ -1,0 +1,65 @@
+name: streaming-lab6
+
+services:
+  core-db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: core
+      POSTGRES_USER: core
+      POSTGRES_PASSWORD: ${CORE_DB_PASSWORD:?Genera la contraseña en .env}
+    volumes:
+      - core-db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "core", "-d", "core"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  core:
+    build: ../../services/core
+    environment:
+      CORE_DB_URL: jdbc:postgresql://core-db:5432/core
+      CORE_DB_USER: core
+      CORE_DB_PASSWORD: ${CORE_DB_PASSWORD:?Genera la contraseña en .env}
+      CORE_RATE_LIMIT_HMAC_SECRET: ${CORE_RATE_LIMIT_HMAC_SECRET:?Genera el secreto en .env}
+      CORE_IMAGE_STORAGE_PROVIDER: filesystem
+      CORE_SECURE_COOKIE: "true"
+      WEB_ORIGIN: https://${LAB6_HOST:-localhost}:${LAB6_PORT:-8443}
+    depends_on:
+      core-db:
+        condition: service_healthy
+
+  gateway:
+    build:
+      context: ../..
+      dockerfile: services/gateway/Dockerfile
+    environment:
+      GATEWAY_DEVELOPMENT_HTTP: "true"
+      GATEWAY_CORE_URL: http://core:8081
+      # El perfil no despliega VOD: su sección opcional falla de inmediato, sin consultas DNS.
+      GATEWAY_VOD_URL: http://127.0.0.1:8098
+    depends_on: [core]
+
+  web:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+    environment:
+      WEB_API_UPSTREAM: http://core:8081
+      WEB_GATEWAY_UPSTREAM: http://gateway:8097
+    depends_on: [gateway]
+
+  proxy:
+    image: caddy:2-alpine
+    environment:
+      LAB6_HOST: ${LAB6_HOST:-localhost}
+    ports:
+      - "${LAB6_BIND:-127.0.0.1}:${LAB6_PORT:-8443}:8443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - proxy-data:/data
+    depends_on: [web]
+
+volumes:
+  core-db:
+  proxy-data:

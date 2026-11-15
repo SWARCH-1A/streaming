@@ -1,0 +1,31 @@
+{
+	admin off
+	auto_https disable_redirects
+	skip_install_trust
+}
+
+https://{$LAB6_HOST}:8443 {
+	tls internal
+
+	@screen {
+		method GET
+		path /api/screens/channels/*
+	}
+	@coreRead {
+		method GET
+		path /api/channels/by-handle/* /api/identity/csrf
+	}
+	@register {
+		method POST
+		path /api/identity/registrations
+	}
+	@private path /api /api/* /internal /internal/* /actuator /actuator/*
+
+	route {
+		reverse_proxy @screen gateway:8097
+		reverse_proxy @coreRead core:8081
+		reverse_proxy @register core:8081
+		respond @private 404
+		reverse_proxy web:3443
+	}
+}

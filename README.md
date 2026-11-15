@@ -137,6 +137,9 @@ IP fija porque Core solo acepta los headers de forwarding de esa IP.
 
 ## Desarrollo y comprobaciones
 
+Para el **Lab 6**, usa el [perfil de rendimiento con Core](labs/6-performance/README.md).
+Este perfil despliega los componentes necesarios para consultar un canal público.
+
 La recuperación de contraseña incorpora APIs Core, tokens de un uso, revocación de sesiones y
 las vistas `/forgot-password` y `/reset-password`. Su [configuración](services/core/README.md#recuperación-de-contraseña)
 se habilita automáticamente en el arranque local con RabbitMQ. La publicación del trabajo y los
