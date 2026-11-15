@@ -55,7 +55,10 @@ export async function responsive(page, expect, focusTarget) {
         expect(dimensions.content, JSON.stringify({ ...dimensions, outside })).toBeLessThanOrEqual(dimensions.available);
         expect(outside, 'Controls must fit, not merely be clipped by an ancestor').toEqual([]);
         if (focusTarget) {
-          await focusTarget.focus();
+          // Resizing can move an already focused control offscreen. A keyboard transition
+          // tests whether the browser brings the control back into view.
+          await focusTarget.press('Shift+Tab');
+          await page.keyboard.press('Tab');
           await expect(focusTarget).toBeFocused();
           await expect(focusTarget).toBeInViewport();
           expect(await focusTarget.evaluate((control) => getComputedStyle(control).outlineStyle)).not.toBe('none');
