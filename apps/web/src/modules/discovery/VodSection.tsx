@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router';
 import type { Taxonomy } from '@contracts/p1';
 import type { P2ExploreScreen, P2SectionError, P2Vod } from '@contracts/p2';
 
-import { Badge } from '@/src/components/atoms/Badge';
 import { Button } from '@/src/components/atoms/Button';
 import { EmptyState } from '@/src/components/molecules/EmptyState';
 import { Notice } from '@/src/components/molecules/Notice';
-import { Panel } from '@/src/components/molecules/Panel';
+import { VodCard } from '@/src/modules/vod/entry';
 import { errorMessage, request } from '@/src/shared/api/http';
 
 import styles from './DiscoveryPage.module.css';
@@ -46,11 +44,6 @@ function outcome(section: P2ExploreScreen['vods']): { page: Page } | { failure: 
   return { failure: sectionFailure(section.status, section.error) };
 }
 
-function minutes(ms: number) {
-  const seconds = Math.floor(ms / 1000);
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-}
-
 /**
  * Recorded-content search (RF-074/075). It reads the VOD section of the Gateway's explore screen with
  * the same exact category/tag IDs as the live filters. VOD has its own cursor and its own failure state:
@@ -62,14 +55,22 @@ export function VodSection({
   categoryId,
   tagId,
   taxonomy,
+  initial,
 }: {
   q: string;
   categoryId: string;
   tagId: string;
   taxonomy: Taxonomy | null;
+  initial?: P2ExploreScreen['vods'];
 }) {
   const tooLong = [...q].length > MAX_TITLE;
-  const [loaded, setLoaded] = useState<Loaded | null>(null);
+  const [loaded, setLoaded] = useState<Loaded | null>(() => {
+    if (!initial) return null;
+    const result = outcome(initial);
+    return 'failure' in result
+      ? { items: [], nextCursor: null, failure: result.failure }
+      : { ...result.page, failure: '' };
+  });
   const [revision, setRevision] = useState(0);
   const [more, setMore] = useState<{ pending: boolean; error: string }>({
     pending: false,
@@ -77,7 +78,7 @@ export function VodSection({
   });
 
   useEffect(() => {
-    if (tooLong) return;
+    if (tooLong || (initial && revision === 0)) return;
     const controller = new AbortController();
     request<P2ExploreScreen>(exploreQuery(q, categoryId, tagId), {
       signal: controller.signal,
@@ -96,7 +97,7 @@ export function VodSection({
       },
     );
     return () => controller.abort();
-  }, [q, categoryId, tagId, revision, tooLong]);
+  }, [q, categoryId, tagId, revision, tooLong, initial]);
 
   async function loadMore(cursor: string) {
     setMore({ pending: true, error: '' });
@@ -155,24 +156,12 @@ export function VodSection({
           {view.items.length ? (
             <div className={styles.vods}>
               {view.items.map((vod) => (
-                <Panel key={vod.vodId} className="stack">
-                  <h3>
-                    <Link to={`/vod/${vod.vodId}`}>{vod.title}</Link>
-                  </h3>
-                  <p className="muted">
-                    {minutes(vod.durationMs)} ·{' '}
-                    {new Date(vod.createdAtUtc).toLocaleDateString('es-CO', {
-                      dateStyle: 'medium',
-                      timeZone: 'UTC',
-                    })}
-                  </p>
-                  <p>
-                    <Badge>{category(vod.categoryId) ?? 'Categoría'}</Badge>
-                    {vod.tagIds.map((id) => (
-                      <span key={id}> {tag(id) ?? 'Etiqueta'}</span>
-                    ))}
-                  </p>
-                </Panel>
+                <VodCard
+                  key={vod.vodId}
+                  vod={vod}
+                  category={category(vod.categoryId) ?? 'Categoría'}
+                  tags={vod.tagIds.map((id) => tag(id) ?? 'Etiqueta')}
+                />
               ))}
             </div>
           ) : (

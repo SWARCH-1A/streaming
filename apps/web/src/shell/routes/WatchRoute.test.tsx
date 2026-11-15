@@ -3,14 +3,18 @@ import { renderToString } from 'react-dom/server';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import type { ChannelBootstrap, PublicSession, PublicStream } from '@contracts/p1';
 import schema from '@contracts/p1.schema.json';
-import { act } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 
+import type * as Http from '@/src/shared/api/http';
 import { request } from '@/src/shared/api/http';
 
 import { WatchRoute } from './WatchRoute';
 
-vi.mock('@/src/shared/api/http', () => ({ request: vi.fn() }));
+vi.mock('@/src/shared/api/http', async (importOriginal) => ({
+  ...(await importOriginal<typeof Http>()),
+  request: vi.fn(),
+}));
 vi.mock('@/src/shell/session/useSession', () => ({ useSession: () => ({ user: null }) }));
 vi.mock('@/src/modules/streaming/entry', () => ({
   HlsPlayer: ({ session }: { session: PublicSession }) => <p>Señal {session.status}</p>,
@@ -22,7 +26,39 @@ afterEach(() => {
   vi.resetAllMocks();
 });
 
-it('hydrates the live screen without repeating its reads and revalidates the session after 4 s', async () => {
+it('revalidates the Gateway aggregate and removes playback when its owner is suspended', async () => {
+  vi.useFakeTimers();
+  const stream = schema.$defs.PublicStream.examples[0] as PublicStream;
+  const session = schema.$defs.PublicSession.examples[0] as PublicSession;
+  const channel = schema.$defs.ChannelBootstrap.examples[0] as ChannelBootstrap;
+  vi.mocked(request).mockRejectedValue(new Error('Contenido no disponible'));
+  const view = render(
+    <MemoryRouter initialEntries={[`/watch/${stream.streamId}`]}>
+      <Routes>
+        <Route
+          path="/watch/:streamId"
+          element={<WatchRoute gateway initial={{ stream, session, channel }} />}
+        />
+      </Routes>
+    </MemoryRouter>,
+  );
+  try {
+    expect(screen.getByText(`Señal ${session.status}`)).toBeTruthy();
+    expect(request).not.toHaveBeenCalled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(vi.mocked(request).mock.calls.map(([path]) => path)).toEqual([
+      `/api/screens/watch/${stream.streamId}`,
+    ]);
+    expect(screen.queryByText(`Señal ${session.status}`)).toBeNull();
+    expect(screen.getByText('Contenido no disponible')).toBeTruthy();
+  } finally {
+    view.unmount();
+  }
+});
+
+it('hydrates the live screen without repeating its reads and revalidates the session after 2 s', async () => {
   vi.useFakeTimers();
   const stream = schema.$defs.PublicStream.examples[0] as PublicStream;
   const session = schema.$defs.PublicSession.examples[0] as PublicSession;
@@ -59,7 +95,7 @@ it('hydrates the live screen without repeating its reads and revalidates the ses
     expect(recover).not.toHaveBeenCalled();
     expect(request).not.toHaveBeenCalled();
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(4000);
+      await vi.advanceTimersByTimeAsync(2000);
     });
     expect(vi.mocked(request).mock.calls.map(([path]) => path)).toEqual([
       `/api/streams/${stream.streamId}`,

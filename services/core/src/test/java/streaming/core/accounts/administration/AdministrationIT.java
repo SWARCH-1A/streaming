@@ -38,6 +38,8 @@ class AdministrationIT {
         p.add("profile.storage-root",()->images.resolve("avatars").toString());p.add("channels.storage-root",()->images.resolve("banners").toString());
     }
     @Autowired IdentityApplicationService identity;
+    @Autowired streaming.core.accounts.profile.application.ProfileApplicationService profiles;
+    @Autowired streaming.core.channels.application.ChannelApplicationService channels;
     @Autowired IdentityStore identityStore;
     @Autowired AdministrationService admin;
     @Autowired JdbcClient jdbc;
@@ -86,6 +88,27 @@ class AdministrationIT {
         var event=json.readTree(body);assertThat(event.get("aggregateId").asText()).isEqualTo("account:"+user);
         assertThat(event.get("payload").get("accountVersion").asLong()).isEqualTo(event.get("sequence").asLong());
         assertThat(body).doesNotContain("Prueba",session,userSession,"email");
+    }
+    @Test void suspensionRevokesDirectImagesWithoutDeletingThemAndReactivationRestoresTheSameObjects() throws Exception {
+        var image=new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(new java.awt.image.BufferedImage(200,200,java.awt.image.BufferedImage.TYPE_INT_RGB),"png",image);
+        var profilePrincipal=new streaming.core.accounts.profile.application.AccountIdentity.Principal(user,"viewer_test",null);
+        var channelPrincipal=new streaming.core.channels.application.AccountAuthentication.Principal(user);
+        var avatar=profiles.upload(profilePrincipal,image.toByteArray());
+        var profile=profiles.patch(profilePrincipal,json.valueToTree(Map.of("avatarUploadId",avatar.uploadId())));
+        var banner=channels.upload(channelPrincipal,channel,image.toByteArray());
+        var updated=channels.patch(channelPrincipal,channel,json.valueToTree(Map.of("bannerUploadId",banner.uploadId())));
+        var paths=java.util.List.of(profile.avatarUri(),updated.bannerUri());
+        for(var path:paths) {
+            var response=http("GET",path,null,null,false,null);
+            assertThat(response.statusCode()).isEqualTo(200);
+            assertThat(response.headers().firstValue("Cache-Control").orElse("")).contains("no-store","private");
+        }
+        admin.change(session,user,"SUSPENDED",0,"Prueba",UUID.randomUUID());
+        for(var path:paths) assertThat(http("GET",path,null,null,false,null).statusCode()).isEqualTo(404);
+        admin.change(session,user,"ACTIVE",1,"Revisión",UUID.randomUUID());
+        for(var path:paths) assertThat(http("GET",path,null,null,false,null).statusCode()).isEqualTo(200);
+        assertThat(profiles.getPublic(user).avatarUri()).isEqualTo(profile.avatarUri());
     }
     @Test void idempotencyKeepsOriginalResultAndDoesNotRepeatAuditOrEvent() {
         UUID key=UUID.randomUUID();var first=admin.change(session,user,"SUSPENDED",0,"Prueba",key);

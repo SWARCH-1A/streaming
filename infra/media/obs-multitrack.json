@@ -1,0 +1,9 @@
+{
+  "encoder_configurations": [
+    {"type":"obs_x264","width":1280,"height":720,"framerate":{"numerator":25,"denominator":1},"settings":{"rate_control":"CBR","bitrate":2500,"keyint_sec":2,"preset":"veryfast","profile":"high","tune":"zerolatency"},"canvas_index":0},
+    {"type":"obs_x264","width":960,"height":540,"framerate":{"numerator":25,"denominator":1},"settings":{"rate_control":"CBR","bitrate":1600,"keyint_sec":2,"preset":"veryfast","profile":"high","tune":"zerolatency"},"canvas_index":0},
+    {"type":"obs_x264","width":640,"height":360,"framerate":{"numerator":25,"denominator":1},"settings":{"rate_control":"CBR","bitrate":900,"keyint_sec":2,"preset":"veryfast","profile":"main","tune":"zerolatency"},"canvas_index":0},
+    {"type":"obs_x264","width":320,"height":180,"framerate":{"numerator":25,"denominator":1},"settings":{"rate_control":"CBR","bitrate":350,"keyint_sec":2,"preset":"veryfast","profile":"main","tune":"zerolatency"},"canvas_index":0}
+  ],
+  "audio_configurations":{"live":[{"codec":"ffmpeg_aac","track_id":1,"channels":2,"settings":{"bitrate":128}}]}
+}

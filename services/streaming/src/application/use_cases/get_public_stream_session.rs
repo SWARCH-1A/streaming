@@ -21,6 +21,8 @@ pub struct GetPublicStreamSession<R> {
     repository: Arc<R>,
     public_hls_base_url: Option<String>,
     session_clock: Arc<dyn SessionMonotonicClock>,
+    channel_access:
+        Option<Arc<dyn crate::application::ports::channel_access::ChannelAccessGateway>>,
 }
 
 impl<R> GetPublicStreamSession<R>
@@ -36,7 +38,16 @@ where
             repository,
             public_hls_base_url,
             session_clock,
+            channel_access: None,
         }
+    }
+
+    pub fn with_channel_access(
+        mut self,
+        gateway: Arc<dyn crate::application::ports::channel_access::ChannelAccessGateway>,
+    ) -> Self {
+        self.channel_access = Some(gateway);
+        self
     }
 
     pub async fn execute(
@@ -51,6 +62,26 @@ where
             .await
             .map_err(map_repository_error)?
             .ok_or(GetPublicStreamSessionError::NotFound)?;
+
+        if let Some(gateway) = &self.channel_access {
+            let access = gateway
+                .channel_access(snapshot.channel_id.clone())
+                .await
+                .map_err(|_| GetPublicStreamSessionError::Unavailable)?;
+            if !access.active {
+                return Err(GetPublicStreamSessionError::NotFound);
+            }
+            if snapshot.status != SessionStatus::Ended
+                && self
+                    .repository
+                    .session_account_version(session_id.clone())
+                    .await
+                    .map_err(map_repository_error)?
+                    != Some(access.account_version)
+            {
+                return Err(GetPublicStreamSessionError::NotFound);
+            }
+        }
 
         if snapshot.session_id != session_id
             || snapshot.stream_generation < 1
@@ -217,6 +248,12 @@ mod tests {
     }
 
     impl StreamingRepository for SessionRepository {
+        async fn session_account_version(
+            &self,
+            _: SessionId,
+        ) -> Result<Option<i64>, RepositoryError> {
+            Ok(Some(0))
+        }
         fn find_stream_config(
             &self,
             _stream_id: StreamId,
@@ -299,6 +336,65 @@ mod tests {
     }
     fn clock_for(_: &SessionId) -> Arc<dyn SessionMonotonicClock> {
         Arc::new(FixedClock(Some(std::time::Duration::from_secs(29))))
+    }
+
+    struct Access(Option<(bool, i64)>);
+    impl crate::application::ports::channel_access::ChannelAccessGateway for Access {
+        fn channel_access(
+            &self,
+            _: String,
+        ) -> std::pin::Pin<
+            Box<
+                dyn Future<
+                        Output = Result<
+                            crate::application::ports::channel_access::ChannelAccess,
+                            (),
+                        >,
+                    > + Send
+                    + '_,
+            >,
+        > {
+            Box::pin(async {
+                self.0
+                    .map(|(active, account_version)| {
+                        crate::application::ports::channel_access::ChannelAccess {
+                            owner_user_id: "usr_fixture".into(),
+                            active,
+                            account_version,
+                        }
+                    })
+                    .ok_or(())
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn current_authority_fences_suspension_reactivation_and_outage_before_media() {
+        let id = SessionId::new();
+        for (access, expected) in [
+            (Some((true, 0)), None),
+            (
+                Some((false, 1)),
+                Some(GetPublicStreamSessionError::NotFound),
+            ),
+            (Some((true, 2)), Some(GetPublicStreamSessionError::NotFound)),
+            (None, Some(GetPublicStreamSessionError::Unavailable)),
+        ] {
+            let session = GetPublicStreamSession::new(
+                Arc::new(SessionRepository {
+                    snapshot: Some(snapshot(
+                        id.clone(),
+                        SessionStatus::Live,
+                        Availability::Playable,
+                        Some(format!("/hls/{}/index.m3u8", id.as_str())),
+                    )),
+                }),
+                Some("https://localhost".into()),
+                clock_for(&id),
+            )
+            .with_channel_access(Arc::new(Access(access)));
+            assert_eq!(session.execute(id.as_str().into()).await.err(), expected);
+        }
     }
 
     fn snapshot(

@@ -1,6 +1,6 @@
 # SPEC-18 — Web React Router SSR
 
-**Prioridad:** P2. **Responsable:** Web. **Estado:** implementado en [apps/web](../../apps/web/README.md); loaders leen las APIs públicas de Core y Streaming mientras no exista el Gateway (SPEC-16).
+**Prioridad:** P2. **Responsable:** Web. **Estado:** implementado en [apps/web](../../apps/web/README.md); loaders consumen agregados Gateway en el perfil local P2; el adaptador Core/Streaming conserva el smoke aislado.
 **RF:** Todos los RF web salvo RF-038…045. **RNF:** RNF-002, 011…014, 019…020, 023, 025…039, 046.
 
 ## 1. Contexto y problema
@@ -39,10 +39,10 @@ en el servidor.
 - [x] CA-02: SSR e hidratación coinciden y no repiten carga inicial, leases ni conexiones WS.
 - [x] CA-03: dos solicitudes con usuarios distintos no cruzan cookies, estado, HTML privado o errores.
 - [x] CA-04: login/logout/CSRF y redirecciones funcionan por dominio HTTPS; 401 atrasado no elimina una sesión nueva.
-- [ ] CA-05: cambiar de sesión/ruta cierra WS y lease anterior y descarta respuestas tardías.
+- [x] CA-05: cambiar de sesión/ruta cierra WS y lease anterior y descarta respuestas tardías.
 - [x] CA-06: fallar VOD o Chat conserva canal/player con estado de error por sección.
 - [ ] CA-07: live → reconexión → fin y canal offline → live se reflejan dentro del objetivo nominal sin recargar la página.
-- [x] CA-08: teclado, foco, semántica, controles HLS/chat y navegación funcionan en Chrome/Firefox del perfil probado.
+- [ ] CA-08: teclado, foco, semántica, controles HLS/chat y navegación funcionan en Chrome/Firefox del perfil probado.
 
 ## 7. Diseño técnico y datos
 
@@ -55,16 +55,24 @@ historial y se fusiona por secuencia. Replay consulta ventanas temporales al see
 supresiones. La revalidación cancela respuestas obsoletas y mantiene datos con frescura explícita.
 El HTML dependiente de identidad usa no-store; redirects y códigos HTTP conservan su significado.
 
-`/watch/{streamId}` entrega emisión, sesión y canal en el HTML inicial. El loader tiene un
-plazo total de tres segundos y obtiene sesión/canal concurrentemente tras resolver la emisión.
-Verifica identidad de stream, sesión, canal y generación; una sesión incoherente o no disponible
-da 503, y una emisión inexistente da 404. Un fallo del canal conserva la emisión y el player.
-Las lecturas públicas usan `WEB_STREAMING_UPSTREAM` sin cookies; Core usa `WEB_API_UPSTREAM`
-con las cookies permitidas de esa petición. Ambos destinos son configuración de servidor.
-Si hay una entrada común de API, omitir `WEB_STREAMING_UPSTREAM` usa `WEB_API_UPSTREAM`.
-Hidratación reutiliza los datos de la emisión y el canal; el polling de emisión/conteo arranca
-a los cuatro segundos. El maestro HLS y las opciones de calidad se descubren en el navegador,
-sin inicializar motores, conexiones WS ni leases durante SSR.
+`/watch/{streamId}` recibe el agregado `P2WatchScreen` del Gateway con un plazo total de
+ tres segundos. El Gateway comprueba stream, sesión, canal y generación; una sesión incoherente
+ da 503 y un canal ausente o suspendido oculta la pantalla con 404. Una sección no esencial
+ no disponible se muestra como fallo parcial. El loader traslada únicamente las cookies permitidas
+ de esa petición al upstream fijo `WEB_GATEWAY_UPSTREAM`, nunca a una URL del contenido.
+ La hidratación reutiliza esos datos y revalida el agregado cada dos segundos con solicitudes
+ acotadas a 2,5 s y sin solapamiento. Una denegación desmonta el player. El maestro, WS y leases
+ se abren solo en el navegador.
+
+`/` y `/search` renderizan las secciones Discovery y VOD del agregado `P2ExploreScreen`.
+Los filtros de título/categoría/etiqueta viajan al Gateway; `liveCursor`, `channelCursor` y el
+cursor VOD son independientes. La búsqueda de canales ejecuta la operación generada `Channels`
+en paralelo a `LiveStreams`. La hidratación conserva las secciones iniciales y sus fallos
+parciales; las páginas nuevas descartan resultados de los filtros anteriores.
+
+Para el smoke aislado de watch sin Gateway se conservan `WEB_API_UPSTREAM` y
+`WEB_STREAMING_UPSTREAM`: las lecturas públicas de Streaming no reciben cookies. Un canal
+confirmado ausente da 404, y una dependencia de metadatos caída conserva el marco de emisión.
 
 El build debe producir entrada de servidor, assets y comandos de arranque reproducibles.
 La migración se acepta cuando las rutas existentes funcionan mediante SSR; un servidor que solo
@@ -82,8 +90,8 @@ Framework SSR seleccionado: React Router. Decisiones del responsable: runtime No
 (`server.mjs` con `createRequestListener` de `@react-router/node`, HTTPS y assets estáticos), rutas en
 `src/app/routes.ts` que envuelven las páginas existentes, loaders solo de lectura con cookies de
 sesión/CSRF reenviadas a un upstream fijo (`WEB_API_UPSTREAM`) y revalidación en el navegador
-(canal cada 4 s, bandeja cada 5 s). Los comandos siguen llamando la API de dominio desde el navegador.
-CA-04/05/07/08 conservan el comportamiento P1 y quedan por verificar con el Gateway desplegado.
+(canal, watch y exploración cada 2 s; bandeja cada 5 s). Los comandos siguen llamando la API de dominio desde el navegador.
+Los agregados se verifican con el Gateway desplegado; la aceptación completa de reconexión y Firefox conserva sus comprobaciones pendientes.
 
 ## 10. Verificación
 
@@ -94,14 +102,17 @@ de teclado. Medir estado visible desde el commit, incluyendo intervalo de revali
 destinos separados, ausencia de cookies en Streaming y conservación del player si falla canal.
 Las pruebas de React verifican hidratación del player sin errores recuperables, un único motor,
 selección de calidad después del maestro y ausencia de leases antes de un frame. Esta evidencia
-no sustituye las verificaciones pendientes de Gateway ni la ingesta multicalidad real de P2-08.
+se complementa con Gateway desplegado y la prueba real Enhanced RTMPS → cuatro calidades
+live/VOD de SPEC-04; no sustituye la cobertura Firefox ni la observación humana.
 
-Evidencia en navegador real: `tests/integration/p2-ssr-browser/run.py` (Chromium por el proxy HTTPS
-local) acredita CA-04 (login con CSRF, sesión en el HTML SSR tras recargar, logout y redirección
-protegida) y CA-08 (foco de ruta en h1, enlace de salto y botón Seguir solo con teclado). CA-07 se
-observó una vez sin recargar (offline → en vivo); CA-05 y el resto de CA-07 quedan pendientes de una
-ejecución en una máquina con capacidad para codificar y servir HLS a la vez (en la máquina de prueba
-la carga superó 20 y el servidor de medios no publicó segmentos a tiempo). Firefox no se probó.
+Evidencia ejecutada el 2026-11-03: `tests/integration/p2-ssr-browser/run.py` por HTTPS local,
+Gateway real y Chromium: login/logout/CSRF, HTML con identidad, foco/teclado, hidratación sin
+errores, un solo WS y cierre al salir; offline→live en 4,4 s y fin→offline en 2,3 s sin recargar.
+El HTML inicial de inicio/búsqueda contiene los datos reales del agregado. `pnpm check` pasa
+215 pruebas de 42 archivos, tipos, lint, formato y build SSR. Las pruebas del consumidor
+comprueban descarte de respuestas tardías y liberación de player/lease. CA-07 conserva pendiente
+la observación de reconexión completa en ese recorrido; CA-08 tiene evidencia Chromium, pero
+Firefox no pudo arrancar por un fallo del perfil del navegador de pruebas.
 
 ## 11. Esfuerzo, riesgos y consecuencias
 

@@ -10,16 +10,16 @@ locales; Gateway, Streaming, Chat, VOD y Notificaciones tienen sus fronteras des
 | Core / Canales y seguimiento | Canal, propiedad, follow/unfollow | [SPEC-03 P2](spec-p2/spec_03_channel.md); RF-008…016; RF-077 | services/core, módulo channels |
 | Core / Catálogo | Categorías, etiquetas, valores activos y tombstones | SPEC-06 base; RF-066…069 | services/core, módulo taxonomy |
 | Core / Discovery | Proyección pública y consultas live/canal | [SPEC-07 P2](spec-p2/spec_07_disc.md); RF-070…073 | services/core, módulo discovery |
-| Streaming / Media | Fuente, cupo, reloj, generaciones, leases, rendiciones recibidas y empaquetado; publicación de referencias durables de segmentos | [SPEC-04 P2](spec-p2/spec_04_stream.md); RF-017…030 | services/streaming; infra/media |
+| Streaming / Media | Fuente, cupo, reloj, generaciones, leases, rendiciones Enhanced RTMPS recibidas, HLS/captura por rendición (ADR-026); publicación de referencias durables de segmentos; cercado por versión Cuentas, inbox y reconciliación de suspensión | [SPEC-04 P2](spec-p2/spec_04_stream.md); RF-017…030 | services/streaming; infra/media |
 | Chat | Mensajes, cuota, orden, dedupe, moderación y replay durable | [SPEC-05 P2](spec-p2/spec_05_chat.md); RF-031…037, RF-082…083 | services/chat |
 | VOD | Biblioteca, metadatos, vínculo a sesión, borradores, publicación, objetos y búsqueda VOD | [SPEC-14](spec-p2/spec_14_vod.md); RF-013, RF-056…062, RF-074…075, RF-080…081 | services/vod: Go, PostgreSQL privado, MinIO/S3; Web src/modules/vod; ADR-022 |
 | Notificaciones | Bandeja, lectura, preferencias, dispositivos, entrega SMTP e intentos por medio | [SPEC-20](spec-p2/spec_20_notifications.md); RF-004, RF-052…055 | `services/notifications`: Node.js 24/TypeScript, PostgreSQL y SMTP (ADR-020); Cuentas proporciona evento y claim/result (ADR-017) |
 | Watch parties | Visualización conjunta y permisos de sala | [SPEC-21](spec-p2/spec_21_watch_party.md); RF-046…051; políticas P2-01…03 cerradas en [ADR-025](adr/ADR-025-watch-parties-en-core.md) | Core (`watchparty`), con composición de reproductores en Web |
-| Subtítulos / accesibilidad | WebVTT de propietario para VOD; publicación/sincronía y controles accesibles | [SPEC-22](spec-p2/spec_22_subtitles.md); RF-063…065; P2-04…05 | services/vod e interfaz Web src/modules/vod; perfil contracts/webvtt.py; aceptación audiovisual/móvil pendiente |
+| Subtítulos / accesibilidad | WebVTT de propietario para VOD; publicación/sincronía y controles accesibles | [SPEC-22](spec-p2/spec_22_subtitles.md); RF-063…065; P2-04…05 | services/vod e interfaz Web src/modules/vod; perfil contracts/webvtt.py; aceptación audiovisual Web/Android ejecutada, revisión humana e iOS pendientes |
 | Web | SSR, rutas, HTML inicial, hidratación y módulos de interacción | [SPEC-18](spec-p2/spec_18_ssr.md); RNF-002/035…037 | apps/web |
-| Móvil | Experiencia de espectador KMP + Compose, sesión segura y push | [SPEC-19](spec-p2/spec_19_mobile.md); RNF-002/007 | apps/mobile: shared, androidApp e iosApp; ADR-021 |
+| Móvil | Experiencia de espectador KMP + Compose, sesión segura y push | [SPEC-19](spec-p2/spec_19_mobile.md); RNF-002/007 | apps/mobile: shared, androidApp e iosApp; ADR-021; agregados canal/live/VOD, follow, bandeja/preferencias y replay/subtítulos; push pendiente |
 | Gateway / integración | Entrada, agregación por pantalla, errores parciales, HTTP/WS/HLS y broker compartido | [SPEC-16](spec-p2/spec_16_gateway.md), [SPEC-17](spec-p2/spec_17_broker.md), [SPEC-10](spec-p2/spec_10_contracts.md) y [SPEC-24](spec-p2/spec_24_deployment.md); RNF-003/006/023/051 | services/gateway (Go) y Caddy (ADR-023); contracts, infra/broker (ADR-016) y tests compartidos |
-| Administración | Operaciones privilegiadas sobre cada dominio y UI común | [SPEC-23](spec-p2/spec_23_admin.md); RF-076…079; P2-17 | Core accounts/administration y Web modules/administration: rol, listados, estado y outbox; retirada VOD vía Gateway implementada; aceptación transversal pendiente |
+| Administración | Operaciones privilegiadas sobre cada dominio y UI común | [SPEC-23](spec-p2/spec_23_admin.md); RF-076…079; P2-17 | Core accounts/administration y Web modules/administration: rol, listados, estado y outbox; retirada VOD/replay, suspensión live e imágenes verificadas; WS combinado y revisión humana pendientes |
 
 La bandeja VOD por canal puede componerse en Gateway, pero VOD conserva su consulta y autorización.
 Core no almacena metadatos de biblioteca ni lee su base. Notificaciones no se convierte en autoridad
@@ -42,3 +42,6 @@ No se asignan integrantes nominales desde este mapa. Cada responsable cierra sus
 [decisiones pendientes](decisiones_pendientes_p2.md), selecciona tecnología mediante ADR y
 ratifica las interfaces marcadas en revisión y completa schemas bloqueados antes de integrar sus consumidores. Los módulos Core siguen en su
 proceso; no cuentan por separado para los seis componentes de lógica.
+
+Integración mantiene dieciséis suscripciones con efecto y el retiro auditable de las dos colas
+iniciales sin consumidor conforme a [ADR-027](adr/ADR-027-suscripciones-con-efecto-y-retiro-auditable.md).

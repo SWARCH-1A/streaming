@@ -39,6 +39,16 @@ impl PostgresStreamingRepository {
 }
 
 impl StreamingRepository for PostgresStreamingRepository {
+    async fn session_account_version(
+        &self,
+        session_id: SessionId,
+    ) -> Result<Option<i64>, RepositoryError> {
+        sqlx::query_scalar("SELECT owner_account_version FROM stream_sessions WHERE session_id=$1")
+            .bind(session_id.as_str())
+            .fetch_optional(&self.write_pool)
+            .await
+            .map_err(persistence_error)
+    }
     fn remember_catalog_values(
         &self,
         stream_id: StreamId,

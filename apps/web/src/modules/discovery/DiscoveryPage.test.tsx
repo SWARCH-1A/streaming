@@ -5,7 +5,7 @@ import { render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import type * as Http from '@/src/shared/api/http';
-import { HttpError, request } from '@/src/shared/api/http';
+import { request } from '@/src/shared/api/http';
 
 import { DiscoveryPage } from './DiscoveryPage';
 
@@ -42,36 +42,41 @@ const liveStream = {
   statusFresh: true,
 };
 const taxonomy = { categories: [{ id: 'cat_fixture', name: 'Educación' }], tags: [] };
-const failure = new HttpError(503, {
-  code: 'UPSTREAM_UNAVAILABLE',
-  message: 'Servicio no disponible.',
-  requestId: 'proxy',
-});
 
 function serve(options: { live: 'ok' | 'fail'; vods: P2ExploreScreen['vods'] | 'fail' }) {
   vi.mocked(request).mockImplementation((path: string) => {
     if (path === '/api/taxonomy') return Promise.resolve(taxonomy);
-    if (path === '/api/discovery/graphql')
-      return options.live === 'fail'
-        ? Promise.reject(failure)
-        : Promise.resolve({
-            data: {
-              streams: {
-                items: [liveStream],
-                nextCursor: null,
-                generatedAtUtc: '2026-10-30T18:00:00Z',
-                statusFresh: true,
-              },
-            },
-          });
     if (path.startsWith('/api/screens/explore'))
-      return options.vods === 'fail'
-        ? Promise.reject(failure)
-        : Promise.resolve({
-            vods: options.vods,
-            discovery: { status: 'EMPTY' },
-            meta: { partial: false, requestId: 'req_fixture' },
-          });
+      return Promise.resolve({
+        vods:
+          options.vods === 'fail'
+            ? {
+                status: 'UNAVAILABLE',
+                error: { code: 'VOD_UNAVAILABLE', retryable: true, requestId: 'req_fixture' },
+              }
+            : options.vods,
+        discovery:
+          options.live === 'fail'
+            ? {
+                status: 'UNAVAILABLE',
+                error: { code: 'DISCOVERY_UNAVAILABLE', retryable: true, requestId: 'req_fixture' },
+              }
+            : {
+                status: 'AVAILABLE',
+                data: {
+                  streams: {
+                    items: [liveStream],
+                    nextCursor: null,
+                    generatedAtUtc: '2026-10-30T18:00:00Z',
+                    statusFresh: true,
+                  },
+                },
+              },
+        meta: {
+          partial: options.live === 'fail' || options.vods === 'fail',
+          requestId: 'req_fixture',
+        },
+      });
     return Promise.reject(new Error(`ruta inesperada ${path}`));
   });
 }
@@ -116,10 +121,39 @@ it('si falla la consulta en vivo, Grabaciones conserva sus resultados', async ()
   expect(
     await screen.findByRole('link', { name: (vod as { title: string }).title }),
   ).toBeInTheDocument();
-  expect(screen.getByRole('alert')).toHaveTextContent('UPSTREAM_UNAVAILABLE');
+  expect(screen.getByRole('alert')).toHaveTextContent('Las transmisiones no están disponibles');
   expect(screen.queryByRole('heading', { name: 'Transmisiones en vivo' })).not.toBeInTheDocument();
   const calls = vi.mocked(request).mock.calls.map(([path]) => String(path));
   expect(
     calls.some((path) => path.includes('title=clase') && path.includes('categoryId=cat_fixture')),
   ).toBe(true);
+});
+
+it('keeps Core-only discovery usable without a configured Gateway', async () => {
+  vi.mocked(request).mockImplementation((path, options) => {
+    if (path === '/api/taxonomy') return Promise.resolve(taxonomy);
+    if (path === '/api/discovery/graphql') {
+      const body = options?.body as { query: string };
+      return Promise.resolve({
+        data: body.query.includes('query Channels')
+          ? { channels: { items: [], nextCursor: null } }
+          : {
+              streams: {
+                items: [liveStream],
+                nextCursor: null,
+                generatedAtUtc: '2026-10-30T18:00:00Z',
+                statusFresh: true,
+              },
+            },
+      });
+    }
+    return Promise.reject(new Error('Gateway is not configured'));
+  });
+  render(
+    <MemoryRouter>
+      <DiscoveryPage gateway={false} search />
+    </MemoryRouter>,
+  );
+  expect(await screen.findByText('Directo de prueba')).toBeVisible();
+  expect(await screen.findByText('Gateway is not configured')).toBeVisible();
 });

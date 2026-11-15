@@ -1,7 +1,7 @@
 # SPEC-15 — Integración del prototipo 2
 
 **Prioridad:** P2. **Responsable:** Integración y responsables de componentes.
-**Estado:** diseño para desarrollo. **RF:** todos salvo RF-038…045. **RNF:** RNF-001…051.
+**Estado:** ensamblaje local y recorridos principales verificados; push y aceptación manual/plataformas pendientes. **RF:** todos salvo RF-038…045. **RNF:** RNF-001…051.
 
 ## 1. Contexto y problema
 
@@ -23,7 +23,7 @@ una sección falle. Como equipo, necesitamos contratos que permitan desarrollar 
 
 Incluye SSR React Router, móvil KMP/Compose, entrada Gateway, agregación por pantalla, HTTP
 síncrono y broker único, VOD/replay, seguimiento, recuperación, notificaciones, administración
-las watch parties (SPEC-21, ADR-025) y los subtítulos por definir por sus responsables. Excluye pagos,
+las watch parties (SPEC-21, ADR-025) y los subtítulos VOD WebVTT (SPEC-22, ADR-018). Excluye pagos,
 suscripciones de pago, premium y emisión desde cámara móvil.
 
 ## 5. Requisitos funcionales
@@ -31,26 +31,26 @@ suscripciones de pago, premium y emisión desde cámara móvil.
 Cada RF del [catálogo](../catalogo_requisitos.md) tiene dueño en el [mapa](../mapa_sdd_p1.md).
 RF-038…045 quedan fuera de P2. Los contratos de seguimiento/recuperación permanecen en Core;
 Notificaciones recibe trabajos y resuelve medios. RF-079 afecta autorización y disponibilidad
-de canal, live, VOD y replay. Watch parties/subtítulos mantienen RF-046…051 y RF-063…065 sin
-fijar sus políticas como decisiones aceptadas hasta la revisión de integración.
+de canal, live, VOD y replay. Watch parties/subtítulos mantienen RF-046…051 y RF-063…065 con las políticas
+del responsable ratificadas en ADR-025/018.
 
 ## 6. Criterios de aceptación
 
-- [ ] CA-01: una navegación inicial obtiene HTML SSR con datos reales; el navegador hidrata y
+- [x] CA-01: una navegación inicial obtiene HTML SSR con datos reales; el navegador hidrata y
   conserva HLS/WS. Navegación y restauración de sesión no duplican conexiones ni filtran credenciales.
-- [ ] CA-02: el Gateway compone datos por pantalla. Ante VOD caído con canal disponible, conserva
+- [x] CA-02: el Gateway compone datos por pantalla. Ante VOD caído con canal disponible, conserva
   el canal y señala la sección fallida. Ausencia confirmada, fallo y acceso denegado se distinguen.
-- [ ] CA-03: HLS y WebSocket siguen accesibles por la entrada pública sin agregación de sus
+- [x] CA-03: HLS y WebSocket siguen accesibles por la entrada pública sin agregación de sus
   flujos, pérdida de Upgrade, MIME types, segmentos anidados o Range.
 - [ ] CA-04: consultas periódicas muestran cambios de estado/conteo dentro de cinco segundos
   en condiciones normales, incluyendo la latencia de proyección y el intervalo del cliente.
-- [ ] CA-05: móvil demuestra login, descubrimiento, HLS live/VOD, chat, seguimiento y bandeja en
+- [x] CA-05: móvil demuestra login, descubrimiento, HLS live/VOD, chat, seguimiento y bandeja en
   Android. Se informa la cobertura iOS ejecutada, sin atribuir compatibilidad por compilación teórica.
 - [ ] CA-06: cookie/CSRF web y Bearer móvil comparten expiración/revocación. Chat autentica ambos
   transportes. Suspensión impide nuevas acciones y acceso al contenido restringido por URL directa.
 - [ ] CA-07: Core y Chat reciben independientemente el ciclo de sesión. Duplicados/desorden,
   consumidor caído y reinicio no pierden efectos confirmados ni autorizan desde una proyección vieja.
-- [ ] CA-08: un worker procesa un trabajo real de VOD o Notificaciones fuera de la solicitud.
+- [x] CA-08: un worker procesa un trabajo real de VOD o Notificaciones fuera de la solicitud.
   El broker por sí solo no acredita procesamiento asíncrono.
 - [ ] CA-09: bandeja, leído, preferencias, correo y push funcionan con intentos independientes.
   Reconectar una sesión no repite su aviso lógico. Prueba real de push requiere provisión externa.
@@ -96,8 +96,10 @@ no se degrada a permiso. Las versiones y timestamps del productor conservan su s
 
 [ADR-015](../adr/ADR-015-arquitectura-p2.md) registra las decisiones aceptadas.
 [Decisiones pendientes](../decisiones_pendientes_p2.md) asigna tecnologías, políticas funcionales,
-contratos y provisión a los responsables. La clasificación académica del Gateway y el inventario
-de seis componentes lógicos permanecen pendientes de verificación.
+contratos y provisión a los responsables. El inventario ejecutado contiene seis unidades de lógica: Core (Java), Streaming (Rust),
+Chat (Go), VOD (Go), Notificaciones (TypeScript) y Gateway de agregación (Go). Web SSR y móvil
+Kotlin son dos presentaciones. Hay cinco PostgreSQL privados, Redis y MinIO; RabbitMQ es
+mensajería. La valoración docente del Gateway como lógica conserva su dependencia externa.
 
 ## 10. Verificación
 
@@ -121,5 +123,30 @@ y comandos desde un checkout limpio.
 
 Las interfaces de Gateway, broker, grabación, replay y autenticación móvil necesitan adopción
 coordinada. El cierre de código es el 30 de octubre; la aceptación integrada y el artefacto se
-preparan para el 2 de noviembre. Proveedores push y empaquetado multicalidad son dependencias
-visibles, y las tecnologías abiertas no deben transformarse en dependencias implícitas.
+preparan para el 2 de noviembre. Multicalidad está implementada mediante ADR-026; Firebase/APNs aún no existen.
+La provisión y los adaptadores push se detallan en [la guía móvil](../../apps/mobile/PUSH.md).
+
+## 12. Aceptación local ejecutada
+
+El 2026-11-03 se verificó el ensamblaje local de 19 servicios, HTTPS, SSR con datos reales,
+hidratación, una conexión WS por vista y liberación al salir; el escenario SSR midió
+offline → live en 4,4 s y fin → offline en 2,3 s. Gateway conserva fallos parciales y cursores
+independientes. La prueba multicalidad decodifica cuatro calidades live y VOD, también tras reconectar
+la fuente conservando sesión y variantes; no usa un motor simulado.
+
+Android API 37 ejecutó login/Keystore, búsqueda/canal, follow/listado, bandeja/leído/destino,
+HLS/WS con ACK y conteos 1 → 0 → 1 → 0 al pausar/retornar/salir. VOD/replay y subtítulos
+se reprodujeron en Android; el VOD verifica cuatro calidades, automática y seek. iOS compila el framework y el host UIKit; no se atribuyen a iOS
+los recorridos nuevos ejecutados en Android. SPEC-19 conserva la matriz por plataforma.
+
+Los escenarios aislados VOD/Chat con capturas RTMPS reales comprobaron timeline, seek/replay,
+moderación, fallo de Chat sin cortar vídeo, pistas autorizadas y administración con URLs
+directas, Core caído, eventos viejos y reinicio VOD. Suspensión live y avatar/banner tienen
+pruebas propias. Backup/restore volvió a servir frames y replay desde objetos restaurados.
+
+Follow/bandeja/correo y recuperación SMTP se ejecutaron con Mailpit real. El runner de recuperación
+verifica solicitud, correo, enlace canónico, retirada del fragmento y formulario; no confirma
+contraseñas desde el navegador. Confirmación/uso único/revocación se verifican en Core, y su
+paso UI queda manual. Push real requiere proyecto y adaptadores; Firefox, lector asistivo,
+carga sostenida e iOS ampliado mantienen aceptación pendiente. Estos límites impiden declarar
+todos los RF/RNF de P2 aceptados por haber pasado los recorridos principales.

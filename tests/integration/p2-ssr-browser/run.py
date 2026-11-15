@@ -6,6 +6,7 @@ Accounts are fictitious; credentials stay in memory. Output contains only scenar
 """
 from __future__ import annotations
 import os
+import argparse
 from pathlib import Path
 import secrets
 import sys
@@ -16,10 +17,12 @@ import uuid
 os.environ["P1_PROFILE"] = "local"
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "p1-delivery"))
 import verify as v  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "p2-fixtures"))
+from accounts import fixture_account
 from playwright.sync_api import expect, sync_playwright  # noqa: E402
 
 ORIGIN = v.ORIGIN
-NOMINAL_S = 15  # status visible without reload: 5 s budget + 4 s polling + local machine margin
+NOMINAL_S = 5  # P2 end-to-end visibility budget; no additional polling margin
 
 
 def key():
@@ -32,21 +35,37 @@ def stop(owner, sid):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--browser", choices=("chromium", "firefox", "webkit"), default="chromium")
+    args = parser.parse_args()
     suffix = secrets.token_hex(3)
     password = secrets.token_urlsafe(18)
     owner, fan = v.Client(), v.Client()
     owner_handle, fan_handle = "ssrowner_" + suffix, "ssrfan_" + suffix
-    v.register(owner, owner_handle, password, str(uuid.uuid4()))
-    v.register(fan, fan_handle, password, str(uuid.uuid4()))
-    owner.login(owner_handle, password)
+    owner_fixture, fan_fixture = fixture_account("ssr-owner"), fixture_account("ssr-fan")
+    if owner_fixture and fan_fixture:
+        owner_handle, fan_handle = owner_fixture["handle"], fan_fixture["handle"]
+        password = fan_fixture["password"]
+        owner.login(owner_handle, owner_fixture["password"])
+    else:
+        v.register(owner, owner_handle, password, str(uuid.uuid4()))
+        v.register(fan, fan_handle, password, str(uuid.uuid4()))
+        owner.login(owner_handle, password)
     catalog = owner.call("/api/taxonomy")
     cid = owner.call("/api/channels/by-handle/" + owner_handle)["channel"]["channelId"]
+    if fan_fixture:
+        fan.login(fan_handle, password)
+        fan.core(f"/api/channels/{cid}/followers/me", "DELETE", headers=key(), expect=200)
     config = owner.call(f"/api/channels/{cid}/streams", "POST",
-                        {"title": "Prueba SSR navegador", "categoryId": catalog["categories"][0]["id"], "tagIds": []}, key(), 201)
+                        {"title": "Prueba SSR navegador", "categoryId": catalog["categories"][0]["id"], "tagIds": []}, key(), (200, 201) if owner_fixture else 201)
+    if owner_fixture and not config.get("streamKey"):
+        owner.call(f"/api/streams/{config['streamId']}", "PATCH", {"title": "Prueba SSR navegador"}, headers=key())
+        rotated = owner.call(f"/api/streams/{config['streamId']}/ingest-keys/rotate", "POST", headers=key())
+        config["streamKey"] = rotated["streamKey"]
     config["ingestUrl"] = config["rtmpUrl"].rstrip("/") + "/" + config["streamKey"]
 
     with sync_playwright() as p:
-        browser = p.chromium.launch()
+        browser = getattr(p, args.browser).launch()
         context = browser.new_context(ignore_https_errors=True, locale="es-CO")
         page = context.new_page()
         errors = []
@@ -111,6 +130,17 @@ def main():
             sid = live["sessionId"]
             print(f"PASS CA-07 live shown without reload ({time.monotonic() - started:.1f} s after the publisher started)", flush=True)
 
+            v.eventually(lambda: owner.call("/api/screens/explore?limit=12"),
+                         lambda screen: any(item["channel"]["handle"] == owner_handle for item in screen["discovery"].get("data", {}).get("streams", {}).get("items", [])), NOMINAL_S)
+            for path in ("/", "/search?q=" + owner_handle):
+                rendered = page.request.get(ORIGIN + path, headers={"Accept": "text/html"})
+                assert rendered.status == 200
+                html = rendered.text()
+                assert f'href="/channels/{owner_handle}"' in html, "real channel missing from first HTML"
+                assert "Prueba SSR navegador" in html if path == "/" else owner_handle in html
+                assert "no-store" in rendered.headers.get("cache-control", "")
+            print("PASS home/search first HTML contains real Gateway discovery results", flush=True)
+
             # CA-05: /watch opens the chat WebSocket; leaving the route closes it.
             sockets = []
             page.on("websocket", lambda ws: sockets.append(ws) if "/realtime/chat/" in ws.url else None)
@@ -128,6 +158,10 @@ def main():
 
             page.goto(ORIGIN + "/channels/" + owner_handle)
             expect(page.get_by_text("En vivo", exact=True).first).to_be_visible(timeout=20000)
+            # The fixture reconnects like OBS: stop it before the terminal action,
+            # otherwise it legitimately creates a new live session after DELETE.
+            publisher.terminate()
+            publisher.wait(20)
             stop(owner, sid)
             sid = None
             ended = time.monotonic()

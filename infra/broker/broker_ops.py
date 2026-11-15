@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from urllib.parse import quote
 
 import pika
+from retired import RETIRED, retire
 
 SUBSCRIPTION = re.compile(r"^(core|chat|streaming|vod|notifications)\.[a-z.]+$")
 
@@ -29,26 +30,30 @@ def audit(action, subscription, event_id, reason):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("inspect", "redrive", "close", "metrics"))
+    parser.add_argument("action", choices=("inspect", "redrive", "close", "metrics", "retire"))
     parser.add_argument("--subscription")
     parser.add_argument("--event-id")
     parser.add_argument("--reason", default="")
     args = parser.parse_args()
     context = ssl.create_default_context(cafile="/run/secrets/ca.crt")
     password = os.environ["BROKER_OPERATOR_PASSWORD"]
-    if args.action == "metrics":
+    if args.action in ("metrics", "retire"):
         import base64
         import urllib.request
         request = urllib.request.Request("https://broker:15671/api/queues/" + quote("streaming-p2", safe=""))
         request.add_header("Authorization", "Basic " + base64.b64encode(("operator:" + password).encode()).decode())
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPSHandler(context=context))
         with opener.open(request, timeout=5) as response:
-            for queue in json.load(response):
+            queues = json.load(response)
+        if args.action == "metrics":
+            for queue in queues:
                 print(json.dumps({key: queue.get(key) for key in ("name", "messages", "messages_ready", "messages_unacknowledged", "head_message_timestamp")}))
-        return
+            return
     if not args.subscription or not SUBSCRIPTION.fullmatch(args.subscription):
         raise ValueError("subscription required")
-    if args.action != "inspect" and (not args.event_id or not args.reason.strip()):
+    if args.action == "retire" and (args.subscription not in RETIRED or not args.reason.strip()):
+        raise ValueError("Explicitly retired subscription and reason required")
+    if args.action not in ("inspect", "retire") and (not args.event_id or not args.reason.strip()):
         raise ValueError("event-id and reason required")
     connection = pika.BlockingConnection(pika.ConnectionParameters(
         host="broker", port=5671, virtual_host="streaming-p2", heartbeat=30,
@@ -57,25 +62,37 @@ def main():
     try:
         channel = connection.channel()
         channel.confirm_delivery()
-        method, properties, body = channel.basic_get(args.subscription + ".dlq", auto_ack=False)
-        if method is None:
-            print("DLQ empty")
+        if args.action == "retire":
+            count = retire(channel, args.subscription, {q["name"] for q in queues}, args.reason,
+                           "/audit/retired-subscriptions.jsonl")
+            audit("retire", args.subscription, None, args.reason)
+            print(json.dumps(dict(action="retire", consumer=args.subscription, archived=count)))
             return
-        try:
-            event_id = json.loads(body).get("eventId")
-        except (ValueError, AttributeError):
-            event_id = properties.message_id
-        if not isinstance(event_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", event_id):
-            event_id = "invalid-" + hashlib.sha256(body).hexdigest()[:24]
-        if args.action == "inspect":
-            headers = properties.headers or {}
-            print(json.dumps(dict(eventId=event_id, consumer=args.subscription,
-                                 cause=headers.get("x-p2-cause"), attempts=headers.get("x-p2-attempt"),
-                                 firstFailure=headers.get("x-p2-first-failure"), lastFailure=headers.get("x-p2-last-failure"))))
-            channel.basic_nack(method.delivery_tag, requeue=True)
-            return
-        if args.event_id != event_id:
-            raise ValueError("DLQ head differs; inspect first")
+        # Quorum requeue can move the inspected head. Select by stable identity,
+        # holding unrelated deliveries unacknowledged until connection close.
+        for _ in range(256):
+            method, properties, body = channel.basic_get(args.subscription + ".dlq", auto_ack=False)
+            if method is None:
+                if args.action == "inspect":
+                    print("DLQ empty")
+                    return
+                raise ValueError("Selected DLQ event was not found")
+            try:
+                event_id = json.loads(body).get("eventId")
+            except (ValueError, AttributeError):
+                event_id = properties.message_id
+            if not isinstance(event_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", event_id):
+                event_id = "invalid-" + hashlib.sha256(body).hexdigest()[:24]
+            if args.action == "inspect":
+                headers = properties.headers or {}
+                print(json.dumps(dict(eventId=event_id, consumer=args.subscription,
+                                     cause=headers.get("x-p2-cause"), attempts=headers.get("x-p2-attempt"),
+                                     firstFailure=headers.get("x-p2-first-failure"), lastFailure=headers.get("x-p2-last-failure"))))
+                return
+            if args.event_id == event_id:
+                break
+        else:
+            raise ValueError("Selected event is outside the bounded DLQ inspection batch")
         if args.action == "redrive":
             # A new operational attempt retains the original event ID and exact body.
             headers = dict(properties.headers or {})
@@ -89,7 +106,8 @@ def main():
         print(json.dumps(dict(action=args.action, consumer=args.subscription, eventId=event_id)))
     finally:
         # Any unacknowledged delivery returns to the DLQ, including unknown publish results.
-        connection.close()
+        if connection.is_open:
+            connection.close()
 
 
 if __name__ == "__main__":

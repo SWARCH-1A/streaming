@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react';
+import type { FormEvent, KeyboardEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
 import { ActionLink } from '@/src/components/atoms/ActionLink';
@@ -61,6 +61,11 @@ export function ChatPanel({ readOnly = false, unavailable = false }: ChatPanelPr
     setText('');
     setError(null);
   }
+  function submitOnEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
+  }
   return (
     <aside id="chat" className={styles.chat} aria-label="Chat en vivo">
       <header className={styles.header}>
@@ -118,6 +123,7 @@ export function ChatPanel({ readOnly = false, unavailable = false }: ChatPanelPr
             placeholder="Comparte un mensaje…"
             rows={2}
             value={text}
+            onKeyDown={submitOnEnter}
             onChange={(event) => {
               setText(event.target.value);
               setError(null);

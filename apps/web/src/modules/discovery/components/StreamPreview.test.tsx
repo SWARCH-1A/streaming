@@ -17,7 +17,7 @@ describe('fotogramas de exploración', () => {
     fireEvent.error(preview!);
     expect(container.querySelector('img[src^="/hls/"]')).toBeNull();
     expect(container.querySelector('img')).toHaveAttribute('src', artwork);
-    await act(() => vi.advanceTimersByTime(5000));
+    await act(() => vi.advanceTimersByTime(2000));
     expect(container.querySelector('img[src^="/hls/"]')).toHaveAttribute(
       'src',
       '/hls/ses_demo/preview.jpg?v=1',
@@ -28,7 +28,7 @@ describe('fotogramas de exploración', () => {
     const { container } = render(
       <StreamPreview uri="/hls/ses_demo/preview.jpg" sessionId="ses_demo" />,
     );
-    await act(() => vi.advanceTimersByTime(15000));
+    await act(() => vi.advanceTimersByTime(2000));
     expect(container.querySelector('img[src^="/hls/"]')).toHaveAttribute(
       'src',
       '/hls/ses_demo/preview.jpg?v=1',

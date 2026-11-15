@@ -19,6 +19,13 @@ python3 infra/local/dev.py up
 La entrada pública Caddy sirve `/api/vods`, `/api/me/vods` y `/vod-media`; Web ofrece `/videos`,
 `/studio/vods` y `/vod/:vodId`. La biblioteca de canal usa el agregado SSR de Gateway.
 
+`GET /api/vods/{vodId}/thumbnail` devuelve un JPEG real de hasta 640×360 y 512 KiB. Comprueba
+publicación, propietario y restricciones incluso al reutilizar una imagen. Deriva el fotograma
+de un segmento confirmado con tamaño/hash verificados; no abre URLs externas ni escribe nuevos
+objetos S3. La caché privada conserva hasta 32 imágenes y solo ejecuta un decoder a la vez, con
+plazo de siete segundos por solicitud. La respuesta usa `no-store`. Un error de esta lectura
+auxiliar debe mostrar una miniatura alternativa y conservar el acceso a reproducción.
+
 | Proceso | Puertos privados | Datos |
 | --- | --- | --- |
 | vod | 8098 API y 8099 servicio, ambos TLS | PostgreSQL propio; escritura S3 |
@@ -152,3 +159,10 @@ También se ejecutó un smoke de arranque nativo TLS: PostgreSQL con verify-full
 privado inicializado con escritor/lector distintos, y salud HTTPS de VOD y Media. Core, Streaming
 y broker estuvieron ausentes en ese smoke; no acredita el recorrido completo TLS. Se validaron
 Compose/Caddy con certificados de fixture sin iniciar ni modificar el stack del usuario.
+
+El capturador conserva un último keyframe sellado aunque MediaMTX no tenga un DTS posterior:
+resuelve su duración real con ffprobe y persiste la medida antes de transferirlo. Una ausencia
+AAC de hasta 250 ms solo se admite al final verificado de su generación. Bytes sin sello,
+audio ausente en segmentos interiores y cambios de formato siguen fallando. Las pruebas de
+`cmd/media-recorder` y `internal/vod` requieren ffmpeg/ffprobe y un usuario sin privilegios;
+la prueba de permisos de limpieza no debe ejecutarse como root.

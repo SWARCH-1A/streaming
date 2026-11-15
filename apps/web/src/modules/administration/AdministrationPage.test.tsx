@@ -26,7 +26,7 @@ beforeEach(() => {
 it('focuses the reason and associates validation without sending an empty command', async () => {
   const user = userEvent.setup();
   render(<AdministrationPage />);
-  await user.click(await screen.findByRole('button', { name: 'Suspender fixture' }));
+  await user.click(await screen.findByRole('button', { name: 'Suspender cuenta' }));
   expect(screen.getByLabelText('Motivo')).toHaveFocus();
   await user.click(screen.getByRole('button', { name: 'Confirmar cambio' }));
   expect(screen.getByLabelText('Motivo')).toHaveAttribute('aria-invalid', 'true');
@@ -49,7 +49,7 @@ it('keeps the idempotency key after uncertain failure and separates operation er
   });
   const user = userEvent.setup();
   render(<AdministrationPage />);
-  await user.click(await screen.findByRole('button', { name: 'Suspender fixture' }));
+  await user.click(await screen.findByRole('button', { name: 'Suspender cuenta' }));
   await user.type(screen.getByLabelText('Motivo'), 'Revisión de prueba');
   await user.click(screen.getByRole('button', { name: 'Confirmar cambio' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Servicio no disponible');
@@ -68,6 +68,8 @@ it('keeps the idempotency key after uncertain failure and separates operation er
 it('shows denied access without rendering a mutation control', async () => {
   vi.mocked(request).mockRejectedValue(new Error('ADMIN_REQUIRED'));
   render(<AdministrationPage />);
-  expect(await screen.findAllByRole('alert')).toHaveLength(2);
+  expect(
+    await screen.findByText('Tu cuenta no tiene permisos administrativos.'),
+  ).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /Suspender/ })).not.toBeInTheDocument();
 });

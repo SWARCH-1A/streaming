@@ -97,7 +97,10 @@ public class ProfileApplicationService {
         });
         return view(after);
     }
-    public byte[] readAvatar(String key) { return avatars.readPublic(key); }
+    public byte[] readAvatar(String key) {
+        if (!profiles.isPublicImageReadable(key)) throw new ProfileException(HttpStatus.NOT_FOUND,"AVATAR_NOT_FOUND","Avatar no disponible.");
+        return avatars.readPublic(key);
+    }
     public String avatarContentType(String key) { return avatars.contentType(key); }
     @Scheduled(fixedDelayString="PT5M")
     public void purgeExpiredUploads() {

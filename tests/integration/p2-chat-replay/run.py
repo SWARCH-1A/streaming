@@ -23,6 +23,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "p2-fixtures"))
+from accounts import fixture_account
 
 ROOT = Path(__file__).resolve().parents[3]
 STATE = ROOT / "infra/p1/.state-local"
@@ -215,10 +218,11 @@ def media_offset(timeline, session_ms):
 
 def prepare_stream(owner, channel_id, category_id, existing=False):
     title = "Replay de chat E2E " + secrets.token_hex(3)
-    _, config = owner.call(f"/api/channels/{channel_id}/streams", "POST",
+    status, config = owner.call(f"/api/channels/{channel_id}/streams", "POST",
                           {"title": title, "categoryId": category_id, "tagIds": []},
                           {"Idempotency-Key": str(uuid.uuid4())}, 200 if existing else 201)
-    if existing:
+    assert status in (200, 201)
+    if status == 200:
         assert not config.get("streamKey"), "existing configuration must not reveal its secret"
         owner.mutate(f"/api/streams/{config['streamId']}", "PATCH", {"title": title})
         # Previous fixture ended the session. Rotate explicitly; never assume POST returns a key twice.
@@ -235,26 +239,33 @@ def main(keep=False, minimum_seconds=0, existing_owner=None):
     password = "Ficticia-" + secrets.token_urlsafe(12)
     handles = {}
     account = None
+    reusable = bool(existing_owner) or bool(os.environ.get("P2_TEST_ACCOUNTS"))
     for role, client in (("owner", owner), ("fan", fan)):
         if role == "owner" and existing_owner:
             owner, account, password = existing_owner["client"], existing_owner["owner"], existing_owner["password"]
             handles[role] = existing_owner["handle"]
             continue
-        handle = "chre2e_" + role[0] + secrets.token_hex(4)
-        _, registered = client.mutate("/api/identity/registrations", body={"email": handle + "@example.test", "handle": handle, "password": password}, expect=201)
+        fixture = fixture_account("replay-" + role)
+        handle = fixture["handle"] if fixture else "chre2e_" + role[0] + secrets.token_hex(4)
+        role_password = fixture["password"] if fixture else password
+        if fixture:
+            registered = fixture["account"]
+        else:
+            _, registered = client.mutate("/api/identity/registrations", body={"email": handle + "@example.test", "handle": handle, "password": role_password}, expect=201)
         if role == "owner":
             account = registered
-        client.mutate("/api/identity/sessions", body={"login": handle, "password": password})
+            password = role_password
+        client.mutate("/api/identity/sessions", body={"login": handle, "password": role_password})
         handles[role] = handle
     _, channel = owner.call("/api/channels/by-handle/" + handles["owner"])
     channel_id = channel["channel"]["channelId"]
     _, settings = owner.call(f"/api/channels/{channel_id}/vod-settings")
-    if not existing_owner:
+    if not reusable:
         assert settings["enabled"], "autopublish is enabled by default"
     # Draft first: the replay must follow VOD readability before and after publication.
     owner.mutate(f"/api/channels/{channel_id}/vod-settings", "PUT", {"enabled": False, "expectedVersion": settings["version"]})
     _, catalog = anon.call("/api/taxonomy")
-    config, ingest_key = prepare_stream(owner, channel_id, catalog["categories"][0]["id"], bool(existing_owner))
+    config, ingest_key = prepare_stream(owner, channel_id, catalog["categories"][0]["id"], reusable)
     publisher = Publisher(ingest_key)
     sockets = []
     try:

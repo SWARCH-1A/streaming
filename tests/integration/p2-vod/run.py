@@ -32,7 +32,8 @@ def wait(args, timeout=90):
         time.sleep(1)
     if args[:2]==['docker','exec']:
         # Only this runner's disposable fixture; retain useful failure diagnostics.
-        subprocess.run(['docker','logs','--tail','60',args[2]],cwd=ROOT,check=False)
+        container = args[4] if args[2] == '--user' else args[2]
+        subprocess.run(['docker','logs','--tail','60',container],cwd=ROOT,check=False)
     raise RuntimeError("Fixture did not become ready")
 
 
@@ -64,7 +65,8 @@ def main():
             broker=start("-broker",RABBIT,"--hostname",name+"-broker","-e","RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=+S 2:2 +A 2","-e","RABBITMQ_CTL_ERL_ARGS=+S 1:1 +A 1","-v",str(directory)+":/fixture:ro","-v",str(directory/"rabbitmq.conf")+":/etc/rabbitmq/rabbitmq.conf:ro")
             wait(["docker","exec",db,"pg_isready","-U","vod_fixture","-d","vod_test"])
             wait(["docker","exec",s3,"mc","ready","fixture"])
-            wait(["docker","exec",broker,"rabbitmq-diagnostics","-q","check_running"])
+            # Running Erlang as root during prelaunch can create an unreadable cookie.
+            wait(["docker","exec","--user","rabbitmq",broker,"rabbitmq-diagnostics","-q","check_running"])
             command("docker","run","--rm","--network",name,
                     "-e",f"VOD_TEST_DATABASE_URL=postgres://vod_fixture:fixture-only-vod-password@{db}:5432/vod_test?sslmode=disable",
                     "-e",f"VOD_TEST_S3_ENDPOINT=http://{s3}:9000",

@@ -367,7 +367,11 @@ services:
   proxy:
     image: caddy:2-alpine
     ports:
-      - "127.0.0.1:${P1_HTTPS_PORT:-3445}:3443"
+      - "${LOCAL_HTTPS_BIND:-127.0.0.1}:${P1_HTTPS_PORT:-3445}:3443"
+    environment:
+      WEB_ORIGIN: ${WEB_ORIGIN:?Run init}
+      LOCAL_PUBLIC_HOST: ${LOCAL_PUBLIC_HOST:-localhost}
+      LOCAL_LAN_IP: ${LOCAL_LAN_IP:-127.0.0.1}
     volumes:
       - ${P1_STATE}/Caddyfile:/etc/caddy/Caddyfile:ro
       - ${P1_STATE}/web.crt:/run/secrets/web.crt:ro

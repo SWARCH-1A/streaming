@@ -1,0 +1,6 @@
+.layout {
+  display: grid;
+  gap: 1.5rem;
+  width: min(100%, 1440px);
+  margin-inline: auto;
+}

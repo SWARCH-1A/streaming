@@ -15,6 +15,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.*
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.*
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import io.ktor.client.HttpClient
@@ -83,19 +85,20 @@ class AndroidSecureStore(context: Context) : SecureStore {
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 actual fun VideoPlayer(url: String, title: String, modifier: Modifier, onPlaying: (Boolean) -> Unit,
-                       onPosition: (Long) -> Unit, onError: (String) -> Unit) {
+                       onPosition: (Long) -> Unit, onError: (String) -> Unit, playbackGrant: String, startPositionMs: Long, renditions: List<Rendition>?, controls: PlaybackControls, onDismiss: () -> Unit) {
     val context = LocalContext.current
-    val player = remember(url) { ExoPlayer.Builder(context).build().apply {
+    val dataSource = remember(url) { DefaultHttpDataSource.Factory() }
+    dataSource.setDefaultRequestProperties(if (playbackGrant.isEmpty()) emptyMap() else mapOf("X-VOD-Playback-Grant" to playbackGrant))
+    val player = remember(url) { ExoPlayer.Builder(context).setMediaSourceFactory(DefaultMediaSourceFactory(context).setDataSourceFactory(dataSource)).build().apply {
         setMediaItem(MediaItem.Builder().setUri(url).setMimeType(MimeTypes.APPLICATION_M3U8)
             .setMediaMetadata(MediaMetadata.Builder().setTitle(title).build()).build())
+        if (startPositionMs > 0) seekTo(startPositionMs)
         prepare()
         playWhenReady = true
     } }
     val playingCallback by rememberUpdatedState(onPlaying)
     val errorCallback by rememberUpdatedState(onError)
     var tracks by remember(url) { mutableStateOf(Tracks.EMPTY) }
-    var quality by remember(url) { mutableStateOf("Automática") }
-    var menu by remember { mutableStateOf(false) }
     DisposableEffect(player) {
         var decoded = false
         val listener = object : Player.Listener {
@@ -114,28 +117,25 @@ actual fun VideoPlayer(url: String, title: String, modifier: Modifier, onPlaying
         onDispose { playingCallback(false); player.removeListener(listener); player.release() }
     }
     LaunchedEffect(player) { while (true) { onPosition(player.currentPosition.coerceAtLeast(0)); delay(250) } }
-    Box(modifier) {
-        AndroidView(factory = { PlayerView(it).apply { this.player = player; contentDescription = title } },
-            modifier = Modifier.matchParentSize(), update = { it.player = player }, onRelease = { it.player = null })
-        Box(Modifier.align(Alignment.TopEnd).padding(8.dp)) {
-            VideoQualityButton(quality) { menu = true }
-            DropdownMenu(menu, { menu = false }) {
-                DropdownMenuItem(text = { Text("Automática") }, onClick = {
-                    player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().clearOverridesOfType(C.TRACK_TYPE_VIDEO).build()
-                    quality = "Automática"; menu = false
-                })
-                tracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }.forEach { group ->
-                    (0 until group.length).filter { group.isTrackSupported(it) }.forEach { index ->
-                        val format = group.getTrackFormat(index)
-                        val label = if (format.height > 0) "${format.height}p" else "${format.bitrate / 1000} kbps"
-                        DropdownMenuItem(text = { Text(label) }, onClick = {
-                            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
-                                .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, index)).build()
-                            quality = label; menu = false
-                        })
-                    }
-                }
+    val choices = remember(tracks) {
+        tracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }.flatMap { group ->
+            (0 until group.length).filter { group.isTrackSupported(it) }.map { index ->
+                val format = group.getTrackFormat(index)
+                val label = if (format.height > 0) "${format.height}p" else "${format.bitrate / 1000} kbps"
+                Triple(VideoQuality("${group.mediaTrackGroup.id}:$index", label), group.mediaTrackGroup, index)
             }
         }
     }
+    LaunchedEffect(choices) {
+        controls.qualities = choices.map { it.first }
+        controls.unavailable = false
+    }
+    LaunchedEffect(player, choices, controls.selectedId) {
+        val selection = choices.firstOrNull { it.first.id == controls.selectedId }
+        val parameters = player.trackSelectionParameters.buildUpon().clearOverridesOfType(C.TRACK_TYPE_VIDEO)
+        if (selection != null) parameters.setOverrideForType(TrackSelectionOverride(selection.second, selection.third))
+        player.trackSelectionParameters = parameters.build()
+    }
+    AndroidView(factory = { PlayerView(it).apply { this.player = player; contentDescription = title } },
+        modifier = modifier.dismissVideoOnSwipe(onDismiss), update = { it.player = player }, onRelease = { it.player = null })
 }

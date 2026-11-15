@@ -17,16 +17,16 @@
 }
 .identity {
   position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 1.5rem;
-  flex-wrap: wrap;
   padding: 2rem;
   width: 100%;
   background: linear-gradient(transparent, rgb(13 14 18 / 90%));
 }
 .identity > span:last-child {
-  margin-left: auto;
+  justify-self: end;
 }
 .current {
   display: flex;
@@ -41,8 +41,13 @@
 }
 @media (max-width: 600px) {
   .identity {
+    grid-template-columns: auto minmax(0, 1fr);
     padding: 1.25rem;
     gap: 1rem;
+  }
+  .identity > span:last-child {
+    grid-column: 2;
+    justify-self: start;
   }
   .identity h1 {
     font-size: 1.5rem;

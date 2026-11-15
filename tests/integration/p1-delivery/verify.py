@@ -49,7 +49,7 @@ class Client:
         except urllib.error.HTTPError as error:r=error
         with r:
             data=r.read()
-            if r.status!=expect:raise AssertionError(f"{method} {path.split('?')[0]} expected {expect}, got {r.status}")
+            if r.status not in ((expect,) if isinstance(expect, int) else expect):raise AssertionError(f"{method} {path.split('?')[0]} expected {expect}, got {r.status}")
             if raw:return data
             value=json.loads(data) if data else None
             if schema:contracts.validate_payload(BUNDLE,schema,value,public=schema not in ("StreamCreated","IngestKey","ViewerLease","Csrf"))

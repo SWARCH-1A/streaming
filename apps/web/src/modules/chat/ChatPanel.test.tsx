@@ -60,6 +60,14 @@ describe('chat local', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Enviar' }));
     expect(screen.getByRole('alert')).toHaveTextContent('Espera un segundo');
   });
+  it('envía el mensaje con Enter', async () => {
+    setup();
+    const input = screen.getByLabelText('Mensaje al canal');
+    await userEvent.type(input, 'mensaje directo');
+    await userEvent.keyboard('{Enter}');
+    expect(screen.getByText('mensaje directo')).toBeInTheDocument();
+    expect(input).toHaveValue('');
+  });
   it('permite pausar anuncios y autodesplazamiento', async () => {
     setup();
     await userEvent.click(screen.getByRole('button', { name: 'Pausar autodesplazamiento' }));

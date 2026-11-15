@@ -91,7 +91,10 @@ public class ChannelApplicationService {
         });
         return view(after);
     }
-    public byte[] readBanner(String key) { return banners.readPublic(key); }
+    public byte[] readBanner(String key) {
+        if (!channels.isPublicImageReadable(key)) throw new ChannelException(HttpStatus.NOT_FOUND,"BANNER_NOT_FOUND","Portada no disponible.");
+        return banners.readPublic(key);
+    }
     public String bannerContentType(String key) { return banners.contentType(key); }
     @Scheduled(fixedDelayString="PT5M")
     public void purgeExpiredUploads() {

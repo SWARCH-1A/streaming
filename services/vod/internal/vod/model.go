@@ -155,7 +155,11 @@ func (t Timeline) MapOffset(ms int64) int64 {
 	return 0
 }
 
-// BuildTimeline uses the same coverage for every rendition. Missing expected bytes are not gaps.
+// BuildTimeline validates each rendition independently. Native HLS muxers can cut
+// independently encoded qualities at slightly different boundaries, so the common
+// chat/playback timeline is based on the rendition with the greatest media coverage.
+// Missing bytes inside one rendition are still rejected unless the producer marked a
+// real generation discontinuity.
 func BuildTimeline(r Recording, index Index) (Timeline, error) {
 	t := Timeline{VodID: r.VodID, SessionID: r.SessionID, MappingVersion: r.MappingVersion + 1, GapPolicy: "COMPACT_NEAREST_SEAM", Intervals: []Interval{}}
 	if index.SessionID != r.SessionID || index.StreamGeneration != r.StreamGeneration || len(index.Renditions) < 1 || len(index.Renditions) > 4 || len(index.Segments) == 0 {
@@ -175,7 +179,8 @@ func BuildTimeline(r Recording, index Index) (Timeline, error) {
 	}
 	ids := map[string]bool{}
 	var reference []Segment
-	for n, v := range index.Renditions {
+	bestCoverage := int64(-1)
+	for _, v := range index.Renditions {
 		if !ValidID(v.RenditionID) || ids[v.RenditionID] || v.Width < 1 || v.Height < 1 || v.Bitrate < 1 || v.VideoCodec == "" || (v.AudioCodec != nil && *v.AudioCodec == "") || (v.Codecs() == "" || strings.ContainsAny(v.Codecs(), "\"\r\n")) {
 			return t, Fail(422, "RENDITION_INVALID")
 		}
@@ -195,17 +200,13 @@ func BuildTimeline(r Recording, index Index) (Timeline, error) {
 			}
 			end = s.SessionStartMS + s.DurationMS
 		}
-		if n == 0 {
+		coverage := int64(0)
+		for _, s := range ss {
+			coverage += s.DurationMS
+		}
+		if coverage > bestCoverage {
 			reference = ss
-		} else {
-			if len(ss) != len(reference) {
-				return t, Fail(422, "RENDITIONS_NOT_ALIGNED")
-			}
-			for i, s := range ss {
-				if s.SessionStartMS != reference[i].SessionStartMS || s.DurationMS != reference[i].DurationMS || s.SourceGeneration != reference[i].SourceGeneration {
-					return t, Fail(422, "RENDITIONS_NOT_ALIGNED")
-				}
-			}
+			bestCoverage = coverage
 		}
 	}
 	if len(groups) != len(ids) {

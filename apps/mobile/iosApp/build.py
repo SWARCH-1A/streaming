@@ -15,6 +15,7 @@ def run(*args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--origin', default='https://localhost:3445')
+    parser.add_argument('--bundle-id', default='dev.swarch.vault')
     parser.add_argument('--device', action='store_true', help='Compile for a physical arm64 iPhone; requires signing for installation.')
     parser.add_argument('--sign-identity', help='Apple signing identity; use a local provisioning profile for physical devices.')
     parser.add_argument('--provisioning-profile', type=Path)
@@ -38,6 +39,7 @@ def main():
         '-framework', 'CoreGraphics', '-framework', 'Security', '-framework', 'AVFoundation',
         '-framework', 'AVKit', '-lc++', '-lsqlite3', ROOT / 'iosApp/main.swift', '-o', bundle / 'VaultTV')
     info = plistlib.loads((ROOT / 'iosApp/Info.plist').read_bytes())
+    info['CFBundleIdentifier'] = args.bundle_id
     info['VaultApiOrigin'] = args.origin.rstrip('/')
     info['CFBundleSupportedPlatforms'] = ['iPhoneOS' if args.device else 'iPhoneSimulator']
     (bundle / 'Info.plist').write_bytes(plistlib.dumps(info))

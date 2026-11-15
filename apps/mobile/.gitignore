@@ -10,3 +10,4 @@ DerivedData/
 *.mobileprovision
 GoogleService-Info.plist
 google-services.json
+iosApp/Config.local.xcconfig

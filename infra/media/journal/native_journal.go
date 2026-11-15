@@ -18,7 +18,7 @@ import (
 	"time"
 )
 
-var nativeDirectory = regexp.MustCompile(`^/data/native/(ses_[0-9a-f-]{36})/([1-9][0-9]*)/(rend_source)$`)
+var nativeDirectory = regexp.MustCompile(`^/data/native/(ses_[0-9a-f-]{36})/([1-9][0-9]*)/(rend_source|rend_[0-3])$`)
 var nativeFilename = regexp.MustCompile(`^([0-9]+)-([0-9]{6})\.ts$`)
 
 type nativeEntry struct {
@@ -32,6 +32,7 @@ type nativeEntry struct {
 }
 type nativeInventory struct {
 	Version  int           `json:"version"`
+ Renditions []string `json:"renditions,omitempty"`
 	Closed   bool          `json:"closed"`
 	Failure  string        `json:"failure"`
 	Segments []nativeEntry `json:"segments"`
@@ -47,7 +48,7 @@ func (r *Recorder) initNativeJournal() {
 	if !nativeDirectory.MatchString(dir) {
 		return
 	}
-	j := &nativeJournal{dir: dir, data: nativeInventory{Version: 1, Segments: []nativeEntry{}}}
+	j := &nativeJournal{dir: dir, data: nativeInventory{Version: 1, Renditions: r.nativeRenditions, Segments: []nativeEntry{}}}
 	r.journal = j
 	// An engine restart cannot silently replace an existing generation's evidence.
 	if _, err := os.Stat(filepath.Join(dir, "index.json")); !errors.Is(err, os.ErrNotExist) {
@@ -149,8 +150,18 @@ func (j *nativeJournal) complete(path string, duration time.Duration) {
 			size, err = io.Copy(h, io.LimitReader(file, 64<<20+1))
 		}
 		file.Close()
-		if err != nil || size <= 0 || size > 64<<20 || duration <= 0 || duration > 60*time.Second {
-			j.fail("CAPTURE_NATIVE_OBJECT_INVALID")
+		if err != nil {
+			j.fail("CAPTURE_NATIVE_OBJECT_SYNC_FAILED")
+			return
+		}
+		if size <= 0 || size > 64<<20 {
+			j.fail("CAPTURE_NATIVE_OBJECT_SIZE_INVALID")
+			return
+		}
+		// A final keyframe can have no subsequent DTS. Its bytes are certified
+		// here; the capture owner resolves that closed tail with ffprobe.
+		if duration < 0 || duration > 60*time.Second {
+			j.fail("CAPTURE_NATIVE_OBJECT_DURATION_INVALID")
 			return
 		}
 		entry.DurationMS = (duration + 500*time.Microsecond).Milliseconds()

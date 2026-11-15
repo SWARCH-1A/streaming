@@ -85,6 +85,67 @@ data class LoginRequest(
 ) { override fun toString(): String = "LoginRequest([redacted])" }
 
 @Serializable
+data class P2ChannelPreference(
+    val channelId: String,
+    val emailEnabled: Boolean,
+    val pushEnabled: Boolean,
+    val version: Long
+)
+
+@Serializable
+data class P2ChannelScreen(
+    val channel: ChannelBootstrap,
+    val vods: P2VodSection,
+    val live: P2LiveSection,
+    val follow: P2FollowSection,
+    val meta: P2ScreenMeta
+)
+
+typealias P2ChannelSection = JsonObject
+
+@Serializable
+data class P2Device(
+    val installationId: String,
+    val platform: String,
+    val enabled: Boolean,
+    val version: Long
+)
+
+typealias P2DiscoverySection = JsonObject
+
+@Serializable
+data class P2ExploreScreen(
+    val vods: P2VodSection,
+    val discovery: P2DiscoverySection,
+    val meta: P2ScreenMeta
+)
+
+@Serializable
+data class P2Follow(
+    val channelId: String,
+    val following: Boolean,
+    val followVersion: Long,
+    val followedAtUtc: String?
+)
+
+@Serializable
+data class P2FollowPage(
+    val items: List<P2FollowedChannel>,
+    val nextCursor: String?
+)
+
+typealias P2FollowSection = JsonObject
+
+@Serializable
+data class P2FollowedChannel(
+    val channelId: String,
+    val followedAtUtc: String,
+    val followVersion: Long
+)
+
+typealias P2LiveSection = JsonObject
+
+@Serializable
 data class P2NativeLogin(
     val accessToken: String,
     val tokenType: String,
@@ -93,11 +154,37 @@ data class P2NativeLogin(
 ) { override fun toString(): String = "P2NativeLogin([redacted])" }
 
 @Serializable
+data class P2Notification(
+    val notificationId: String,
+    val kind: String,
+    val channelId: String,
+    val sessionId: String,
+    val title: String,
+    val linkPath: String,
+    val createdAtUtc: String,
+    val readAtUtc: String?,
+    val available: Boolean
+)
+
+@Serializable
+data class P2NotificationPage(
+    val items: List<P2Notification>,
+    val nextCursor: String?
+)
+
+@Serializable
 data class P2OperationStatus(
     val operationId: String,
     val status: String,
     val errorCode: String,
     val replayCleanup: String
+)
+
+@Serializable
+data class P2Preferences(
+    val emailEnabled: Boolean,
+    val pushEnabled: Boolean,
+    val version: Long
 )
 
 @Serializable
@@ -124,6 +211,37 @@ data class P2Rendition(
     val bitrateBps: Long,
     val videoCodec: String,
     val audioCodec: String?
+)
+
+typealias P2RenditionsSection = JsonObject
+
+@Serializable
+data class P2ReplayMessage(
+    val messageId: String,
+    val sessionId: String,
+    val sequence: Long,
+    val author: ChatAuthor,
+    val text: String,
+    val serverCreatedAtUtc: String,
+    val streamOffsetMs: Long,
+    val streamGeneration: Long,
+    val mediaOffsetMs: Long,
+    val moderationVersion: Long
+)
+
+@Serializable
+data class P2ReplayPage(
+    val vodId: String,
+    val mappingVersion: Long,
+    val moderationVersion: Long,
+    val items: List<P2ReplayMessage>,
+    val nextCursor: String?
+)
+
+@Serializable
+data class P2ScreenMeta(
+    val partial: Boolean,
+    val requestId: String
 )
 
 @Serializable
@@ -192,6 +310,25 @@ data class P2Vod(
 data class P2VodPage(
     val items: List<P2Vod>,
     val nextCursor: String?
+)
+
+@Serializable
+data class P2VodScreen(
+    val vod: P2Vod,
+    val mapping: P2Timeline,
+    val channel: P2ChannelSection,
+    val meta: P2ScreenMeta
+)
+
+typealias P2VodSection = JsonObject
+
+@Serializable
+data class P2WatchScreen(
+    val stream: PublicStream,
+    val session: PublicSession?,
+    val channel: P2ChannelSection,
+    val renditions: P2RenditionsSection,
+    val meta: P2ScreenMeta
 )
 
 @Serializable

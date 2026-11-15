@@ -26,7 +26,7 @@ vi.mock('hls.js', () => ({
     loadSource = hls.load;
     stopLoad = hls.stop;
     destroy = hls.destroy;
-    set loadLevel(value: number) {
+    set nextLevel(value: number) {
       hls.selected = value;
     }
     on(event: string, handler: () => void) {

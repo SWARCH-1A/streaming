@@ -61,6 +61,24 @@ class Profiles(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "symlink"):
                 load.environment()
 
+    def test_init_upgrades_legacy_gateway_address_without_rotating_private_state(self):
+        local = module("local")
+        with tempfile.TemporaryDirectory() as directory:
+            local.STATE = Path(directory)
+            (local.STATE / "owner.json").write_text(json.dumps({"project": local.PROJECT, "root": str(local.ROOT)}))
+            path = local.STATE / "environment.env"
+            original = (f"P1_STATE={local.STATE}\nWEB_ORIGIN=https://localhost:3445\n"
+                        "LOCAL_SUBNET=192.168.241.0/24\nLOCAL_PROXY_IP=192.168.241.2\n"
+                        "CORE_DB_PASSWORD=fixture-only-preserved\n")
+            path.write_text(original)
+            with patch.dict(os.environ, {}, clear=True), patch("builtins.print"):
+                local.initialize()
+                upgraded = path.read_text()
+                self.assertEqual(upgraded, original + "LOCAL_GATEWAY_IP=192.168.241.3\n")
+                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+                local.initialize()
+                self.assertEqual(path.read_text(), upgraded)
+
     def test_volume_removal_command_targets_only_selected_project(self):
         for profile in ("default", "load", "local"):
             selected = module(profile)

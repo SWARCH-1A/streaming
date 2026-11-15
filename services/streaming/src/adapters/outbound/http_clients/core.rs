@@ -1,4 +1,5 @@
 use super::{endpoint, valid_identifier};
+use crate::application::ports::channel_access::{ChannelAccess, ChannelAccessGateway};
 use crate::application::ports::{
     channels::{ChannelOwner, ChannelsError, ChannelsGateway},
     identity::{IdentityError, IdentityGateway, IdentityPrincipal, SessionCredential},
@@ -15,6 +16,58 @@ use std::{
     time::{Duration, Instant},
 };
 use time::OffsetDateTime;
+
+impl ChannelAccessGateway for CoreHttpGateway {
+    fn channel_access(
+        &self,
+        channel_id: String,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<ChannelAccess, ()>> + Send + '_>> {
+        Box::pin(async move {
+            if !valid_identifier(&channel_id) {
+                return Err(());
+            }
+            tokio::time::timeout(Duration::from_secs(1), async {
+                let url = endpoint(
+                    self.base_url.as_deref(),
+                    &format!("internal/core/streaming/channels/{channel_id}/access-context"),
+                )
+                .ok_or(())?;
+                let mut token = HeaderValue::from_str(self.service_token.as_deref().ok_or(())?)
+                    .map_err(|_| ())?;
+                token.set_sensitive(true);
+                let response = self
+                    .client
+                    .get(url)
+                    .header("X-Service-Name", "streaming")
+                    .header("X-Service-Token", token)
+                    .send()
+                    .await
+                    .map_err(|_| ())?;
+                if !response.status().is_success() {
+                    return Err(());
+                }
+                #[derive(Deserialize)]
+                #[serde(rename_all = "camelCase")]
+                struct Context {
+                    owner_user_id: String,
+                    account_version: i64,
+                    active: bool,
+                }
+                let value: Context = decode(response).await?;
+                if !valid_identifier(&value.owner_user_id) || value.account_version < 0 {
+                    return Err(());
+                }
+                Ok(ChannelAccess {
+                    owner_user_id: value.owner_user_id,
+                    account_version: value.account_version,
+                    active: value.active,
+                })
+            })
+            .await
+            .map_err(|_| ())?
+        })
+    }
+}
 
 pub struct CoreHttpGateway {
     client: Client,

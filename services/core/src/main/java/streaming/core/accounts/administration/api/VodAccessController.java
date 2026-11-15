@@ -15,6 +15,10 @@ import java.util.Set;
 public class VodAccessController {
     private final VodAccessService service;
     public VodAccessController(VodAccessService service) { this.service=service; }
+    @GetMapping(path="/internal/core/streaming/channels/{channelId}/access-context",produces=MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<VodAccessService.Context> streamingContext(@PathVariable String channelId) {
+        return ResponseEntity.ok().header("Cache-Control","no-store").body(service.access(channelId,null,"READ"));
+    }
     @PostMapping(path="/internal/core/access-context",consumes=MediaType.APPLICATION_JSON_VALUE,produces=MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<VodAccessService.Context> context(@RequestBody JsonNode body,
             @RequestHeader(name="X-Session-Credential",required=false) String credential) {

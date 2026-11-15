@@ -174,6 +174,14 @@ func TestRealStorageClosurePlaybackAndRevocation(t *testing.T) {
 		t.Fatal(timeline, e)
 	}
 	before := auth.calls.Load()
+	thumbnailPath := "/api/vods/" + r.VodID + "/thumbnail"
+	for range 2 {
+		image := call(s, "GET", thumbnailPath, nil, nil)
+		if image.Code != 200 || image.Header().Get("Content-Type") != "image/jpeg" || image.Body.Len() < 4 || image.Header().Get("Cache-Control") != "no-store" {
+			t.Fatal("thumbnail unavailable", image.Code)
+		}
+	}
+	before = auth.calls.Load()
 	master := call(s, "GET", ready.PlaybackPath, nil, nil)
 	if master.Code != 200 || !strings.Contains(master.Body.String(), "rend_3/index.m3u8") {
 		t.Fatal(master.Code, master.Body.String())
@@ -200,6 +208,9 @@ func TestRealStorageClosurePlaybackAndRevocation(t *testing.T) {
 	if out = call(s, "GET", asset, nil, map[string]string{"Cookie": cookie.Name + "=" + cookie.Value}); out.Code != 404 {
 		t.Fatal("still-valid ticket bypassed suspension", out.Code)
 	}
+	if out = call(s, "GET", thumbnailPath, nil, nil); out.Code != 404 {
+		t.Fatal("cached thumbnail bypassed suspension", out.Code)
+	}
 	// Stale reactivation cannot undo a newer suspension.
 	event.Sequence = 0
 	event.EventID = ID("evt_")
@@ -220,6 +231,12 @@ func TestPrivateDraftVersionedCommandsAndTerminalDelete(t *testing.T) {
 	}
 	if out := call(s, "GET", "/api/vods/"+r.VodID, nil, nil); out.Code != 404 {
 		t.Fatal("draft public", out.Code)
+	}
+	if out := call(s, "GET", "/api/vods/"+r.VodID+"/thumbnail", nil, nil); out.Code != 404 {
+		t.Fatal("draft thumbnail public", out.Code)
+	}
+	if out := call(s, "GET", "/api/vods/"+r.VodID+"/thumbnail", nil, map[string]string{"Authorization": "Bearer owner"}); out.Code != 200 {
+		t.Fatal("owner thumbnail unavailable", out.Code)
 	}
 	owner := map[string]string{"Authorization": "Bearer owner", "Idempotency-Key": "850da8b2-86d1-45dd-8140-2230242099f2"}
 	out := call(s, "PATCH", "/api/vods/"+r.VodID, map[string]any{"expectedVersion": r.Version, "title": "Clase editada"}, owner)

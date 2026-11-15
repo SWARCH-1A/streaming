@@ -1,9 +1,7 @@
 package streaming.core.accounts.profile.api;
 
 import tools.jackson.databind.JsonNode;
-import java.time.Duration;
 import java.time.Instant;
-import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.web.csrf.CsrfToken;
@@ -43,9 +41,10 @@ public class ProfileController {
     public ResponseEntity<CsrfResponse> csrf(CsrfToken token) { return ResponseEntity.ok().header("Cache-Control","no-store, private").body(new CsrfResponse(token.getHeaderName(),token.getToken())); }
     @GetMapping(path="/api/profile/avatars/{key:.+}",produces={"image/jpeg","image/png","image/gif"})
     public ResponseEntity<byte[]> avatar(@PathVariable String key) {
+        byte[] bytes=profiles.readAvatar(key);
         return ResponseEntity.ok().contentType(MediaType.parseMediaType(profiles.avatarContentType(key)))
-                .cacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePublic())
-                .header("X-Content-Type-Options","nosniff").body(profiles.readAvatar(key));
+                .header("Cache-Control","no-store, private")
+                .header("X-Content-Type-Options","nosniff").body(bytes);
     }
     private ProfileResponse response(ProfileView view) { return new ProfileResponse(view.userId(),view.displayName(),view.bio(),view.avatarUri(),view.updatedAtUtc(),view.profileVersion()); }
     public record ProfileResponse(String userId,String displayName,String bio,String avatarUri,Instant updatedAtUtc,long profileVersion) { }

@@ -6,6 +6,8 @@ import { Input } from '@/src/components/atoms/Input';
 import { Notice } from '@/src/components/molecules/Notice';
 import { errorMessage, request } from '@/src/shared/api/http';
 
+import styles from './RecordingSettings.module.css';
+
 export function RecordingSettings({ channelId }: { channelId: string }) {
   const id = useId();
   const [settings, setSettings] = useState<P2Autopublish | null>(null);
@@ -53,34 +55,48 @@ export function RecordingSettings({ channelId }: { channelId: string }) {
     }
   }
   return (
-    <section className="stack" aria-label="Publicación de grabaciones">
-      <h2>Publicación de grabaciones</h2>
-      <p>
-        Las emisiones se graban automáticamente. Esta preferencia se aplica a las emisiones que
-        inicies después de guardarla.
-      </p>
+    <section className={styles.settings} aria-label="Publicación de grabaciones">
+      <div className={styles.intro}>
+        <span className={styles.icon} aria-hidden="true">
+          ●
+        </span>
+        <div>
+          <p className="eyebrow">PREFERENCIAS DEL CANAL</p>
+          <h2>Publicación de grabaciones</h2>
+          <p>
+            Las emisiones se graban automáticamente. Elige si quieres publicarlas después de validar
+            cada grabación.
+          </p>
+        </div>
+      </div>
       {settings ? (
         <form
+          className={styles.form}
           onSubmit={(event) => {
             event.preventDefault();
             void save();
           }}
         >
-          <label htmlFor={id}>
+          <label className={styles.toggle} htmlFor={id}>
             <Input
               id={id}
               type="checkbox"
               checked={enabled}
               onChange={(event) => setEnabled(event.target.checked)}
             />{' '}
-            Publicar automáticamente al finalizar y validar la grabación
+            <span>
+              <strong>Publicar automáticamente</strong>
+              <small>Se aplica a las emisiones que inicies después de guardar.</small>
+            </span>
           </label>
-          <Button type="submit" disabled={pending}>
-            Guardar preferencia
+          <Button type="submit" disabled={pending || enabled === settings.enabled}>
+            {pending ? 'Guardando…' : 'Guardar preferencia'}
           </Button>
         </form>
       ) : (
-        <p>Cargando preferencia…</p>
+        <p className={styles.loading} role="status">
+          Cargando preferencia…
+        </p>
       )}
       {failure ? <Notice tone="error">{failure}</Notice> : null}
     </section>

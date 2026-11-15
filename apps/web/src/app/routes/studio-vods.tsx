@@ -5,6 +5,8 @@ import type { P2VodPage } from '@contracts/p2';
 import { Library, RecordingSettings } from '@/src/modules/vod/entry';
 import { serverGet, serverVodGet } from '@/src/server/api.server';
 
+import styles from './studio-vods.module.css';
+
 export async function loader({ request }: LoaderFunctionArgs) {
   const [initial, profile] = await Promise.all([
     serverVodGet<P2VodPage>(request, '/api/me/vods'),
@@ -22,9 +24,12 @@ export function headers() {
 export default function StudioVods() {
   const { initial, channelId } = useLoaderData<typeof loader>();
   return (
-    <main className="stack">
-      <h1>Mis grabaciones</h1>
-      <p>Revisa, edita y publica tus emisiones grabadas.</p>
+    <main className={styles.page}>
+      <header className={styles.hero}>
+        <p className="eyebrow">ESTUDIO DE EMISIÓN</p>
+        <h1>Grabaciones del canal</h1>
+        <p>Revisa, edita y publica las emisiones grabadas de tu canal.</p>
+      </header>
       <RecordingSettings channelId={channelId} />
       <Library mine initial={initial} />
     </main>

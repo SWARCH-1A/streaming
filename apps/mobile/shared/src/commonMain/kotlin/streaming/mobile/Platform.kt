@@ -25,4 +25,9 @@ expect fun VideoPlayer(
     onPlaying: (Boolean) -> Unit,
     onPosition: (Long) -> Unit,
     onError: (String) -> Unit,
+    playbackGrant: String = "",
+    startPositionMs: Long = 0,
+    renditions: List<Rendition>? = null,
+    controls: PlaybackControls,
+    onDismiss: () -> Unit,
 )

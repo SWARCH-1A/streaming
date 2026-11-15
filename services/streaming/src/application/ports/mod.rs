@@ -1,3 +1,4 @@
+pub mod channel_access;
 pub mod channels;
 pub mod domain_event_outbox;
 pub mod identity;

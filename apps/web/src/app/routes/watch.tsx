@@ -1,8 +1,26 @@
 import { data, type LoaderFunctionArgs, useLoaderData } from 'react-router';
 import type { ChannelBootstrap, PublicSession, PublicStream } from '@contracts/p1';
+import type { P2WatchScreen } from '@contracts/p2';
 
-import { serverGet, serverStreamGet, UpstreamError } from '@/src/server/api.server';
+import {
+  serverGatewayGet,
+  serverGet,
+  serverStreamGet,
+  UpstreamError,
+} from '@/src/server/api.server';
 import { WatchRoute } from '@/src/shell/routes/WatchRoute';
+import { sessionMatches, snapshotFromScreen } from '@/src/shell/routes/watchSnapshot';
+
+// Stream and session are read separately; a rotation between the reads must not render a mismatched
+// pair (the player would start HLS for another session). Both the Gateway and direct paths check it.
+function assertConsistent(
+  streamId: string | undefined,
+  stream: PublicStream,
+  session: PublicSession | null,
+) {
+  if (stream.streamId !== streamId || !sessionMatches(stream, session))
+    throw new UpstreamError(503);
+}
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
   // Bound the complete screen read, including dependent session/channel reads.
@@ -10,6 +28,15 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     signal: AbortSignal.any([request.signal, AbortSignal.timeout(3000)]),
   });
   try {
+    if (process.env.WEB_GATEWAY_UPSTREAM) {
+      const screen = await serverGatewayGet<P2WatchScreen>(
+        bounded,
+        `/api/screens/watch/${encodeURIComponent(params.streamId ?? '')}`,
+      );
+      assertConsistent(params.streamId, screen.stream, screen.session);
+      const initial = snapshotFromScreen(screen);
+      return { initial, channel: initial.channel ?? null, gateway: true };
+    }
     const stream = await serverStreamGet<PublicStream>(
       bounded,
       `/api/streams/${encodeURIComponent(params.streamId ?? '')}`,
@@ -27,17 +54,13 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
       serverGet<ChannelBootstrap>(
         bounded,
         `/api/channels/${encodeURIComponent(stream.channelId)}`,
-      ).catch(() => null),
+      ).catch((error: unknown) => {
+        if (error instanceof UpstreamError && error.status === 404) throw error;
+        return null;
+      }),
     ]);
-    if (
-      session &&
-      (session.streamId !== stream.streamId ||
-        session.sessionId !== stream.sessionId ||
-        session.channelId !== stream.channelId ||
-        session.streamGeneration !== stream.streamGeneration)
-    )
-      throw new UpstreamError(503);
-    return { initial: { stream, session }, channel };
+    assertConsistent(params.streamId, stream, session);
+    return { initial: { stream, session }, channel, gateway: false };
   } catch (error) {
     const status = error instanceof UpstreamError && error.status === 404 ? 404 : 503;
     // eslint-disable-next-line @typescript-eslint/only-throw-error
@@ -51,6 +74,13 @@ export function headers() {
 
 // The initial HTML contains live metadata. HLS, quality discovery, WS and leases start in effects.
 export default function Watch() {
-  const { initial, channel } = useLoaderData<typeof loader>();
-  return <WatchRoute key={initial.stream.streamId} initial={initial} initialChannel={channel} />;
+  const { initial, channel, gateway } = useLoaderData<typeof loader>();
+  return (
+    <WatchRoute
+      key={initial.stream.streamId}
+      initial={initial}
+      initialChannel={channel}
+      gateway={gateway}
+    />
+  );
 }

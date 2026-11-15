@@ -39,4 +39,15 @@ class PlaybackTest {
         assertEquals(1, codePoints("😀")); assertEquals("é", normalizeText("e\u0301"))
         assertEquals(500, codePoints("😀".repeat(500)))
     }
+    @Test fun vodOriginRelativeRenditionsRemainInsideTheirRecording() {
+        val master = "https://fixture.example.test:3445/vod-media/vod_fixture/master.m3u8"
+        val manifest = "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=2400000,RESOLUTION=1280x720\n/vod-media/vod_fixture/rend_720/index.m3u8\n"
+        assertEquals(listOf(Rendition("720p", "https://fixture.example.test:3445/vod-media/vod_fixture/rend_720/index.m3u8")), hlsRenditions(master, manifest))
+        assertEquals(hlsVariantUrl(master, "rend_720/index.m3u8"), hlsVariantUrl(master, "/vod-media/vod_fixture/rend_720/index.m3u8"))
+        assertEquals(hlsVariantUrl(master, "rend_720/index.m3u8"), hlsVariantUrl(master, "https://fixture.example.test:3445/vod-media/vod_fixture/rend_720/index.m3u8"))
+        listOf("/vod-media/vod_other/index.m3u8", "//evil.example.test/index.m3u8", "https://fixture.example.test:3446/vod-media/vod_fixture/index.m3u8",
+            "rend_720/../index.m3u8", "rend_720/%2e%2e/index.m3u8", "rend_720/index.m3u8?token=private").forEach {
+            assertFailsWith<IllegalArgumentException> { hlsVariantUrl(master, it) }
+        }
+    }
 }

@@ -16,11 +16,14 @@ export function validateResponse(
   body: unknown,
 ): void {
   const pathname = path.split('?')[0] ?? path;
-  const operation = allOperations.find(
-    (item) =>
-      item.method === method &&
-      new RegExp(`^${item.path.replace(/\{[^}]+\}/g, '[^/]+')}$`).test(pathname),
-  );
+  // Prefer a literal route over a broad parameterized route such as /{ingestPath}/{file}.
+  const operation =
+    allOperations.find((item) => item.method === method && item.path === pathname) ??
+    allOperations.find(
+      (item) =>
+        item.method === method &&
+        new RegExp(`^${item.path.replace(/\{[^}]+\}/g, '[^/]+')}$`).test(pathname),
+    );
   const response = operation?.responses as Record<string, string | null> | undefined;
   const name = response?.[String(status)];
   if (!name) throw new Error('Respuesta sin contrato público.');

@@ -1,6 +1,6 @@
 # SPEC-04 — Multicalidad, grabación y eventos de Streaming
 
-**Prioridad:** P2. **Responsable:** Streaming / Media. **Estado:** implementación parcial de consulta y selección Web; ingesta multicalidad pendiente de P2-08.
+**Prioridad:** P2. **Responsable:** Streaming / Media. **Estado:** ingesta, HLS y VOD multicalidad integrados y verificados en local; configuración OBS disponible, operación manual OBS pendiente.
 **RF:** RF-017…030, 052, 056…057, 079…080. **RNF:** RNF-012…018, 021…025, 038, 041…047, 050…051.
 
 ## 1. Contexto y problema
@@ -11,8 +11,8 @@ Chat y VOD sin atar su estado a la disponibilidad de esos consumidores.
 ## 2. Definición del componente
 
 Streaming Rust sigue siendo autoridad de sesión, cupos, reloj, generaciones, configuración y
-leases. Media ingiere, empaqueta y captura; VOD valida/publica la grabación. El responsable
-resuelve el empaquetado que la versión MediaMTX actual no acredita.
+leases. Media ingiere, empaqueta y captura; VOD valida/publica la grabación.
+[ADR-026](../adr/ADR-026-multicalidad-enhanced-rtmp.md) fija la adaptación comprobada de MediaMTX.
 
 ## 3. Historia de usuario
 
@@ -36,14 +36,14 @@ No incorpora transcoding de calidades en servidor ni un cupo por conexión/rendi
 ## 6. Criterios de aceptación
 
 - [ ] CA-01: OBS → ingesta → maestro HLS → player permite selección manual/automática de hasta cuatro rendiciones realmente recibidas.
-- [ ] CA-02: fuente 720p no anuncia 1080p; dos rendiciones no se rechazan como dos emisiones del mismo canal ni consumen dos cupos.
+- [x] CA-02: fuente 720p no anuncia 1080p; dos rendiciones no se rechazan como dos emisiones del mismo canal ni consumen dos cupos.
 - [ ] CA-03: cambio de calidad conserva línea temporal, audio y fuente; keyframes/discontinuidades permiten conmutación reproducible.
-- [ ] CA-04: checksum/longitud coinciden con objeto S3 antes del evento; clave de ingesta no aparece en objeto, URL o payload.
-- [ ] CA-05: reintentar carga/publicación mantiene identidad de segmento sin duplicar ni sobrescribir una generación anterior.
-- [ ] CA-06: al finalizar se confirma índice completo y `recording.closed.v1`; un segmento faltante impide publicar un VOD completo.
-- [ ] CA-07: reconexión dentro de gracia conserva sesión y grabación, incrementa generación de fuente y hace explícita la discontinuidad.
+- [x] CA-04: checksum/longitud coinciden con objeto S3 antes del evento; clave de ingesta no aparece en objeto, URL o payload.
+- [x] CA-05: reintentar carga/publicación mantiene identidad de segmento sin duplicar ni sobrescribir una generación anterior.
+- [x] CA-06: al finalizar se confirma índice completo y `recording.closed.v1`; un segmento faltante impide publicar un VOD completo.
+- [x] CA-07: reconexión dentro de gracia conserva sesión y grabación, incrementa generación de fuente y hace explícita la discontinuidad.
 - [ ] CA-08: broker/consumidor caído conserva intención durable; ciclo y proyección se recuperan sin reiniciar la emisión.
-- [ ] CA-09: suspensión corta fuente y nuevas entregas; los casos de cupos, leases, stop y reconexión base no regresan.
+- [x] CA-09: suspensión corta fuente y nuevas entregas; los casos de cupos, leases, stop y reconexión base no regresan.
 
 ## 7. Diseño técnico y datos
 
@@ -53,8 +53,10 @@ reproducible de la sesión tiene initialLive=true; reconexiones posteriores cons
 publican false. La preferencia se consulta por API privada al reservar una sesión nueva, se
 persiste con ella y se reutiliza al reconectar. Si no puede validarse, no se inventa true.
 
-La estrategia de ingesta puede requerir adaptar autorizaciones de
-publisher, pero conserva un cupo y secreto por emisión, sin exponer ese secreto en paths públicos.
+Enhanced RTMPS recibe de uno a cuatro videos H.264 y un AAC opcional en una sola conexión.
+Media conserva los timestamps y agrupa un video con el mismo audio por muxer HLS/grabador.
+El maestro anuncia las rendiciones realmente recibidas; no se recodifica ni escala en servidor.
+Una sola autorización de publisher conserva un cupo y secreto por emisión, sin exponerlo en paths públicos.
 
 `P2Segment` tiene identidad lógica `(sessionId,renditionId,sourceGeneration,sequence)`, tiempo de
 sesión, duración, discontinuidad y objeto confirmado. El objeto se direcciona por objectId opaco
@@ -63,8 +65,22 @@ en eventos. Escribir repetido con hash diferente genera conflicto, no reemplazo 
 
 `P2RecordingIndex` enumera todos los segmentos/rendiciones y `P2RecordingClosed` referencia su
 objeto confirmado. Permite a VOD recuperar eventos faltantes del índice, comparar checksum y
-distinguir fin de fuente de fin de cargas. La ubicación exacta del escritor y su recuperación
-se ratifica en P2-09. Fallar captura no fabrica un objeto ni un cierre completo.
+distinguir fin de fuente de fin de cargas. El escritor VOD y su recuperación
+están definidos en ADR-022. Cada inventario nativo declara el plan completo de rendiciones;
+el cierre exige todos los grupos y generaciones, incluso si falta el primer segmento de un grupo. Fallar captura no fabrica un objeto ni un cierre completo.
+
+La autorización de ingesta consulta el estado actual de Cuentas mediante
+`p2.streaming.channel-access`: el listener privado solo acepta la credencial completa Streaming.
+Cada sesión guarda `owner_account_version`; una cuenta inicialmente activa tiene versión cero.
+Sesiones previas a la migración quedan cercadas por -1 hasta terminarse. Suspender o cambiar la
+versión rechaza nuevas autorizaciones y lecturas públicas, incluidas HLS/preview; reactivar no
+revive una sesión antigua. Una autoridad caída falla cerrada.
+
+`streaming.account` consume `account.status.changed.v1` con inbox durable, hash del cuerpo,
+ACK posterior a la persistencia y retries/DLQ confirmados. Los eventos viejos no detienen una
+sesión autorizada con una versión nueva. La reconciliación con Core cada 500 ms cubre eventos
+pendientes o perdidos durante indisponibilidad del broker y usa el stop/outbox habitual para
+liberar cupo, cortar fuente y propagar fin a Chat/VOD. No accede a tablas de Core.
 
 ## 8. Dependencias y contratos de integración
 
@@ -87,7 +103,7 @@ La selección manual conserva el búfer, posición y lease; cambia la calidad de
 La UI distingue la calidad solicitada de la variante que ya se reproduce. Si desaparece la
 variante seleccionada, vuelve a automático; reordenar las variantes conserva la selección por
 URI. Con HLS nativo, el navegador administra la adaptación y la UI informa esa limitación sin
-ofrecer selección manual. No hay todavía reproductor VOD ni implementación móvil.
+ofrecer selección manual. Web y móvil incorporan reproductores VOD; la aceptación multicalidad exige una fuente real.
 La ruta watch SSR obtiene el estado inicial de Streaming y renderiza el marco del player sin
 cargar HLS. La hidratación reutiliza emisión/sesión/canal; el selector descubre las variantes
 después de montar hls.js, y el lease continúa ligado al primer frame decodificado. Véase
@@ -95,9 +111,9 @@ después de montar hls.js, y el lease continúa ligado al primer frame decodific
 
 ## 9. Decisiones y preguntas abiertas
 
-P2-08: prueba real de ingestión/empaquetado multicalidad, alineación y soporte MediaMTX.
-P2-09: escritor, proveedor y persistencia de trabajos. P2-10: tratamiento de huecos en timeline.
-Las representaciones de segmentos e inventario están definidas sin imponer runtime nuevo.
+P2-08 queda implementada por ADR-026 y su prueba Enhanced RTMPS → HLS → VOD.
+Se entrega configuración OBS oficial; falta registrar su operación manual en el equipo emisor.
+P2-09/10 están resueltas por ADR-022/024: escritor VOD, objetos privados y compactación temporal.
 
 ## 10. Verificación
 
@@ -110,9 +126,22 @@ inventado, IDs estables, entradas inválidas, límites, estados no reproducibles
 Las pruebas Web cubren selección manual/automática, actualización de variantes y conservación
 de posición/lease. `services/streaming/tests/smoke_stack.py` valida además una fuente RTMP real
 de 320×180: consulta de calidades sin caché, reproducción HLS con un frame decodificado y
-rechazo de la consulta tras finalizar la sesión. Los fixtures de cuatro variantes y el motor
-simulado no acreditan CA-01…03: falta la prueba audiovisual multicalidad real de P2-08,
-alineación de keyframes/audio y empaquetado multicalidad.
+rechazo de la consulta tras finalizar la sesión.
+
+El 2026-11-03 el [runner multicalidad](../../tests/integration/p2-multirendition/README.md)
+publicó cuatro H.264 (720/540/360/180p, 25 fps, GOP alineado) y AAC por una conexión RTMPS.
+Chromium decodificó las cuatro calidades live, cambió manual/automático conservando posición
+y sesión, y reprodujo las cuatro del VOD READY/publicado. El test nativo VOD exige el grupo
+ausente antes de certificar cierre y conserva secuencia cero independiente por rendición.
+La prueba de protocolo no equivale a una operación manual de la UI de OBS ni a medición humana de sincronía audiovisual.
+
+El recorrido `tests/integration/p2-account-live/run.py` verificó suspensión durante RTMPS:
+HLS/preview dejan de entregarse en menos de cinco segundos, el reconector es rechazado,
+la reactivación no revive la sesión y una nueva emisión recupera el cupo. Las suites PostgreSQL
+y del dominio conservan los casos de leases, versiones, stop, reconexión y outbox.
+La ejecución adicional `--reconnect` publica las cuatro calidades en dos generaciones de fuente,
+conserva la sesión y las variantes y termina en un VOD READY que reproduce las cuatro.
+El timeline declara ambas generaciones y el montaje conserva sus discontinuidades.
 
 ## 11. Esfuerzo, riesgos y consecuencias
 

@@ -23,14 +23,16 @@ y cuáles fueron sustituidos. Las fechas conservan el momento de cada decisión.
 | [ADR-015](ADR-015-arquitectura-p2.md) | Aceptada para diseño P2 | React Router SSR, KMP + Compose, Gateway, broker único, VOD independiente, replay durable y Notificaciones. Tecnologías nuevas por responsable. |
 | [ADR-016](ADR-016-rabbitmq-eventos-p2.md) | Aceptada para integración inicial | RabbitMQ/AMQP, contratos de ciclo/Discovery, outbox/inbox, DLQ y operación; recuperación ampliada por ADR-017. |
 | [ADR-017](ADR-017-recuperacion-de-credenciales.md) | Aceptada para Cuentas | Recuperación de un uso, cuotas SQL, AES-GCM, revocación transaccional, publicación RabbitMQ y claim/result; consumidor y SMTP de Notificaciones definidos en ADR-020. |
-| [ADR-018](ADR-018-subtitulos-vod-webvtt.md) | Perfil ratificado para VOD en ADR-022 | WebVTT aportado por propietario, dentro de VOD; proveedor y Web implementados, aceptación audiovisual/móvil pendiente. |
-| [ADR-019](ADR-019-administracion-core.md) | Propuesta implementada | Administración Core, revocación transaccional y outbox de estado; aceptación transversal pendiente. |
+| [ADR-018](ADR-018-subtitulos-vod-webvtt.md) | Perfil ratificado para VOD en ADR-022 | WebVTT aportado por propietario, dentro de VOD; proveedor y Web implementados, reproducción Web/Android verificada; iOS y tecnología asistiva pendientes. |
+| [ADR-019](ADR-019-administracion-core.md) | Aceptada para integración local | Administración Core, revocación/outbox, acceso VOD/replay, suspensión live e imágenes verificados. |
 | [ADR-020](ADR-020-notificaciones-typescript-postgresql-smtp.md) | Aceptada para Notificaciones | Node.js 24/TypeScript, PostgreSQL propio, SMTP STARTTLS y Mailpit local; entrega e idempotencia durables. |
 | [ADR-021](ADR-021-cliente-mobile-nativo.md) | Aceptada para implementación inicial | Cliente KMP/Compose Android/iOS, Ktor, reproductores y credenciales nativas; integración por APIs públicas. |
 | [ADR-022](ADR-022-vod-go-postgresql-minio.md) | Aceptada para VOD | Go/PostgreSQL/MinIO, escritor VOD y entrega Media, compactación/mapping, permisos60s y pistas SPEC-22. |
 | [ADR-023](ADR-023-gateway-go-caddy.md) | Aceptada para integración VOD | Agregación Go, transporte Caddy, fallos parciales y presupuesto JSON3s. |
-| [ADR-025](ADR-025-watch-parties-en-core.md) | Propuesta | Watch parties en Core: sala privada por código, hasta 4 fuentes de Streaming, estado honesto por fuente, suspensión, comandos idempotentes y cierre terminal. |
+| [ADR-025](ADR-025-watch-parties-en-core.md) | Aceptada para integración local | Watch parties en Core: sala privada por código, hasta 4 fuentes de Streaming, estado honesto por fuente, suspensión, comandos idempotentes y cierre terminal. |
 | [ADR-024](ADR-024-chat-redis-postgresql-replay-moderacion.md) | Aceptada para Chat | Redis para el vivo y PostgreSQL propio para replay, bloqueos y retiros; outbox Redis Stream y moderación del propietario. |
+| [ADR-026](ADR-026-multicalidad-enhanced-rtmp.md) | Aceptada para integración local | Enhanced RTMPS con hasta cuatro H.264, HLS y captura por rendición; una sola sesión/cupo e inventario completo. |
+| [ADR-027](ADR-027-suscripciones-con-efecto-y-retiro-auditable.md) | Aceptada para integración local | Dieciséis suscripciones con efecto, archivo privado de las dos colas sin consumidor y conversión del estado de reconexión P1/P2. |
 
 Chat conserva Go; ADR-010 describe su perfil efímero P1 y ADR-024 su almacenamiento P2 (Redis + PostgreSQL); las herramientas pendientes de operación y despliegue se registran conforme
 a la [política ADR](../politica_ADR.md). Las alternativas candidatas requieren decisión del responsable.

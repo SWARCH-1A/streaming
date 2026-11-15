@@ -1,10 +1,11 @@
-# Broker P2: ciclo, Discovery y recuperación
+# Broker P2: eventos y trabajos durables
 
 RabbitMQ es un componente interno compartido. La selección y sus límites están en
-[ADR-016](../../docs/adr/ADR-016-rabbitmq-eventos-p2.md). Se implementan ciclo de sesión y
-snapshots Discovery. Cuentas añade la publicación de solicitudes de recuperación; su consumidor
-y SMTP quedan pendientes de Notificaciones. Las otras seis familias permanecen pendientes de sus responsables.
-Las dieciocho suscripciones se aprovisionan para conservar las copias de cada dominio.
+[ADR-016](../../docs/adr/ADR-016-rabbitmq-eventos-p2.md). El stack local integra las nueve familias P2: ciclo,
+Discovery, segmentos/cierre, seguimiento, cuentas, disponibilidad VOD, entregas y recuperación.
+Los workers VOD y Notificaciones procesan sus trabajos con almacenes propios; SMTP usa Mailpit.
+La entrega push real conserva la [dependencia de provisión/adaptadores](../../apps/mobile/PUSH.md).
+Las dieciséis suscripciones con efecto se aprovisionan desde el registro neutral (ADR-027).
 
 ## Arranque
 
@@ -34,8 +35,9 @@ efímera con perfil tools; no cuenta como componente de negocio. No publica AMQP
 en el host. Cada dominio conserva su almacén privado. HTTP sigue para contexto/reconstrucción,
 WebSocket para mensajes al cliente y HLS para video.
 build prepara también la imagen de operación para que esté disponible antes de una caída.
-Core/Streaming/Chat reintentan conexión de forma independiente. Cuentas publica trabajos de
-recuperación sin depender de SMTP; el arranque no incluye runtimes ni almacenes de Notificaciones.
+Core/Streaming/Chat/VOD/Notificaciones reintentan conexión de forma independiente. Cuentas
+publica trabajos de recuperación sin depender de SMTP; Notificaciones persiste sus intentos
+en PostgreSQL y entrega mediante STARTTLS. El arranque completo incluye ambos servicios.
 El comando up espera a los servicios con healthcheck y a Web/API antes de
 declarar listo el entorno. Las operaciones de dominio no esperan el ACK de todos los consumidores.
 En status, el broker debe alcanzar healthy. AMQP usa TLS en el puerto interno 5671 y
@@ -53,7 +55,8 @@ Para revisar el arranque y las conexiones:
 ## Fallos, métricas y DLQ
 
 Las publicaciones se reintentan desde el outbox, con ID/body estables. Core confirma después de
-su transacción SQL y Chat después del script Redis. Una copia pendiente de Chat no detiene a Core.
+su transacción SQL; Chat conserva los mensajes en PostgreSQL y coordina el vivo mediante Redis
+según ADR-024. Una copia pendiente de Chat no detiene a Core.
 Un resultado desconocido puede repetirse; no se promete exactly-once de transporte.
 
 Hay tres reintentos diferidos (1/5/30 s), luego DLQ; un mensaje inválido/conflictivo va directamente
@@ -67,8 +70,10 @@ Los siguientes comandos usan la credencial de operador privada y verifican TLS:
     docker compose --env-file infra/p1/.state-local/environment.env -f compose.yaml -f infra/broker/compose.yaml run --rm broker-ops redrive --subscription core.lifecycle --event-id EVENT_ID --reason "Dependencia recuperada"
     docker compose --env-file infra/p1/.state-local/environment.env -f compose.yaml -f infra/broker/compose.yaml run --rm broker-ops close --subscription core.lifecycle --event-id EVENT_ID --reason "Incidencia resuelta y reconciliada"
 
-inspect devuelve metadatos del primer mensaje sin retirarlo. redrive/close exigen que el ID
-coincida con esa cabecera; no recorren ni descartan otros mensajes. Redrive publica únicamente
+inspect devuelve metadatos del primer mensaje sin retirarlo. redrive/close buscan el ID
+seleccionado entre las primeras 256 entregas DLQ. Las demás quedan sin ACK y vuelven al cerrar
+la conexión. La reentrega quorum puede mover la cabecera; nunca se actúa sobre otro ID.
+Redrive publica únicamente
 a la suscripción original, con confirmación; si falla antes del ACK la entrega vuelve a DLQ.
 Un envelope sin ID válido se identifica para la operación mediante el hash de su cuerpo.
 La auditoría se sincroniza en broker-audit antes de confirmar retiro. No modificar un payload
@@ -91,8 +96,8 @@ con el mismo nodename, secretos y versión compatible; arrancar broker antes de 
 No copiar en caliente el directorio de datos del broker como garantía de recuperación.
 
 Los inbox P2 guardan identidad/hash sin TTL automático, separados de los inbox P1 de una hora/
-24 horas. Se exige compactación coordinada antes de ampliar carga/retención. El historial Chat
-continúa con la implementación P1; esta integración no acredita el archivo durable/replay P2.
+24 horas. Se exige compactación coordinada antes de ampliar carga/retención. El archivo Chat P2 y su replay usan PostgreSQL propio según ADR-024. Su aceptación se
+ejecuta mediante captura RTMPS/replay y retirada con proveedores reales, además de la prueba del broker.
 
 ## Contratos y evidencia
 
@@ -113,8 +118,26 @@ Cargo.lock, para detectar incompatibilidades del adaptador AMQP. También ejecut
 de puertos de repositorio y transacciones PostgreSQL de Core/Discovery con compilación limpia,
 incluidos fallos después del efecto y antes de completar el inbox P2.
 
-El registro neutral conserva nueve tipos/dieciocho suscripciones; tres payloads están listos (ciclo/Discovery/recuperación).
+El registro neutral conserva nueve tipos/dieciséis suscripciones con schemas ejecutables.
 El contrato de recuperación permite publicar desde Cuentas a `notifications.recovery.email`;
-su consumidor y la entrega de correo deben ser implementados por el responsable de Notificaciones.
+su consumidor y la entrega STARTTLS están implementados por Notificaciones. La solicitud Web,
+correo real, enlace canónico y apertura del formulario se verificaron contra Mailpit local.
 El código de cada servicio valida su contrato. Los criterios de recuperación/ACL/frescura
 de SPEC-17 siguen sujetos a ejecución integrada; arrancar el contenedor no acredita esos criterios.
+
+## Actualización de suscripciones antiguas
+
+Tras `init`, `build` y `up`, las instalaciones anteriores a ADR-027 pueden conservar dos colas
+sin consumidor. Retirarlas con motivo explícito, exclusivamente para estos nombres:
+
+    docker compose --env-file infra/p1/.state-local/environment.env -f compose.yaml -f infra/broker/compose.yaml run --rm broker-ops retire --subscription chat.account --reason "ADR-027: autorización HTTP vigente por envío"
+    docker compose --env-file infra/p1/.state-local/environment.env -f compose.yaml -f infra/broker/compose.yaml run --rm broker-ops retire --subscription core.vod --reason "ADR-027: catálogo consultado directamente en VOD"
+
+La operación rechaza consumidores activos y suscripciones vigentes. Guarda los bytes originales,
+propiedades AMQP, hash, cola, fecha y motivo en `/audit/retired-subscriptions.jsonl` (0600), dentro
+del volumen `broker-audit` incluido en backup. Sincroniza antes del ACK y elimina solo colas vacías
+sin consumidores. No imprime cuerpos. Si se interrumpe, repetir; un ACK perdido puede duplicar
+el registro privado. Las colas quorum se comprueban vacías y sin consumidores inmediatamente
+antes de borrarlas; no ejecutar otro operador/redrive sobre estas dos suscripciones mientras
+se retiran. Conservar el archivo para recuperación operativa y no importarlo en otra
+suscripción. Importar definiciones por sí solo no elimina bindings antiguos.

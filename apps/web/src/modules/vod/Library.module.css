@@ -1,0 +1,124 @@
+.library {
+  display: grid;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+.heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.heading > div {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.heading h2 {
+  font-size: clamp(1.35rem, 2.2vw, 1.75rem);
+}
+
+.heading > div > p:last-child {
+  color: var(--color-muted);
+}
+
+.count {
+  flex: 0 0 auto;
+  padding: 0.35rem 0.75rem;
+  color: var(--color-primary-soft);
+  background: rgb(132 112 255 / 11%);
+  border: 1px solid rgb(158 143 255 / 20%);
+  border-radius: 99px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1.7fr) repeat(2, minmax(9rem, 1fr));
+  align-items: end;
+  gap: 0.85rem;
+  padding: 1rem;
+  background: var(--color-panel);
+  border: 1px solid rgb(255 255 255 / 5%);
+  border-radius: var(--radius-md);
+}
+
+.filters label {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.filters input,
+.filters select {
+  color: var(--color-text);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  align-items: start;
+  gap: 1.1rem;
+}
+
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: 0.6rem;
+  padding: 3rem 1.25rem;
+  text-align: center;
+  background: var(--color-panel);
+  border: 1px dashed rgb(255 255 255 / 13%);
+  border-radius: var(--radius-lg);
+}
+
+.empty > span {
+  display: grid;
+  width: 3rem;
+  height: 3rem;
+  place-items: center;
+  padding-left: 0.15rem;
+  color: #d2caff;
+  background: rgb(132 112 255 / 14%);
+  border-radius: 50%;
+}
+
+.empty p {
+  max-width: 38ch;
+  color: var(--color-muted);
+}
+
+.more {
+  display: flex;
+  justify-content: center;
+}
+
+@media (max-width: 750px) {
+  .filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .search {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 480px) {
+  .heading {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .search {
+    grid-column: auto;
+  }
+}
