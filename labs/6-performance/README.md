@@ -48,3 +48,15 @@ Si el certificado aún no existe al copiarlo, espera unos segundos y repite la c
 falla, consulta `docker compose logs --tail=100 core-db core gateway web proxy`.
 El chequeo conserva el canal si ya existe. `docker compose down` detiene el entorno y conserva
 la base y su CA. Usa el mismo `.env` al volver a levantarlo.
+
+## Nodo de pruebas (Grupo 2)
+
+Desde un equipo distinto al nodo de despliegue, sigue la [guía de pruebas](grupo-2/Guia-Grupo2.md).
+La guía incluye cómo comprobar Web SSR, validar HTTPS y medir la consulta anónima
+`GET /api/screens/channels/lab6_canal` con [k6](grupo-2/performance_test.js)
+y el [lanzador de PowerShell](grupo-2/Ejecutar-Lab6.ps1).
+
+Usa la [plantilla de Excel](grupo-2/Lab6-Resultados.xlsx) para registrar las corridas de
+medición y graficar la latencia media por nivel de usuarios virtuales. La plantilla se
+versiona vacía. El lanzador crea `grupo-2/resultados/` para los CSV y JSON locales;
+usa una copia del Excel en esa carpeta para registrar el ensayo.
