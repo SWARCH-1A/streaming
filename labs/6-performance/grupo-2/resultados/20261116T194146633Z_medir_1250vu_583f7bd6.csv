@@ -1,0 +1,2 @@
+run_id,fecha_utc,modo,origen,ruta,usuarios,duracion_configurada_s,duracion_real_s,solicitudes,solicitudes_por_s,promedio_ms,p95_ms,fallos_http_pct,fallos_contrato_200_pct
+20261116T194146633Z_medir_1250vu_583f7bd6,2026-11-16T19:42:19.952Z,medir,https://192.168.1.106:8443,/api/screens/channels/lab6_canal,1250,30,32.9804435,24339,737.9827988062077,443.80132694030004,1301.5393599999998,0.008217264472657053,0

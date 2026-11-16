@@ -1,0 +1,2 @@
+run_id,fecha_utc,modo,origen,ruta,usuarios,duracion_configurada_s,duracion_real_s,solicitudes,solicitudes_por_s,promedio_ms,p95_ms,fallos_http_pct,fallos_contrato_200_pct
+20261116T191916793Z_verificar_0001vu_08ff4d0f,2026-11-16T19:19:21.221Z,verificar,https://192.168.1.106:8443,/api/screens/channels/lab6_canal,1,,3.3399099000000003,3,0.8982278234511656,91.98036666666667,194.52828999999997,0,0

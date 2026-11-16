@@ -32,8 +32,8 @@ if (!isLabOrigin(baseUrl)) {
 if (!['verificar', 'calentar', 'medir'].includes(mode)) {
   throw new Error('MODO debe ser verificar, calentar o medir.');
 }
-if (!Number.isInteger(users) || users < 1 || users > 2000 || (mode !== 'medir' && users !== 1)) {
-  throw new Error('VUS debe ser un entero entre 1 y 2000 para medir, y 1 en los demás modos.');
+if (!Number.isInteger(users) || users < 1 || users > 3000 || (mode !== 'medir' && users !== 1)) {
+  throw new Error('VUS debe ser un entero entre 1 y 3000 para medir, y 1 en los demás modos.');
 }
 if (!/^[a-z0-9_-]{1,80}$/i.test(runId)) {
   throw new Error('RUN_ID debe identificar la corrida con letras, números, guiones o guiones bajos.');

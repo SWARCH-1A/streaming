@@ -5,7 +5,7 @@ param(
 
     [string]$BaseUrl,
 
-    [ValidateRange(1, 2000)]
+    [ValidateRange(1, 3000)]
     [int]$Usuarios = 1
 )
 
@@ -13,7 +13,7 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 
 if ($Modo -eq 'Medir' -and -not $PSBoundParameters.ContainsKey('Usuarios')) {
-    throw 'Indica -Usuarios entre 1 y 2000 para Medir.'
+    throw 'Indica -Usuarios entre 1 y 3000 para Medir.'
 }
 if ($Modo -ne 'Medir' -and $Usuarios -ne 1) {
     throw 'Verificar y Calentar usan un solo usuario virtual. Elige Medir para cambiar el número.'
