@@ -62,7 +62,12 @@ def render_proxy():
         # aliases redirect to the canonical origin used by cookies, CSRF, WS and media URLs.
         source = source.replace("https://localhost:3443 {", "https://:3443 {")
         source = source.replace("  route {", """  route {
-    @foreignHost not host localhost 127.0.0.1 {$LOCAL_PUBLIC_HOST:localhost} {$LOCAL_LAN_IP:127.0.0.1}
+    @foreignHost {
+      # Keep aliases separate: the canonical host and LAN IP may coincide with a default or each other.
+      not host localhost 127.0.0.1
+      not host {$LOCAL_PUBLIC_HOST:localhost}
+      not host {$LOCAL_LAN_IP:127.0.0.1}
+    }
     respond @foreignHost 421
     @aliasHost not host {$LOCAL_PUBLIC_HOST:localhost}
     redir @aliasHost {$WEB_ORIGIN:https://localhost:3445}{uri} 307""", 1)

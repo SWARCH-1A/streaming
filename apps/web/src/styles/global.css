@@ -20,7 +20,7 @@
   }
   body {
     margin: 0;
-    min-width: 320px;
+    min-width: 0;
     background: var(--color-canvas);
     color: var(--color-text);
     font: 400 0.875rem/1.6 var(--font-body);
