@@ -118,6 +118,12 @@ class Profiles(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "filesystem"):
             local.command({"P1_STATE": str(local.STATE)}, "up", s3=True)
 
+    def test_public_origin_sends_hsts_on_every_profile(self):
+        for profile in ("default", "load", "local"):
+            site = module(profile).render_proxy().split("  route {", 1)[0]
+            self.assertIn("tls /run/secrets/web.crt /run/secrets/web.key", site)
+            self.assertIn('header Strict-Transport-Security "max-age={$HSTS_MAX_AGE:300}"', site)
+
     def test_local_subnet_avoids_existing_docker_networks(self):
         local = module("local")
         with patch.dict(os.environ, {}, clear=True), patch.object(local, "run", side_effect=["network-id", '[{"IPAM":{"Config":null}},{"IPAM":{"Config":[{"Subnet":"192.168.240.0/24"}]}}]']):
