@@ -48,7 +48,10 @@ def render_proxy():
     source = (ROOT / "infra/reverse-proxy/Caddyfile").read_text()
     if source.count(":3000 {") != 1 or source.count("      import proxy_headers") != 11:
         raise RuntimeError("Review P1 TLS renderer after reverse-proxy structure changes")
-    source = source.replace(":3000 {", "https://localhost:3443 {\n  tls /run/secrets/web.crt /run/secrets/web.key")
+    # Secure Channel (P3): the public origin is HTTPS-only and HSTS tells browsers never to fall back to HTTP.
+    # Short default max-age because the local origin is localhost; a real domain would use 31536000.
+    source = source.replace(":3000 {", "https://localhost:3443 {\n  tls /run/secrets/web.crt /run/secrets/web.key\n"
+                            "  header Strict-Transport-Security \"max-age={$HSTS_MAX_AGE:300}\"")
     source = source.replace("      transport http {\n        response_header_timeout 10s\n      }\n", "")
     for name in ("CORE", "STREAMING", "CHAT", "HLS", "NOTIFICATIONS", "VOD", "GATEWAY", "WEB"):
         source = source.replace("{$" + name + "_UPSTREAM:http:" , "{$" + name + "_UPSTREAM:https:")
