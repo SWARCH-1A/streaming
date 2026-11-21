@@ -89,7 +89,7 @@ def backup(target):
         config = target / 'config'
         config.mkdir(mode=0o700)
         for source in sorted(STATE.iterdir()):
-            if not source.is_file() or not (source.name in ('environment.env', 'broker-definitions.json', 'owner.json', 'Caddyfile') or source.suffix in ('.crt', '.key', '.p12')):
+            if not source.is_file() or not (source.name in ('environment.env', 'broker-definitions.json', 'owner.json', 'Caddyfile') or source.suffix in ('.crt', '.key', '.p12', '.acl')):
                 continue
             path = config / source.name
             path.write_bytes(source.read_bytes())
