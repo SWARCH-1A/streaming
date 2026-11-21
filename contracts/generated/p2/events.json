@@ -70,5 +70,21 @@
     "spec": ["SPEC-01", "SPEC-17", "SPEC-20", "SPEC-10"],
     "status": "contract-ready",
     "subscriptions": ["notifications.recovery.email"]
+  },
+  {
+    "eventType": "security.audit.core.v1",
+    "producers": ["core"],
+    "schema": "P2EventSecurityAuditCore",
+    "spec": ["SPEC-25", "SPEC-17", "SPEC-10"],
+    "status": "contract-ready",
+    "subscriptions": ["audit.core"]
+  },
+  {
+    "eventType": "security.audit.vod.v1",
+    "producers": ["vod"],
+    "schema": "P2EventSecurityAuditVod",
+    "spec": ["SPEC-25", "SPEC-17", "SPEC-10"],
+    "status": "contract-ready",
+    "subscriptions": ["audit.vod"]
   }
 ]

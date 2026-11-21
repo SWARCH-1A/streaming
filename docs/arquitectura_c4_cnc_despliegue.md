@@ -159,3 +159,32 @@ manifiestos, segmentos, subtítulos y replay; no basta ocultar enlaces de la int
 
 La selección RabbitMQ y la integración inicial Streaming–Core/Chat están en [ADR-016](adr/ADR-016-rabbitmq-eventos-p2.md). Las nueve familias se integran en el [perfil local](../infra/broker/README.md). Push
 permanece sin proveedor; SPEC-15/19 distinguen las plataformas y recorridos verificados.
+
+## Contribución P3 — Security Logger y Auditor
+
+La Persona 4 agrega la responsabilidad transversal definida en
+[SPEC-25](spec-p3/spec_25_security_audit.md) y [ADR-028](adr/ADR-028-security-logger-auditor.md).
+Los responsables de vistas pueden integrar estos elementos en sus entregables de capas,
+componentes y despliegue:
+
+```mermaid
+flowchart LR
+  Admin[Administrador con sesión vigente] -->|HTTPS: consulta protegida| Core
+  Core -->|Transacción local| CO[(Outbox Core)]
+  VOD -->|Transacción local| VO[(Outbox VOD)]
+  CO -->|AMQPS: security.audit.core.v1| Broker
+  VO -->|AMQPS: security.audit.vod.v1| Broker
+  Broker -->|Colas audit.core y audit.vod| Logger[Security Logger]
+  Logger -->|SQL TLS: INSERT / SELECT| DB[(PostgreSQL Audit)]
+  Core -->|HTTPS: secreto de servicio y actor verificado| Auditor
+  Auditor -->|SQL TLS: SELECT| DB
+  Auditor -->|INSERT de lectura antes de responder| DB
+```
+
+Logger y Auditor son componentes del runtime `services/audit`; su base `audit-db` es privada.
+El despliegue local añade ambos mediante `infra/audit/compose.yaml`, sin publicar puertos al
+host. Core/VOD conservan autorización y repositorios propios. Logger confirma recepción solo
+tras persistir; Auditor se consulta a través de Core, que verifica ADMIN en cada solicitud.
+Los roles SQL separan lectura de inserción y ambos carecen de modificación/borrado del
+historial. La integración con proxy, segmentación y Zero Trust se coordina con Personas 2/3/5;
+este incremento no cambia sus políticas ni certifica el despliegue global.

@@ -66,6 +66,7 @@ func run() error {
 		return e
 	}
 	defer store.DB.Close()
+	store.AuditEnabled = os.Getenv("VOD_AUDIT_ENABLED") == "true"
 	objects, e := vod.NewS3(s3URL, required("VOD_S3_BUCKET"), env("VOD_S3_PREFIX", "vod"), env("VOD_S3_REGION", "us-east-1"), os.Getenv("VOD_S3_ACCESS_KEY"), os.Getenv("VOD_S3_SECRET_KEY"))
 	if e != nil {
 		return e

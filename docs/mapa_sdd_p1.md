@@ -20,6 +20,7 @@ locales; Gateway, Streaming, Chat, VOD y Notificaciones tienen sus fronteras des
 | Móvil | Experiencia de espectador KMP + Compose, sesión segura y push | [SPEC-19](spec-p2/spec_19_mobile.md); RNF-002/007 | apps/mobile: shared, androidApp e iosApp; ADR-021; agregados canal/live/VOD, follow, bandeja/preferencias y replay/subtítulos; push pendiente |
 | Gateway / integración | Entrada, agregación por pantalla, errores parciales, HTTP/WS/HLS y broker compartido | [SPEC-16](spec-p2/spec_16_gateway.md), [SPEC-17](spec-p2/spec_17_broker.md), [SPEC-10](spec-p2/spec_10_contracts.md) y [SPEC-24](spec-p2/spec_24_deployment.md); RNF-003/006/023/051 | services/gateway (Go) y Caddy (ADR-023); contracts, infra/broker (ADR-016) y tests compartidos |
 | Administración | Operaciones privilegiadas sobre cada dominio y UI común | [SPEC-23](spec-p2/spec_23_admin.md); RF-076…079; P2-17 | Core accounts/administration y Web modules/administration: rol, listados, estado y outbox; retirada VOD/replay, suspensión live e imágenes verificadas; WS combinado y revisión humana pendientes |
+| Auditoría P3 / Persona 4 | Evidencia de seguridad durable y consulta protegida; productores Core/VOD | [SPEC-25](spec-p3/spec_25_security_audit.md); RNF-022/024/025/027/028/032 | services/audit; infra/audit; adaptadores Core/VOD; ADR-028 |
 
 La bandeja VOD por canal puede componerse en Gateway, pero VOD conserva su consulta y autorización.
 Core no almacena metadatos de biblioteca ni lee su base. Notificaciones no se convierte en autoridad
@@ -43,5 +44,6 @@ No se asignan integrantes nominales desde este mapa. Cada responsable cierra sus
 ratifica las interfaces marcadas en revisión y completa schemas bloqueados antes de integrar sus consumidores. Los módulos Core siguen en su
 proceso; no cuentan por separado para los seis componentes de lógica.
 
-Integración mantiene dieciséis suscripciones con efecto y el retiro auditable de las dos colas
+Integración mantiene dieciocho suscripciones con efecto, incluidas las dos de auditoría P3
+(ADR-028), y el retiro auditable de las dos colas
 iniciales sin consumidor conforme a [ADR-027](adr/ADR-027-suscripciones-con-efecto-y-retiro-auditable.md).

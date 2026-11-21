@@ -329,3 +329,12 @@ canal y rol para READ/WRITE/SESSION/ADMIN; las selecciones de categoría/etiquet
 validan mediante el repositorio publicado de Catálogo. No accede a PostgreSQL VOD.
 `VodAccessIT` verifica separación de conectores/credenciales, propietario/tercero, revocación y
 suspensión. El permiso corto de medios lo emite VOD según [ADR-022](../../docs/adr/ADR-022-vod-go-postgresql-minio.md).
+
+## Auditoría P3
+
+CORE_AUDIT_ENABLED=true registra denegaciones administrativas, consultas de listados y cambios
+de estado en core.security_audit_outbox. Una mutación confirma evidencia junto al cambio; una
+denegación usa transacción independiente. GET /api/admin/audit-events exige ADMIN vigente y
+consulta CORE_AUDIT_BASE_URL con AUDIT_QUERY_TOKEN dedicado. TLS requerido;
+CORE_AUDIT_DEVELOPMENT_HTTP solo en fixtures. Configuración y aceptación en
+[Security Logger y Auditor](../audit/README.md).

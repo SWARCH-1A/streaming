@@ -21,13 +21,16 @@ public class AdministrationService {
     private final TransactionTemplate transactions;
     private final ObjectMapper json;
     private final AdministrationCursor cursors;
+    private final streaming.core.audit.SecurityAudit audit;
     public AdministrationService(AdministrationStore store, IdentityApplicationService identity, ChannelAdministration channels,
-            TransactionTemplate transactions, ObjectMapper json, AdministrationCursor cursors) {
-        this.store=store; this.identity=identity; this.channels=channels; this.transactions=transactions; this.json=json;this.cursors=cursors;
+            TransactionTemplate transactions, ObjectMapper json, AdministrationCursor cursors, streaming.core.audit.SecurityAudit audit) {
+        this.store=store; this.identity=identity; this.channels=channels; this.transactions=transactions; this.json=json;this.cursors=cursors;this.audit=audit;
     }
     public String requireAdministrator(String credential) {
-        String actor=identity.introspect(credential).orElseThrow(()->error(HttpStatus.UNAUTHORIZED,"SESSION_REQUIRED")).userId();
-        if (!store.isAdministrator(actor)) throw error(HttpStatus.FORBIDDEN,"ADMIN_REQUIRED");
+        var session=identity.introspect(credential).orElse(null);
+        if(session==null) { audit.denied(null,"SESSION_REQUIRED"); throw error(HttpStatus.UNAUTHORIZED,"SESSION_REQUIRED"); }
+        String actor=session.userId();
+        if (!store.isAdministrator(actor)) { audit.denied(actor,"ADMIN_REQUIRED"); throw error(HttpStatus.FORBIDDEN,"ADMIN_REQUIRED"); }
         return actor;
     }
     private static void page(String after,int limit) {
@@ -36,11 +39,13 @@ public class AdministrationService {
     public Page<AdministrationStore.Account> accounts(String credential,String after,int limit) {
         String actor=requireAdministrator(credential); page(after,limit);
         var rows=store.accounts(cursors.decode(after,actor,"users"),limit+1);
+        audit.record(actor,"ADMIN_ACCESS","ADMIN","users","SUCCESS","AUTHORIZED");
         return new Page<>(rows.stream().limit(limit).toList(),rows.size()>limit?cursors.encode(actor,"users",rows.get(limit-1).userId()):null);
     }
     public Page<ChannelAdministration.Channel> channels(String credential,String after,int limit) {
         String actor=requireAdministrator(credential); page(after,limit);
         var rows=channels.list(cursors.decode(after,actor,"channels"),limit+1);
+        audit.record(actor,"ADMIN_ACCESS","ADMIN","channels","SUCCESS","AUTHORIZED");
         return new Page<>(rows.stream().limit(limit).toList(),rows.size()>limit?cursors.encode(actor,"channels",rows.get(limit-1).channelId()):null);
     }
     public AdministrationStore.Account change(String credential,String target,String status,long expectedVersion,String reason,UUID key) {
@@ -63,6 +68,7 @@ public class AdministrationService {
             Instant now=Instant.now();
             var result=account.status().equals(status)?account:store.change(target,status,now);
             store.record(actor,key,new AdministrationStore.Operation(target,status,expectedVersion,normalized,result),now);
+            audit.record(actor,"ACCOUNT_STATUS","ACCOUNT",target,"SUCCESS",status);
             if(result.accountVersion()!=account.accountVersion()) {
                 UUID eventId=UUID.randomUUID();
                 String envelope=json.writeValueAsString(Map.of("eventId",eventId.toString(),"eventType","account.status.changed.v1","schemaVersion",1,

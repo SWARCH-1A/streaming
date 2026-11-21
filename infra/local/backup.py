@@ -178,9 +178,11 @@ def start_restored(source, prefix, manifest):
     override['services'] = {name: {'image': image, 'pull_policy': 'never'} for name, image in manifest['images'].items()}
     runtime = source / (prefix + '.runtime.json')
     private_json(runtime, override)
+    overlays = ['-f', str(ROOT / 'compose.yaml'), '-f', str(ROOT / 'infra/broker/compose.yaml')]
+    if 'audit' in manifest['images']:
+        overlays += ['-f', str(ROOT / 'infra/audit/compose.yaml')]
     docker('compose', '--env-file', str(state / 'environment.env'), '-p', prefix,
-           '-f', str(ROOT / 'compose.yaml'), '-f', str(ROOT / 'infra/broker/compose.yaml'), '-f', str(runtime),
-           'up', '-d', '--wait', '--wait-timeout', '240', timeout=360)
+           *overlays, '-f', str(runtime), 'up', '-d', '--wait', '--wait-timeout', '240', timeout=360)
     print('Recovery stack ready: ' + env['WEB_ORIGIN'] + '; original installation remains independent')
 
 

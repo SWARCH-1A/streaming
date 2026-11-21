@@ -38,3 +38,5 @@ Chat conserva Go; ADR-010 describe su perfil efímero P1 y ADR-024 su almacenami
 a la [política ADR](../politica_ADR.md). Las alternativas candidatas requieren decisión del responsable.
 
 La [decisión de entrega durable de callbacks Media](../../services/streaming/docs/adr/0001-media-callback-delivery.md) documenta la persistencia, reintentos, DLQ y capacidad del adaptador de SPEC-04.
+
+- [ADR-028](ADR-028-security-logger-auditor.md): auditoría de seguridad P3, outbox Core/VOD, Logger y Auditor privados.
