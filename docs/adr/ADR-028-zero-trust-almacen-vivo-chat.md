@@ -87,8 +87,6 @@ Con la instalación raíz arriba:
 3. Chat queda sano, y el envío, el historial y el replay funcionan en el stack integrado.
 4. El listener privado de Core rechaza una llamada sin token y una con el token de otro servicio.
 
-La evidencia ejecutada está en [el escenario 5](../p3/escenario-5-zero-trust.md).
-
 ## Revisión
 
 Revisar esta decisión si el sistema se despliega fuera de una red de un solo equipo, si se agrega un
