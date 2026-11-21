@@ -8,3 +8,5 @@ El backend se organiza en tres servicios de lógica y un motor multimedia:
 - [Media](../infra/media/README.md) documenta el motor MediaMTX y su configuración para recibir y entregar video.
 
 El [mapa de responsabilidades](../docs/mapa_sdd_p1.md) relaciona estos servicios con sus SPEC.
+
+- [Audit](audit/README.md): Security Logger y Auditor P3, evidencia Core/VOD y consulta administrativa protegida.

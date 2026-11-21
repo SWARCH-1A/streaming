@@ -1,6 +1,6 @@
 # SPEC-17 — Broker y entrega durable de eventos y trabajos
 
-**Prioridad:** P2. **Responsable:** Mensajería / integración. **Estado:** nueve familias integradas en el stack local, VOD/SMTP reales verificados; push y ventanas de fallo exhaustivas pendientes.
+**Prioridad:** P2. **Responsable:** Mensajería / integración. **Estado:** nueve familias P2 y dos de auditoría P3 integradas en el stack local, VOD/SMTP reales verificados; push y ventanas de fallo exhaustivas pendientes.
 **RF:** RF-011, 020…022, 052, 056, 061, 079, 082. **RNF:** RNF-001, 006, 009…010, 014, 020…024, 025, 038, 041…047, 050…051.
 
 ## 1. Contexto y problema
@@ -48,8 +48,8 @@ continúa para consultas y autorización inmediata. El broker no transporta byte
 
 ## 7. Diseño técnico y datos
 
-[Mensajería P2](../contratos_p2_eventos.md) y `contracts/p2.json.events` fijan nueve tipos de
-mensaje, productores y suscripciones lógicas. Los nueve payloads tienen schemas ejecutables
+[Mensajería P2](../contratos_p2_eventos.md) y `contracts/p2.json.events` fijan once tipos de
+mensaje, productores y suscripciones lógicas. Los once payloads tienen schemas ejecutables
 y las suscripciones se materializan en la topología RabbitMQ de ADR-016. Streaming consume
 además su cola de estado de cuenta con inbox durable y cercado por versión. La aceptación
 por familia comprueba el efecto real de cada proveedor, además de la entrega de transporte.
@@ -131,7 +131,7 @@ el siguiente antes del ACK y ejecuta cien ciclos claim/alert/ACK en un presupues
 segundos. No se borran ni rejuvenecen snapshots atrasados para ocultar la edad de cola;
 Discovery solo aplica versiones mayores y reconstruye por corte consistente/watermark.
 
-La topología vigente conserva dieciséis suscripciones con efecto (ADR-027). Chat no mantiene
+La topología vigente conserva dieciocho suscripciones con efecto (ADR-027/028). Chat no mantiene
 una réplica de identidad y Core no mantiene una réplica del catálogo VOD. Las antiguas colas
 `chat.account` y `core.vod` se archivan con la operación privada `retire` antes de retirarlas.
 Streaming 0008 conserva P1 pero publica `RECONNECT_GRACE` en el envelope P2 de pérdida de fuente;
@@ -143,3 +143,10 @@ mensajes pendientes ni DLQ y el outbox quedó vacío. Los eventos inválidos his
 con auditoría tras comprobar sesión ENDED y barreras terminales/generación posterior; no se
 reescribieron ni se redirigieron cuerpos inválidos. El smoke también verifica selección de un
 ID DLQ detrás de otro mensaje y conserva sin ACK la otra entrega.
+
+## Integración de auditoría P3
+
+[SPEC-25](../spec-p3/spec_25_security_audit.md) y [ADR-028](../adr/ADR-028-security-logger-auditor.md)
+incorporan eventos de seguridad de Core/VOD, suscripciones audit.core/audit.vod y un servicio
+con almacenamiento propio. Las autorizaciones y auditorías de dominio existentes se conservan.
+La evidencia se publica desde outbox; su consulta exige sesión administrativa vigente en Core.

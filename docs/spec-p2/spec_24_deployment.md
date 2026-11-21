@@ -75,9 +75,9 @@ nuevos y rechaza destinos existentes; entrega un mapa Compose de esos volúmenes
 la instalación original ni confunde conservar un volumen con restaurarlo desde un archivo.
 
 Ningún almacén interno acepta clientes anónimos. El Redis de Chat usa el ACL `chat-redis.acl` y
-`CHAT_REDIS_PASSWORD`, que genera `init` sin rotar los demás secretos (ADR-028); una instalación
+`CHAT_REDIS_PASSWORD`, que genera `init` sin rotar los demás secretos (ADR-029); una instalación
 anterior repite `init` antes de `up`, y Compose se detiene si falta la credencial. El backup copia el
-ACL, que solo guarda el hash de la contraseña, y al restaurar un backup anterior a ADR-028 se crea una
+ACL, que solo guarda el hash de la contraseña, y al restaurar un backup anterior a ADR-029 se crea una
 credencial propia para la copia. La copia conserva los permisos de la instalación: certificados, llaves
 y ACL que se montan en contenedores quedan legibles dentro del directorio 0700, y `ca.key` y
 `environment.env` quedan en 0600. Mailpit, el capturador de correos local, es la excepción de desarrollo.
@@ -120,3 +120,10 @@ independiente con `backup.py restore --start`; arrancó los cinco PostgreSQL y l
 persistentes. El runner `tests/integration/p2-recovery/run.py` comprobó login, metadatos/timeline,
 replay moderado y frames decodificados del VOD servido desde los objetos MinIO restaurados.
 La instalación original y el contenedor ajeno al proyecto conservaron sus datos y funcionamiento.
+
+## Integración de auditoría P3
+
+[SPEC-25](../spec-p3/spec_25_security_audit.md) y [ADR-028](../adr/ADR-028-security-logger-auditor.md)
+incorporan eventos de seguridad de Core/VOD, suscripciones audit.core/audit.vod y un servicio
+con almacenamiento propio. Las autorizaciones y auditorías de dominio existentes se conservan.
+La evidencia se publica desde outbox; su consulta exige sesión administrativa vigente en Core.

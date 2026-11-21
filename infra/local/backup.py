@@ -145,7 +145,7 @@ def restore(source, prefix, start=False):
 
 
 def ensure_chat_redis_credential(state, env):
-    """Backups made before ADR-028 lack the Chat Redis credential: create it for the restored copy only.
+    """Backups made before ADR-029 lack the Chat Redis credential: create it for the restored copy only.
 
     A restored copy keeps its own state directory, so running init on the original installation
     would not help. An existing password is kept and only its ACL is rebuilt.
@@ -200,9 +200,11 @@ def start_restored(source, prefix, manifest):
     override['services'] = {name: {'image': image, 'pull_policy': 'never'} for name, image in manifest['images'].items()}
     runtime = source / (prefix + '.runtime.json')
     private_json(runtime, override)
+    overlays = ['-f', str(ROOT / 'compose.yaml'), '-f', str(ROOT / 'infra/broker/compose.yaml')]
+    if 'audit' in manifest['images']:
+        overlays += ['-f', str(ROOT / 'infra/audit/compose.yaml')]
     docker('compose', '--env-file', str(state / 'environment.env'), '-p', prefix,
-           '-f', str(ROOT / 'compose.yaml'), '-f', str(ROOT / 'infra/broker/compose.yaml'), '-f', str(runtime),
-           'up', '-d', '--wait', '--wait-timeout', '240', timeout=360)
+           *overlays, '-f', str(runtime), 'up', '-d', '--wait', '--wait-timeout', '240', timeout=360)
     print('Recovery stack ready: ' + env['WEB_ORIGIN'] + '; original installation remains independent')
 
 

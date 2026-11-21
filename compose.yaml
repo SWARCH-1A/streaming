@@ -72,7 +72,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # Zero Trust (ADR-028): sin usuario anónimo; Chat entra con su propia identidad y solo a sus claves chat:*.
+  # Zero Trust (ADR-029): sin usuario anónimo; Chat entra con su propia identidad y solo a sus claves chat:*.
   chat-db:
     image: redis:8-alpine
     command: ["redis-server", "--port", "0", "--tls-port", "6379", "--tls-cert-file", "/run/secrets/chat-redis.crt", "--tls-key-file", "/run/secrets/chat-redis.key", "--tls-ca-cert-file", "/run/secrets/ca.crt", "--tls-auth-clients", "no", "--aclfile", "/run/secrets/chat-redis.acl", "--appendonly", "yes", "--appendfsync", "always", "--save", "", "--maxmemory-policy", "noeviction"]

@@ -25,7 +25,7 @@ class BackupRecovery(unittest.TestCase):
                                                     'LOCAL_LAN_IP=192.168.0.7\nWEB_ORIGIN=https://vault.local:3445\n')
             prefix = 'streaming-restore-fixture'
             (root / (prefix + '.compose.json')).write_text('{}')
-            manifest = {'images': {'proxy': 'sha256:fixture'},
+            manifest = {'images': {'proxy': 'sha256:fixture', 'audit': 'sha256:audit-fixture'},
                         'config': [{'file': name} for name in ('Caddyfile', 'environment.env', 'ca.crt', 'ca.key', 'chat-redis.key')]}
             sockets = [Mock() for _ in range(3)]
             for index, sock in enumerate(sockets):
@@ -39,7 +39,8 @@ class BackupRecovery(unittest.TestCase):
             self.assertEqual(env['LOCAL_LAN_IP'], '127.0.0.1')
             self.assertTrue(env['WEB_ORIGIN'].startswith('https://localhost:'))
             self.assertEqual(docker.call_args.args[:2], ('compose', '--env-file'))
-            # A backup made before ADR-028 gets its own Chat Redis credential; the ACL holds only the hash.
+            self.assertIn(str(backup.ROOT / 'infra/audit/compose.yaml'), docker.call_args.args)
+            # A backup made before ADR-029 gets its own Chat Redis credential; the ACL holds only the hash.
             password = env['CHAT_REDIS_PASSWORD']
             acl = (root / (prefix + '-state/chat-redis.acl')).read_text()
             self.assertGreaterEqual(len(password), 32)

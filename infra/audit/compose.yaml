@@ -1,0 +1,55 @@
+services:
+  audit-db:
+    image: postgres:18-alpine
+    entrypoint: ["/bin/sh", "/postgres-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tmp/p1-tls/server.crt", "-c", "ssl_key_file=/tmp/p1-tls/server.key"]
+    environment:
+      POSTGRES_DB: audit
+      POSTGRES_USER: audit_owner
+      POSTGRES_PASSWORD: ${AUDIT_OWNER_DB_PASSWORD:?Run init}
+      AUDIT_WRITER_DB_PASSWORD: ${AUDIT_WRITER_DB_PASSWORD:?Run init}
+      AUDIT_READER_DB_PASSWORD: ${AUDIT_READER_DB_PASSWORD:?Run init}
+    volumes:
+      - audit-db:/var/lib/postgresql
+      - ./infra/p1/postgres-tls.sh:/postgres-tls.sh:ro
+      - ./infra/audit/schema.sql:/docker-entrypoint-initdb.d/10-audit.sql:ro
+      - ${P1_STATE}/audit-db.crt:/run/secrets/server.crt:ro
+      - ${P1_STATE}/audit-db.key:/run/secrets/server.key:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "audit_owner", "-d", "audit"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+  audit:
+    image: streaming-local-audit
+    build: ./services/audit
+    environment:
+      AUDIT_WRITER_DATABASE_URL: postgres://audit_writer:${AUDIT_WRITER_DB_PASSWORD:?Run init}@audit-db:5432/audit?sslmode=verify-full&sslrootcert=/run/secrets/ca.crt
+      AUDIT_READER_DATABASE_URL: postgres://audit_reader:${AUDIT_READER_DB_PASSWORD:?Run init}@audit-db:5432/audit?sslmode=verify-full&sslrootcert=/run/secrets/ca.crt
+      AUDIT_QUERY_TOKEN: ${AUDIT_QUERY_TOKEN:?Run init}
+      AUDIT_BROKER_URL: amqps://audit:${BROKER_AUDIT_PASSWORD:?Run init}@broker:5671/streaming-p2?heartbeat=30
+      AUDIT_BROKER_CA_FILE: /run/secrets/ca.crt
+      AUDIT_TLS_CERT_FILE: /run/secrets/audit.crt
+      AUDIT_TLS_KEY_FILE: /run/secrets/audit.key
+      SSL_CERT_FILE: /run/secrets/ca.crt
+    volumes:
+      - ${P1_STATE}/audit.crt:/run/secrets/audit.crt:ro
+      - ${P1_STATE}/audit.key:/run/secrets/audit.key:ro
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    depends_on:
+      audit-db:
+        condition: service_healthy
+      broker:
+        condition: service_healthy
+    restart: unless-stopped
+  core:
+    environment:
+      CORE_AUDIT_ENABLED: "true"
+      CORE_AUDIT_BASE_URL: https://audit:8096
+      AUDIT_QUERY_TOKEN: ${AUDIT_QUERY_TOKEN:?Run init}
+  vod:
+    environment:
+      VOD_AUDIT_ENABLED: "true"
+volumes:
+  audit-db:

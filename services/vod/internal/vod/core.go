@@ -25,6 +25,9 @@ func (c *Core) Check(ctx context.Context, channel, credential, operation string)
 		return a, Fail(503, "CORE_UNAVAILABLE")
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if attempt, ok := ctx.Value(auditKey{}).(*auditAttempt); ok {
+		req.Header.Set("X-Request-Id", attempt.RequestID)
+	}
 	req.Header.Set("X-Service-Name", "vod")
 	req.Header.Set("X-Service-Token", c.Token)
 	if credential != "" {
@@ -68,6 +71,9 @@ func (c *Core) Catalog(ctx context.Context, channel, credential string, category
 		return Fail(503, "CORE_UNAVAILABLE")
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if attempt, ok := ctx.Value(auditKey{}).(*auditAttempt); ok {
+		req.Header.Set("X-Request-Id", attempt.RequestID)
+	}
 	req.Header.Set("X-Service-Name", "vod")
 	req.Header.Set("X-Service-Token", c.Token)
 	req.Header.Set("X-Session-Credential", credential)

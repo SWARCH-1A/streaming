@@ -1,4 +1,4 @@
-# ADR-028: Zero Trust en las conexiones internas, cerrando el Redis de Chat con identidad propia
+# ADR-029: Zero Trust en las conexiones internas, cerrando el Redis de Chat con identidad propia
 
 - Estado: aceptada para integración local
 - Fecha: 2026-11-21
