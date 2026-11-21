@@ -12,8 +12,8 @@ otro componente sin tener sus credenciales.
 | Estímulo | Conexiones directas desde la red interna a los almacenes de datos y a las APIs privadas de los servicios. |
 | Artefacto | Redis de Chat, PostgreSQL de cada servicio, RabbitMQ, MinIO y los listeners privados de Core, Chat, VOD y Streaming. |
 | Entorno | Operación normal, con el sistema desplegado con Docker Compose en una sola red. |
-| Respuesta | Ningún componente concede acceso por estar dentro de la red. Cada conexión exige la identidad propia de quien llama, y esa identidad solo obtiene los permisos que necesita. |
-| Medida de respuesta | 0 almacenes o APIs internas que acepten una conexión anónima; 100 % de los intentos sin credencial, con credencial incorrecta o con la credencial de otro servicio rechazados; 0 comandos administrativos permitidos a la identidad de Chat en Redis. |
+| Respuesta | Ninguno de los componentes del artefacto concede acceso por estar dentro de la red. Cada conexión exige la identidad propia de quien llama, y esa identidad solo obtiene los permisos que necesita. |
+| Medida de respuesta | 0 de los almacenes y APIs internas del artefacto aceptan una conexión anónima; 100 % de los intentos sin credencial, con credencial incorrecta o con la credencial de otro servicio rechazados; 0 comandos administrativos permitidos a la identidad de Chat en Redis. |
 
 ## Problema de diseño
 
@@ -65,8 +65,10 @@ El Redis de Chat deja de aceptar clientes anónimos ([ADR-028](../adr/ADR-028-ze
 - `infra/local/chat_config.py` genera durante `init` una contraseña aleatoria, `CHAT_REDIS_PASSWORD`,
   y el archivo `chat-redis.acl`, sin rotar los demás secretos.
 - El archivo ACL desactiva el usuario anónimo (`user default off`) y crea el usuario `chat`, limitado a
-  sus claves (`~chat:*`), sin canales (`resetchannels`) y sin la categoría `@dangerous`. Guarda solo el
-  SHA-256 de la contraseña.
+  sus claves (`~chat:*`), sin canales (`resetchannels`), sin la categoría `@dangerous` y sin
+  `SCRIPT FLUSH` ni `FUNCTION`. Guarda solo el SHA-256 de la contraseña.
+- `infra/local/backup.py` copia el ACL, y al restaurar un backup anterior genera una credencial propia
+  para la copia restaurada.
 - `compose.yaml` carga el ACL en `chat-db` (`--aclfile`) y Chat se conecta con
   `rediss://chat:<contraseña>@chat-db:6379/0`. El código de Chat no cambia.
 
@@ -104,6 +106,10 @@ Con el usuario `chat` y su contraseña:
 | `CONFIG GET requirepass` | `NOPERM … 'config\|get' command` |
 | `KEYS *` | `NOPERM … 'keys' command` |
 | `PUBLISH canal x` | `NOPERM No permissions to access a channel` |
+| `SCRIPT FLUSH` | `NOPERM … 'script\|flush' command` |
+| `FUNCTION FLUSH` / `FUNCTION DELETE` | `NOPERM … 'function\|flush'` / `'function\|delete' command` |
+| `CLIENT PAUSE 1` | `NOPERM … 'client\|pause' command` |
+| `INFO` | `NOPERM … 'info' command` |
 
 ### 3. Las APIs internas ya verificaban la identidad
 
@@ -140,3 +146,7 @@ mismo contenedor atacante:
   (escenario 3), la complementa.
 - El perfil P1 (`infra/p1`) y el Compose de desarrollo `infra/local/compose.chat.yaml` conservan su Redis
   sin credenciales; el cambio aplica a la instalación completa (`infra/local/dev.py`).
+- Mailpit, el capturador de correos de desarrollo, acepta conexiones sin credencial. No está en el
+  artefacto del escenario porque reemplaza al servidor SMTP real solo en local.
+- Las contraseñas, como en el resto del proyecto, llegan a los contenedores como variables de entorno:
+  quien controle Docker en el equipo anfitrión puede leerlas.

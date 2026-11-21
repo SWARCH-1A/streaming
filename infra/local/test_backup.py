@@ -1,6 +1,7 @@
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -18,12 +19,14 @@ class BackupRecovery(unittest.TestCase):
             config = root / 'config'
             config.mkdir()
             (config / 'Caddyfile').write_text('fixture caddy')
+            for name in ('ca.crt', 'ca.key', 'chat-redis.key'):
+                (config / name).write_text('fixture ' + name)
             (config / 'environment.env').write_text('LOCAL_HTTPS_BIND=0.0.0.0\nLOCAL_PUBLIC_HOST=vault.local\n'
                                                     'LOCAL_LAN_IP=192.168.0.7\nWEB_ORIGIN=https://vault.local:3445\n')
             prefix = 'streaming-restore-fixture'
             (root / (prefix + '.compose.json')).write_text('{}')
             manifest = {'images': {'proxy': 'sha256:fixture'},
-                        'config': [{'file': 'Caddyfile'}, {'file': 'environment.env'}]}
+                        'config': [{'file': name} for name in ('Caddyfile', 'environment.env', 'ca.crt', 'ca.key', 'chat-redis.key')]}
             sockets = [Mock() for _ in range(3)]
             for index, sock in enumerate(sockets):
                 sock.getsockname.return_value = ('127.0.0.1', 45000 + index)
@@ -36,6 +39,29 @@ class BackupRecovery(unittest.TestCase):
             self.assertEqual(env['LOCAL_LAN_IP'], '127.0.0.1')
             self.assertTrue(env['WEB_ORIGIN'].startswith('https://localhost:'))
             self.assertEqual(docker.call_args.args[:2], ('compose', '--env-file'))
+            # A backup made before ADR-028 gets its own Chat Redis credential; the ACL holds only the hash.
+            password = env['CHAT_REDIS_PASSWORD']
+            acl = (root / (prefix + '-state/chat-redis.acl')).read_text()
+            self.assertGreaterEqual(len(password), 32)
+            self.assertNotIn(password, acl)
+            self.assertIn('#' + hashlib.sha256(password.encode()).hexdigest(), acl)
+            self.assertIn('user default off', acl)
+            # Mounted files keep the installation modes; secrets that are never mounted stay private.
+            if os.name == 'posix':
+                mode = lambda name: (root / (prefix + '-state') / name).stat().st_mode & 0o777
+                self.assertEqual({name: mode(name) for name in ('ca.crt', 'chat-redis.key', 'chat-redis.acl', 'ca.key', 'environment.env')},
+                                 {'ca.crt': 0o644, 'chat-redis.key': 0o644, 'chat-redis.acl': 0o644, 'ca.key': 0o600, 'environment.env': 0o600})
+
+    def test_restore_keeps_an_existing_chat_redis_password(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            env = {'CHAT_REDIS_PASSWORD': 'p' * 48}
+            backup.ensure_chat_redis_credential(state, env)
+            self.assertEqual(env['CHAT_REDIS_PASSWORD'], 'p' * 48)
+            acl = (state / 'chat-redis.acl').read_text()
+            self.assertIn('#' + hashlib.sha256(b'p' * 48).hexdigest(), acl)
+            for denied in ('-@dangerous', '-script|flush', '-function', 'resetchannels', '~chat:*'):
+                self.assertIn(denied, acl)
 
     def source(self, root):
         path = root / 'volume-00.tar'

@@ -37,9 +37,12 @@ fuente del replay durable. Era el único almacén que confiaba en la ubicación 
    la recibe en `CHAT_REDIS_URL` (`rediss://chat:<contraseña>@chat-db:6379/0`).
 3. **Mínimo privilegio.** El usuario `chat` solo accede a claves `chat:*`, no tiene canales Pub/Sub
    (`resetchannels`) y tiene denegada la categoría `@dangerous` (`FLUSHALL`, `CONFIG`, `KEYS`, `ACL`,
-   `SHUTDOWN`…).
+   `INFO`, `CLIENT PAUSE`/`KILL`/`LIST`, `SHUTDOWN`…). También se le deniegan `SCRIPT FLUSH` y todos
+   los subcomandos de `FUNCTION`: Chat ejecuta sus scripts Lua con `EVALSHA`/`EVAL` y no usa funciones.
 4. **Sin secreto en el archivo ACL.** El archivo guarda solo el SHA-256 de la contraseña. La contraseña
-   vive en `environment.env` (modo 600), como el resto de secretos locales.
+   se guarda en `environment.env` (modo 600), como el resto de secretos locales, y Compose la entrega
+   como variable de entorno a Chat (`CHAT_REDIS_URL`) y a `chat-db` (`REDISCLI_AUTH`, solo para la
+   comprobación de salud), igual que las demás contraseñas del proyecto.
 5. **Sin cambio en el código de Chat.** `redis.ParseURL` ya acepta usuario y contraseña en la URL.
 
 La decisión aplica a la instalación raíz (`compose.yaml`, gestionada por `infra/local/dev.py`).
@@ -60,14 +63,18 @@ La decisión aplica a la instalación raíz (`compose.yaml`, gestionada por `inf
   claves ajenas a `chat:*`.
 - **Operación.** Tras actualizar el repositorio, `python3 infra/local/dev.py init` añade la contraseña y
   el ACL sin rotar los demás secretos. Si se omite, Compose se detiene con el mensaje
-  `Run python3 infra/local/dev.py init` y no se pierden datos. El backup de `infra/local/backup.py`
-  incluye el archivo ACL.
+  `Run python3 infra/local/dev.py init` y no se pierden datos. Redis lee el ACL al arrancar: si `init`
+  lo reescribe en una instalación que ya lo tenía, hay que reiniciar `chat-db`. El backup de
+  `infra/local/backup.py` incluye el archivo ACL, y al restaurar un backup anterior a este ADR se
+  genera una credencial propia para la copia restaurada.
 - **Fallos.** Si un comando que Chat necesita quedara fuera del ACL, Redis responde `NOPERM` y Chat lo
   registra. La verificación integral comprueba que no ocurre en el envío, historial, moderación y replay.
 - **Límites.** No hay TLS mutuo: un servicio que robe el token o la contraseña de otro puede
   suplantarlo. El perfil P1 (`infra/p1/core-chat.yaml`) y el Compose de desarrollo
-  `infra/local/compose.chat.yaml` conservan su Redis sin credenciales. Los tokens entre servicios son
-  estáticos durante la vida de la instalación.
+  `infra/local/compose.chat.yaml` conservan su Redis sin credenciales. Mailpit, el capturador de
+  correos de desarrollo, acepta conexiones sin credencial y no forma parte de un despliegue real. Los
+  tokens entre servicios son estáticos durante la vida de la instalación. Quien controle Docker en el
+  equipo anfitrión puede leer las variables de entorno de los contenedores, incluidas las contraseñas.
 
 ## Verificación
 
@@ -75,7 +82,8 @@ Con la instalación raíz arriba:
 
 1. `redis-cli` desde otro contenedor de la red sin credenciales recibe `NOAUTH`; con una contraseña
    incorrecta, `WRONGPASS`.
-2. El usuario `chat` recibe `NOPERM` en `FLUSHALL`, `CONFIG GET` y en claves fuera de `chat:*`.
+2. El usuario `chat` recibe `NOPERM` en `FLUSHALL`, `CONFIG GET`, `SCRIPT FLUSH`, `FUNCTION FLUSH` y
+   en claves fuera de `chat:*`.
 3. Chat queda sano, y el envío, el historial y el replay funcionan en el stack integrado.
 4. El listener privado de Core rechaza una llamada sin token y una con el token de otro servicio.
 

@@ -74,6 +74,14 @@ nunca se incluye en Git. La restauración verifica todos los hashes antes de cre
 nuevos y rechaza destinos existentes; entrega un mapa Compose de esos volúmenes. No modifica
 la instalación original ni confunde conservar un volumen con restaurarlo desde un archivo.
 
+Ningún almacén interno acepta clientes anónimos. El Redis de Chat usa el ACL `chat-redis.acl` y
+`CHAT_REDIS_PASSWORD`, que genera `init` sin rotar los demás secretos (ADR-028); una instalación
+anterior repite `init` antes de `up`, y Compose se detiene si falta la credencial. El backup copia el
+ACL, que solo guarda el hash de la contraseña, y al restaurar un backup anterior a ADR-028 se crea una
+credencial propia para la copia. La copia conserva los permisos de la instalación: certificados, llaves
+y ACL que se montan en contenedores quedan legibles dentro del directorio 0700, y `ca.key` y
+`environment.env` quedan en 0600. Mailpit, el capturador de correos local, es la excepción de desarrollo.
+
 ## 8. Dependencias y contratos de integración
 
 Cada servicio entrega build, comando, configuración de ejemplo sin secretos, health y volumen.

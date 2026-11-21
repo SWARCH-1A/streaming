@@ -68,7 +68,8 @@ historial durable dura mientras exista un VOD de la sesión. Una sesión sin VOD
 7 días de su último mensaje (`CHAT_UNLINKED_RETENTION`).
 
 **Acceso a Redis.** Redis no acepta clientes anónimos (ADR-028). Chat entra con el usuario `chat` y
-`CHAT_REDIS_PASSWORD`, limitado a las claves `chat:*`, sin Pub/Sub y sin comandos administrativos.
+`CHAT_REDIS_PASSWORD`, limitado a las claves `chat:*`, sin Pub/Sub, sin comandos administrativos y sin
+`SCRIPT FLUSH` ni `FUNCTION`.
 
 **Retiro.** Un mensaje retirado conserva su fila y posición sin texto. Historial y frame
 `message.removed` muestran el aviso "Mensaje eliminado por el moderador"; el replay lo omite. Cada
