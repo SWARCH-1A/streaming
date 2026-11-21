@@ -228,7 +228,7 @@ def command(env, *args, s3=False, broker=None, timeout=180):
     if broker:
         if PROFILE != "local": raise RuntimeError("The broker overlay currently targets the root local profile")
         if not env.get("BROKER_STREAMING_PASSWORD"): raise RuntimeError("Run python3 infra/local/dev.py init first")
-        cmd += ["-f",str(ROOT / "infra/broker/compose.yaml")]
+        cmd += ["-f",str(ROOT / "infra/broker/compose.yaml"),"-f",str(ROOT / "infra/audit/compose.yaml")]
     if s3 and env.get("CORE_IMAGE_S3_ENDPOINT") and not env["CORE_IMAGE_S3_ENDPOINT"].startswith("https://"):
         raise RuntimeError("The TLS profile requires an HTTPS S3 endpoint")
     return run([*cmd,*args],cwd=ROOT,env=env,timeout=timeout)
@@ -300,6 +300,9 @@ def main():
             chat = runpy.run_path(str(ROOT / "infra/local/chat_config.py"))
             env = chat["initialize"](env, STATE, run)
             print("Chat PostgreSQL certificate and credentials ready")
+            audit = runpy.run_path(str(ROOT / "infra/local/audit_config.py"))
+            env = audit["initialize"](env, STATE, run)
+            print("Security Logger and Auditor certificates and credentials ready")
         if args.action=="build":
             build_args = ("--profile","tools","build") if args.broker else ("build",)
             command(env,*build_args,s3=args.s3,broker=args.broker,timeout=1800)

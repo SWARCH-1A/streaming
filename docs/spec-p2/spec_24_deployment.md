@@ -112,3 +112,10 @@ independiente con `backup.py restore --start`; arrancó los cinco PostgreSQL y l
 persistentes. El runner `tests/integration/p2-recovery/run.py` comprobó login, metadatos/timeline,
 replay moderado y frames decodificados del VOD servido desde los objetos MinIO restaurados.
 La instalación original y el contenedor ajeno al proyecto conservaron sus datos y funcionamiento.
+
+## Integración de auditoría P3
+
+[SPEC-25](../spec-p3/spec_25_security_audit.md) y [ADR-028](../adr/ADR-028-security-logger-auditor.md)
+incorporan eventos de seguridad de Core/VOD, suscripciones audit.core/audit.vod y un servicio
+con almacenamiento propio. Las autorizaciones y auditorías de dominio existentes se conservan.
+La evidencia se publica desde outbox; su consulta exige sesión administrativa vigente en Core.

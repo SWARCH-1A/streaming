@@ -90,7 +90,7 @@ class Profiles(unittest.TestCase):
                 self.assertEqual(args[args.index("--env-file") + 1], str(selected.STATE / "environment.env"))
                 expected = selected.ROOT / "compose.yaml" if profile == "local" else selected.HERE / "compose.yaml"
                 self.assertEqual(args[args.index("-f") + 1], str(expected))
-                self.assertEqual(args.count("-f"), 2 if profile == "local" else 1)
+                self.assertEqual(args.count("-f"), 3 if profile == "local" else 1)
                 self.assertEqual(run.call_args.kwargs["env"], env)
                 with self.assertRaisesRegex(RuntimeError, "Command state"):
                     selected.command({"P1_STATE": "/foreign/state"}, "down", "--volumes")
@@ -140,7 +140,7 @@ class Profiles(unittest.TestCase):
             args = run.call_args.args[0]
             self.assertEqual(args[args.index("-p") + 1], "streaming-local")
             self.assertEqual([args[i + 1] for i, arg in enumerate(args) if arg == "-f"],
-                             [str(local.ROOT / "compose.yaml"), str(local.ROOT / "infra/broker/compose.yaml")])
+                             [str(local.ROOT / "compose.yaml"), str(local.ROOT / "infra/broker/compose.yaml"), str(local.ROOT / "infra/audit/compose.yaml")])
             self.assertEqual(args[-3:], ["--profile", "tools", "build"])
 
     def test_broker_requires_initialized_local_credentials(self):
@@ -175,8 +175,8 @@ class Profiles(unittest.TestCase):
                     with patch("sys.argv", ["dev.py", action]):
                         local.main()
                 initialize.assert_called_once_with()
-                # Broker, Cuentas recovery, Notifications, VOD and Chat initializers (each keeps existing state).
-                self.assertEqual(bootstrap.call_count, 5)
+                # Broker, Cuentas recovery, Notifications, VOD, Chat and Audit preserve existing state.
+                self.assertEqual(bootstrap.call_count, 6)
                 bootstrap.assert_called_with(env, local.STATE, local.run)
                 ready.assert_called_once_with(env)
                 command.assert_any_call(env, "--profile", "tools", "build", s3=False, broker=True, timeout=1800)

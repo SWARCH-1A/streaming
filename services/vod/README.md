@@ -166,3 +166,11 @@ AAC de hasta 250 ms solo se admite al final verificado de su generación. Bytes 
 audio ausente en segmentos interiores y cambios de formato siguen fallando. Las pruebas de
 `cmd/media-recorder` y `internal/vod` requieren ffmpeg/ffprobe y un usuario sin privilegios;
 la prueba de permisos de limpieza no debe ejecutarse como root.
+
+## Auditoría P3
+
+VOD_AUDIT_ENABLED=true registra PATCH/PUBLISH/DELETE y retirada administrativa REMOVE.
+El servicio obtiene actor verificado mediante contexto SESSION antes de WRITE; no registra
+credenciales ni cuerpos. Éxitos comparten transacción con vod_outbox y rechazos 401/403 tienen
+commit independiente antes de responder. Se conservan los eventos y reintentos del outbox
+existente. [Contratos y ejecución](../audit/README.md).

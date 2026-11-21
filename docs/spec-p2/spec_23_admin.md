@@ -167,3 +167,10 @@ Sigue pendiente la observación humana de teclado, contraste, zoom y tecnología
 
 Esfuerzo L transversal. La propagación por eventos sola deja una ventana de acceso; el
 contrato de comprobación y los plazos deben verificarse antes de declarar suspensión completa.
+
+## Integración de auditoría P3
+
+[SPEC-25](../spec-p3/spec_25_security_audit.md) y [ADR-028](../adr/ADR-028-security-logger-auditor.md)
+incorporan eventos de seguridad de Core/VOD, suscripciones audit.core/audit.vod y un servicio
+con almacenamiento propio. Las autorizaciones y auditorías de dominio existentes se conservan.
+La evidencia se publica desde outbox; su consulta exige sesión administrativa vigente en Core.

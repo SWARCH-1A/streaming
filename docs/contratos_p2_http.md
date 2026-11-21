@@ -361,3 +361,14 @@ Las lecturas públicas de imágenes de perfil/canal conservan su forma P1, pero 
 la referencia pertenezca a una cuenta ACTIVE. Avatar y portada suspendidos o no referenciados
 devuelven 404; las respuestas legibles llevan `Cache-Control: no-store, private`. Suspender
 no borra objetos y reactivar vuelve a habilitar las referencias actuales.
+
+## Auditoría de seguridad P3
+
+GET `/api/admin/audit-events` (Core) requiere sesión ADMIN activa; 401 visitante, 403 usuario
+común, 503 dependencia no disponible. Core consulta GET `/internal/audit/events` (Audit) con
+X-Service-Name=core, X-Service-Token dedicado y X-Audit-Actor obtenido de la sesión validada.
+Filtros: actorId/targetId/action/outcome/producer/requestId/from/to/cursor/limit. Desde inclusivo,
+hasta exclusivo; default 50, máximo 100, parámetros repetidos/desconocidos o mal codificados dan 400. Respuesta
+P2AuditPage: items con position decimal, receivedAtUtc y event; nextCursor nullable. Orden de
+ingreso; cursor no concede acceso y no representa snapshot. No-store en ambos proveedores.
+El acceso al historial se registra en audit.reads antes de revelar datos. Ver SPEC-25.

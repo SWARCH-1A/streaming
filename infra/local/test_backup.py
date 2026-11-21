@@ -22,7 +22,7 @@ class BackupRecovery(unittest.TestCase):
                                                     'LOCAL_LAN_IP=192.168.0.7\nWEB_ORIGIN=https://vault.local:3445\n')
             prefix = 'streaming-restore-fixture'
             (root / (prefix + '.compose.json')).write_text('{}')
-            manifest = {'images': {'proxy': 'sha256:fixture'},
+            manifest = {'images': {'proxy': 'sha256:fixture', 'audit': 'sha256:audit-fixture'},
                         'config': [{'file': 'Caddyfile'}, {'file': 'environment.env'}]}
             sockets = [Mock() for _ in range(3)]
             for index, sock in enumerate(sockets):
@@ -36,6 +36,7 @@ class BackupRecovery(unittest.TestCase):
             self.assertEqual(env['LOCAL_LAN_IP'], '127.0.0.1')
             self.assertTrue(env['WEB_ORIGIN'].startswith('https://localhost:'))
             self.assertEqual(docker.call_args.args[:2], ('compose', '--env-file'))
+            self.assertIn(str(backup.ROOT / 'infra/audit/compose.yaml'), docker.call_args.args)
 
     def source(self, root):
         path = root / 'volume-00.tar'
