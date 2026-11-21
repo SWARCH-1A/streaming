@@ -67,6 +67,10 @@ confirma la entrada solo después del commit. La sala viva expira 5 minutos tras
 historial durable dura mientras exista un VOD de la sesión. Una sesión sin VOD se borra a los
 7 días de su último mensaje (`CHAT_UNLINKED_RETENTION`).
 
+**Acceso a Redis.** Redis no acepta clientes anónimos (ADR-029). Chat entra con el usuario `chat` y
+`CHAT_REDIS_PASSWORD`, limitado a las claves `chat:*`, sin Pub/Sub, sin comandos administrativos y sin
+`SCRIPT FLUSH` ni `FUNCTION`.
+
 **Retiro.** Un mensaje retirado conserva su fila y posición sin texto. Historial y frame
 `message.removed` muestran el aviso "Mensaje eliminado por el moderador"; el replay lo omite. Cada
 retiro incrementa `moderationVersion` de la sesión. Un `message.created` posterior no repone el texto.
@@ -131,6 +135,7 @@ sigue P2-14; el replay ya acepta Bearer.
 | RF-036/037/083; RNF-027/028 | Propietario/tercero, bloqueo vigente/vencido, retiro y borrado opcional |
 | RF-082; RNF-022/024/050 | Reinicio después de ENDED, seek/reconexión, supresión y limpieza |
 | RNF-025…032/041…049 | Credenciales por transporte, datos públicos, schemas y logs sin secretos |
+| RNF-027/041 (ADR-029) | Redis rechaza clientes sin credencial o con otra contraseña; el usuario `chat` no ejecuta comandos administrativos ni toca claves ajenas |
 
 Las pruebas de [services/chat](../../services/chat/README.md) cubren estos comportamientos con
 Redis simulado y PostgreSQL real. [p2-chat-replay](../../tests/integration/p2-chat-replay/run.py)

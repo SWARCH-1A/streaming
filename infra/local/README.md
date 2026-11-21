@@ -186,6 +186,12 @@ guía mantienen su alcance original. Para incorporar VOD a la instalación compl
 `init`, `build`, `up`; se conservan secretos y datos anteriores. Certificados, identidades S3
 separadas, migraciones, salud y recuperación: [servicio VOD](../../services/vod/README.md).
 
+El Redis de Chat de la instalación completa no acepta clientes anónimos ([ADR-029](../../docs/adr/ADR-029-zero-trust-almacen-vivo-chat.md)).
+En una instalación anterior, repetir `init` antes de `up`: genera `CHAT_REDIS_PASSWORD` y
+`chat-redis.acl` sin rotar los demás secretos. Si falta, Compose se detiene con
+`Run python3 infra/local/dev.py init` y los datos se conservan. Los Compose básicos por servicio de
+esta guía no cambian.
+
 ## Provisión externa
 
 Para un iPhone conectado a la misma LAN que el Mac, `python3 infra/local/dev.py lan` prepara

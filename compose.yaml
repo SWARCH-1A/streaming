@@ -72,16 +72,21 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Zero Trust (ADR-029): sin usuario anónimo; Chat entra con su propia identidad y solo a sus claves chat:*.
   chat-db:
     image: redis:8-alpine
-    command: ["redis-server", "--port", "0", "--tls-port", "6379", "--tls-cert-file", "/run/secrets/chat-redis.crt", "--tls-key-file", "/run/secrets/chat-redis.key", "--tls-ca-cert-file", "/run/secrets/ca.crt", "--tls-auth-clients", "no", "--appendonly", "yes", "--appendfsync", "always", "--save", "", "--maxmemory-policy", "noeviction"]
+    command: ["redis-server", "--port", "0", "--tls-port", "6379", "--tls-cert-file", "/run/secrets/chat-redis.crt", "--tls-key-file", "/run/secrets/chat-redis.key", "--tls-ca-cert-file", "/run/secrets/ca.crt", "--tls-auth-clients", "no", "--aclfile", "/run/secrets/chat-redis.acl", "--appendonly", "yes", "--appendfsync", "always", "--save", "", "--maxmemory-policy", "noeviction"]
+    environment:
+      # Solo para la comprobación de salud, que se autentica como el usuario chat.
+      REDISCLI_AUTH: ${CHAT_REDIS_PASSWORD:?Run python3 infra/local/dev.py init}
     volumes:
       - chat-db:/data
       - ${P1_STATE}/chat-redis.crt:/run/secrets/chat-redis.crt:ro
       - ${P1_STATE}/chat-redis.key:/run/secrets/chat-redis.key:ro
       - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+      - ${P1_STATE}/chat-redis.acl:/run/secrets/chat-redis.acl:ro
     healthcheck:
-      test: ["CMD", "redis-cli", "--tls", "--cacert", "/run/secrets/ca.crt", "-h", "chat-db", "ping"]
+      test: ["CMD", "redis-cli", "--tls", "--cacert", "/run/secrets/ca.crt", "-h", "chat-db", "--user", "chat", "ping"]
       interval: 5s
       timeout: 3s
       retries: 12
@@ -112,7 +117,7 @@ services:
     image: streaming-local-chat
     build: ./services/chat
     environment:
-      CHAT_REDIS_URL: rediss://chat-db:6379/0
+      CHAT_REDIS_URL: rediss://chat:${CHAT_REDIS_PASSWORD:?Run python3 infra/local/dev.py init}@chat-db:6379/0
       CHAT_DATABASE_URL: postgres://chat:${CHAT_DB_PASSWORD:?Run python3 infra/local/dev.py init}@chat-pg:5432/chat?sslmode=verify-full&sslrootcert=/run/secrets/ca.crt
       SSL_CERT_FILE: /run/secrets/ca.crt
       CHAT_ALLOWED_ORIGINS: ${WEB_ORIGIN:?Run init}

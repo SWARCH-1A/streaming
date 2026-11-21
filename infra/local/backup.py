@@ -12,6 +12,8 @@ import json
 import os
 from pathlib import Path
 import re
+import runpy
+import secrets
 import subprocess
 import socket
 import shutil
@@ -22,6 +24,7 @@ ROOT = Path(__file__).resolve().parents[2]
 STATE = ROOT / 'infra/p1/.state-local'
 PROJECT = 'streaming-local'
 HELPER = 'alpine:3.23'
+MOUNTED = ('.crt', '.key', '.p12', '.acl')
 
 
 def docker(*args, timeout=180):
@@ -89,7 +92,7 @@ def backup(target):
         config = target / 'config'
         config.mkdir(mode=0o700)
         for source in sorted(STATE.iterdir()):
-            if not source.is_file() or not (source.name in ('environment.env', 'broker-definitions.json', 'owner.json', 'Caddyfile') or source.suffix in ('.crt', '.key', '.p12')):
+            if not source.is_file() or not (source.name in ('environment.env', 'broker-definitions.json', 'owner.json', 'Caddyfile') or source.suffix in MOUNTED):
                 continue
             path = config / source.name
             path.write_bytes(source.read_bytes())
@@ -141,6 +144,22 @@ def restore(source, prefix, start=False):
         start_restored(source, prefix, manifest)
 
 
+def ensure_chat_redis_credential(state, env):
+    """Backups made before ADR-029 lack the Chat Redis credential: create it for the restored copy only.
+
+    A restored copy keeps its own state directory, so running init on the original installation
+    would not help. An existing password is kept and only its ACL is rebuilt.
+    """
+    acl = state / 'chat-redis.acl'
+    if env.get('CHAT_REDIS_PASSWORD') and acl.is_file():
+        return
+    chat = runpy.run_path(str(ROOT / 'infra/local/chat_config.py'))
+    if not env.get('CHAT_REDIS_PASSWORD'):
+        env['CHAT_REDIS_PASSWORD'] = secrets.token_urlsafe(36)
+    acl.write_text(chat['redis_acl'](env['CHAT_REDIS_PASSWORD']))
+    acl.chmod(0o644)
+
+
 def start_restored(source, prefix, manifest):
     """Launch only fresh restored volumes on a separate network and unused loopback ports."""
     if not (source / 'config/Caddyfile').is_file() or not manifest.get('images'):
@@ -150,8 +169,11 @@ def start_restored(source, prefix, manifest):
     for entry in manifest['config']:
         target = state / entry['file']
         shutil.copyfile(source / 'config' / entry['file'], target)
-        target.chmod(0o600)
+        # Same modes as the installation (infra/p1/manage.py): files bind-mounted into containers that run as
+        # their own user stay readable, protected by the 0700 state directory; the CA key is never mounted.
+        target.chmod(0o644 if target.suffix in MOUNTED and target.name != 'ca.key' else 0o600)
     env = dict(line.split('=', 1) for line in (state / 'environment.env').read_text().splitlines() if '=' in line)
+    ensure_chat_redis_credential(state, env)
     networks = docker('network', 'ls', '-q').split()
     occupied = [ipaddress.ip_network(config['Subnet']) for network in json.loads(docker('network', 'inspect', *networks))
                 for config in (network.get('IPAM', {}).get('Config') or []) if config.get('Subnet')]
