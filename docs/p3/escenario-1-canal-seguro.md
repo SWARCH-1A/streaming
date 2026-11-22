@@ -41,7 +41,7 @@ Un atacante conectado a la misma red que Vault tv captura el tráfico entre el n
 
 **Cambio en el Prototipo 3.** Caddy ahora envía la cabecera `Strict-Transport-Security` (HSTS). Con ella, el navegador recuerda que Vault tv solo funciona con HTTPS: si alguien escribe `http://` o un atacante intenta bajar la conexión a HTTP, el navegador usa HTTPS sin preguntar, y no deja continuar si el certificado es inválido.
 
-- El valor por defecto es `max-age=300` (5 minutos), porque el despliegue local usa `localhost` y un valor largo afectaría a otras aplicaciones locales del mismo equipo. Con un dominio real se usaría `max-age=31536000` (un año) con la variable `HSTS_MAX_AGE`.
+- El valor por defecto es `max-age=300` (5 minutos), porque el despliegue local usa `localhost` y un valor largo afectaría a otras aplicaciones locales del mismo equipo. Con un dominio real se usaría `max-age=31536000` (un año): `HSTS_MAX_AGE=31536000 python3 infra/local/dev.py up`. El script escribe ese valor en el Caddyfile que genera en cada `up`, así que los contenedores de Caddy no necesitan la variable.
 - La prueba `test_public_origin_sends_hsts_on_every_profile` (`infra/p1/test_profiles.py`) comprueba que la cabecera está en los tres perfiles de despliegue.
 
 ## Evidencia

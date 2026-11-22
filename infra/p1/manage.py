@@ -50,8 +50,12 @@ def render_proxy():
         raise RuntimeError("Review P1 TLS renderer after reverse-proxy structure changes")
     # Secure Channel (P3): the public origin is HTTPS-only and HSTS tells browsers never to fall back to HTTP.
     # Short default max-age because the local origin is localhost; a real domain would use 31536000.
+    # The value is written into the generated Caddyfile, so the Caddy containers need no extra environment.
+    hsts_max_age = os.environ.get("HSTS_MAX_AGE", "300")
+    if not hsts_max_age.isdigit():
+        raise RuntimeError("HSTS_MAX_AGE must be a whole number of seconds")
     source = source.replace(":3000 {", "https://localhost:3443 {\n  tls /run/secrets/web.crt /run/secrets/web.key\n"
-                            "  header Strict-Transport-Security \"max-age={$HSTS_MAX_AGE:300}\"")
+                            f"  header Strict-Transport-Security \"max-age={int(hsts_max_age)}\"")
     source = source.replace("      transport http {\n        response_header_timeout 10s\n      }\n", "")
     for name in ("CORE", "STREAMING", "CHAT", "HLS", "NOTIFICATIONS", "VOD", "GATEWAY", "WEB"):
         source = source.replace("{$" + name + "_UPSTREAM:http:" , "{$" + name + "_UPSTREAM:https:")
