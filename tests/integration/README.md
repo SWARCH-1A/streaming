@@ -31,3 +31,7 @@ Backup/restauración y validación de checksums están en [infra/local](../../in
 El smoke RabbitMQ usa `python infra/broker/smoke_test.py` y crea/limpia exclusivamente su proyecto
 aleatorio. Los logs, capturas, fuentes audiovisuales y claves de estos recorridos permanecen
 fuera de Git. Consultar cada runner antes de ejecutarlo y detener emisiones ficticias al finalizar.
+
+La [aceptación de segmentación P3](network-segmentation/README.md) verifica el modelo Compose,
+conexiones TCP permitidas/bloqueadas por DNS e IP y un smoke del despliegue real TLS.
+Ambos escenarios Docker son desechables e independientes de la instalación local.

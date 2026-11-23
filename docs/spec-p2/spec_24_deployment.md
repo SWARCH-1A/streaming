@@ -42,6 +42,9 @@ S3 compatible; MinIO es el proveedor local fijado por ADR-022; el tamaño de dis
 - [ ] CA-07: inventario acredita mínimos con artefactos ejecutados y criterio docente; no cuenta módulos Core como procesos o el broker como BD de negocio.
 - [ ] CA-08: logs/métricas permiten seguir requestId/eventId/deliveryId, cola/DLQ y fallos parciales sin tokens ni payloads privados.
 - [ ] CA-09: los recorridos de SPEC-15 funcionan con dependencias detenidas y después de recuperarlas.
+- [x] CA-10 (P3): cada almacén solo admite conexiones desde sus propietarios; Gateway/SSR no
+  alcanzan bases ni broker y la API de Auditor queda fuera de la mensajería general.
+  La aceptación verifica tanto DNS como IP directa y conserva las dependencias necesarias.
 
 ## 7. Diseño técnico y datos
 
@@ -54,6 +57,15 @@ Secretos fuera de Git, logs y assets SSR/móvil. Contenedores con redes/listener
 S3 y bases tienen credenciales por responsabilidad. Política de almacenamiento de Chat y motores
 VOD/Notificaciones deben soportar recuperación y el inventario de cuatro componentes de datos.
 Bases lógicas dentro de un solo motor no se cuentan automáticamente como componentes distintos.
+
+El despliegue completo aplica [ADR-030](../adr/ADR-030-segmentacion-red.md): pertenencia
+explícita a redes por API, mensajería, medios, SMTP y almacén. Cada PostgreSQL/Redis comparte
+únicamente su red interna con el proceso propietario; MinIO admite VOD, el grabador lector y
+el inicializador. Auditor tiene redes separadas de datos, consulta con Core y conexión al broker.
+La [matriz y vista P3](../p3/segmentacion-red.md) define los miembros exactos de las 14 redes.
+La zona API conserva `default`, su IPAM y las IP fijas confiables; no admite almacenes.
+Las bridges no filtran puertos entre sus miembros: se conservan TLS, tokens y ACL existentes.
+La aceptación reproducible está en [las pruebas de segmentación](../../tests/integration/network-segmentation/README.md).
 
 El dominio usa HTTPS. Local conserva autenticación y aislamiento con un arranque sencillo;
 el perfil completo se ejecuta con `python3 infra/local/dev.py init/build/up/status`. Se documenta qué

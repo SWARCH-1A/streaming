@@ -20,6 +20,10 @@ el diseño; la implementación y las pruebas se acreditan por separado.
 contratos y criterios; [ADR-028](adr/ADR-028-security-logger-auditor.md) registra la decisión.
 [Servicio y ejecución](../services/audit/README.md). P2 conserva las funciones anteriores.
 
+La [segmentación P3](p3/segmentacion-red.md) define el escenario de movimiento lateral,
+la matriz de redes y su vista de despliegue. [ADR-030](adr/ADR-030-segmentacion-red.md)
+registra la decisión; [pruebas](../tests/integration/network-segmentation/README.md).
+
 ## Documentación de P1
 
 Las [SPEC P1](spec-p1/README.md), los [recorridos P1](matriz_recorridos_p1.md), la
