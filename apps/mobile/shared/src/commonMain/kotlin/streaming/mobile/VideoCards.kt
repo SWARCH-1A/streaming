@@ -32,11 +32,11 @@ fun videoDuration(milliseconds: Long): String {
 
 @Composable
 fun VodCard(api: Api, vod: P2Vod, category: String? = null, navigate: (String) -> Unit) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Panel)
         .clickable(role = Role.Button, onClickLabel = "Reproducir ${vod.title}") { navigate("vod:${vod.vodId}") },
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
         VodThumbnail(api, vod)
-        Column(Modifier.padding(horizontal = 2.dp, vertical = 2.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(vod.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Grabación", color = Muted, style = MaterialTheme.typography.bodySmall)
@@ -61,7 +61,7 @@ private fun VodThumbnail(api: Api, vod: P2Vod) {
             bytes.decodeToImageBitmap()
         }.onSuccess { image = it }.onFailure { failed = true }
     }
-    Box(Modifier.fillMaxWidth().aspectRatio(16f / 9).clip(RoundedCornerShape(12.dp)).background(Panel), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxWidth().aspectRatio(16f / 9).background(Surface), contentAlignment = Alignment.Center) {
         val bitmap = image
         if (bitmap != null) Image(bitmap, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
         else {

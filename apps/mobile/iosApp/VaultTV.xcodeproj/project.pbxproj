@@ -178,6 +178,7 @@
 				INFOPLIST_FILE = Info.plist;
 				MARKETING_VERSION = 0.1.0;
 				ONLY_ACTIVE_ARCH = YES;
+				DEAD_CODE_STRIPPING = YES;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-framework",

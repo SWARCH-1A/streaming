@@ -1,8 +1,9 @@
 # Vault tv mobile
 
 Cliente Android/iOS de [SPEC-19](../../docs/spec-p2/spec_19_mobile.md), con UI Compose compartida
-y adaptadores nativos. La referencia visual es `apps/web` en viewport móvil: colores Vault,
-marca original, Inter y Plus Jakarta Sans. Las fuentes proceden de Google Fonts y conservan
+y adaptadores nativos. La referencia visual es la biblioteca y las vistas móviles del
+[proyecto Stitch](https://stitch.withgoogle.com/projects/16622161280155871604): superficies oscuras,
+acento lavanda, marca original, Inter y Plus Jakarta Sans. Las fuentes proceden de Google Fonts y conservan
 sus licencias OFL en `shared/src/commonMain/composeResources/font`.
 
 ## Cobertura
@@ -16,12 +17,15 @@ autocorrección y capitalización. Login distingue credenciales rechazadas de un
 un 429 muestra cuenta atrás y respeta `Retry-After` antes de reenviar ese identificador. Volver
 a la pantalla conserva esa espera en memoria; las cuotas y el bloqueo efectivo siguen en Core.
 
-La navegación incluye Siguiendo, Bandeja, preferencias generales/por canal y biblioteca VOD.
+La barra inferior ofrece Explorar, Buscar, Videos, Siguiendo y Bandeja. Con texto del sistema
+ampliado conserva los cinco iconos con etiquetas accesibles completas, evitando etiquetas visuales
+cortadas. Cuenta y preferencias completan la navegación. `DesignComponents.kt` centraliza iconos,
+botones, campos, filtros, paneles y estados vacíos; las pantallas comparten tarjetas y espaciado.
 La biblioteca muestra tarjetas con miniaturas reales y duración, búsqueda y filtros horizontales.
 Las miniaturas se solicitan al entrar en pantalla y conservan un estado alternativo si fallan;
 ese fallo no impide abrir el video. La cabecera mantiene la marca sin desplazarla con «Volver».
 Live/VOD se cierran deslizando el video hacia abajo; la franja inferior también permite ese gesto
-y ofrece una acción accesible de cierre. iOS usa audio multimedia (`Playback`/`MoviePlayback`),
+y ofrece un botón visible y una acción accesible de cierre. iOS usa audio multimedia (`Playback`/`MoviePlayback`),
 también con el modo silencio activo, y libera la sesión al salir o pasar a segundo plano.
 No cambia el volumen ni fuerza la ruta de salida. Calidad queda debajo, sin tapar los controles nativos
 de volumen, transporte y pantalla completa de iOS. En VOD el título queda debajo del video
@@ -91,7 +95,9 @@ xcrun simctl launch <UDID> dev.swarch.vault
 ```
 
 El script compila el framework Kotlin, enlaza el host UIKit con el SDK de Xcode, copia los recursos
-Compose y firma ad hoc el bundle del simulador. No necesita CocoaPods ni XcodeGen. Keychain conserva
+Compose y firma ad hoc el bundle del simulador. Tanto el script como Xcode eliminan código nativo
+no utilizado al enlazar: evita importar constantes de SDK recientes desde wrappers Kotlin/Native
+que la app no usa y que pueden impedir el arranque en versiones anteriores de iOS. No necesita CocoaPods ni XcodeGen. Keychain conserva
 la sesión con protección WhenUnlockedThisDeviceOnly; AVPlayer ofrece controles y calidades reales.
 
 `python3 iosApp/build.py --device --origin https://servidor.example` compila arm64 para iPhone físico.
@@ -143,12 +149,24 @@ iPhone requieren comprobación en el dispositivo. Las pruebas VOD aisladas compr
 segmento, caché acotada y denegación de miniaturas de borradores/suspendidos, incluso con caché
 caliente. Esta evidencia de simulador no acredita el recorrido audiovisual del iPhone físico.
 
-Las 23 pruebas compartidas y el APK Android pasan después del ajuste de paginación de replay.
-La compilación del host iOS acredita compilación; los nuevos recorridos comunitarios/VOD no se
-han ejecutado en iOS. La matriz de octubre conserva su fecha y no acredita push, dispositivo
-físico ni accesibilidad humana. Core y contratos tienen sus suites separadas.
+Verificación del rediseño del 2026-11-22: pasan 30 pruebas (26 de lógica y cuatro de presentación),
+APK Android debug, compilación Kotlin iOS arm64 y host UIKit de simulador. En iOS 18.5 se instaló
+la app final y cargó Exploración contra el backend HTTPS real. Se corrigió un cierre de arranque
+por `_kCGAdaptiveMaximumBitDepth`: el enlazador elimina wrappers nativos no utilizados y el binario
+final ya no importa esa constante. También se verificó arranque en iOS 27.1 simulado.
 
-Las pruebas compartidas corren con `./gradlew :shared:desktopTest`; cubren generación de sesión,
+En Android API 31 se instaló el APK y se recorrieron login, registro, Videos y Siguiendo sin sesión.
+La UI presenta correctamente el fallo de red: ese emulador no resuelve el origen LAN `.local`;
+esta ejecución no acredita un recorrido autenticado ni reproducción real. Se mantienen las
+verificaciones audiovisuales anteriores con sus fechas. Los recorridos autenticados no se han
+repetido para este rediseño en iOS; push, dispositivo físico y accesibilidad humana conservan sus
+pendientes. Core y contratos tienen sus suites separadas.
+
+Las pruebas compartidas corren con `./gradlew :shared:desktopTest`. Las pruebas de escritorio de
+presentación renderizan Compose real con datos ficticios y guardan PNG en
+`shared/build/reports/mobile-layout`: formularios verticales/horizontales, navegación de 320 dp
+con texto al 180 %, tarjetas de títulos largos, comunidad sin sesión y reproducción no disponible.
+Las pruebas de lógica cubren generación de sesión,
 401 antiguos, persistencia, serialización canónica, ausencia de Cookie/Origin, restricciones de URLs,
 normalización Unicode, orden, huecos y supresiones del chat. Core y Chat tienen suites propias para
 Bearer/revocación/CSRF/Upgrade. También se prueban la recuperación del lease expirado sin perder

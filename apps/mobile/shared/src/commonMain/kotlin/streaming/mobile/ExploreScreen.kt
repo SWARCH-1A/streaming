@@ -56,47 +56,45 @@ fun ExploreScreen(api: Api, search: Boolean, foreground: Boolean, navigate: (Str
             delay((2000 - started.elapsedNow().inWholeMilliseconds).coerceAtLeast(0))
         }
     }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        item { SectionHeading(if (search) "Encuentra tu comunidad" else "Explorar transmisiones", "En vivo, a tu ritmo.") }
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        item { ScreenTitle(if (search) "Buscar" else "Descubre tu próximo directo", if (search) "Canales y transmisiones en un solo lugar." else "En vivo. En comunidad.") }
+        item { SearchField(query, { query = it.take(120) }, "Buscar canales o transmisiones") }
         item {
-            OutlinedTextField(query, { query = it }, label = { Text("Buscar canales o transmisiones") },
-                singleLine = true, modifier = Modifier.fillMaxWidth())
+            CatalogFilters(taxonomy, category, tag, { category = it }, { tag = it })
+            catalogError?.let { Notice("No se pudieron cargar los filtros. $it", true) }
         }
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Categoría", style = MaterialTheme.typography.labelLarge)
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(category == null, { category = null }, label = { Text("Todas") })
-                    taxonomy?.categories?.forEach { item -> FilterChip(category == item.id, { category = item.id }, label = { Text(item.name) }) }
-                }
-                Text("Etiqueta", style = MaterialTheme.typography.labelLarge)
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(tag == null, { tag = null }, label = { Text("Todas") })
-                    taxonomy?.tags?.forEach { item -> FilterChip(tag == item.id, { tag = item.id }, label = { Text(item.name) }) }
-                }
-                catalogError?.let { Notice("Catálogo: $it", true) }
-            }
-        }
-        failure?.let { item { Column { Notice(it, true); TextButton(onClick = { retry++ }) { Text("Reintentar") } } } }
-        if (result == null && failure == null) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+        failure?.let { item { EmptyState("No pudimos cargar el catálogo", it, Glyph.Alert, "Reintentar") { retry++ } } }
+        if (result == null && failure == null) item { LoadingCards() }
         channelError?.let { item { Notice("Canales: $it", true) } }
         if (search) channels?.let { page ->
-            item { SectionHeading("Canales encontrados") }
+            item { SectionHeading("Canales", if (query.isBlank()) "Encuentra una comunidad para seguir." else "Resultados para «$query»") }
             items(page.items(), key = { "channel:${it.string("channelId")}" }) { item ->
                 ChannelRow(api, item) { navigate("channel:${item.string("handle")}") }
             }
-            if (page.items().isEmpty()) item { Notice("No encontramos canales. Prueba otro nombre.") }
-            page.string("nextCursor")?.let { next -> item { OutlinedButton(onClick = { channelCursor = next }) { Text("Más canales") } } }
+            if (page.items().isEmpty()) item { EmptyState("Sin canales encontrados", "Prueba con otro nombre o usuario.") }
+            page.string("nextCursor")?.let { next -> item { VaultSecondaryButton(onClick = { channelCursor = next }, modifier = Modifier.fillMaxWidth()) { Text("Más canales") } } }
         }
         result?.let { page ->
-            item { SectionHeading("Transmisiones en vivo", "Más populares") }
+            val streams = page.items()
             if (page["statusFresh"]?.jsonPrimitive?.booleanOrNull == false) item { Notice("El estado de las emisiones no está actualizado.") }
-            items(page.items(), key = { it.string("streamId").orEmpty() }) { item ->
+            if (!search && streams.isNotEmpty()) {
+                item { SectionHeading("Destacado ahora") }
+                item(key = "featured:${streams.first().string("streamId")}") {
+                    val stream = streams.first()
+                    StreamCard(api, stream, { navigate("watch:${stream.string("streamId")}") },
+                        { navigate("channel:${stream.getValue("channel").jsonObject.string("handle")}") }, featured = true)
+                }
+            }
+            if (search || streams.size != 1) item { SectionHeading("Canales en vivo", "Por popularidad") }
+            items(if (search) streams else streams.drop(1), key = { it.string("streamId").orEmpty() }) { item ->
                 StreamCard(api, item, { navigate("watch:${item.string("streamId")}") },
                     { navigate("channel:${item.getValue("channel").jsonObject.string("handle")}") })
             }
-            if (page.items().isEmpty()) item { Notice("No encontramos transmisiones. Prueba otra búsqueda o elimina los filtros.") }
-            page.string("nextCursor")?.let { next -> item { OutlinedButton(onClick = { cursor = next }) { Text("Más transmisiones") } } }
+            if (streams.isEmpty()) item {
+                EmptyState("No hay transmisiones aquí", "Prueba otra búsqueda o elimina los filtros.", Glyph.Video,
+                    if (query.isNotEmpty() || category != null || tag != null) "Limpiar filtros" else null) { query = ""; category = null; tag = null }
+            }
+            page.string("nextCursor")?.let { next -> item { VaultSecondaryButton(onClick = { cursor = next }, modifier = Modifier.fillMaxWidth()) { Text("Más transmisiones") } } }
         }
     }
 }
