@@ -49,9 +49,33 @@ services:
       broker:
         condition: service_healthy
     restart: unless-stopped
+  # ADR-032: publishes WAF blocks as security.audit.waf.v1. It shares only the spool volume with the
+  # WAF (which stays on edge) and an exclusive bridge with the broker: no producer, store or Auditor.
+  waf-relay:
+    networks:
+      waf-messaging: {}
+    image: streaming-local-waf-relay
+    build: ./services/waf-relay
+    environment:
+      WAF_RELAY_BROKER_URL: amqps://waf:${BROKER_WAF_PASSWORD:?Run python3 infra/local/dev.py init}@broker:5671/streaming-p2?heartbeat=30
+      WAF_RELAY_BROKER_CA_FILE: /run/secrets/ca.crt
+      WAF_RELAY_SPOOL: /spool
+      WAF_RELAY_MAX_BACKLOG: "5000"
+    volumes:
+      - waf-audit:/spool
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      broker:
+        condition: service_healthy
+    restart: unless-stopped
   broker:
     networks:
       audit-messaging: {}
+      waf-messaging: {}
   core:
     networks:
       audit-query: {}
@@ -64,6 +88,9 @@ services:
       VOD_AUDIT_ENABLED: "true"
 networks:
   audit-messaging:
+    driver: bridge
+    internal: true
+  waf-messaging:
     driver: bridge
     internal: true
   audit-data:

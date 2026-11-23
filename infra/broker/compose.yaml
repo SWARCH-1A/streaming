@@ -4,6 +4,9 @@ services:
       messaging: {}
     image: rabbitmq:4.3.7-management@sha256:79fb281ef7e0a15e3c5e0e12e66e944cebbf14a129493ef464369abd2c48d01a
     hostname: broker
+    labels:
+      # Definitions load only at boot; their fingerprint (set by manage.py) recreates the broker on change.
+      streaming.broker-definitions: ${BROKER_DEFINITIONS_SHA256:-}
     environment:
       RABBITMQ_NODENAME: rabbit@broker
     volumes:

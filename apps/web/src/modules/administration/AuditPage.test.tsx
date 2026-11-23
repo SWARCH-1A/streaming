@@ -109,6 +109,49 @@ it('paginates with cursors, preserves date bounds and resets paging and detail w
   ).toBe(false);
 });
 
+it('filters WAF blocks and names the attack without a verified identity', async () => {
+  const blocked: P2AuditPage['items'][number] = {
+    position: '9',
+    receivedAtUtc: '2026-11-22T12:00:01Z',
+    event: {
+      eventId: '00000000-0000-5000-8000-000000000009',
+      eventType: 'security.audit.waf.v1',
+      schemaVersion: 1,
+      aggregateId: 'audit:00000000-0000-5000-8000-000000000009',
+      sequence: 1,
+      occurredAtUtc: '2026-11-22T12:00:00Z',
+      producer: 'waf',
+      correlationId: '2ef5522f57c4fe9648f2d11c094825dc',
+      payload: {
+        actorId: null,
+        action: 'WAF_BLOCK',
+        targetType: 'ROUTE',
+        targetId: 'api_taxonomy',
+        outcome: 'DENIED',
+        reasonCode: 'SQL_INJECTION',
+      },
+    },
+  };
+  vi.mocked(request).mockResolvedValue({ items: [blocked], nextCursor: null });
+  const user = userEvent.setup();
+  mount();
+  const row = (await screen.findByText('api_taxonomy')).closest('tr')!;
+  expect(within(row).getByText('WAF')).toBeInTheDocument();
+  expect(within(row).getByText('Bloqueo del WAF')).toBeInTheDocument();
+  expect(within(row).getByText('Inyección SQL')).toBeInTheDocument();
+  expect(within(row).getByText('Identidad no verificada')).toBeInTheDocument();
+  expect(within(row).getByText('Denegado')).toBeInTheDocument();
+  await user.selectOptions(screen.getByLabelText('Servicio'), 'waf');
+  await user.click(screen.getByRole('button', { name: 'Buscar eventos' }));
+  await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
+  const query = new URL(vi.mocked(request).mock.calls[1]![0], 'https://fixture.test').searchParams;
+  expect(query.get('producer')).toBe('waf');
+  await user.click(await screen.findByRole('button', { name: 'Ver detalle del evento 9' }));
+  const detail = screen.getByRole('region', { name: /detalle/i });
+  expect(within(detail).getByText('2ef5522f57c4fe9648f2d11c094825dc')).toBeInTheDocument();
+  expect(within(detail).getByText('Tipo de ataque')).toBeInTheDocument();
+});
+
 it('returns focus to the selected event when closing its details', async () => {
   const user = userEvent.setup();
   mount();

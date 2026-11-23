@@ -38,6 +38,7 @@ proyecto. `internal` indica aislamiento externo de la red, además de la pertene
 | `vod-storage` | minio, vod, media-recorder, minio-init | Sí |
 | `messaging` | broker, core, live, chat, vod, notifications, media-recorder, broker-ops | Sí |
 | `audit-messaging` | broker, audit | Sí |
+| `waf-messaging` | broker, waf-relay | Sí |
 | `audit-query` | core, audit | Sí |
 | `media` | live, media-server, media-recorder, vod | No |
 | `smtp` | notifications, mailpit | No |
@@ -68,6 +69,8 @@ flowchart TB
   N --- ND{{notifications-data}} --- NDB[(notifications-db)]
   MSG{{red messaging}} --- C & L & CH & V & N & R[media-recorder] & B[broker] & Ops[broker-ops: tools]
   B --- AMSG{{audit-messaging}} --- A[audit: Logger y Auditor]
+  B --- WMSG{{waf-messaging}} --- WR[waf-relay]
+  WAF -.->|volumen waf-audit, sin red| WR
   C --- AQ{{audit-query}} --- A
   A --- AD{{audit-data}} --- ADB[(audit-db)]
   MEDIA{{red media}} --- L & MTX & R & V
@@ -82,7 +85,10 @@ publican puertos. `lan` solo amplía la publicación HTTPS como antes.
 ## Accesos y límites
 
 Gateway y SSR consultan APIs, sin conectividad a bases ni al broker. Los dominios producen
-o consumen eventos en `messaging`; Auditor usa el mismo broker por una bridge exclusiva.
+o consumen eventos en `messaging`; Auditor usa el mismo broker por una bridge exclusiva. `waf-relay`
+publica los bloqueos del WAF ([ADR-032](../adr/ADR-032-evidencia-waf-auditor.md)) por otra bridge
+exclusiva, `waf-messaging`: comparte con el WAF solo el volumen `waf-audit`, nunca una red, y no
+alcanza servicios, almacenes, otros productores ni el Auditor.
 Solo Core comparte `audit-query` con Auditor; la consulta pública pasa por la sesión ADMIN
 de Core. El propio broker comparte una red con Auditor y sigue dentro de la frontera de confianza.
 
@@ -98,8 +104,8 @@ El arranque recrea servicios con nuevas interfaces y puede interrumpir emisiones
 mantiene `default` y su IPAM para reutilizar la red previa y las IP de confianza del proxy/Gateway.
 
 La [aceptación reproducible](../../tests/integration/network-segmentation/README.md) distingue
-el aislamiento TCP con fixtures de la integración real TLS. El modelo completo incluye 15 redes
-y 24 servicios contando ambos auxiliares; el perfil normal no ejecuta `broker-ops`.
+el aislamiento TCP con fixtures de la integración real TLS. El modelo completo incluye 16 redes
+y 25 servicios contando ambos auxiliares; el perfil normal no ejecuta `broker-ops`.
 
 La verificación de esta contribución ejecutó 14 pruebas locales de infraestructura, la matriz
 TCP completa (108 accesos permitidos y 373 bloqueados), actualización desde la red única sin

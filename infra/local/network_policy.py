@@ -21,6 +21,8 @@ GROUPS = {
     'default': {'proxy', 'gateway', 'web', 'core', 'live', 'chat', 'vod', 'notifications'},
     'messaging': {'broker', 'core', 'live', 'chat', 'vod', 'notifications', 'media-recorder', 'broker-ops'},
     'audit-messaging': {'audit', 'broker'},
+    # ADR-032: the WAF relay reaches only the broker, never another producer's API.
+    'waf-messaging': {'waf-relay', 'broker'},
     'audit-query': {'core', 'audit'},
     'media': {'live', 'media-server', 'media-recorder', 'vod'},
     'smtp': {'notifications', 'mailpit'},
@@ -59,10 +61,15 @@ def validate(model):
     for store, (network, _) in STORES.items():
         assert networks(services[store]) == {network}, f'{store}: datastore attached elsewhere'
     assert networks(services['waf']) == {'edge'}, 'WAF reaches more than the reverse proxy'
+    # ADR-032: WAF evidence crosses only through the spool volume, never a shared network.
+    assert networks(services['waf-relay']) == {'waf-messaging'}, 'WAF relay attached beyond the broker'
+    spool = {name for name, service in services.items()
+             if any(v.get('type') == 'volume' and v.get('source') == 'waf-audit' for v in service.get('volumes', []))}
+    assert spool == {'waf', 'waf-relay'}, f'waf-audit spool shared with {sorted(spool)}'
     assert not (networks(services['gateway']) & networks(services['broker'])), 'Gateway reaches broker'
     assert not (networks(services['web']) & networks(services['broker'])), 'SSR reaches broker'
     # A common broker network would otherwise expose Audit HTTP to every producer.
-    for name in {'web', 'proxy', 'gateway', 'chat', 'live', 'vod', 'notifications', 'media-recorder'}:
+    for name in {'web', 'proxy', 'gateway', 'chat', 'live', 'vod', 'notifications', 'media-recorder', 'waf-relay'}:
         assert not (networks(services[name]) & networks(services['audit'])), f'{name}: reaches private Auditor'
 
 

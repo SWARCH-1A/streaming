@@ -19,7 +19,9 @@ import {
   type AuditEntry,
   type AuditFilters,
   auditPayload,
+  auditProducers,
   auditQuery,
+  auditReason,
   auditTime,
   defaultAuditFilters,
 } from './auditQuery';
@@ -105,9 +107,7 @@ export function AuditPage() {
           >
             <div className={styles.sectionHeader}>
               <h2>Consultar actividad</h2>
-              <p>
-                Eventos de seguridad de Core y VOD. Los registros del WAF se consultan por separado.
-              </p>
+              <p>Eventos de seguridad de Core y VOD, y solicitudes bloqueadas por el WAF.</p>
             </div>
             <div className={styles.filterGrid}>
               <FormField id="audit-range" label="Período">
@@ -133,6 +133,7 @@ export function AuditPage() {
                   <option value="">Todos los servicios disponibles</option>
                   <option value="core">Core</option>
                   <option value="vod">VOD</option>
+                  <option value="waf">WAF (ataques bloqueados)</option>
                 </Select>
               </FormField>
               <FormField id="audit-action" label="Acción">
@@ -342,11 +343,14 @@ export function AuditPage() {
                                 {auditTime(entry.event.occurredAtUtc)}
                               </time>
                               <span className={styles.service}>
-                                {entry.event.producer === 'core' ? 'Core' : 'VOD'}
+                                {auditProducers[entry.event.producer]}
                               </span>
                             </td>
                             <td>
                               <span className={styles.action}>{auditActions[payload.action]}</span>
+                              {entry.event.producer === 'waf' ? (
+                                <span className={styles.service}>{auditReason(entry)}</span>
+                              ) : null}
                               <span className={styles.identifier}>{payload.targetId}</span>
                             </td>
                             <td>

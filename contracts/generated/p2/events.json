@@ -86,5 +86,13 @@
     "spec": ["SPEC-25", "SPEC-17", "SPEC-10"],
     "status": "contract-ready",
     "subscriptions": ["audit.vod"]
+  },
+  {
+    "eventType": "security.audit.waf.v1",
+    "producers": ["waf"],
+    "schema": "P2EventSecurityAuditWaf",
+    "spec": ["SPEC-25", "SPEC-16", "SPEC-10"],
+    "status": "contract-ready",
+    "subscriptions": ["audit.waf"]
   }
 ]

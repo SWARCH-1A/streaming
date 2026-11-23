@@ -5,7 +5,7 @@ REVOKE ALL ON SCHEMA public FROM PUBLIC;
 CREATE TABLE audit.events (
  position bigint GENERATED ALWAYS AS IDENTITY UNIQUE,
  event_id uuid PRIMARY KEY,
- producer text NOT NULL CHECK (producer IN ('core','vod')),
+ producer text NOT NULL CONSTRAINT events_producer_check CHECK (producer IN ('core','vod','waf')),
  actor_id text,
  action text NOT NULL,
  target_type text NOT NULL,

@@ -62,7 +62,7 @@ El despliegue completo aplica [ADR-030](../adr/ADR-030-segmentacion-red.md): per
 explícita a redes por API, mensajería, medios, SMTP y almacén. Cada PostgreSQL/Redis comparte
 únicamente su red interna con el proceso propietario; MinIO admite VOD, el grabador lector y
 el inicializador. Auditor tiene redes separadas de datos, consulta con Core y conexión al broker.
-La [matriz y vista P3](../p3/segmentacion-red.md) define los miembros exactos de las 15 redes.
+La [matriz y vista P3](../p3/segmentacion-red.md) define los miembros exactos de las 16 redes.
 La zona API conserva `default`, su IPAM y las IP fijas confiables; no admite almacenes.
 Las bridges no filtran puertos entre sus miembros: se conservan TLS, tokens y ACL existentes.
 La aceptación reproducible está en [las pruebas de segmentación](../../tests/integration/network-segmentation/README.md).

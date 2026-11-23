@@ -4,7 +4,7 @@ export type AuditEntry = P2AuditPage['items'][number];
 export type AuditRange = '24h' | '1h' | '7d' | 'custom';
 export interface AuditFilters {
   range: AuditRange;
-  producer: '' | 'core' | 'vod';
+  producer: '' | AuditEntry['event']['producer'];
   outcome: '' | P2SecurityAuditPayload['outcome'];
   action: '' | P2SecurityAuditPayload['action'];
   actorId: string;
@@ -21,7 +21,44 @@ export const auditActions = {
   VOD_PUBLISH: 'Publicación de grabación',
   VOD_DELETE: 'Eliminación de grabación',
   VOD_REMOVE: 'Retirada administrativa',
+  WAF_BLOCK: 'Bloqueo del WAF',
 } satisfies Record<P2SecurityAuditPayload['action'], string>;
+
+export const auditProducers = {
+  core: 'Core',
+  vod: 'VOD',
+  waf: 'WAF',
+} satisfies Record<AuditEntry['event']['producer'], string>;
+
+// OWASP CRS families reported by the WAF relay (ADR-032); other producers keep their raw code.
+const wafReasons: Record<string, string> = {
+  SQL_INJECTION: 'Inyección SQL',
+  XSS: 'Cross-site scripting (XSS)',
+  PATH_TRAVERSAL: 'Recorrido de rutas / inclusión local',
+  REMOTE_FILE_INCLUSION: 'Inclusión remota de archivos',
+  COMMAND_INJECTION: 'Ejecución remota de comandos',
+  PHP_INJECTION: 'Inyección PHP',
+  JAVA_INJECTION: 'Inyección Java',
+  GENERIC_INJECTION: 'Inyección genérica',
+  SESSION_FIXATION: 'Fijación de sesión',
+  SCANNER_DETECTION: 'Escáner de vulnerabilidades',
+  PROTOCOL_VIOLATION: 'Violación del protocolo HTTP',
+  PROTOCOL_ATTACK: 'Ataque al protocolo HTTP',
+  MULTIPART_ATTACK: 'Ataque multipart',
+  METHOD_ENFORCEMENT: 'Método HTTP no permitido',
+  DATA_LEAKAGE: 'Fuga de información',
+  SQL_ERROR_LEAKAGE: 'Fuga de errores SQL',
+  JAVA_LEAKAGE: 'Fuga de errores Java',
+  PHP_LEAKAGE: 'Fuga de errores PHP',
+  IIS_LEAKAGE: 'Fuga de errores IIS',
+  WEB_SHELL: 'Web shell',
+  ANOMALY_THRESHOLD: 'Umbral de anomalía superado',
+};
+
+export function auditReason(entry: AuditEntry): string {
+  const code = auditPayload(entry).reasonCode;
+  return entry.event.producer === 'waf' ? (wafReasons[code] ?? code) : code;
+}
 
 export function defaultAuditFilters(): AuditFilters {
   return {

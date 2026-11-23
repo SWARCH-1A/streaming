@@ -12,18 +12,21 @@ python3 tests/integration/network-segmentation/smoke.py
 python3 tests/integration/network-segmentation/smoke.py --skip-build
 ```
 
+Docker tiene un número limitado de rangos de red predefinidos: con el stack local levantado puede
+faltar espacio para el fixture; `python3 infra/local/dev.py down` (conserva volúmenes) lo libera.
+
 Las dos primeras verificaciones resuelven los Compose reales con secretos ficticios y no
 requieren daemon. Rechazan conexiones extra de almacenes, puertos publicados inesperados,
 red de host, contenedores privilegiados, pérdida de redes internas y acceso amplio a Auditor.
 
 `run.py` copia las conexiones/IPAM del modelo completo, incluido el perfil `tools`, a un proyecto
-aleatorio de 23 contenedores y 14 bridges. Sustituye procesos por listeners TCP Python 3.13 Alpine
+aleatorio de 25 contenedores y 16 bridges. Sustituye procesos por listeners TCP Python 3.13 Alpine
 en sus puertos reales, sin credenciales ni volúmenes de instalación. Comprueba cada almacén desde
 todos los otros servicios por DNS e IP directa, acceso de sus propietarios, dependencias API,
-medios, SMTP y AMQP, exclusión del Gateway/SSR/proxy del broker, y acceso exclusivo de Core
-a la API de Auditor entre aplicaciones. Espera a los listeners antes de verificar los bloqueos.
+medios, SMTP y AMQP, exclusión del Gateway/SSR/proxy del broker, acceso exclusivo de Core
+a la API de Auditor entre aplicaciones y aislamiento de `waf-relay` (solo broker, ADR-032). Espera a los listeners antes de verificar los bloqueos.
 Comprueba los tres puertos publicados mediante puertos loopback aleatorios y elimina solo su proyecto.
-Salida: 108 conexiones permitidas y 373 bloqueadas. Acredita la política de red con tráfico real;
+Salida: 112 conexiones permitidas y 489 bloqueadas. Acredita la política de red con tráfico real;
 no acredita protocolos de aplicación, grabación ni carga.
 
 `--upgrade` inicia primero esos mismos fixtures en la antigua red única y aplica después

@@ -1,6 +1,6 @@
 # Security Logger y Auditor — Vault TV P3
 
-Recibe evidencia Core/VOD desde RabbitMQ y conserva eventos en PostgreSQL propio. La consulta
+Recibe evidencia de Core, VOD y del WAF (vía `waf-relay`) desde RabbitMQ y conserva eventos en PostgreSQL propio. La consulta
 se expone mediante Core a administradores activos, sin publicar el servicio ni su base.
 [Escenario y aceptación](../../docs/spec-p3/spec_25_security_audit.md),
 [decisión](../../docs/adr/ADR-028-security-logger-auditor.md).
@@ -29,9 +29,11 @@ Una sesión ADMIN consulta GET `/api/admin/audit-events?targetId=vod_example&lim
 a través del origen HTTPS habitual de Vault TV. Admite Cookie web o Bearer móvil de Core.
 Para provisionar ADMIN usar el mecanismo existente de Core; el registro público no concede rol.
 La consola Web está en **Administración → Auditoría de seguridad** (`/admin/audit`).
-Permite filtrar por Core/VOD, acción, resultado, fechas e IDs exactos; ofrece páginas de 50
+Permite filtrar por Core, VOD o WAF, acción, resultado, fechas e IDs exactos; ofrece páginas de 50
 eventos y detalle de solo lectura. La consulta inicial usa las últimas 24 horas y las fechas
-se muestran en hora local. El historial no incluye los registros propios del WAF.
+se muestran en hora local. Los bloqueos del WAF aparecen como productor `waf`, sin usuario y con el
+tipo de ataque como motivo ([ADR-032](../../docs/adr/ADR-032-evidencia-waf-auditor.md)); los logs
+técnicos de ModSecurity (IP, fragmento coincidente) no se incluyen.
 No hay alerta automática en este incremento.
 
 Filtros: actorId, targetId, action, outcome, producer, requestId, from, to, cursor y limit.
@@ -61,7 +63,7 @@ restaurarse en una base aislada y comprobarse antes de sustituir datos existente
 - Logger/broker caído: origen conserva outbox; reintenta sin cambiar eventId ni payload.
 - Base del productor caída: no confirmar la acción sensible sin evidencia local.
 - SQL auditoría caído: consumidor deja entrega sin ACK; consulta da 503, no lista vacía.
-- Evento inválido/conflictivo: audit.core.dlq / audit.vod.dlq; inspección y redrive con
+- Evento inválido/conflictivo: audit.core.dlq / audit.vod.dlq / audit.waf.dlq; inspección y redrive con
   herramientas existentes de infra/broker, nunca editar eventos almacenados.
 - `/readyz` verifica conexión SQL; no acredita que todos los productores estén al día.
 - Logs del servicio: mensajes técnicos acotados, nunca body/credenciales/URLs privadas.

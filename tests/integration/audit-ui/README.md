@@ -50,4 +50,6 @@ pnpm check
 ```
 
 Esta aceptación usa pocos eventos; no demuestra tiempos de consulta con millones de registros.
-La vista no recopila logs técnicos ni registros propios del WAF.
+La suite también envía un ataque a través del WAF y comprueba que su bloqueo aparece una vez como
+productor `waf`, sin actor, con el `requestId` del 403 y solo para ADMIN. La vista no recopila logs
+técnicos del WAF (IP, fragmento coincidente).

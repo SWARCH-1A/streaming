@@ -376,7 +376,8 @@ El acceso al historial se registra en audit.reads antes de revelar datos. Ver SP
 Web consume esta operación desde `/admin/audit`, sin cambios en el contrato: solicita páginas
 de 50 registros, conserva from/to entre cursores y reinicia el cursor al cambiar los filtros.
 Las fechas introducidas en hora local se convierten a UTC. La UI solo lee; la sesión ADMIN
-se valida de nuevo en Core en cada consulta y los registros del WAF no se incluyen como productor.
+se valida de nuevo en Core en cada consulta. `producer` admite core, vod y waf; los bloqueos del WAF
+llegan sin actor ([ADR-032](adr/ADR-032-evidencia-waf-auditor.md)).
 
 En el despliegue completo, Core y Auditor comparten `audit-query`; Auditor no pertenece a la
 red general de APIs ni a la mensajería de los dominios. Su conexión al mismo broker usa

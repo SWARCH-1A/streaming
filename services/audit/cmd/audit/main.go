@@ -54,7 +54,7 @@ func run() error {
 	if !development && !strings.HasPrefix(broker, "amqps://") {
 		return fmt.Errorf("broker TLS required")
 	}
-	for _, producer := range []string{"core", "vod"} {
+	for _, producer := range []string{"core", "vod", "waf"} {
 		go audit.RunConsumer(ctx, store, broker, os.Getenv("AUDIT_BROKER_CA_FILE"), producer, development)
 	}
 	server := &http.Server{Addr: ":8096", Handler: audit.Handler(store, token), ReadHeaderTimeout: 3 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192, TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12}}

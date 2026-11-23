@@ -60,8 +60,9 @@ server {
 
     # Responses generated here (WAF block, rate limit, size limit, malformed request) follow the
     # application's error shape. Upstream errors pass through unchanged (no proxy_intercept_errors).
-    # 497: plain HTTP sent to this HTTPS port.
-    error_page 400 497 = @bad_request;
+    # 497: plain HTTP sent to this HTTPS port. A request line that climbs above the root (/a/../../x)
+    # fails before nginx has a URI, so 400 goes to an internal URI: a named location would answer 500.
+    error_page 400 497 =400 /__waf/bad-request;
     error_page 403 = @blocked;
     error_page 405 = @not_allowed;
     error_page 413 = @too_large;
@@ -103,7 +104,10 @@ server {
         proxy_hide_header Alt-Svc;
     }
 
-    location @bad_request {
+    location = /__waf/bad-request {
+        internal;
+        # The rejected request never ran CRS setup: evaluating this fixed reply would block it (500).
+        modsecurity off;
         default_type application/json;
         return 400 '{"code":"BAD_REQUEST","message":"La solicitud no es válida.","requestId":"$request_id"}';
     }
