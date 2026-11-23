@@ -186,6 +186,13 @@ guía mantienen su alcance original. Para incorporar VOD a la instalación compl
 `init`, `build`, `up`; se conservan secretos y datos anteriores. Certificados, identidades S3
 separadas, migraciones, salud y recuperación: [servicio VOD](../../services/vod/README.md).
 
+La instalación completa separa cada base y su propietario en redes internas; la red `default`
+se conserva como zona explícita de APIs. Broker, Auditor, MinIO, medios y SMTP tienen los
+miembros definidos en [segmentación P3](../../docs/p3/segmentacion-red.md). Para actualizar,
+repetir `init` y `up` conservando volúmenes. La recreación de contenedores interrumpe las
+emisiones activas; no requiere `reset`, borrar datos ni rotar secretos. Los Compose aislados
+de desarrollo de esta guía mantienen su topología previa.
+
 El Redis de Chat de la instalación completa no acepta clientes anónimos ([ADR-029](../../docs/adr/ADR-029-zero-trust-almacen-vivo-chat.md)).
 En una instalación anterior, repetir `init` antes de `up`: genera `CHAT_REDIS_PASSWORD` y
 `chat-redis.acl` sin rotar los demás secretos. Si falta, Compose se detiene con

@@ -82,3 +82,8 @@ La suite reproducible se documenta en tests/integration/audit/README.md. Debe ej
    no evidencia acreditada por compilar. La Persona 6 realiza análisis de rendimiento completo.
 
 La ejecución y sus límites se reportan por separado; la existencia de esta SPEC no acredita pruebas.
+
+El despliegue completo aplica [ADR-030](../adr/ADR-030-segmentacion-red.md): solo Core
+comparte la red de consulta con Auditor entre aplicaciones; el broker comparte una bridge
+exclusiva con Auditor y `audit-db` solo admite al runtime Audit. Los demás productores
+publican en el broker por `messaging`, sin acceso directo a la API ni al almacén de auditoría.
