@@ -57,7 +57,10 @@ de conexión/inactividad. Los límites elegidos deben mantener RNF-011/014 y med
 Se elimina la confianza en headers públicos `X-Service-*` y `X-Session-Credential`, se reconstruye
 IP observada y se propaga requestId. La sesión recibida se conserva solo durante su solicitud.
 
-Caddy es la única entrada pública: TLS, enrutamiento, WS/HLS y supresión de headers privados. El
+La entrada pública es el WAF ([ADR-030](../adr/ADR-030-waf-modsecurity-crs.md)): termina el TLS
+público, rechaza ataques genéricos con ModSecurity y el OWASP CRS y fija `X-Forwarded-For` con la
+dirección de la conexión. Detrás, Caddy es la única entrada a los servicios: enrutamiento, WS/HLS y
+supresión de headers privados; toma la dirección del cliente solo del WAF (`trusted_proxies`). El
 Gateway recibe `/api/screens/*` y la retirada administrativa; copia solo `stream_session`,
 Authorization (hacia Core/VOD), requestId válido y la dirección del cliente. Esa dirección se toma
 de X-Forwarded-For solo si el par es un proxy de `GATEWAY_TRUSTED_PROXIES`; Core confía únicamente

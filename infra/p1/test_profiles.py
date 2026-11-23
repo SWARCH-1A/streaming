@@ -74,7 +74,7 @@ class Profiles(unittest.TestCase):
             with patch.dict(os.environ, {}, clear=True), patch("builtins.print"):
                 local.initialize()
                 upgraded = path.read_text()
-                self.assertEqual(upgraded, original + "LOCAL_GATEWAY_IP=192.168.241.3\n")
+                self.assertEqual(upgraded, original + "LOCAL_GATEWAY_IP=192.168.241.3\nLOCAL_WAF_IP=192.168.241.4\n")
                 self.assertEqual(path.stat().st_mode & 0o777, 0o600)
                 local.initialize()
                 self.assertEqual(path.read_text(), upgraded)
@@ -132,13 +132,33 @@ class Profiles(unittest.TestCase):
             with patch.dict(os.environ, {"HSTS_MAX_AGE": "1y"}), self.assertRaisesRegex(RuntimeError, "HSTS_MAX_AGE"):
                 proxy.render_proxy()
 
+    def test_local_caddy_takes_the_client_address_only_from_the_waf(self):
+        proxy = module("local").render_proxy()
+        globals_block = proxy.split("(proxy_headers)", 1)[0]
+        self.assertIn("trusted_proxies static {$LOCAL_WAF_IP}", globals_block)
+        self.assertIn("trusted_proxies_strict", globals_block)
+        self.assertIn("client_ip_headers X-Forwarded-For", globals_block)
+        self.assertIn("header_up X-Forwarded-For {client_ip}", proxy)
+        self.assertIn("header_up X-Real-IP {client_ip}", proxy)
+        self.assertNotIn("{remote_host}", proxy)
+        # Profiles without a WAF keep taking the address from the connection.
+        for profile in ("default", "load"):
+            other = module(profile).render_proxy()
+            self.assertNotIn("trusted_proxies", other)
+            self.assertIn("header_up X-Forwarded-For {remote_host}", other)
+
     def test_local_subnet_avoids_existing_docker_networks(self):
         local = module("local")
         with patch.dict(os.environ, {}, clear=True), patch.object(local, "run", side_effect=["network-id", '[{"IPAM":{"Config":null}},{"IPAM":{"Config":[{"Subnet":"192.168.240.0/24"}]}}]']):
             self.assertEqual(local.local_network(), {"LOCAL_SUBNET": "192.168.241.0/24", "LOCAL_PROXY_IP": "192.168.241.2", "LOCAL_DYNAMIC_RANGE": "192.168.241.128/25",
-                                                     "LOCAL_GATEWAY_IP": "192.168.241.3"})
+                                                     "LOCAL_GATEWAY_IP": "192.168.241.3", "LOCAL_WAF_IP": "192.168.241.4"})
         # SPEC-16: the Gateway gets a static address distinct from the proxy and outside the dynamic range.
         self.assertEqual(local.gateway_ip("192.168.240.0/24", "192.168.240.3"), "192.168.240.4")
+        # ADR-030: the WAF gets the next static address, distinct from the proxy and the Gateway.
+        self.assertEqual(local.waf_ip("192.168.240.0/24", "192.168.240.2", "192.168.240.3"), "192.168.240.4")
+        self.assertEqual(local.waf_ip("192.168.240.0/24", "192.168.240.4", "192.168.240.3"), "192.168.240.5")
+        with self.assertRaisesRegex(RuntimeError, "static address left for the WAF"):
+            local.waf_ip("192.168.240.0/29", "192.168.240.2", "192.168.240.3")
         with self.assertRaisesRegex(RuntimeError, "static address"):
             local.gateway_ip("192.168.240.0/30", "192.168.240.1")
         for invalid in ("192.168.240.0", "192.168.240.1", "192.168.240.255", "192.168.241.2", "192.168.240.130"):

@@ -59,8 +59,13 @@ El dominio usa HTTPS. Local conserva autenticación y aislamiento con un arranqu
 el perfil completo se ejecuta con `python3 infra/local/dev.py init/build/up/status`. Se documenta qué
 servicios requieren credenciales/provisión externa y qué pruebas se realizaron con S3 local.
 
+La entrada HTTPS la publica el WAF (ModSecurity v3 + OWASP CRS en modo bloqueo, ADR-030), que la
+reenvía cifrada a Caddy; Caddy no publica puertos. El WAF tiene una IP fija (`LOCAL_WAF_IP`), que `init`
+añade sin rotar secretos y que es la única de la que Caddy acepta `X-Forwarded-For`; al restaurar un
+backup anterior a ADR-030 se usa la Caddyfile actual.
+
 El modo local predeterminado publica solo en loopback. La acción explícita `dev.py lan` permite
-clientes de la misma red: publica únicamente la entrada HTTPS, fija un origen canónico por nombre
+clientes de la misma red: publica únicamente la entrada HTTPS del WAF, fija un origen canónico por nombre
 Bonjour/IP privada y añade sus SAN al certificado de entrada conservando la CA y los secretos.
 Navegador, móvil, WS y URLs multimedia comparten ese origen. Los alias se redirigen; hosts ajenos
 se rechazan. RTMPS/Mailpit siguen en loopback y los listeners privados no se publican. `lan --loopback`

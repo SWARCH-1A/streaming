@@ -369,14 +369,61 @@ services:
     depends_on: [core]
     restart: unless-stopped
 
+  # Public entry (ADR-030): ModSecurity v3 + OWASP CRS in blocking mode, in front of Caddy. It terminates
+  # the public TLS, inspects each request and re-encrypts to the reverse proxy, which is no longer published.
+  waf:
+    image: owasp/modsecurity-crs:4.25.2-nginx-alpine-202610180210-lts@sha256:57fd215e2894638a02d235f88510fa2a129d64740f0edb6798ca0e4aa2f02457
+    ports:
+      - "${LOCAL_HTTPS_BIND:-127.0.0.1}:${P1_HTTPS_PORT:-3445}:8443"
+    environment:
+      SSL_PORT: "8443"
+      SSL_CERT_FILE: /run/secrets/web.crt
+      SSL_CERT_KEY_FILE: /run/secrets/web.key
+      MODSEC_RULE_ENGINE: "On"
+      BLOCKING_PARANOIA: "1"
+      ANOMALY_INBOUND: "5"
+      ANOMALY_OUTBOUND: "4"
+      ALLOWED_METHODS: GET HEAD POST OPTIONS PUT PATCH DELETE
+      # Core accepts images up to 10 MB in an 11 MB request; JSON bodies stay under 128 KiB.
+      MAX_FILE_SIZE: "10485760"
+      COMBINED_FILE_SIZES: "11534336"
+      MODSEC_REQ_BODY_LIMIT: "12582912"
+      MODSEC_REQ_BODY_NOFILES_LIMIT: "131072"
+      WAF_CLIENT_MAX_BODY_SIZE: 12m
+      MODSEC_TMP_SAVE_UPLOADED_FILES: "off"
+      # Audit log: header, matched rules and trailer only; never request/response headers or bodies.
+      MODSEC_AUDIT_LOG_PARTS: AHZ
+      MODSEC_AUDIT_LOG_RELEVANT_STATUS: "^5"
+      WAF_REQUESTS_PER_SECOND: "100"
+      WAF_REQUEST_BURST: "400"
+      WAF_CONNECTIONS_PER_CLIENT: "512"
+    volumes:
+      - ./infra/waf/default.conf.template:/etc/nginx/templates/conf.d/default.conf.template:ro
+      - ./infra/waf/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:/etc/modsecurity.d/owasp-crs/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:ro
+      - ./infra/waf/rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:/etc/modsecurity.d/owasp-crs/rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:ro
+      - ${P1_STATE}/web.crt:/run/secrets/web.crt:ro
+      - ${P1_STATE}/web.key:/run/secrets/web.key:ro
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8081/healthz"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 6
+    networks:
+      default:
+        ipv4_address: ${LOCAL_WAF_IP:?Run init}
+    depends_on: [proxy]
+    restart: unless-stopped
+
   proxy:
     image: caddy:2-alpine
-    ports:
-      - "${LOCAL_HTTPS_BIND:-127.0.0.1}:${P1_HTTPS_PORT:-3445}:3443"
     environment:
       WEB_ORIGIN: ${WEB_ORIGIN:?Run init}
       LOCAL_PUBLIC_HOST: ${LOCAL_PUBLIC_HOST:-localhost}
       LOCAL_LAN_IP: ${LOCAL_LAN_IP:-127.0.0.1}
+      # Only the WAF may state the client address (X-Forwarded-For); see the generated Caddyfile.
+      LOCAL_WAF_IP: ${LOCAL_WAF_IP:?Run init}
     volumes:
       - ${P1_STATE}/Caddyfile:/etc/caddy/Caddyfile:ro
       - ${P1_STATE}/web.crt:/run/secrets/web.crt:ro

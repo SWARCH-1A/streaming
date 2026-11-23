@@ -61,8 +61,9 @@ Upgrade Chat están implementados bajo los contratos de SPEC-01/19 y ADR-021; el
 entre servicios no es una sesión móvil. La ausencia de Origin de un cliente nativo debe tratarse
 por ese contrato, sin debilitar las verificaciones web. No enviar tokens en query strings ni logs.
 
-Caddy sobrescribe headers de IP reenviada y elimina los de credenciales privadas aportados
-por el público. El Gateway solo copia una lista explícita de headers y reenvía la dirección
+El WAF de la entrada ([ADR-030](adr/ADR-030-waf-modsecurity-crs.md)) sobrescribe los headers de IP
+reenviada con la dirección de la conexión. Caddy toma esa dirección solo del WAF y elimina los headers
+de credenciales privadas aportados por el público. El Gateway solo copia una lista explícita de headers y reenvía la dirección
 observada únicamente si su par es un proxy de confianza; Core confía solo en Caddy y el Gateway,
 así las cuotas por IP siguen siendo por cliente. Los servicios verifican siempre sus rutas internas. La autorización por mensaje,
 propiedad y bloqueo pertenece a Core/Streaming/Chat, no a una decisión cacheada del Gateway.

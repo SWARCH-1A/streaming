@@ -68,6 +68,17 @@ def render_proxy():
         # The same TLS entry serves the Mac and LAN clients. Only configured names are accepted;
         # aliases redirect to the canonical origin used by cookies, CSRF, WS and media URLs.
         source = source.replace("https://localhost:3443 {", "https://:3443 {")
+        # The WAF (ADR-030) is the public entry: Caddy takes the client address from its X-Forwarded-For
+        # and from no other source, and forwards that address to the services that trust Caddy.
+        source = source.replace("  auto_https off\n", """  auto_https off
+  servers {
+    trusted_proxies static {$LOCAL_WAF_IP}
+    trusted_proxies_strict
+    client_ip_headers X-Forwarded-For
+  }
+""", 1)
+        source = source.replace("header_up X-Forwarded-For {remote_host}", "header_up X-Forwarded-For {client_ip}")
+        source = source.replace("header_up X-Real-IP {remote_host}", "header_up X-Real-IP {client_ip}")
         source = source.replace("  route {", """  route {
     @foreignHost {
       # Keep aliases separate: the canonical host and LAN IP may coincide with a default or each other.
@@ -108,18 +119,29 @@ def local_network():
     dynamic_range = list(subnet.subnets(prefixlen_diff=1))[1]
     if proxy_ip not in subnet or proxy_ip in dynamic_range or proxy_ip in (subnet.network_address, subnet.broadcast_address, subnet.network_address + 1):
         raise RuntimeError("LOCAL_PROXY_IP must be a usable address in the private IPv4 LOCAL_SUBNET")
+    gateway = gateway_ip(subnet, proxy_ip)
     return {"LOCAL_SUBNET": str(subnet), "LOCAL_PROXY_IP": str(proxy_ip), "LOCAL_DYNAMIC_RANGE": str(dynamic_range),
-            "LOCAL_GATEWAY_IP": gateway_ip(subnet, proxy_ip)}
+            "LOCAL_GATEWAY_IP": gateway, "LOCAL_WAF_IP": waf_ip(subnet, proxy_ip, gateway)}
+
+
+def static_ip(subnet, taken, role):
+    subnet = ipaddress.ip_network(subnet)
+    taken = {ipaddress.ip_address(address) for address in taken}
+    dynamic_range = list(subnet.subnets(prefixlen_diff=1))[1]
+    candidate = next(subnet.network_address + offset for offset in range(3, 16) if subnet.network_address + offset not in taken)
+    if candidate in dynamic_range:
+        raise RuntimeError(f"LOCAL_SUBNET has no static address left for the {role}")
+    return str(candidate)
 
 
 def gateway_ip(subnet, proxy_ip):
     """Fixed Gateway address in the static half: Core trusts it to forward the client address (SPEC-16)."""
-    subnet, proxy_ip = ipaddress.ip_network(subnet), ipaddress.ip_address(proxy_ip)
-    dynamic_range = list(subnet.subnets(prefixlen_diff=1))[1]
-    candidate = next(subnet.network_address + offset for offset in range(3, 16) if subnet.network_address + offset != proxy_ip)
-    if candidate in dynamic_range:
-        raise RuntimeError("LOCAL_SUBNET has no static address left for the Gateway")
-    return str(candidate)
+    return static_ip(subnet, (proxy_ip,), "Gateway")
+
+
+def waf_ip(subnet, proxy_ip, gateway):
+    """Fixed WAF address in the static half: Caddy trusts only it to state the client address (ADR-030)."""
+    return static_ip(subnet, (proxy_ip, gateway), "WAF")
 
 
 def initialize():
@@ -127,13 +149,13 @@ def initialize():
         env = environment()
         path = STATE / "environment.env"
         stored = path.read_text()
-        if PROFILE == "local" and "LOCAL_GATEWAY_IP" in env and not any(
-            line.startswith("LOCAL_GATEWAY_IP=") for line in stored.splitlines()
-        ):
-            # Persist the derived address so documented raw Compose commands work
-            # after upgrading a state initialized before SPEC-16, without rotation.
+        missing = [key for key in ("LOCAL_GATEWAY_IP", "LOCAL_WAF_IP") if PROFILE == "local" and key in env
+                   and not any(line.startswith(key + "=") for line in stored.splitlines())]
+        if missing:
+            # Persist the derived addresses so documented raw Compose commands work after upgrading
+            # a state initialized before SPEC-16 or ADR-030, without rotation.
             temporary = path.with_suffix(".network.tmp")
-            temporary.write_text(stored.rstrip("\n") + "\nLOCAL_GATEWAY_IP=" + env["LOCAL_GATEWAY_IP"] + "\n")
+            temporary.write_text(stored.rstrip("\n") + "\n" + "".join(f"{key}={env[key]}\n" for key in missing))
             os.chmod(temporary, 0o600)
             os.replace(temporary, path)
         print(f"Existing {PROJECT} state retained: {STATE}")
@@ -199,6 +221,9 @@ def environment():
     if "LOCAL_SUBNET" in env and "LOCAL_GATEWAY_IP" not in env:
         # States initialized before SPEC-16 derive the same fixed address instead of re-running init.
         env["LOCAL_GATEWAY_IP"] = gateway_ip(env["LOCAL_SUBNET"], env["LOCAL_PROXY_IP"])
+    if "LOCAL_SUBNET" in env and "LOCAL_WAF_IP" not in env:
+        # States initialized before ADR-030 derive the WAF address the same way.
+        env["LOCAL_WAF_IP"] = waf_ip(env["LOCAL_SUBNET"], env["LOCAL_PROXY_IP"], env["LOCAL_GATEWAY_IP"])
     https_port, _ = configured_ports(env)
     host = env.get("LOCAL_PUBLIC_HOST", "localhost") if PROFILE == "local" else "localhost"
     if PROFILE == "local":

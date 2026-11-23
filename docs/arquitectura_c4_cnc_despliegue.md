@@ -85,7 +85,8 @@ Web usa TypeScript y móvil Kotlin. Watch parties es un módulo de Core (ADR-025
 
 ```mermaid
 flowchart LR
-  Clients[Clientes web / móvil] -->|HTTPS localhost:3445| P[Contenedor proxy Caddy]
+  Clients[Clientes web / móvil] -->|HTTPS localhost:3445| WAF[Contenedor WAF ModSecurity + OWASP CRS]
+  WAF -->|HTTPS| P[Contenedor proxy Caddy]
   P --> W[Contenedor Web SSR]
   P --> G[Contenedor Gateway Go / agregación]
   subgraph Private[Red privada de servicios]
@@ -134,9 +135,11 @@ del Gateway de agregación como sexta unidad lógica debe validarse con el crite
 además de su función de comunicación/orquestación. Los módulos internos de Core no cuentan
 como procesos independientes. Este punto permanece en P2-18.
 
-El dominio público usa HTTPS y mantiene bloqueadas las rutas internas. Caddy publica solo
-loopback 3445 y Media RTMPS loopback 11938; Mailpit publica su buzón local en 8025. Los demás
-servicios y bases quedan en la red privada. Los 19 servicios persistentes y el inicializador
+El dominio público usa HTTPS y mantiene bloqueadas las rutas internas. El WAF
+([ADR-030](adr/ADR-030-waf-modsecurity-crs.md)) publica solo loopback 3445, inspecciona cada petición
+con ModSecurity y el OWASP CRS en modo bloqueo y la reenvía cifrada a Caddy, que ya no publica puertos.
+Media RTMPS publica loopback 11938 y Mailpit su buzón local en 8025. Los demás
+servicios y bases quedan en la red privada. Los servicios persistentes y el inicializador
 S3 se levantan con `infra/local/dev.py`; comandos e inventario en el [README](../README.md).
 El cliente Kotlin se construye fuera de Docker para Android/iOS; completa los cinco lenguajes
 junto a Java, Rust, Go y TypeScript. La recuperación consistente de los doce volúmenes
