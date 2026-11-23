@@ -33,11 +33,13 @@ def main():
         shutil.rmtree(bundle)
     bundle.mkdir(parents=True)
     sdk_path = subprocess.check_output(['xcrun', '--sdk', sdk, '--show-sdk-path'], text=True).strip()
+    # Strip unused Kotlin/Native platform wrappers. New SDK constants can otherwise
+    # become eager dyld imports even though the app never uses those newer APIs.
     run('xcrun', '--sdk', sdk, 'swiftc', '-sdk', sdk_path, '-target', target,
         '-DDEBUG', '-module-name', 'VaultTV', '-F', framework, '-framework', 'VaultMobile', '-framework', 'UIKit',
         '-framework', 'Metal', '-framework', 'CoreText', '-framework', 'QuartzCore',
         '-framework', 'CoreGraphics', '-framework', 'Security', '-framework', 'AVFoundation',
-        '-framework', 'AVKit', '-lc++', '-lsqlite3', ROOT / 'iosApp/main.swift', '-o', bundle / 'VaultTV')
+        '-framework', 'AVKit', '-lc++', '-lsqlite3', '-Xlinker', '-dead_strip', ROOT / 'iosApp/main.swift', '-o', bundle / 'VaultTV')
     info = plistlib.loads((ROOT / 'iosApp/Info.plist').read_bytes())
     info['CFBundleIdentifier'] = args.bundle_id
     info['VaultApiOrigin'] = args.origin.rstrip('/')

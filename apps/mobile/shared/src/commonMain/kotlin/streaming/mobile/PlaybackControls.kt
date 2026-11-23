@@ -43,23 +43,24 @@ internal fun Modifier.dismissVideoOnSwipe(onDismiss: () -> Unit): Modifier = poi
 @Composable
 fun PlaybackToolbar(controls: PlaybackControls, onDismiss: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth().background(Surface).heightIn(min = 48.dp).padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Column(Modifier.weight(1f).heightIn(min = 48.dp).dismissVideoOnSwipe(onDismiss).semantics(mergeDescendants = true) {
+    Row(Modifier.fillMaxWidth().background(Surface).heightIn(min = 44.dp).padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        IconButton(onClick = onDismiss) { VaultIcon(Glyph.Back, description = "Cerrar reproducción") }
+        Box(Modifier.weight(1f).heightIn(min = 44.dp).dismissVideoOnSwipe(onDismiss).semantics {
             customActions = listOf(CustomAccessibilityAction("Cerrar reproducción") { onDismiss(); true })
-        }, verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)) {
-            Box(Modifier.width(28.dp).height(3.dp).background(Muted.copy(alpha = .6f), RoundedCornerShape(2.dp)))
-            Text("Desliza abajo para cerrar", color = Muted, style = MaterialTheme.typography.bodySmall)
+        }, contentAlignment = Alignment.Center) {
+            Box(Modifier.width(32.dp).height(3.dp).background(Muted.copy(alpha = .5f), RoundedCornerShape(2.dp)))
         }
         Box {
             val label = controls.qualities.firstOrNull { it.id == controls.selectedId }?.label ?: "Automática"
             TextButton(onClick = { menu = true }, modifier = Modifier.heightIn(min = 48.dp)) {
-                Text("Calidad: $label ▾", style = MaterialTheme.typography.labelMedium)
+                Text(label, style = MaterialTheme.typography.labelMedium)
+                Spacer(Modifier.width(6.dp)); VaultIcon(Glyph.Down, Modifier.size(16.dp))
             }
             DropdownMenu(menu, { menu = false }) {
-                DropdownMenuItem(text = { Text("Automática") }, onClick = { controls.selectedId = null; menu = false })
+                DropdownMenuItem(text = { Text("Automática") }, leadingIcon = { if (controls.selectedId == null) VaultIcon(Glyph.Check, tint = Primary) }, onClick = { controls.selectedId = null; menu = false })
                 controls.qualities.forEach { quality ->
-                    DropdownMenuItem(text = { Text(quality.label) }, onClick = { controls.selectedId = quality.id; menu = false })
+                    DropdownMenuItem(text = { Text(quality.label) }, leadingIcon = { if (controls.selectedId == quality.id) VaultIcon(Glyph.Check, tint = Primary) }, onClick = { controls.selectedId = quality.id; menu = false })
                 }
                 if (controls.unavailable) DropdownMenuItem(text = { Text("Reintentar cargar calidades") }, onClick = { controls.retry++; menu = false })
             }

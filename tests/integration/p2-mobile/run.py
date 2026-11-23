@@ -160,7 +160,7 @@ def main():
         device.launch()
         device.wait('Chat en vivo')
         api.eventually(count, lambda value: value == 1, 20)
-        device.tap('Volver')
+        device.tap('Cerrar reproducción')
         api.eventually(count, lambda value: value == 0, 10)
         print('PASS Android background/resume/leave: viewer counts 1 → 0 → 1 → 0', flush=True)
     finally:

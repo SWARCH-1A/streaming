@@ -50,9 +50,11 @@ Watch parties/subtítulos se integran tras sus políticas y contratos.
 - [ ] CA-07: una notificación abre un destino validado; contenido suspendido/retirado muestra indisponibilidad.
 - [x] CA-08: se entrega matriz de dispositivo/emulador y plataforma compilada/probada; no se atribuye cobertura iOS por compartir Kotlin. Ver cobertura y pendientes en `apps/mobile/README.md`.
 
-La UI toma `apps/web` responsive como referencia: marca Vault tv, fondo oscuro, Inter, Plus Jakarta
-Sans, tarjetas y estados de disponibilidad. La navegación inferior adapta Explorar, Buscar,
-Siguiendo y Bandeja al teléfono; login y canal conservan el shell, y live/VOD usan vistas dedicadas. La
+La UI sigue la biblioteca y las vistas móviles del [proyecto Stitch](https://stitch.withgoogle.com/projects/16622161280155871604):
+marca Vault tv, fondo oscuro, acento lavanda, Inter y Plus Jakarta Sans. Botones, campos, filtros,
+tarjetas, estados vacíos y avisos usan componentes compartidos. La navegación inferior adapta
+Explorar, Buscar, Videos, Siguiendo y Bandeja al teléfono; con texto ampliado muestra los iconos
+y conserva los nombres completos en su semántica accesible; login y canal conservan el shell, y live/VOD usan vistas dedicadas. La
 cabecera conserva el logo en su sitio, sin añadir un botón «Volver» al navegar. La biblioteca presenta
 tarjetas con fotograma real, duración y título; filtros horizontales y carga diferida de miniaturas.
 Una miniatura no disponible conserva el acceso al video y muestra un estado explícito. Los errores
@@ -60,7 +62,7 @@ no muestran excepciones técnicas ni secretos al usuario.
 
 Al abrir un live se ocultan las barras generales: el video ocupa todo el ancho de la parte superior,
 sin botones propios superpuestos. Debajo se sitúan el selector de calidad y una zona de arrastre
-para cerrar; una franja compacta muestra canal, título, categoría y
+y un botón visible para cerrar; una franja compacta muestra canal, título, categoría y
 espectadores. El chat ocupa el alto restante, con su compositor fijo abajo; solo se desplazan los
 mensajes. Desplazarse hacia el historial pausa el seguimiento automático y permite volver a los
 últimos mensajes. El teclado conserva el video y el compositor visibles y oculta los metadatos
@@ -69,7 +71,7 @@ usan alineación, márgenes y radios coherentes, sin tarjetas anidadas.
 
 VOD coloca el video antes del título, sin otra cabecera ni duplicar el espacio del área segura.
 Live/VOD se cierran con un deslizamiento hacia abajo sobre la imagen o la zona de arrastre inferior,
-que también expone una acción accesible de cierre. En iOS el gesto se inicia en la imagen central,
+que también incorpora un botón visible y una acción accesible de cierre. En iOS el gesto se inicia en la imagen central,
 conserva los toques nativos, excluye las franjas superior/inferior y los laterales y se
 desactiva durante la pantalla completa nativa; volumen, transporte y pantalla completa conservan
 sus interacciones nativas. El selector de calidad queda fuera del video. El audio usa una sesión

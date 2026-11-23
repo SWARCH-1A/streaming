@@ -1,12 +1,15 @@
 package streaming.mobile
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.dp
 import io.ktor.client.call.body
 import io.ktor.http.*
@@ -21,8 +24,7 @@ inline fun <reified T> JsonObject.sectionData(): T? =
 
 @Composable
 fun SignInNotice(navigate: (String) -> Unit) {
-    Notice("Inicia sesión para consultar esta sección.")
-    Button(onClick = { navigate("login") }) { Text("Iniciar sesión") }
+    EmptyState("Tu comunidad te espera", "Inicia sesión para seguir canales y consultar sus avisos.", Glyph.User, "Iniciar sesión") { navigate("login") }
 }
 
 @Composable
@@ -40,7 +42,7 @@ fun FollowControl(api: Api, channel: ChannelBootstrap, initial: P2Follow?, navig
     }
     if (login?.userId == channel.channel.ownerUserId) return
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(enabled = !pending && (login == null || follow != null), onClick = {
+        VaultButton(modifier = Modifier.fillMaxWidth(), enabled = !pending && (login == null || follow != null), onClick = {
             if (login == null) navigate("login") else scope.launch {
                 pending = true
                 recoverable { api.call(if (follow?.following == true) HttpMethod.Delete else HttpMethod.Put,
@@ -48,7 +50,11 @@ fun FollowControl(api: Api, channel: ChannelBootstrap, initial: P2Follow?, navig
                     .onSuccess { follow = it; failure = null }.onFailure { failure = it.userMessage(); retry++ }
                 pending = false
             }
-        }) { Text(if (follow?.following == true) "Dejar de seguir" else "Seguir canal") }
+        }) {
+            if (pending) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = LocalContentColor.current)
+            else VaultIcon(if (follow?.following == true) Glyph.Check else Glyph.Heart, Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp)); Text(if (follow?.following == true) "Dejar de seguir" else "Seguir canal")
+        }
         failure?.let { Notice(it, true); TextButton(onClick = { retry++ }) { Text("Reintentar") } }
         if (follow?.following == true) NotificationPreferences(api, channel.channel.channelId)
     }
@@ -76,22 +82,18 @@ fun FollowingScreen(api: Api, foreground: Boolean, navigate: (String) -> Unit) {
         }.onFailure { failure = it.userMessage() }
         pending = false
     }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item { SectionHeading("Canales seguidos", "Vuelve a tus comunidades.") }
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        item { ScreenTitle("Siguiendo", "Tus canales, siempre cerca.") { IconButton(onClick = { cursor = null; retry++ }) { VaultIcon(Glyph.Refresh, description = "Actualizar canales") } } }
         if (login == null) item { SignInNotice(navigate) }
         else {
-            if (pending) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+            if (pending && rows.isEmpty()) item { LoadingCards() }
             failure?.let { item { Notice(it, true); TextButton(onClick = { retry++ }) { Text("Reintentar") } } }
             items(rows, key = { it.first.channelId }) { (_, channel) ->
                 if (channel == null) Notice("Canal no disponible.")
-                else Column(Modifier.fillMaxWidth().clickable { navigate("channel:${channel.handle}") }.padding(12.dp)) {
-                    Text(channel.profile.displayName, style = MaterialTheme.typography.titleMedium)
-                    Text("@${channel.handle}", color = Muted); Availability(channel.availability)
-                }
+                else ChannelListRow(api, channel.profile.displayName, channel.handle, channel.profile.avatarUri, channel.availability) { navigate("channel:${channel.handle}") }
             }
-            if (!pending && rows.isEmpty() && failure == null) item { Notice("Todavía no sigues ningún canal.") }
-            next?.let { value -> item { Button(enabled = !pending, onClick = { cursor = value }) { Text("Más canales") } } }
-            item { TextButton(onClick = { cursor = null; retry++ }) { Text("Actualizar") } }
+            if (!pending && rows.isEmpty() && failure == null) item { EmptyState("Tu lista empieza aquí", "Explora los directos y sigue los canales que quieras volver a ver.", Glyph.Heart, "Explorar canales") { navigate("explore") } }
+            next?.let { value -> item { VaultSecondaryButton(modifier = Modifier.fillMaxWidth(), enabled = !pending, onClick = { cursor = value }) { Text("Más canales") } } }
         }
     }
 }
@@ -120,13 +122,29 @@ fun NotificationPreferences(api: Api, channelId: String? = null) {
             pending = false
         }
     }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(if (channelId == null) "Preferencias de avisos" else "Avisos de este canal", style = MaterialTheme.typography.titleMedium)
+    SurfacePanel {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            VaultIcon(Glyph.Bell, tint = Primary)
+            Text(if (channelId == null) "Preferencias de avisos" else "Avisos de este canal", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+        }
+        if (current == null && failure == null) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (current != null) {
-            Row { Checkbox(current.emailEnabled, enabled = !pending, onCheckedChange = { change(it, current.pushEnabled) }); Text("Correo electrónico", Modifier.padding(top = 12.dp)) }
-            Row { Checkbox(current.pushEnabled, enabled = !pending, onCheckedChange = { change(current.emailEnabled, it) }); Text("Notificaciones push", Modifier.padding(top = 12.dp)) }
+            PreferenceSwitch("Correo electrónico", "Recibe avisos cuando un canal salga en vivo.", current.emailEnabled, !pending) { change(it, current.pushEnabled) }
+            HorizontalDivider(color = Outline.copy(alpha = .4f))
+            PreferenceSwitch("Notificaciones push", "La entrega al teléfono todavía no está disponible.", current.pushEnabled, !pending) { change(current.emailEnabled, it) }
         }
         failure?.let { Notice(it, true); TextButton(onClick = { retry++ }) { Text("Reintentar preferencias") } }
+    }
+}
+
+@Composable
+private fun PreferenceSwitch(title: String, caption: String, checked: Boolean, enabled: Boolean, change: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium)
+            Text(caption, color = Muted, style = MaterialTheme.typography.bodySmall)
+        }
+        Switch(checked, change, enabled = enabled, modifier = Modifier.semantics { contentDescription = title })
     }
 }
 
@@ -143,6 +161,7 @@ fun InboxScreen(api: Api, foreground: Boolean, navigate: (String) -> Unit) {
     var pending by remember { mutableStateOf(false) }
     var retry by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
+    var showPreferences by remember { mutableStateOf(false) }
     LaunchedEffect(login?.userId, foreground, cursor, retry) {
         if (login == null || !foreground) return@LaunchedEffect
         do {
@@ -155,16 +174,26 @@ fun InboxScreen(api: Api, foreground: Boolean, navigate: (String) -> Unit) {
             delay(3_000)
         } while (isActive)
     }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item { SectionHeading("Tu bandeja", "Los avisos de tus canales, en un solo lugar.") }
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        item { ScreenTitle("Bandeja", "Lo nuevo de tus canales.") {
+            IconButton(onClick = { showPreferences = !showPreferences }) { VaultIcon(Glyph.Settings, description = if (showPreferences) "Ocultar preferencias" else "Configurar avisos") }
+        } }
         if (login == null) item { SignInNotice(navigate) } else {
-            item { NotificationPreferences(api) }
-            if (pending) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+            if (showPreferences) item { NotificationPreferences(api) }
+            if (pending && rows.isEmpty()) item { LoadingCards() }
             failure?.let { item { Notice(it, true); TextButton(onClick = { retry++ }) { Text("Reintentar") } } }
             items(rows, key = { it.notificationId }) { notice ->
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(notice.title, style = MaterialTheme.typography.titleMedium)
-                    Text(notice.createdAtUtc, color = Muted)
+                SurfacePanel {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+                        Box(Modifier.size(40.dp).background(if (notice.readAtUtc == null) Primary.copy(alpha = .12f) else Raised, CircleShape), contentAlignment = Alignment.Center) {
+                            VaultIcon(Glyph.Bell, tint = if (notice.readAtUtc == null) Primary else Muted)
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(notice.title, style = MaterialTheme.typography.titleMedium)
+                            Text(notice.createdAtUtc.replace("T", " · ").removeSuffix("Z").substringBefore("."), color = Muted, style = MaterialTheme.typography.bodySmall)
+                        }
+                        if (notice.readAtUtc == null) Box(Modifier.padding(top = 6.dp).size(7.dp).background(Primary, CircleShape))
+                    }
                     val destination = if (notice.available) notificationDestination(notice.linkPath) else null
                     if (destination != null) TextButton(onClick = { navigate(destination) }) { Text("Abrir canal") }
                     else Text("Contenido no disponible", color = Muted)
@@ -177,8 +206,8 @@ fun InboxScreen(api: Api, foreground: Boolean, navigate: (String) -> Unit) {
                     } }) { Text("Marcar como leído") }
                 }
             }
-            if (rows.isEmpty() && !pending && failure == null) item { Notice("No hay avisos todavía.") }
-            next?.let { value -> item { Button(enabled = !pending, onClick = { cursor = value }) { Text("Más avisos") } } }
+            if (rows.isEmpty() && !pending && failure == null) item { EmptyState("Estás al día", "Cuando un canal que sigues salga en vivo, su aviso aparecerá aquí.", Glyph.Inbox) }
+            next?.let { value -> item { VaultSecondaryButton(modifier = Modifier.fillMaxWidth(), enabled = !pending, onClick = { cursor = value }) { Text("Más avisos") } } }
             item { TextButton(onClick = { cursor = null; retry++ }) { Text("Actualizar bandeja") } }
         }
     }
@@ -187,7 +216,7 @@ fun InboxScreen(api: Api, foreground: Boolean, navigate: (String) -> Unit) {
 @Composable
 fun VodCards(api: Api, page: P2VodPage?, navigate: (String) -> Unit) {
     if (page == null) { Notice("No se pudo consultar la biblioteca."); return }
-    if (page.items.isEmpty()) Notice("Todavía no hay grabaciones publicadas.")
+    if (page.items.isEmpty()) EmptyState("Sin grabaciones todavía", "Los videos publicados de este canal aparecerán aquí.", Glyph.Video)
     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
         page.items.forEach { vod -> VodCard(api, vod, navigate = navigate) }
     }
@@ -222,25 +251,19 @@ fun LibraryScreen(api: Api, foreground: Boolean, navigate: (String) -> Unit) {
         }.onFailure { failure = it.userMessage(); page = null }
         pending = false
     }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item { SectionHeading("Videos", "Grabaciones de tus canales, a tu ritmo.") }
-        item { OutlinedTextField(title, { title = it.take(120) }, label = { Text("Buscar videos") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        item { ScreenTitle("Videos", "Los directos terminan. Las historias siguen.") }
+        item { SearchField(title, { title = it.take(120) }, "Buscar grabaciones") }
         item {
-            Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(category.isEmpty(), { category = "" }, label = { Text("Todas las categorías") })
-                taxonomy?.categories?.forEach { c -> FilterChip(category == c.id, { category = c.id }, label = { Text(c.name) }) }
-            }
-            Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(tag.isEmpty(), { tag = "" }, label = { Text("Todas las etiquetas") })
-                taxonomy?.tags?.forEach { t -> FilterChip(tag == t.id, { tag = t.id }, label = { Text(t.name) }) }
-            }
+            CatalogFilters(taxonomy, category, tag, { category = it.orEmpty() }, { tag = it.orEmpty() })
         }
-        if (pending) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+        if (pending && page == null) item { LoadingCards() }
         failure?.let { item { Notice(it, true); TextButton(onClick = { retry++ }) { Text("Reintentar") } } }
-        if (page != null && page!!.items.isEmpty() && !pending) item { Notice("Todavía no hay grabaciones publicadas.") }
+        if (page != null && page!!.items.isEmpty() && !pending) item { EmptyState("No hay videos aquí", "Prueba otra búsqueda o vuelve cuando haya nuevas grabaciones.", Glyph.Video,
+            if (title.isNotEmpty() || category.isNotEmpty() || tag.isNotEmpty()) "Limpiar filtros" else null) { title = ""; category = ""; tag = "" } }
         items(page?.items.orEmpty(), key = { it.vodId }) { vod ->
             VodCard(api, vod, taxonomy?.categories?.firstOrNull { it.id == vod.categoryId }?.name, navigate)
         }
-        page?.nextCursor?.let { value -> item { Button(enabled = !pending, onClick = { cursor = value }) { Text("Más videos") } } }
+        page?.nextCursor?.let { value -> item { VaultSecondaryButton(modifier = Modifier.fillMaxWidth(), enabled = !pending, onClick = { cursor = value }) { Text("Más videos") } } }
     }
 }
