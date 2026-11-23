@@ -68,7 +68,9 @@ en las IP fijas de Caddy y del Gateway. En `watch`, emisión y sesión son esenc
 rendiciones se piden solo si ambas están PLAYABLE; un canal confirmado inexistente o suspendido
 oculta la pantalla con 404. Como todas sus secciones son públicas y Core solo introspecta Bearer en
 rutas públicas, una credencial presentada se comprueba en paralelo con `GET /api/profile/me`; si
-Core la rechaza, la pantalla da 401 (CA-03).
+Core la rechaza, la pantalla da 401 (CA-03). `explore` aplica la misma comprobación: Discovery es
+anónimo y la lista VOD es pública, así que una credencial que Core o VOD rechazan da 401 y nunca
+la vista de visitante; si Core no responde, la pantalla pública se conserva.
 
 ## 8. Dependencias y contratos de integración
 
