@@ -17,7 +17,8 @@ El evento no lleva actor, IP, cabeceras, consulta ni el fragmento que coincidió
 
 Las transacciones que no son bloqueos se borran sin publicar. Un archivo que no se puede leer como
 JSON se reintenta y se descarta al minuto. Si el spool supera `WAF_RELAY_MAX_BACKLOG` archivos, se
-descartan los más antiguos con un aviso en el log. Por cada bloqueo publicado, el log registra el
+descartan los más antiguos con un aviso en el log; el tope se aplica también mientras el broker no
+está disponible, en cada reintento de conexión. Por cada bloqueo publicado, el log registra el
 `requestId` y los IDs de las reglas, para ajustar exclusiones.
 
 ## Configuración

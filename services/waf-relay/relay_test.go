@@ -173,3 +173,30 @@ func TestRulesListOnlyRuleIDs(t *testing.T) {
 		t.Fatal("invalid record must list nothing")
 	}
 }
+
+func TestBacklogStaysBoundedWhileTheBrokerIsUnreachable(t *testing.T) {
+	dir := t.TempDir()
+	r := relay{spool: dir, maxBacklog: 3, now: time.Now}
+	names := []string{"a", "b", "c", "d", "e"}
+	for i, name := range names {
+		write(t, dir, name, strings.Replace(blocked, "2ef5", "ccc"+name, 1), time.Duration(10-i)*time.Minute)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	attempts := 0
+	supervise(ctx, r, func(context.Context) error {
+		attempts++
+		if attempts == 2 {
+			cancel()
+		}
+		return errors.New("dial tcp: broker unreachable")
+	}, time.Millisecond)
+	left, _ := r.files()
+	if len(left) != 3 {
+		t.Fatalf("spool must stay at the bound without a broker, got %d", len(left))
+	}
+	for _, f := range left {
+		if base := filepath.Base(f.path); base == "a" || base == "b" {
+			t.Fatal("the oldest records are the ones dropped")
+		}
+	}
+}

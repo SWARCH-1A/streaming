@@ -71,6 +71,31 @@ func (r relay) files() ([]pending, error) {
 	return out, err
 }
 
+// bound keeps at most maxBacklog records, dropping the oldest. It needs no broker: the WAF keeps
+// writing while the broker is unreachable, so the disk bound must hold during an outage too.
+func (r relay) bound(files []pending) []pending {
+	if excess := len(files) - r.maxBacklog; excess > 0 {
+		for _, f := range files[:excess] {
+			_ = os.Remove(f.path)
+		}
+		slog.Warn("waf audit backlog exceeded; oldest records dropped", "dropped", excess)
+		files = files[excess:]
+	}
+	return files
+}
+
+// Maintain enforces the backlog bound and removes old empty directories without publishing; the
+// pending evidence up to the bound stays for the next broker session.
+func (r relay) Maintain() error {
+	files, err := r.files()
+	if err != nil {
+		return err
+	}
+	r.bound(files)
+	r.prune()
+	return nil
+}
+
 // Pass handles every settled file once. It returns the first publication error so the caller can
 // reconnect; files that were not confirmed stay for the next pass.
 func (r relay) Pass(ctx context.Context, pub publisher) (published int, err error) {
@@ -78,15 +103,7 @@ func (r relay) Pass(ctx context.Context, pub publisher) (published int, err erro
 	if err != nil {
 		return 0, err
 	}
-	if excess := len(files) - r.maxBacklog; excess > 0 {
-		// Bounded disk under a sustained attack: the oldest unpublished records are dropped and counted.
-		for _, f := range files[:excess] {
-			_ = os.Remove(f.path)
-		}
-		slog.Warn("waf audit backlog exceeded; oldest records dropped", "dropped", excess)
-		files = files[excess:]
-	}
-	for _, f := range files {
+	for _, f := range r.bound(files) {
 		age := r.now().Sub(f.mod)
 		if age < settle {
 			continue
@@ -273,14 +290,25 @@ func main() {
 	r := relay{spool: env("WAF_RELAY_SPOOL", "/spool"), maxBacklog: backlog, now: time.Now}
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
+	supervise(ctx, r, func(ctx context.Context) error {
+		return session(ctx, r, address, os.Getenv("WAF_RELAY_BROKER_CA_FILE"))
+	}, 2*time.Second)
+}
+
+// supervise reconnects until ctx ends. While no session runs (broker down or unreachable), it keeps
+// the spool bounded so a sustained attack during an outage cannot fill the shared disk.
+func supervise(ctx context.Context, r relay, run func(context.Context) error, retry time.Duration) {
 	for ctx.Err() == nil {
-		if err := session(ctx, r, address, os.Getenv("WAF_RELAY_BROKER_CA_FILE")); err != nil {
+		if err := run(ctx); err != nil {
 			// Never log the URL: it carries the broker credential.
 			slog.Warn("waf relay reconnecting", "reason", strings.SplitN(err.Error(), ":", 2)[0])
 		}
+		if err := r.Maintain(); err != nil {
+			slog.Warn("waf audit spool maintenance failed")
+		}
 		select {
 		case <-ctx.Done():
-		case <-time.After(2 * time.Second):
+		case <-time.After(retry):
 		}
 	}
 }

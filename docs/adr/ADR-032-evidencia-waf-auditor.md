@@ -51,7 +51,8 @@ Hay tres restricciones:
    DLQ, y rechaza un evento `waf` que tenga actor, resultado `SUCCESS` o una acción de dominio. Ni Core
    ni VOD pueden publicar `WAF_BLOCK`.
 6. **Disco acotado.** Si el spool supera `WAF_RELAY_MAX_BACKLOG` archivos (5000 en local), el relay
-   descarta los más antiguos y lo registra. Un archivo ilegible durante más de un minuto también se
+   descarta los más antiguos y lo registra. El tope se aplica también sin broker, en cada reintento
+   de conexión, porque el WAF sigue escribiendo durante una caída. Un archivo ilegible durante más de un minuto también se
    descarta.
 7. **Diagnóstico.** El relay registra en su log el `requestId` y los IDs de las reglas que coincidieron
    en cada bloqueo publicado, sin datos. Así se pueden ajustar exclusiones aunque el archivo completo ya
@@ -91,7 +92,8 @@ Hay tres restricciones:
 ## Verificación
 
 1. `services/waf-relay`: `go test` cubre conversión, filtrado de no-bloqueos, ausencia de IP y datos,
-   idempotencia, spool durable ante fallos del broker y tope del backlog.
+   idempotencia, spool durable ante fallos del broker y tope del backlog, también con el broker
+   inalcanzable.
 2. `services/audit`: `go test` rechaza eventos `waf` con actor, éxito o acción de dominio, y `WAF_BLOCK`
    desde Core o VOD.
 3. `contracts/check_p2.py` valida el esquema y el ejemplo del evento nuevo.
@@ -102,7 +104,7 @@ Hay tres restricciones:
    la consulta ADMIN como `SQL_INJECTION` sin actor, con el mismo `requestId`, y un usuario común
    recibe 403.
 6. Con el stack local: el broker detenido deja los bloqueos en el spool y, al volver, se auditan una
-   sola vez.
+   sola vez; con el broker inalcanzable y un tope de 3, el spool queda en los 3 más recientes.
 
 ## Revisión
 
