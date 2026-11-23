@@ -292,6 +292,10 @@ def command(env, *args, s3=False, broker=None, timeout=180):
         # Containers keep a replaced web.crt through their bind mount; its fingerprint (a label in
         # compose.yaml) makes Compose recreate web, proxy and waf after lan reissues it.
         env = {**env, "WEB_CERT_SHA256": hashlib.sha256(certificate.read_bytes()).hexdigest()}
+    definitions = STATE / "broker-definitions.json"
+    if PROFILE == "local" and definitions.exists():
+        # RabbitMQ imports users, ACL and queues only at boot: new definitions recreate the broker.
+        env = {**env, "BROKER_DEFINITIONS_SHA256": hashlib.sha256(definitions.read_bytes()).hexdigest()}
     cmd = ["docker","compose","--env-file",str(STATE / "environment.env"),"-p",PROJECT,"-f",str(compose)]
     if broker:
         if PROFILE != "local": raise RuntimeError("The broker overlay currently targets the root local profile")
@@ -300,6 +304,22 @@ def command(env, *args, s3=False, broker=None, timeout=180):
     if s3 and env.get("CORE_IMAGE_S3_ENDPOINT") and not env["CORE_IMAGE_S3_ENDPOINT"].startswith("https://"):
         raise RuntimeError("The TLS profile requires an HTTPS S3 endpoint")
     return run([*cmd,*args],cwd=ROOT,env=env,timeout=timeout)
+
+
+# Audit databases created before ADR-032 only accept Core/VOD evidence. The owner widens the CHECK
+# once; the runtime roles never get DDL. Until then WAF events wait unacknowledged in audit.waf.
+AUDIT_UPGRADE = """DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'audit.events'::regclass
+   AND conname = 'events_producer_check' AND pg_get_constraintdef(oid) LIKE '%waf%') THEN
+  ALTER TABLE audit.events DROP CONSTRAINT IF EXISTS events_producer_check,
+   ADD CONSTRAINT events_producer_check CHECK (producer IN ('core','vod','waf'));
+ END IF;
+END $$;"""
+
+
+def upgrade_audit_store(env):
+    command(env, "exec", "-T", "audit-db", "psql", "-v", "ON_ERROR_STOP=1", "-q", "-U", "audit_owner", "-d", "audit",
+            "-c", AUDIT_UPGRADE, broker=True)
 
 
 def wait_local(env, timeout=180):
@@ -381,6 +401,8 @@ def main():
             command(env,*up_args,"--scale",f"core={args.replicas}","--scale",f"chat={args.replicas}",
                     s3=args.s3,broker=args.broker,timeout=360 if PROFILE == "local" else 180)
             if PROFILE == "local":
+                if args.broker:
+                    upgrade_audit_store(env)
                 wait_local(env)
                 print(f"Ready {PROJECT}: {env['WEB_ORIGIN']} (local CA required in the browser)")
                 print("Emails sent by Notifications are caught by Mailpit: http://127.0.0.1:8025")

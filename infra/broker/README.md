@@ -144,7 +144,9 @@ suscripción. Importar definiciones por sí solo no elimina bindings antiguos.
 
 ## Auditoría de seguridad P3
 
-El registro añade security.audit.core.v1 / security.audit.vod.v1 y audit.core / audit.vod.
+El registro añade security.audit.core.v1 / security.audit.vod.v1 / security.audit.waf.v1 y
+audit.core / audit.vod / audit.waf. El usuario `waf` (relay del WAF, ADR-032) solo publica su routing key.
+`dev.py up` recrea el broker cuando cambian sus definiciones, porque RabbitMQ solo las importa al arrancar.
 Core y VOD solo publican su propia routing key; la identidad audit consume ambas suscripciones
 y escribe únicamente sus retry/dead exchanges. No administra topología ni lee otras colas.
 `init` genera la identidad nueva y actualiza definiciones sin rotar credenciales existentes;

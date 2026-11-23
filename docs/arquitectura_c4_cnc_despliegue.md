@@ -146,7 +146,7 @@ El dominio público usa HTTPS y mantiene bloqueadas las rutas internas. El WAF
 ([ADR-031](adr/ADR-031-waf-modsecurity-crs.md)) publica solo loopback 3445, inspecciona cada petición
 con ModSecurity y el OWASP CRS en modo bloqueo y la reenvía cifrada a Caddy, que ya no publica puertos;
 ambos comparten solo la red de borde `edge`. Media RTMPS publica loopback 11938 y Mailpit su buzón
-local en 8025. Los demás servicios y bases quedan en redes del proyecto. Con Audit P3, los 22 servicios persistentes y el inicializador
+local en 8025. Los demás servicios y bases quedan en redes del proyecto. Con Audit P3, los 23 servicios persistentes y el inicializador
 S3 se levantan con `infra/local/dev.py`; comandos e inventario en el [README](../README.md).
 El cliente Kotlin se construye fuera de Docker para Android/iOS; completa los cinco lenguajes
 junto a Java, Rust, Go y TypeScript. La recuperación consistente de los doce volúmenes
@@ -184,7 +184,9 @@ flowchart LR
   VOD -->|Transacción local| VO[(Outbox VOD)]
   CO -->|AMQPS: security.audit.core.v1| Broker
   VO -->|AMQPS: security.audit.vod.v1| Broker
-  Broker -->|Colas audit.core y audit.vod| Logger[Security Logger]
+  WAF[WAF: ModSecurity + CRS] -->|Archivo por bloqueo, volumen waf-audit| Relay[waf-relay]
+  Relay -->|AMQPS: security.audit.waf.v1| Broker
+  Broker -->|Colas audit.core, audit.vod y audit.waf| Logger[Security Logger]
   Logger -->|SQL TLS: INSERT / SELECT| DB[(PostgreSQL Audit)]
   Core -->|HTTPS: secreto de servicio y actor verificado| Auditor
   Auditor -->|SQL TLS: SELECT| DB
@@ -198,4 +200,7 @@ tras persistir; Auditor se consulta a través de Core, que verifica ADMIN en cad
 Los roles SQL separan lectura de inserción y ambos carecen de modificación/borrado del
 historial. [ADR-030](adr/ADR-030-segmentacion-red.md) concreta su segmentación: `audit-query`
 solo con Core, `audit-messaging` solo con broker y `audit-data` solo con su PostgreSQL.
+[ADR-032](adr/ADR-032-evidencia-waf-auditor.md) añade el WAF como tercer productor: `waf-relay`
+publica cada bloqueo desde el spool del WAF, sin actor ni datos del cliente, y borra el archivo tras
+la confirmación del broker; el WAF sigue sin red hacia el broker.
 Se conservan los permisos de aplicación y el perfil Zero Trust de ADR-029.

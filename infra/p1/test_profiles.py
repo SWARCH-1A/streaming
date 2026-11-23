@@ -98,8 +98,9 @@ class Profiles(unittest.TestCase):
                 expected = selected.ROOT / "compose.yaml" if profile == "local" else selected.HERE / "compose.yaml"
                 self.assertEqual(args[args.index("-f") + 1], str(expected))
                 self.assertEqual(args.count("-f"), 3 if profile == "local" else 1)
-                # Only the certificate fingerprint may be added (covered by its own test).
-                passed = {k: v for k, v in run.call_args.kwargs["env"].items() if k != "WEB_CERT_SHA256"}
+                # Only the state fingerprints may be added (covered by their own test).
+                passed = {k: v for k, v in run.call_args.kwargs["env"].items()
+                          if k not in ("WEB_CERT_SHA256", "BROKER_DEFINITIONS_SHA256")}
                 self.assertEqual(passed, env)
                 with self.assertRaisesRegex(RuntimeError, "Command state"):
                     selected.command({"P1_STATE": "/foreign/state"}, "down", "--volumes")
@@ -207,6 +208,36 @@ class Profiles(unittest.TestCase):
         for service in ("web", "waf", "proxy"):
             block = compose.split(f"\n  {service}:\n", 1)[1].split("\n\n", 1)[0]
             self.assertIn("streaming.web-certificate: ${WEB_CERT_SHA256:-}", block, service)
+
+    def test_new_broker_definitions_recreate_the_broker(self):
+        # RabbitMQ imports users and ACL only at boot (ADR-032 adds the waf producer).
+        local = module("local")
+        seen = []
+        with tempfile.TemporaryDirectory() as folder, patch.object(local, "STATE", Path(folder)), \
+                patch.object(local, "run", side_effect=lambda *a, **k: seen.append(k["env"].get("BROKER_DEFINITIONS_SHA256")) or ""):
+            env = {"P1_STATE": folder, "BROKER_STREAMING_PASSWORD": "fixture_private_password"}
+            for content in ('{"users": []}', '{"users": [{"name": "waf"}]}'):
+                (Path(folder) / "broker-definitions.json").write_text(content)
+                local.command(env, "up")
+        self.assertEqual(len(set(seen)), 2)
+        broker = (local.ROOT / "infra/broker/compose.yaml").read_text()
+        service = broker.split("\n  broker:\n", 1)[1].split("\n  broker-ops:\n", 1)[0]
+        self.assertIn("streaming.broker-definitions: ${BROKER_DEFINITIONS_SHA256:-}", service)
+
+    def test_audit_store_upgrade_runs_as_owner_and_is_idempotent(self):
+        local = module("local")
+        env = {"P1_STATE": str(local.STATE), "BROKER_STREAMING_PASSWORD": "fixture_private_password"}
+        with patch.object(local, "run", return_value="") as run:
+            local.upgrade_audit_store(env)
+        args = run.call_args.args[0]
+        self.assertEqual(args[args.index("exec"):args.index("-c")],
+                         ["exec", "-T", "audit-db", "psql", "-v", "ON_ERROR_STOP=1", "-q", "-U", "audit_owner", "-d", "audit"])
+        sql = args[-1]
+        self.assertIn("IF NOT EXISTS", sql)
+        self.assertIn("CHECK (producer IN ('core','vod','waf'))", sql)
+        # Fresh databases get the same named constraint from the schema.
+        self.assertIn("CONSTRAINT events_producer_check CHECK (producer IN ('core','vod','waf'))",
+                      (local.ROOT / "infra/audit/schema.sql").read_text())
 
     def test_broker_requires_initialized_local_credentials(self):
         for profile in ("default", "load"):

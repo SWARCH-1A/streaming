@@ -10,7 +10,7 @@ import secrets
 def initialize(env, state, run):
     root = Path(__file__).resolve().parents[2]
     topology = runpy.run_path(str(root / "infra/broker/topology.py"))
-    roles = ("streaming", "core", "chat", "vod", "notifications", "recovery-email", "audit", "operator")
+    roles = ("streaming", "core", "chat", "vod", "notifications", "recovery-email", "audit", "waf", "operator")
     for role in roles:
         env.setdefault("BROKER_" + role.upper().replace("-", "_") + "_PASSWORD", secrets.token_urlsafe(36))
         if not re.fullmatch(r"[A-Za-z0-9_-]{32,128}", env["BROKER_" + role.upper().replace("-", "_") + "_PASSWORD"]):

@@ -5786,14 +5786,16 @@
             "VOD_PATCH",
             "VOD_PUBLISH",
             "VOD_DELETE",
-            "VOD_REMOVE"
+            "VOD_REMOVE",
+            "WAF_BLOCK"
           ]
         },
         "targetType": {
           "enum": [
             "ADMIN",
             "ACCOUNT",
-            "VOD"
+            "VOD",
+            "ROUTE"
           ]
         },
         "targetId": {
@@ -6052,6 +6054,95 @@
         }
       ]
     },
+    "P2EventSecurityAuditWaf": {
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "eventType": {
+          "const": "security.audit.waf.v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "aggregateId": {
+          "type": "string",
+          "pattern": "^audit:[0-9a-f-]{36}$"
+        },
+        "sequence": {
+          "const": 1
+        },
+        "occurredAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(Z|\\+00:00)$"
+        },
+        "producer": {
+          "const": "waf"
+        },
+        "payload": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/P2SecurityAuditPayload"
+            },
+            {
+              "properties": {
+                "actorId": {
+                  "type": "null"
+                },
+                "action": {
+                  "const": "WAF_BLOCK"
+                },
+                "targetType": {
+                  "const": "ROUTE"
+                },
+                "outcome": {
+                  "const": "DENIED"
+                }
+              }
+            }
+          ]
+        },
+        "correlationId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]{1,80}$"
+        }
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "producer",
+        "payload",
+        "correlationId"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "eventId": "a38a5088-2178-544f-9ebd-a3a1dfbe7d03",
+          "eventType": "security.audit.waf.v1",
+          "schemaVersion": 1,
+          "producer": "waf",
+          "aggregateId": "audit:a38a5088-2178-544f-9ebd-a3a1dfbe7d03",
+          "sequence": 1,
+          "occurredAtUtc": "2026-11-20T12:00:00Z",
+          "correlationId": "2ef5522f57c4fe9648f2d11c094825dc",
+          "payload": {
+            "actorId": null,
+            "action": "WAF_BLOCK",
+            "targetType": "ROUTE",
+            "targetId": "api_taxonomy",
+            "outcome": "DENIED",
+            "reasonCode": "SQL_INJECTION"
+          }
+        }
+      ]
+    },
     "P2AuditEvent": {
       "anyOf": [
         {
@@ -6059,6 +6150,9 @@
         },
         {
           "$ref": "#/$defs/P2EventSecurityAuditVod"
+        },
+        {
+          "$ref": "#/$defs/P2EventSecurityAuditWaf"
         }
       ],
       "examples": [
@@ -6097,6 +6191,24 @@
             "outcome": "SUCCESS",
             "reasonCode": "COMMITTED"
           }
+        },
+        {
+          "eventId": "a38a5088-2178-544f-9ebd-a3a1dfbe7d03",
+          "eventType": "security.audit.waf.v1",
+          "schemaVersion": 1,
+          "producer": "waf",
+          "aggregateId": "audit:a38a5088-2178-544f-9ebd-a3a1dfbe7d03",
+          "sequence": 1,
+          "occurredAtUtc": "2026-11-20T12:00:00Z",
+          "correlationId": "2ef5522f57c4fe9648f2d11c094825dc",
+          "payload": {
+            "actorId": null,
+            "action": "WAF_BLOCK",
+            "targetType": "ROUTE",
+            "targetId": "api_taxonomy",
+            "outcome": "DENIED",
+            "reasonCode": "SQL_INJECTION"
+          }
         }
       ]
     },
@@ -6124,7 +6236,8 @@
         "producer": {
           "enum": [
             "core",
-            "vod"
+            "vod",
+            "waf"
           ]
         },
         "requestId": {
@@ -6419,6 +6532,22 @@
       "spec": [
         "SPEC-25",
         "SPEC-17",
+        "SPEC-10"
+      ]
+    },
+    {
+      "eventType": "security.audit.waf.v1",
+      "producers": [
+        "waf"
+      ],
+      "subscriptions": [
+        "audit.waf"
+      ],
+      "schema": "P2EventSecurityAuditWaf",
+      "status": "contract-ready",
+      "spec": [
+        "SPEC-25",
+        "SPEC-16",
         "SPEC-10"
       ]
     }

@@ -25,8 +25,10 @@ persona física detrás de una sesión. El servicio no decide los permisos del n
 
 Core: denegaciones de requireAdministrator, listados administrativos exitosos y cambios de
 estado confirmados. VOD: PATCH/PUBLISH/DELETE y retirada administrativa REMOVE, éxitos y
-rechazos 401/403 dentro de esos handlers. Rechazos previos del proxy, bearer malformado/CSRF
-antes del controlador Core, otros dominios, subtítulos y lecturas masivas HLS no se incluyen.
+rechazos 401/403 dentro de esos handlers. WAF ([ADR-032](../adr/ADR-032-evidencia-waf-auditor.md)): cada petición que ModSecurity/CRS bloquea con
+403, como evento sin actor (WAF_BLOCK, ROUTE, DENIED) con la familia del ataque como motivo. Rechazos
+del proxy, bearer malformado/CSRF antes del controlador Core, detecciones del WAF por debajo del umbral,
+otros dominios, subtítulos y lecturas masivas HLS no se incluyen.
 Actor nulo significa no verificado, nunca se toma de un header público. VOD solicita contexto
 SESSION antes de la autorización de escritura cuando la auditoría está activada.
 
@@ -35,7 +37,7 @@ SESSION antes de la autorización de escritura cuando la auditoría está activa
 `services/audit`: Go/PostgreSQL, Logger AMQP y Auditor HTTP en un proceso nuevo para esta
 responsabilidad transversal. Esquemas, eventos y consultas en contracts/p2.json, generados por
 contracts/check_p2.py. La contribución a vistas se encuentra en [arquitectura](../arquitectura_c4_cnc_despliegue.md#contribución-p3--security-logger-y-auditor).
-Dos routing keys y suscripciones separadas por productor protegen la
+Tres routing keys y suscripciones separadas por productor (core, vod, waf) protegen la
 atribución mediante ACL RabbitMQ. No hay acceso a bases ajenas.
 
 Eventos: actorId nullable, action, targetType/targetId, outcome SUCCESS/DENIED, reasonCode.
@@ -50,6 +52,11 @@ VOD escribe en su outbox con el comando; un rechazo usa un commit independiente 
 es un evento distinto. Publicaciones persistentes/mandatory con confirm; ACK del consumidor
 solo después de persistir. Error SQL deja entrega pendiente. Evento inválido/conflictivo va a
 DLQ con publicación confirmada. Retención sin purga automática para este prototipo.
+
+El WAF no publica directamente: escribe cada registro de ModSecurity en un spool que solo comparte con
+`waf-relay`, y este publica los bloqueos con confirmación y borra el archivo después (outbox). El evento
+`waf` siempre tiene actor nulo y resultado DENIED; Audit rechaza cualquier otra combinación y WAF_BLOCK
+desde Core o VOD. Detalle en [ADR-032](../adr/ADR-032-evidencia-waf-auditor.md).
 
 Consulta pública: GET /api/admin/audit-events, sesión ADMIN vigente comprobada en Core.
 Core consulta GET /internal/audit/events con secreto exclusivo; el servicio no tiene puerto
@@ -70,10 +77,11 @@ persistencia local de evidencia impide confirmar una acción sensible o su consu
 
 ### Consulta administrativa Web
 
-`/admin/audit`, enlazada desde `/admin`, presenta la evidencia de Core/VOD en modo solo lectura.
+`/admin/audit`, enlazada desde `/admin`, presenta la evidencia de Core, VOD y WAF en modo solo lectura.
 Reutiliza la sesión Web y GET `/api/admin/audit-events`; Core comprueba ADMIN en cada petición.
 La entrada pasa por el WAF y Caddy existentes, sin nuevos puertos ni acceso directo al Auditor.
-Los registros propios de ModSecurity y otros productores no forman parte de esta vista.
+Los bloqueos del WAF llegan como productor `waf` (filtro WAF, tipo de ataque legible); los logs
+técnicos de ModSecurity (IP, fragmento coincidente, reglas) no forman parte de esta vista.
 
 La consulta inicial abarca las últimas 24 horas. Permite última hora, últimos siete días o un
 intervalo personalizado; fechas locales se convierten a UTC, con inicio inclusivo y fin exclusivo.
@@ -104,6 +112,9 @@ La suite reproducible se documenta en tests/integration/audit/README.md. Debe ej
    no evidencia acreditada por compilar. La Persona 6 realiza análisis de rendimiento completo.
 8. Web: filtros, fechas, siguiente/anterior, detalle/foco, consultas obsoletas, vacío/error y
    403 tras revocar ADMIN; navegación y consultas legítimas a través del WAF, escritorio y móvil.
+9. WAF: un ataque bloqueado aparece una vez como productor waf, sin actor ni datos del cliente, con el
+   requestId del 403 (tests/integration/audit-ui); con el broker detenido queda en el spool y se
+   publica una vez al volver.
 
 La ejecución y sus límites se reportan por separado; la existencia de esta SPEC no acredita pruebas.
 

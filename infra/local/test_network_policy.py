@@ -60,6 +60,23 @@ class NetworkPolicy(unittest.TestCase):
             with self.subTest(network=network), self.assertRaises(AssertionError):
                 policy.validate(altered)
 
+    def test_waf_evidence_crosses_only_through_the_spool(self):
+        # ADR-032: the relay shares the spool volume with the WAF and an exclusive bridge with the broker.
+        services = self.model['services']
+        self.assertEqual(policy.networks(services['waf-relay']), {'waf-messaging'})
+        self.assertFalse(policy.networks(services['waf']) & policy.networks(services['waf-relay']))
+        self.assertFalse(services['waf-relay'].get('ports'))
+        self.assertTrue(services['waf-relay'].get('read_only'))
+        for network in ('edge', 'messaging', 'audit-messaging', 'audit-query', 'default'):
+            altered = copy.deepcopy(self.model)
+            altered['services']['waf-relay']['networks'][network] = {}
+            with self.subTest(network=network), self.assertRaises(AssertionError):
+                policy.validate(altered)
+        altered = copy.deepcopy(self.model)
+        altered['services']['core']['volumes'].append({'type': 'volume', 'source': 'waf-audit', 'target': '/spool'})
+        with self.assertRaises(AssertionError):
+            policy.validate(altered)
+
     def test_store_network_cannot_lose_internal_flag(self):
         altered = copy.deepcopy(self.model)
         altered['networks']['core-data']['internal'] = False

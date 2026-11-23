@@ -429,6 +429,10 @@ services:
       # Audit log: header, matched rules and trailer only; never request/response headers or bodies.
       MODSEC_AUDIT_LOG_PARTS: AHZ
       MODSEC_AUDIT_LOG_RELEVANT_STATUS: "^5"
+      # One file per audit record in a volume shared only with waf-relay, which publishes the blocks
+      # to the Security Logger and deletes each file after the broker confirms it (ADR-032).
+      MODSEC_AUDIT_LOG_TYPE: Concurrent
+      MODSEC_AUDIT_STORAGE_DIR: /var/log/modsecurity/audit/
       WAF_REQUESTS_PER_SECOND: "100"
       WAF_REQUEST_BURST: "400"
       WAF_CONNECTIONS_PER_CLIENT: "512"
@@ -436,6 +440,7 @@ services:
       - ./infra/waf/default.conf.template:/etc/nginx/templates/conf.d/default.conf.template:ro
       - ./infra/waf/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:/etc/modsecurity.d/owasp-crs/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:ro
       - ./infra/waf/rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:/etc/modsecurity.d/owasp-crs/rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:ro
+      - waf-audit:/var/log/modsecurity/audit
       - ${P1_STATE}/web.crt:/run/secrets/web.crt:ro
       - ${P1_STATE}/web.key:/run/secrets/web.key:ro
       - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
@@ -686,6 +691,8 @@ networks:
         - subnet: ${LOCAL_EDGE_SUBNET:?Run init}
 
 volumes:
+  # WAF audit spool (ADR-032): transient records until waf-relay confirms them.
+  waf-audit:
   core-db:
   core-avatars:
   core-banners:

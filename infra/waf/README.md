@@ -34,15 +34,27 @@ arrancar:
 
 ## Investigar un 403
 
-Una petición bloqueada recibe `{"code":"REQUEST_BLOCKED", …, "requestId": "<id>"}`. El mismo
-identificador aparece en el log de acceso y como `unique_id` del registro de auditoría (JSON), que
-nombra las reglas que coincidieron (`modsecurity_transaction_id` en la plantilla):
+Una petición bloqueada recibe `{"code":"REQUEST_BLOCKED", …, "requestId": "<id>"}`. Cada bloqueo
+aparece también en `/admin/audit` (filtro *Servicio → WAF*), con hora, ruta, tipo de ataque y ese
+`requestId`, sin usuario ni IP ([ADR-032](../../docs/adr/ADR-032-evidencia-waf-auditor.md)).
+
+ModSecurity escribe un archivo JSON por transacción en el volumen `waf-audit` (modo `Concurrent`);
+`waf-relay` publica los bloqueos al broker y borra el archivo tras la confirmación. Para ver las reglas
+exactas de un bloqueo (sin el fragmento que coincidió):
+
+    docker logs streaming-local-waf-relay-1 2>&1 | grep '<id>'
+
+El log de errores del WAF también nombra las reglas, la ruta del archivo de auditoría y la IP del
+cliente; los mensajes pueden incluir el fragmento que coincidió, así que hay que revisarlos antes de
+compartirlos:
 
     docker logs streaming-local-waf-1 2>&1 | grep '<id>'
 
-El log de acceso guarda método, ruta sin consulta, estado y duración. El de auditoría solo guarda la
-cabecera, las reglas y el cierre (partes A, H y Z): ni cabeceras, ni cuerpos, ni cookies. Los mensajes
-de las reglas pueden incluir el fragmento que coincidió, así que hay que revisarlos antes de compartirlos.
+El log de acceso guarda método, ruta sin consulta, estado y duración. El registro de auditoría solo
+guarda la cabecera, las reglas y el cierre (partes A, H y Z): ni cabeceras, ni cuerpos, ni cookies.
+
+Una petición cuya ruta sube por encima de la raíz (`/a/../../x`) la rechaza nginx antes de
+ModSecurity con `400 BAD_REQUEST`; no cuenta como bloqueo del WAF.
 
 ## Añadir una exclusión
 

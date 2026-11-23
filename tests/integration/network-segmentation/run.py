@@ -22,7 +22,7 @@ PORTS = {
     'live': [8080, 8091, 8090, 8888], 'vod': [8098, 8099],
     'notifications': [8095], 'audit': [8096], 'gateway': [8097], 'web': [3443],
     'proxy': [3443], 'waf': [8443], 'media-server': [1936, 9997, 8888],
-    'media-recorder': [8890], 'mailpit': [1025, 8025], 'broker': [5671, 15671],
+    'media-recorder': [8890], 'mailpit': [1025, 8025], 'broker': [5671, 15671], 'waf-relay': [],
     'minio-init': [], 'broker-ops': [],
 }
 SERVER = '''import json, socket, sys, threading, time
@@ -76,6 +76,7 @@ def dependencies():
         edges += [(source, target, port) for target, port in [('core', 8081), ('live', 8080), ('vod', 8098)]]
     edges.append(('web', 'gateway', 8097))
     edges.append(('waf', 'proxy', 3443))
+    edges.append(('waf-relay', 'broker', 5671))
     edges += [(source, 'core', 8082) for source in ('chat', 'live', 'vod', 'notifications')]
     edges += [('core', 'live', 8091), ('chat', 'vod', 8099), ('vod', 'media-recorder', 8890),
               ('media-recorder', 'vod', 8099), ('media-recorder', 'live', 8091),
@@ -113,13 +114,18 @@ def exercise(model, ids):
             cases[source].append([ip, port, True, f'{source}->{target}:{port} ({name})'])
     for source in ('gateway', 'web', 'proxy'):
         add(source, 'broker', 5671, False)
-    for source in ('gateway', 'web', 'proxy', 'chat', 'live', 'vod', 'notifications', 'media-recorder', 'waf'):
+    for source in ('gateway', 'web', 'proxy', 'chat', 'live', 'vod', 'notifications', 'media-recorder', 'waf', 'waf-relay'):
         add(source, 'audit', 8096, False)
     # ADR-031: the public entry reaches only Caddy, never a service or the broker directly.
     # Published ports (RTMPS 1936) are public by design and stay reachable by IP from any bridge.
     for target in ('core', 'chat', 'live', 'vod', 'notifications', 'gateway', 'web', 'media-server', 'broker'):
         port = next(p for p in PORTS[target] if p not in policy.PUBLIC.get(target, ()))
         add('waf', target, port, False)
+    # ADR-032: the relay publishes to the broker and reaches no service, store, Caddy or Auditor.
+    # (The WAF only listens on its published port, public by design like RTMPS.)
+    for target in ('core', 'chat', 'live', 'vod', 'notifications', 'gateway', 'web', 'proxy', 'core-db', 'minio'):
+        port = next(p for p in PORTS[target] if p not in policy.PUBLIC.get(target, ()))
+        add('waf-relay', target, port, False)
 
     def probe(source):
         return json.loads(run('docker', 'exec', ids[source], 'python', '-c', PROBE, json.dumps(cases[source])))

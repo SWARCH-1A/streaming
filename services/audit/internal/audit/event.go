@@ -116,7 +116,7 @@ func Parse(raw []byte, producer string) (Event, error) {
 	instant, err := time.Parse(time.RFC3339Nano, e.OccurredAtUTC)
 	_, offset := instant.Zone()
 	if err != nil || offset != 0 || instant.Year() < 1 || (!strings.HasSuffix(e.OccurredAtUTC, "Z") && !strings.HasSuffix(e.OccurredAtUTC, "+00:00")) || !uuid.MatchString(e.EventID) || e.Producer != producer ||
-		(producer != "core" && producer != "vod") || e.EventType != "security.audit."+producer+".v1" ||
+		(producer != "core" && producer != "vod" && producer != "waf") || e.EventType != "security.audit."+producer+".v1" ||
 		e.SchemaVersion != 1 || e.Sequence != 1 || e.AggregateID != "audit:"+e.EventID || !requestID.MatchString(e.CorrelationID) ||
 		(p.ActorID != nil && !opaque.MatchString(*p.ActorID)) || !opaque.MatchString(p.TargetID) || !code.MatchString(p.ReasonCode) ||
 		(p.Outcome != "SUCCESS" && p.Outcome != "DENIED") {
@@ -128,6 +128,10 @@ func Parse(raw []byte, producer string) (Event, error) {
 	}
 	if producer == "vod" {
 		valid = (p.Action == "VOD_PATCH" || p.Action == "VOD_PUBLISH" || p.Action == "VOD_DELETE" || p.Action == "VOD_REMOVE") && p.TargetType == "VOD"
+	}
+	if producer == "waf" {
+		// The WAF never verifies a session: it can only report an unattributed block of a route.
+		valid = p.Action == "WAF_BLOCK" && p.TargetType == "ROUTE" && p.Outcome == "DENIED" && p.ActorID == nil
 	}
 	if !valid {
 		return e, ErrInvalid

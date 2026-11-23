@@ -4,7 +4,14 @@ import { Button } from '@/src/components/atoms/Button';
 import { Icon } from '@/src/components/atoms/Icon';
 
 import styles from './AuditPage.module.css';
-import { auditActions, type AuditEntry, auditPayload, auditTime } from './auditQuery';
+import {
+  auditActions,
+  type AuditEntry,
+  auditPayload,
+  auditProducers,
+  auditReason,
+  auditTime,
+} from './auditQuery';
 
 export function AuditEventDetail({ entry, onClose }: { entry: AuditEntry; onClose: () => void }) {
   const heading = useRef<HTMLHeadingElement>(null);
@@ -13,13 +20,14 @@ export function AuditEventDetail({ entry, onClose }: { entry: AuditEntry; onClos
   }, [entry.event.eventId]);
   const payload = auditPayload(entry);
   const fields = [
-    ['Servicio', entry.event.producer === 'core' ? 'Core' : 'VOD'],
+    ['Servicio', auditProducers[entry.event.producer]],
     ['Acción', auditActions[payload.action]],
     ['Resultado', payload.outcome === 'SUCCESS' ? 'Permitido' : 'Denegado'],
     ['Usuario', payload.actorId ?? 'Identidad no verificada'],
     ['Tipo de recurso', payload.targetType],
     ['Recurso', payload.targetId],
     ['Código de motivo', payload.reasonCode],
+    ...(entry.event.producer === 'waf' ? [['Tipo de ataque', auditReason(entry)]] : []),
     ['ID de solicitud', entry.event.correlationId],
     ['ID de evento', entry.event.eventId],
     ['Posición de ingreso', entry.position],

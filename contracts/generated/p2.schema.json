@@ -1199,7 +1199,11 @@
       "type": "object"
     },
     "P2AuditEvent": {
-      "anyOf": [{"$ref": "#/$defs/P2EventSecurityAuditCore"}, {"$ref": "#/$defs/P2EventSecurityAuditVod"}],
+      "anyOf": [
+        {"$ref": "#/$defs/P2EventSecurityAuditCore"},
+        {"$ref": "#/$defs/P2EventSecurityAuditVod"},
+        {"$ref": "#/$defs/P2EventSecurityAuditWaf"}
+      ],
       "examples": [
         {
           "aggregateId": "audit:a38a5088-2178-444f-9ebd-a3a1dfbe7d01",
@@ -1234,6 +1238,24 @@
             "targetType": "VOD"
           },
           "producer": "vod",
+          "schemaVersion": 1,
+          "sequence": 1
+        },
+        {
+          "aggregateId": "audit:a38a5088-2178-544f-9ebd-a3a1dfbe7d03",
+          "correlationId": "2ef5522f57c4fe9648f2d11c094825dc",
+          "eventId": "a38a5088-2178-544f-9ebd-a3a1dfbe7d03",
+          "eventType": "security.audit.waf.v1",
+          "occurredAtUtc": "2026-11-20T12:00:00Z",
+          "payload": {
+            "action": "WAF_BLOCK",
+            "actorId": null,
+            "outcome": "DENIED",
+            "reasonCode": "SQL_INJECTION",
+            "targetId": "api_taxonomy",
+            "targetType": "ROUTE"
+          },
+          "producer": "waf",
           "schemaVersion": 1,
           "sequence": 1
         }
@@ -1301,7 +1323,7 @@
         "from": {"format": "date-time", "type": "string"},
         "limit": {"maximum": 100, "minimum": 1, "type": "integer"},
         "outcome": {"enum": ["SUCCESS", "DENIED"]},
-        "producer": {"enum": ["core", "vod"]},
+        "producer": {"enum": ["core", "vod", "waf"]},
         "requestId": {"pattern": "^[A-Za-z0-9._-]{1,80}$", "type": "string"},
         "targetId": {"pattern": "^[A-Za-z0-9_-]{1,128}$", "type": "string"},
         "to": {"format": "date-time", "type": "string"}
@@ -2189,6 +2211,64 @@
           ]
         },
         "producer": {"const": "vod"},
+        "schemaVersion": {"const": 1},
+        "sequence": {"const": 1}
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "producer",
+        "payload",
+        "correlationId"
+      ],
+      "type": "object"
+    },
+    "P2EventSecurityAuditWaf": {
+      "additionalProperties": false,
+      "examples": [
+        {
+          "aggregateId": "audit:a38a5088-2178-544f-9ebd-a3a1dfbe7d03",
+          "correlationId": "2ef5522f57c4fe9648f2d11c094825dc",
+          "eventId": "a38a5088-2178-544f-9ebd-a3a1dfbe7d03",
+          "eventType": "security.audit.waf.v1",
+          "occurredAtUtc": "2026-11-20T12:00:00Z",
+          "payload": {
+            "action": "WAF_BLOCK",
+            "actorId": null,
+            "outcome": "DENIED",
+            "reasonCode": "SQL_INJECTION",
+            "targetId": "api_taxonomy",
+            "targetType": "ROUTE"
+          },
+          "producer": "waf",
+          "schemaVersion": 1,
+          "sequence": 1
+        }
+      ],
+      "properties": {
+        "aggregateId": {"pattern": "^audit:[0-9a-f-]{36}$", "type": "string"},
+        "correlationId": {"pattern": "^[A-Za-z0-9._-]{1,80}$", "type": "string"},
+        "eventId": {"format": "uuid", "type": "string"},
+        "eventType": {"const": "security.audit.waf.v1"},
+        "occurredAtUtc": {"format": "date-time", "pattern": "(Z|\\+00:00)$", "type": "string"},
+        "payload": {
+          "allOf": [
+            {"$ref": "#/$defs/P2SecurityAuditPayload"},
+            {
+              "properties": {
+                "action": {"const": "WAF_BLOCK"},
+                "actorId": {"type": "null"},
+                "outcome": {"const": "DENIED"},
+                "targetType": {"const": "ROUTE"}
+              }
+            }
+          ]
+        },
+        "producer": {"const": "waf"},
         "schemaVersion": {"const": 1},
         "sequence": {"const": 1}
       },
@@ -3156,12 +3236,14 @@
         }
       ],
       "properties": {
-        "action": {"enum": ["ADMIN_ACCESS", "ACCOUNT_STATUS", "VOD_PATCH", "VOD_PUBLISH", "VOD_DELETE", "VOD_REMOVE"]},
+        "action": {
+          "enum": ["ADMIN_ACCESS", "ACCOUNT_STATUS", "VOD_PATCH", "VOD_PUBLISH", "VOD_DELETE", "VOD_REMOVE", "WAF_BLOCK"]
+        },
         "actorId": {"anyOf": [{"pattern": "^[A-Za-z0-9_-]{1,128}$", "type": "string"}, {"type": "null"}]},
         "outcome": {"enum": ["SUCCESS", "DENIED"]},
         "reasonCode": {"pattern": "^[A-Z_]{1,64}$", "type": "string"},
         "targetId": {"pattern": "^[A-Za-z0-9_-]{1,128}$", "type": "string"},
-        "targetType": {"enum": ["ADMIN", "ACCOUNT", "VOD"]}
+        "targetType": {"enum": ["ADMIN", "ACCOUNT", "VOD", "ROUTE"]}
       },
       "required": ["actorId", "action", "targetType", "targetId", "outcome", "reasonCode"],
       "type": "object"

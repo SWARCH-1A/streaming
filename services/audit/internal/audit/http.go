@@ -41,7 +41,7 @@ func ParseQuery(v url.Values) (Query, error) {
 			}
 			q.Outcome = value
 		case "producer":
-			if value != "core" && value != "vod" {
+			if value != "core" && value != "vod" && value != "waf" {
 				return q, ErrInvalid
 			}
 			q.Producer = value

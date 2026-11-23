@@ -138,6 +138,27 @@ with urllib.request.urlopen(request, context=context, timeout=10) as response:
             assert len(correlated['items']) == 1
             assert all(item['event']['payload']['outcome'] == 'DENIED' for item in filtered['items'])
             print('PASS: WAF permits paginated and filtered queries; 401/403, Core/VOD and correlation verified', flush=True)
+            # ADR-032: a CRS block reaches the same console as unattributed WAF evidence, correlated
+            # by the requestId of the 403 response and carrying no client address or attack payload.
+            blocked = api.call(origin, '/api/taxonomy?q=%27%20OR%201%3D1--', expected=403)
+            assert blocked['code'] == 'REQUEST_BLOCKED', blocked
+
+            def waf_evidence():
+                page = api.call(origin, '/api/admin/audit-events?producer=waf&requestId=' + blocked['requestId'],
+                                token=admin['token'])
+                return page if page['items'] else None
+
+            waf = api.wait(waf_evidence, 'WAF block in the audit trail', 30)
+            assert len(waf['items']) == 1, waf
+            event = waf['items'][0]['event']
+            assert event['payload'] == {'actorId': None, 'action': 'WAF_BLOCK', 'targetType': 'ROUTE',
+                                        'targetId': 'api_taxonomy', 'outcome': 'DENIED',
+                                        'reasonCode': 'SQL_INJECTION'}, event
+            assert event['producer'] == 'waf' and event['correlationId'] == blocked['requestId']
+            assert 'OR 1=1' not in json.dumps(event) and '127.0.0.1' not in json.dumps(event)
+            api.call(origin, '/api/admin/audit-events?producer=waf', token=viewer['token'], expected=403)
+            print('PASS: WAF block audited once as unattributed SQL_INJECTION, correlated by requestId; ADMIN only',
+                  flush=True)
             if args.hold:
                 browser = folder / 'browser.json'
                 browser.write_text(json.dumps({'origin': origin, 'password': password, 'admin': 'audit_operator',

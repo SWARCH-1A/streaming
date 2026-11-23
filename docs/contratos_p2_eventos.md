@@ -1,7 +1,7 @@
 # Contratos de eventos y trabajos P2
 
 [contracts/p2.json](../contracts/p2.json) registra tipos, productores y suscripciones. Los envelopes/payloads ejecutables
-de las once familias (incluida auditoría P3), incluidos segmentos/cierre y disponibilidad VOD, están definidos. Los
+de las doce familias (incluida auditoría P3), incluidos segmentos/cierre y disponibilidad VOD, están definidos. Los
 consumidores pendientes se acreditan por separado de la disponibilidad del schema. [SPEC-17](spec-p2/spec_17_broker.md) define entrega y operación.
 Los nombres son lógicos; su mapeo a exchanges/topics/streams/queues depende del broker elegido.
 
@@ -35,6 +35,7 @@ headers de intento/trace, sin reescribir el envelope para simular un evento nuev
 | `credential.recovery.delivery.requested.v1` | Core | P2EventCredentialRecoveryDeliveryRequested | `notifications.recovery.email` |
 | `security.audit.core.v1` | Core | P2EventSecurityAuditCore | `audit.core` |
 | `security.audit.vod.v1` | VOD | P2EventSecurityAuditVod | `audit.vod` |
+| `security.audit.waf.v1` | WAF (relay) | P2EventSecurityAuditWaf | `audit.waf` |
 
 Réplicas de una suscripción compiten por su trabajo. Core y Chat tienen suscripciones distintas
 y ambos reciben el ciclo. Los bindings de delivery filtran payload.medium: INBOX, EMAIL y PUSH;
@@ -129,7 +130,7 @@ medio. Core publica cambios de cuenta consumidos por Streaming, VOD y Notificaci
 el estado vigente mediante HTTP para cada envío; Core no mantiene una proyección del catálogo
 VOD, consultado directamente por el Gateway. Las antiguas suscripciones sin efecto `chat.account`
 y `core.vod` se retiran mediante archivo privado auditable (ADR-027), sin consumidores que
-confirmen mensajes sin un efecto. El registro vigente tiene dieciocho suscripciones, incluidas audit.core/audit.vod (ADR-028).
+confirmen mensajes sin un efecto. El registro vigente tiene diecinueve suscripciones, incluidas audit.core/audit.vod (ADR-028) y audit.waf (ADR-032).
 
 El ciclo P2 usa `RECONNECT_GRACE/RECONNECTING` al perder la fuente. El alias público P1
 `LIVE/RECONNECTING` se conserva solo en P1. La migración 0008 normaliza nuevos envelopes P2;
@@ -174,9 +175,15 @@ los consumidores de suspensión y P2-17 siguen pendientes. Confirmar publicació
 
 ## Evidencia de seguridad P3
 
-`security.audit.core.v1` y `security.audit.vod.v1`: aggregateId=audit:eventId, sequence=1,
+`security.audit.core.v1`, `security.audit.vod.v1` y `security.audit.waf.v1`: aggregateId=audit:eventId, sequence=1,
 correlationId=requestId (1..80 caracteres alfanuméricos, punto, guion y guion bajo). Payload
 actorId nullable (identidad no verificada), action/targetType/targetId/outcome/reasonCode.
 Productor y acción deben coincidir con el tipo registrado. Idempotencia por eventId y contenido
 JSON canónico; conflicto va a DLQ, nunca reescribe evidencia. No contiene cuerpos, credenciales
 ni texto libre. Suscripciones y ACL se generan desde contracts/p2.json. Ver SPEC-25.
+
+`security.audit.waf.v1` solo registra bloqueos de ModSecurity/CRS: actorId siempre null (el WAF no
+verifica sesiones), action=WAF_BLOCK, targetType=ROUTE, targetId=dos primeros segmentos de la ruta
+normalizados (sin consulta), outcome=DENIED y reasonCode=categoría CRS (por ejemplo SQL_INJECTION).
+correlationId es el requestId de la respuesta 403 y eventId se deriva de él, de modo que un reintento
+del relay produce el mismo evento. Sin dirección del cliente, cabeceras, consulta ni fragmento coincidente.
