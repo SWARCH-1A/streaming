@@ -1,6 +1,6 @@
 # Reverse proxy y entrada del API Gateway
 
-En la instalación local, la entrada pública es el [WAF](../waf/README.md) (ADR-030), que inspecciona
+En la instalación local, la entrada pública es el [WAF](../waf/README.md) (ADR-031), que inspecciona
 cada petición y la reenvía cifrada a Caddy; Caddy ya no publica puertos. Caddy enruta Web SSR y las APIs, WebSocket y HLS, según
 [ADR-013](../../docs/adr/ADR-013-web-integrada-caddy-hls.md), y envía `/api/screens/*` y
 `/api/admin/content-removals` al Gateway de agregación ([ADR-023](../../docs/adr/ADR-023-gateway-go-caddy.md),

@@ -42,6 +42,9 @@ S3 compatible; MinIO es el proveedor local fijado por ADR-022; el tamaño de dis
 - [ ] CA-07: inventario acredita mínimos con artefactos ejecutados y criterio docente; no cuenta módulos Core como procesos o el broker como BD de negocio.
 - [ ] CA-08: logs/métricas permiten seguir requestId/eventId/deliveryId, cola/DLQ y fallos parciales sin tokens ni payloads privados.
 - [ ] CA-09: los recorridos de SPEC-15 funcionan con dependencias detenidas y después de recuperarlas.
+- [x] CA-10 (P3): cada almacén solo admite conexiones desde sus propietarios; Gateway/SSR no
+  alcanzan bases ni broker y la API de Auditor queda fuera de la mensajería general.
+  La aceptación verifica tanto DNS como IP directa y conserva las dependencias necesarias.
 
 ## 7. Diseño técnico y datos
 
@@ -55,14 +58,25 @@ S3 y bases tienen credenciales por responsabilidad. Política de almacenamiento 
 VOD/Notificaciones deben soportar recuperación y el inventario de cuatro componentes de datos.
 Bases lógicas dentro de un solo motor no se cuentan automáticamente como componentes distintos.
 
+El despliegue completo aplica [ADR-030](../adr/ADR-030-segmentacion-red.md): pertenencia
+explícita a redes por API, mensajería, medios, SMTP y almacén. Cada PostgreSQL/Redis comparte
+únicamente su red interna con el proceso propietario; MinIO admite VOD, el grabador lector y
+el inicializador. Auditor tiene redes separadas de datos, consulta con Core y conexión al broker.
+La [matriz y vista P3](../p3/segmentacion-red.md) define los miembros exactos de las 15 redes.
+La zona API conserva `default`, su IPAM y las IP fijas confiables; no admite almacenes.
+Las bridges no filtran puertos entre sus miembros: se conservan TLS, tokens y ACL existentes.
+La aceptación reproducible está en [las pruebas de segmentación](../../tests/integration/network-segmentation/README.md).
+
 El dominio usa HTTPS. Local conserva autenticación y aislamiento con un arranque sencillo;
 el perfil completo se ejecuta con `python3 infra/local/dev.py init/build/up/status`. Se documenta qué
 servicios requieren credenciales/provisión externa y qué pruebas se realizaron con S3 local.
 
-La entrada HTTPS la publica el WAF (ModSecurity v3 + OWASP CRS en modo bloqueo, ADR-030), que la
-reenvía cifrada a Caddy; Caddy no publica puertos. El WAF tiene una IP fija (`LOCAL_WAF_IP`), que `init`
-añade sin rotar secretos y que es la única de la que Caddy acepta `X-Forwarded-For`; al restaurar un
-backup anterior a ADR-030 se usa la Caddyfile actual.
+La entrada HTTPS la publica el WAF (ModSecurity v3 + OWASP CRS en modo bloqueo, ADR-031), que la
+reenvía cifrada a Caddy; Caddy no publica puertos. WAF y Caddy comparten solo la red de borde `edge`,
+con subred propia (`LOCAL_EDGE_SUBNET`) e IP fijas (`LOCAL_WAF_IP`, `LOCAL_EDGE_PROXY_IP`): el WAF no
+alcanza ningún servicio sin pasar por Caddy, y Caddy solo acepta `X-Forwarded-For` de esa IP. `init`
+elige la subred libre y la añade sin rotar secretos; una restauración elige otra para su copia y,
+con un backup anterior a ADR-031, usa la Caddyfile actual.
 
 El modo local predeterminado publica solo en loopback. La acción explícita `dev.py lan` permite
 clientes de la misma red: publica únicamente la entrada HTTPS del WAF, fija un origen canónico por nombre

@@ -57,7 +57,8 @@ def main():
     subprocess.run([node, str(preflight)], cwd=ROOT, check=True)
     os.environ["P1_PROFILE"] = "local"
     # Do not inherit personal ports or network selections.
-    for key in ("P1_HTTPS_PORT", "P1_RTMPS_PORT", "LOCAL_SUBNET", "LOCAL_PROXY_IP", "LOCAL_GATEWAY_IP", "LOCAL_WAF_IP"):
+    for key in ("P1_HTTPS_PORT", "P1_RTMPS_PORT", "LOCAL_SUBNET", "LOCAL_PROXY_IP", "LOCAL_GATEWAY_IP",
+                "LOCAL_EDGE_SUBNET", "LOCAL_WAF_IP", "LOCAL_EDGE_PROXY_IP"):
         os.environ.pop(key, None)
     project = "streaming-vod-web-" + uuid.uuid4().hex[:10]
     manager = load("fixture_manager", ROOT / "infra/p1/manage.py")
@@ -83,7 +84,7 @@ def main():
             service.pop("ports", None)
             service["restart"] = "no"
         proxy_port = int(env["P1_HTTPS_PORT"])
-        # The WAF is the public entry (ADR-030); the reverse proxy stays internal.
+        # The WAF is the public entry (ADR-031); the reverse proxy stays internal.
         config["services"]["waf"]["ports"] = [{"target": 8443, "published": str(proxy_port), "host_ip": "127.0.0.1", "protocol": "tcp"}]
         broker_port = free_port()
         config["services"]["broker"]["ports"] = [{"target": 15671, "published": str(broker_port), "host_ip": "127.0.0.1", "protocol": "tcp"}]

@@ -57,7 +57,7 @@ de conexión/inactividad. Los límites elegidos deben mantener RNF-011/014 y med
 Se elimina la confianza en headers públicos `X-Service-*` y `X-Session-Credential`, se reconstruye
 IP observada y se propaga requestId. La sesión recibida se conserva solo durante su solicitud.
 
-La entrada pública es el WAF ([ADR-030](../adr/ADR-030-waf-modsecurity-crs.md)): termina el TLS
+La entrada pública es el WAF ([ADR-031](../adr/ADR-031-waf-modsecurity-crs.md)): termina el TLS
 público, rechaza ataques genéricos con ModSecurity y el OWASP CRS y fija `X-Forwarded-For` con la
 dirección de la conexión. Detrás, Caddy es la única entrada a los servicios: enrutamiento, WS/HLS y
 supresión de headers privados; toma la dirección del cliente solo del WAF (`trusted_proxies`). El

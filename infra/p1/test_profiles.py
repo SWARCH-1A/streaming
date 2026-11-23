@@ -71,10 +71,17 @@ class Profiles(unittest.TestCase):
                         "LOCAL_SUBNET=192.168.241.0/24\nLOCAL_PROXY_IP=192.168.241.2\n"
                         "CORE_DB_PASSWORD=fixture-only-preserved\n")
             path.write_text(original)
-            with patch.dict(os.environ, {}, clear=True), patch("builtins.print"):
+            # A WAF address from the API subnet (first ADR-031 layout) is replaced by the edge zone.
+            original += "LOCAL_WAF_IP=192.168.241.4\n"
+            path.write_text(original)
+            networks = ["network-id", '[{"IPAM":{"Config":[{"Subnet":"192.168.240.0/24"}]}}]']
+            with patch.dict(os.environ, {}, clear=True), patch("builtins.print"), \
+                    patch.object(local, "run", side_effect=networks):
                 local.initialize()
                 upgraded = path.read_text()
-                self.assertEqual(upgraded, original + "LOCAL_GATEWAY_IP=192.168.241.3\nLOCAL_WAF_IP=192.168.241.4\n")
+                kept = original.replace("LOCAL_WAF_IP=192.168.241.4\n", "")
+                self.assertEqual(upgraded, kept + "LOCAL_GATEWAY_IP=192.168.241.3\nLOCAL_EDGE_SUBNET=192.168.242.0/24\n"
+                                 "LOCAL_WAF_IP=192.168.242.2\nLOCAL_EDGE_PROXY_IP=192.168.242.3\n")
                 self.assertEqual(path.stat().st_mode & 0o777, 0o600)
                 local.initialize()
                 self.assertEqual(path.read_text(), upgraded)
@@ -151,14 +158,17 @@ class Profiles(unittest.TestCase):
         local = module("local")
         with patch.dict(os.environ, {}, clear=True), patch.object(local, "run", side_effect=["network-id", '[{"IPAM":{"Config":null}},{"IPAM":{"Config":[{"Subnet":"192.168.240.0/24"}]}}]']):
             self.assertEqual(local.local_network(), {"LOCAL_SUBNET": "192.168.241.0/24", "LOCAL_PROXY_IP": "192.168.241.2", "LOCAL_DYNAMIC_RANGE": "192.168.241.128/25",
-                                                     "LOCAL_GATEWAY_IP": "192.168.241.3", "LOCAL_WAF_IP": "192.168.241.4"})
+                                                     "LOCAL_GATEWAY_IP": "192.168.241.3", "LOCAL_EDGE_SUBNET": "192.168.242.0/24",
+                                                     "LOCAL_WAF_IP": "192.168.242.2", "LOCAL_EDGE_PROXY_IP": "192.168.242.3"})
         # SPEC-16: the Gateway gets a static address distinct from the proxy and outside the dynamic range.
         self.assertEqual(local.gateway_ip("192.168.240.0/24", "192.168.240.3"), "192.168.240.4")
-        # ADR-030: the WAF gets the next static address, distinct from the proxy and the Gateway.
-        self.assertEqual(local.waf_ip("192.168.240.0/24", "192.168.240.2", "192.168.240.3"), "192.168.240.4")
-        self.assertEqual(local.waf_ip("192.168.240.0/24", "192.168.240.4", "192.168.240.3"), "192.168.240.5")
-        with self.assertRaisesRegex(RuntimeError, "static address left for the WAF"):
-            local.waf_ip("192.168.240.0/29", "192.168.240.2", "192.168.240.3")
+        # ADR-031: the edge zone is a separate subnet; an explicit one is validated, never overlapped.
+        with patch.dict(os.environ, {"LOCAL_EDGE_SUBNET": "192.168.250.0/28"}):
+            self.assertEqual(local.edge_network("192.168.240.0/24", []),
+                             {"LOCAL_EDGE_SUBNET": "192.168.250.0/28", "LOCAL_WAF_IP": "192.168.250.2", "LOCAL_EDGE_PROXY_IP": "192.168.250.3"})
+        for invalid in ("192.168.240.0/25", "8.8.8.0/24", "192.168.250.0/30"):
+            with patch.dict(os.environ, {"LOCAL_EDGE_SUBNET": invalid}), self.assertRaisesRegex(RuntimeError, "LOCAL_EDGE_SUBNET"):
+                local.edge_network("192.168.240.0/24", [])
         with self.assertRaisesRegex(RuntimeError, "static address"):
             local.gateway_ip("192.168.240.0/30", "192.168.240.1")
         for invalid in ("192.168.240.0", "192.168.240.1", "192.168.240.255", "192.168.241.2", "192.168.240.130"):

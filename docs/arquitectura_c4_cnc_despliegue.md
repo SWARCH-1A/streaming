@@ -89,7 +89,7 @@ flowchart LR
   WAF -->|HTTPS| P[Contenedor proxy Caddy]
   P --> W[Contenedor Web SSR]
   P --> G[Contenedor Gateway Go / agregación]
-  subgraph Private[Red privada de servicios]
+  subgraph Private[Servicios y almacenes: ver redes P3 debajo]
     C[Contenedor Core]
     S[Contenedor Streaming]
     CH[Contenedor Chat]
@@ -125,9 +125,16 @@ flowchart LR
   N -.-> Push[Push externo pendiente]
 ```
 
+Esta vista resume los procesos P2; la pertenencia concreta a redes y Auditor P3 se detalla en
+la [vista segmentada de despliegue](p3/segmentacion-red.md#vista-de-despliegue-pertenencia-a-redes).
+La instalación completa usa 14 bridges: una red explícita por almacén y su propietario,
+zona API, mensajería y dependencias de medios/SMTP. Auditor tiene bridges exclusivas para
+Core, broker y su PostgreSQL; no se conecta a la mensajería general. La zona API conserva
+el nombre `default` y las IP de proxy/Gateway, y excluye los almacenes. [ADR-030](adr/ADR-030-segmentacion-red.md).
+
 Cada servicio conserva credenciales y propiedad de escritura. VOD tiene persistencia privada;
 compartir un servidor de base de datos no permite compartir tablas ni credenciales. La selección
-de motores del despliegue local son cinco PostgreSQL privados, Redis para vivo/cuota y MinIO
+de motores del despliegue local son seis PostgreSQL privados (incluido Audit), Redis para vivo/cuota y MinIO
 para objetos S3. El broker no sustituye una base de negocio.
 
 Core, Streaming, Chat, VOD y Notificaciones constituyen cinco unidades de dominio. La clasificación
@@ -136,10 +143,10 @@ además de su función de comunicación/orquestación. Los módulos internos de 
 como procesos independientes. Este punto permanece en P2-18.
 
 El dominio público usa HTTPS y mantiene bloqueadas las rutas internas. El WAF
-([ADR-030](adr/ADR-030-waf-modsecurity-crs.md)) publica solo loopback 3445, inspecciona cada petición
-con ModSecurity y el OWASP CRS en modo bloqueo y la reenvía cifrada a Caddy, que ya no publica puertos.
-Media RTMPS publica loopback 11938 y Mailpit su buzón local en 8025. Los demás
-servicios y bases quedan en la red privada. Los servicios persistentes y el inicializador
+([ADR-031](adr/ADR-031-waf-modsecurity-crs.md)) publica solo loopback 3445, inspecciona cada petición
+con ModSecurity y el OWASP CRS en modo bloqueo y la reenvía cifrada a Caddy, que ya no publica puertos;
+ambos comparten solo la red de borde `edge`. Media RTMPS publica loopback 11938 y Mailpit su buzón
+local en 8025. Los demás servicios y bases quedan en redes del proyecto. Con Audit P3, los 22 servicios persistentes y el inicializador
 S3 se levantan con `infra/local/dev.py`; comandos e inventario en el [README](../README.md).
 El cliente Kotlin se construye fuera de Docker para Android/iOS; completa los cinco lenguajes
 junto a Java, Rust, Go y TypeScript. La recuperación consistente de los doce volúmenes
@@ -189,5 +196,6 @@ El despliegue local añade ambos mediante `infra/audit/compose.yaml`, sin public
 host. Core/VOD conservan autorización y repositorios propios. Logger confirma recepción solo
 tras persistir; Auditor se consulta a través de Core, que verifica ADMIN en cada solicitud.
 Los roles SQL separan lectura de inserción y ambos carecen de modificación/borrado del
-historial. La integración con proxy, segmentación y Zero Trust se coordina con Personas 2/3/5;
-este incremento no cambia sus políticas ni certifica el despliegue global.
+historial. [ADR-030](adr/ADR-030-segmentacion-red.md) concreta su segmentación: `audit-query`
+solo con Core, `audit-messaging` solo con broker y `audit-data` solo con su PostgreSQL.
+Se conservan los permisos de aplicación y el perfil Zero Trust de ADR-029.

@@ -64,7 +64,7 @@ En este prototipo no incluimos pagos, suscripciones de pago ni contenido premium
 | `vod-be` | Lógica | Go | Gestiona la biblioteca de grabaciones: metadatos, estado de publicación, manifiestos, subtítulos WebVTT y acceso a los archivos de video. |
 | `notifications worker` | Lógica | TypeScript (Node.js) | Gestiona la bandeja, el marcado de leído, las preferencias y las entregas. Decide destinatarios a partir de los eventos y envía correos, incluido el de recuperación de contraseña. |
 | `broker` | Comunicación | RabbitMQ | Reparte de forma durable los eventos y trabajos entre servicios, con una cola independiente por consumidor. No contiene reglas de negocio. |
-| `waf` | Comunicación | nginx + ModSecurity v3 + OWASP CRS | Entrada pública desde el Prototipo 3: termina HTTPS, bloquea ataques genéricos (inyección SQL, XSS, *path traversal*, escáneres) y limita peticiones antes de pasar el tráfico al reverse proxy ([ADR-030](docs/adr/ADR-030-waf-modsecurity-crs.md)). |
+| `waf` | Comunicación | nginx + ModSecurity v3 + OWASP CRS | Entrada pública desde el Prototipo 3: termina HTTPS, bloquea ataques genéricos (inyección SQL, XSS, *path traversal*, escáneres) y limita peticiones antes de pasar el tráfico al reverse proxy ([ADR-031](docs/adr/ADR-031-waf-modsecurity-crs.md)). |
 | `reverse-proxy` | Lógica | Caddy | Recibe las solicitudes del cliente web, las dirige al servidor correspondiente y devuelve la respuesta. |
 | `object-db` | Datos | MinIO (S3) | Almacena los archivos de imagen: avatares de perfil y portadas de canal. Solo `core-be` lo lee y escribe; las imágenes se entregan al navegador a través de `core-be`. |
 | `core-db` | Datos | PostgreSQL | Persiste cuentas, sesiones, perfiles, canales, catálogo y la proyección de transmisiones que usa la búsqueda. Solo `core-be` lo lee y escribe. |
@@ -211,7 +211,7 @@ Estas flechas no muestran el orden de ejecución ni necesariamente la dirección
 
 #### Entrada e infraestructura
 
-Desde el Prototipo 3, antes del API Gateway hay un firewall de aplicaciones (`waf`, [ADR-030](docs/adr/ADR-030-waf-modsecurity-crs.md)): recibe todo el tráfico público, rechaza las peticiones que coinciden con ataques conocidos y reenvía el resto, cifrado, al reverse proxy. El API Gateway es la entrada al sistema. Recibe las rutas públicas por el puerto 3443 y las envía al destino correspondiente. Algunas rutas las enruta directamente a Chat, Notifications u otras APIs de dominio. Otras, las que requieren composición o reenvío, las resuelve él mismo: compone la respuesta de varios servicios o reenvía la operación al servicio dueño.
+Desde el Prototipo 3, antes del API Gateway hay un firewall de aplicaciones (`waf`, [ADR-031](docs/adr/ADR-031-waf-modsecurity-crs.md)): recibe todo el tráfico público, rechaza las peticiones que coinciden con ataques conocidos y reenvía el resto, cifrado, al reverse proxy. El API Gateway es la entrada al sistema. Recibe las rutas públicas por el puerto 3443 y las envía al destino correspondiente. Algunas rutas las enruta directamente a Chat, Notifications u otras APIs de dominio. Otras, las que requieren composición o reenvío, las resuelve él mismo: compone la respuesta de varios servicios o reenvía la operación al servicio dueño.
 
 #### Excepción del broker en la estructura por capas
 

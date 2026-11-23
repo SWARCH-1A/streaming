@@ -17,7 +17,7 @@ Un atacante conectado a la misma red que Vault tv captura el tráfico entre el n
 
 - **Cifrar datos** (resistir ataques): TLS en todas las conexiones, públicas e internas.
 - **Autenticar actores** (resistir ataques): los clientes verifican el certificado y el nombre del servidor (`verify-full`, `tls_trust_pool`, `SSL_VERIFY_HOSTNAME`).
-- **Limitar la exposición** (resistir ataques): la única entrada pública es el WAF por HTTPS (puerto 3445 del host, [ADR-030](../adr/ADR-030-waf-modsecurity-crs.md)), que reenvía cifrado a Caddy; no hay puerto HTTP publicado.
+- **Limitar la exposición** (resistir ataques): la única entrada pública es el WAF por HTTPS (puerto 3445 del host, [ADR-031](../adr/ADR-031-waf-modsecurity-crs.md)), que reenvía cifrado a Caddy; no hay puerto HTTP publicado.
 - **Verificar la integridad de los mensajes** (detectar ataques): TLS usa cifrado autenticado, así que un mensaje modificado en el camino se descarta.
 
 ## Patrón aplicado: Canal Seguro (Secure Channel)

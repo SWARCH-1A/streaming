@@ -1,13 +1,17 @@
 # WAF de la entrada pública
 
 El contenedor `waf` del Compose raíz es la entrada pública de la instalación local
-([ADR-030](../../docs/adr/ADR-030-waf-modsecurity-crs.md)). Usa la imagen oficial del proyecto
+([ADR-031](../../docs/adr/ADR-031-waf-modsecurity-crs.md)). Usa la imagen oficial del proyecto
 OWASP CRS (`owasp/modsecurity-crs`, nginx Alpine, rama LTS 4.25, fijada por digest), con
 ModSecurity v3 y el OWASP Core Rule Set en modo bloqueo.
 
 ```
 Cliente ──HTTPS :3445──► waf (nginx + ModSecurity + CRS) ──HTTPS──► proxy (Caddy) ──HTTPS──► servicios
+                         └────────── red edge ──────────┘           └──── red default ────┘
 ```
+
+El WAF solo pertenece a la red `edge`, que comparte con Caddy ([ADR-030](../../docs/adr/ADR-030-segmentacion-red.md)):
+no puede abrir conexiones a ningún servicio ni almacén sin pasar por el proxy.
 
 | Archivo | Contenido |
 | --- | --- |

@@ -1,5 +1,7 @@
 services:
   audit-db:
+    networks:
+      audit-data: {}
     image: postgres:18-alpine
     entrypoint: ["/bin/sh", "/postgres-tls.sh"]
     command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tmp/p1-tls/server.crt", "-c", "ssl_key_file=/tmp/p1-tls/server.key"]
@@ -22,6 +24,10 @@ services:
       retries: 12
     restart: unless-stopped
   audit:
+    networks:
+      audit-data: {}
+      audit-query: {}
+      audit-messaging: {}
     image: streaming-local-audit
     build: ./services/audit
     environment:
@@ -43,7 +49,12 @@ services:
       broker:
         condition: service_healthy
     restart: unless-stopped
+  broker:
+    networks:
+      audit-messaging: {}
   core:
+    networks:
+      audit-query: {}
     environment:
       CORE_AUDIT_ENABLED: "true"
       CORE_AUDIT_BASE_URL: https://audit:8096
@@ -51,5 +62,16 @@ services:
   vod:
     environment:
       VOD_AUDIT_ENABLED: "true"
+networks:
+  audit-messaging:
+    driver: bridge
+    internal: true
+  audit-data:
+    driver: bridge
+    internal: true
+  audit-query:
+    driver: bridge
+    internal: true
+
 volumes:
   audit-db:

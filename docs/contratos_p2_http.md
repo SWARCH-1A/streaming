@@ -372,3 +372,9 @@ hasta exclusivo; default 50, máximo 100, parámetros repetidos/desconocidos o m
 P2AuditPage: items con position decimal, receivedAtUtc y event; nextCursor nullable. Orden de
 ingreso; cursor no concede acceso y no representa snapshot. No-store en ambos proveedores.
 El acceso al historial se registra en audit.reads antes de revelar datos. Ver SPEC-25.
+
+En el despliegue completo, Core y Auditor comparten `audit-query`; Auditor no pertenece a la
+red general de APIs ni a la mensajería de los dominios. Su conexión al mismo broker usa
+`audit-messaging` y su PostgreSQL, `audit-data`. Esta frontera de red complementa los
+permisos anteriores sin cambiar rutas, schemas, credenciales ni códigos de respuesta;
+ver [ADR-030](adr/ADR-030-segmentacion-red.md).

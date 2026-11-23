@@ -2,6 +2,8 @@ name: streaming-local
 
 services:
   core-db:
+    networks:
+      core-data: {}
     image: postgres:18-alpine
     entrypoint: ["/bin/sh", "/postgres-tls.sh"]
     command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tmp/p1-tls/server.crt", "-c", "ssl_key_file=/tmp/p1-tls/server.key"]
@@ -22,6 +24,9 @@ services:
     restart: unless-stopped
 
   core:
+    networks:
+      default: {}
+      core-data: {}
     image: streaming-local-core
     build: ./services/core
     environment:
@@ -74,6 +79,8 @@ services:
 
   # Zero Trust (ADR-029): sin usuario anónimo; Chat entra con su propia identidad y solo a sus claves chat:*.
   chat-db:
+    networks:
+      chat-cache: {}
     image: redis:8-alpine
     command: ["redis-server", "--port", "0", "--tls-port", "6379", "--tls-cert-file", "/run/secrets/chat-redis.crt", "--tls-key-file", "/run/secrets/chat-redis.key", "--tls-ca-cert-file", "/run/secrets/ca.crt", "--tls-auth-clients", "no", "--aclfile", "/run/secrets/chat-redis.acl", "--appendonly", "yes", "--appendfsync", "always", "--save", "", "--maxmemory-policy", "noeviction"]
     environment:
@@ -94,6 +101,8 @@ services:
 
   # Chat P2 (ADR-024): copia durable para replay, bloqueos y retiros. Redis sigue sirviendo el vivo.
   chat-pg:
+    networks:
+      chat-data: {}
     image: postgres:18-alpine
     entrypoint: ["/bin/sh", "/postgres-tls.sh"]
     command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tmp/p1-tls/server.crt", "-c", "ssl_key_file=/tmp/p1-tls/server.key"]
@@ -114,6 +123,10 @@ services:
     restart: unless-stopped
 
   chat:
+    networks:
+      default: {}
+      chat-cache: {}
+      chat-data: {}
     image: streaming-local-chat
     build: ./services/chat
     environment:
@@ -147,6 +160,8 @@ services:
     restart: unless-stopped
 
   live-db:
+    networks:
+      streaming-data: {}
     image: postgres:18.6-alpine3.24
     entrypoint: ["/bin/sh", "/postgres-tls.sh"]
     command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tmp/p1-tls/server.crt", "-c", "ssl_key_file=/tmp/p1-tls/server.key"]
@@ -169,6 +184,10 @@ services:
     restart: unless-stopped
 
   live:
+    networks:
+      default: {}
+      streaming-data: {}
+      media: {}
     image: streaming-local-live
     build: ./services/streaming
     environment:
@@ -237,6 +256,8 @@ services:
     restart: unless-stopped
 
   media-server:
+    networks:
+      media: {}
     image: streaming-local-mediamtx
     build:
       context: .
@@ -278,6 +299,8 @@ services:
     restart: unless-stopped
 
   notifications-db:
+    networks:
+      notifications-data: {}
     image: postgres:18-alpine
     entrypoint: ["/bin/sh", "/postgres-tls.sh"]
     command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tmp/p1-tls/server.crt", "-c", "ssl_key_file=/tmp/p1-tls/server.key"]
@@ -299,6 +322,8 @@ services:
 
   # Local SMTP test provider: catches every email (UI on 127.0.0.1:8025) and never delivers outside.
   mailpit:
+    networks:
+      smtp: {}
     image: axllent/mailpit:v1.27.0
     environment:
       MP_SMTP_TLS_CERT: /run/secrets/mailpit.crt
@@ -313,6 +338,10 @@ services:
     restart: unless-stopped
 
   notifications:
+    networks:
+      default: {}
+      notifications-data: {}
+      smtp: {}
     image: streaming-local-notifications
     build: ./services/notifications
     environment:
@@ -348,6 +377,8 @@ services:
     restart: unless-stopped
 
   web:
+    networks:
+      default: {}
     image: streaming-local-web
     build:
       context: .
@@ -369,7 +400,7 @@ services:
     depends_on: [core]
     restart: unless-stopped
 
-  # Public entry (ADR-030): ModSecurity v3 + OWASP CRS in blocking mode, in front of Caddy. It terminates
+  # Public entry (ADR-031): ModSecurity v3 + OWASP CRS in blocking mode, in front of Caddy. It terminates
   # the public TLS, inspects each request and re-encrypts to the reverse proxy, which is no longer published.
   waf:
     image: owasp/modsecurity-crs:4.25.2-nginx-alpine-202610180210-lts@sha256:57fd215e2894638a02d235f88510fa2a129d64740f0edb6798ca0e4aa2f02457
@@ -410,8 +441,10 @@ services:
       timeout: 5s
       start_period: 20s
       retries: 6
+    # Edge zone only (ADR-030/031): the WAF reaches Caddy and nothing else, so a compromised entry
+    # cannot address Core, Chat, Streaming or any datastore without passing through the proxy.
     networks:
-      default:
+      edge:
         ipv4_address: ${LOCAL_WAF_IP:?Run init}
     depends_on: [proxy]
     restart: unless-stopped
@@ -432,6 +465,8 @@ services:
     networks:
       default:
         ipv4_address: ${LOCAL_PROXY_IP:?Run init}
+      edge:
+        ipv4_address: ${LOCAL_EDGE_PROXY_IP:?Run init}
     depends_on: [core, chat, live, media-server, notifications, vod, gateway, web]
     restart: unless-stopped
 
@@ -458,6 +493,8 @@ services:
     restart: unless-stopped
 
   minio:
+    networks:
+      vod-storage: {}
     image: streaming-vod-minio
     build:
       context: .
@@ -482,6 +519,8 @@ services:
     restart: unless-stopped
 
   minio-init:
+    networks:
+      vod-storage: {}
     image: streaming-vod-minio
     entrypoint: ["/bin/sh", "/initialize.sh"]
     environment:
@@ -498,6 +537,8 @@ services:
         condition: service_healthy
 
   vod-db:
+    networks:
+      vod-data: {}
     image: postgres:18.6-alpine3.24
     entrypoint: ["/bin/sh", "/postgres-tls.sh"]
     command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tmp/p1-tls/server.crt", "-c", "ssl_key_file=/tmp/p1-tls/server.key"]
@@ -518,6 +559,11 @@ services:
     restart: unless-stopped
 
   vod:
+    networks:
+      default: {}
+      vod-data: {}
+      vod-storage: {}
+      media: {}
     image: streaming-local-vod
     build: ./services/vod
     environment:
@@ -552,6 +598,9 @@ services:
     restart: unless-stopped
 
   media-recorder:
+    networks:
+      media: {}
+      vod-storage: {}
     image: streaming-local-vod
     build: ./services/vod
     entrypoint: ["media-recorder"]
@@ -586,11 +635,45 @@ services:
     restart: unless-stopped
 
 networks:
+  # API zone: retain the existing network name/IPAM and trusted proxy addresses.
+  # Every service declares membership explicitly; datastores never join this network.
   default:
     ipam:
       config:
         - subnet: ${LOCAL_SUBNET:?Run init}
           ip_range: ${LOCAL_DYNAMIC_RANGE:?Run init}
+  core-data:
+    driver: bridge
+    internal: true
+  chat-cache:
+    driver: bridge
+    internal: true
+  chat-data:
+    driver: bridge
+    internal: true
+  streaming-data:
+    driver: bridge
+    internal: true
+  notifications-data:
+    driver: bridge
+    internal: true
+  vod-data:
+    driver: bridge
+    internal: true
+  vod-storage:
+    driver: bridge
+    internal: true
+  media:
+    driver: bridge
+  smtp:
+    driver: bridge
+  # Edge zone (ADR-031): only the WAF and Caddy. It publishes the HTTPS entry, so it cannot be internal;
+  # fixed addresses let Caddy trust exactly the WAF to state the client address.
+  edge:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${LOCAL_EDGE_SUBNET:?Run init}
 
 volumes:
   core-db:

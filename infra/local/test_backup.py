@@ -47,8 +47,10 @@ class BackupRecovery(unittest.TestCase):
             self.assertNotIn(password, acl)
             self.assertIn('#' + hashlib.sha256(password.encode()).hexdigest(), acl)
             self.assertIn('user default off', acl)
-            # A backup made before ADR-030 gets the current Caddyfile, which trusts only the restored WAF address.
-            self.assertEqual(env['LOCAL_WAF_IP'], '192.168.240.4')
+            # A backup made before ADR-031 gets the current Caddyfile, which trusts only the restored WAF address.
+            # The edge zone (WAF and Caddy) gets its own free subnet, separate from the API zone.
+            self.assertEqual((env['LOCAL_SUBNET'], env['LOCAL_EDGE_SUBNET']), ('192.168.240.0/24', '192.168.241.0/24'))
+            self.assertEqual((env['LOCAL_WAF_IP'], env['LOCAL_EDGE_PROXY_IP']), ('192.168.241.2', '192.168.241.3'))
             caddyfile = (root / (prefix + '-state/Caddyfile')).read_text()
             self.assertIn('trusted_proxies static {$LOCAL_WAF_IP}', caddyfile)
             self.assertIn('header_up X-Forwarded-For {client_ip}', caddyfile)

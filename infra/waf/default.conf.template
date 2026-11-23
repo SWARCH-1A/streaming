@@ -1,4 +1,4 @@
-# Public entry of the local installation (ADR-030). Replaces the image's default server template:
+# Public entry of the local installation (ADR-031). Replaces the image's default server template:
 # HTTPS only, no CORS on blocked responses, no public health or metrics routes, and logs without
 # query strings, cookies or bodies. ModSecurity and the OWASP CRS are loaded by the image's
 # modsecurity.conf (environment in compose.yaml); exclusions live in infra/waf/rules.
@@ -14,7 +14,7 @@ map $http_upgrade $waf_connection {
 }
 
 # Per client address. With Docker Desktop every host client reaches the container from the same
-# NAT address, so locally these limits behave as global limits (ADR-030).
+# NAT address, so locally these limits behave as global limits (ADR-031).
 limit_req_zone  $binary_remote_addr zone=waf_requests:10m rate=${WAF_REQUESTS_PER_SECOND}r/s;
 limit_conn_zone $binary_remote_addr zone=waf_connections:10m;
 limit_req_status  429;

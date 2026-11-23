@@ -68,7 +68,7 @@ def render_proxy():
         # The same TLS entry serves the Mac and LAN clients. Only configured names are accepted;
         # aliases redirect to the canonical origin used by cookies, CSRF, WS and media URLs.
         source = source.replace("https://localhost:3443 {", "https://:3443 {")
-        # The WAF (ADR-030) is the public entry: Caddy takes the client address from its X-Forwarded-For
+        # The WAF (ADR-031) is the public entry: Caddy takes the client address from its X-Forwarded-For
         # and from no other source, and forwards that address to the services that trust Caddy.
         source = source.replace("  auto_https off\n", """  auto_https off
   servers {
@@ -103,14 +103,11 @@ def render_proxy():
 def local_network():
     """Choose an unused private Docker subnet; allow an explicit subnet/IP pair."""
     configured = os.environ.get("LOCAL_SUBNET")
+    occupied = None if configured else occupied_subnets()
     if configured:
         subnet = ipaddress.ip_network(configured)
     else:
-        ids = run(["docker", "network", "ls", "-q"]).split()
-        networks = json.loads(run(["docker", "network", "inspect", *ids])) if ids else []
-        occupied = [ipaddress.ip_network(c["Subnet"]) for n in networks for c in (n.get("IPAM", {}).get("Config") or []) if c.get("Subnet")]
-        candidates = (ipaddress.ip_network(f"192.168.{octet}.0/24") for octet in range(240, 255))
-        subnet = next((c for c in candidates if not any(c.overlaps(n) for n in occupied if n.version == 4)), None)
+        subnet = free_subnet(occupied)
         if subnet is None:
             raise RuntimeError("Choose an unused LOCAL_SUBNET and LOCAL_PROXY_IP before init")
     proxy_ip = ipaddress.ip_address(os.environ.get("LOCAL_PROXY_IP", str(subnet.network_address + 2)))
@@ -119,9 +116,39 @@ def local_network():
     dynamic_range = list(subnet.subnets(prefixlen_diff=1))[1]
     if proxy_ip not in subnet or proxy_ip in dynamic_range or proxy_ip in (subnet.network_address, subnet.broadcast_address, subnet.network_address + 1):
         raise RuntimeError("LOCAL_PROXY_IP must be a usable address in the private IPv4 LOCAL_SUBNET")
-    gateway = gateway_ip(subnet, proxy_ip)
     return {"LOCAL_SUBNET": str(subnet), "LOCAL_PROXY_IP": str(proxy_ip), "LOCAL_DYNAMIC_RANGE": str(dynamic_range),
-            "LOCAL_GATEWAY_IP": gateway, "LOCAL_WAF_IP": waf_ip(subnet, proxy_ip, gateway)}
+            "LOCAL_GATEWAY_IP": gateway_ip(subnet, proxy_ip), **edge_network(subnet, occupied)}
+
+
+def edge_candidates(occupied):
+    """Docker networks are inspected only when the edge subnet has to be chosen."""
+    if occupied is not None or os.environ.get("LOCAL_EDGE_SUBNET"):
+        return occupied or []
+    return occupied_subnets()
+
+
+def occupied_subnets():
+    ids = run(["docker", "network", "ls", "-q"]).split()
+    networks = json.loads(run(["docker", "network", "inspect", *ids])) if ids else []
+    return [ipaddress.ip_network(c["Subnet"]) for n in networks for c in (n.get("IPAM", {}).get("Config") or []) if c.get("Subnet")]
+
+
+def free_subnet(occupied, exclude=()):
+    taken = [n for n in (*occupied, *(ipaddress.ip_network(e) for e in exclude)) if n.version == 4]
+    candidates = (ipaddress.ip_network(f"192.168.{octet}.0/24") for octet in range(240, 255))
+    return next((c for c in candidates if not any(c.overlaps(n) for n in taken)), None)
+
+
+def edge_network(subnet, occupied):
+    """Edge zone shared only by the WAF and Caddy (ADR-031), with fixed addresses in its own subnet."""
+    configured = os.environ.get("LOCAL_EDGE_SUBNET")
+    edge = ipaddress.ip_network(configured) if configured else free_subnet(edge_candidates(occupied), exclude=(subnet,))
+    if edge is None:
+        raise RuntimeError("Choose an unused LOCAL_EDGE_SUBNET before init")
+    if edge.version != 4 or not edge.is_private or edge.prefixlen > 29 or edge.overlaps(ipaddress.ip_network(subnet)):
+        raise RuntimeError("LOCAL_EDGE_SUBNET must be a private IPv4 network separate from LOCAL_SUBNET")
+    return {"LOCAL_EDGE_SUBNET": str(edge), "LOCAL_WAF_IP": str(edge.network_address + 2),
+            "LOCAL_EDGE_PROXY_IP": str(edge.network_address + 3)}
 
 
 def static_ip(subnet, taken, role):
@@ -139,23 +166,25 @@ def gateway_ip(subnet, proxy_ip):
     return static_ip(subnet, (proxy_ip,), "Gateway")
 
 
-def waf_ip(subnet, proxy_ip, gateway):
-    """Fixed WAF address in the static half: Caddy trusts only it to state the client address (ADR-030)."""
-    return static_ip(subnet, (proxy_ip, gateway), "WAF")
-
-
 def initialize():
     if STATE.exists():
         env = environment()
         path = STATE / "environment.env"
         stored = path.read_text()
-        missing = [key for key in ("LOCAL_GATEWAY_IP", "LOCAL_WAF_IP") if PROFILE == "local" and key in env
-                   and not any(line.startswith(key + "=") for line in stored.splitlines())]
+        lines = [line for line in stored.splitlines() if line]
+        if PROFILE == "local" and "LOCAL_SUBNET" in env and "LOCAL_EDGE_SUBNET" not in env:
+            # States initialized before ADR-031 get the edge zone (WAF and Caddy) in a new free subnet;
+            # a WAF address from the API subnet is replaced.
+            env.update(edge_network(env["LOCAL_SUBNET"], occupied_subnets()))
+            lines = [line for line in lines if not line.startswith("LOCAL_WAF_IP=")]
+        keys = ("LOCAL_GATEWAY_IP", "LOCAL_EDGE_SUBNET", "LOCAL_WAF_IP", "LOCAL_EDGE_PROXY_IP")
+        missing = [key for key in keys if PROFILE == "local" and key in env
+                   and not any(line.startswith(key + "=") for line in lines)]
         if missing:
             # Persist the derived addresses so documented raw Compose commands work after upgrading
-            # a state initialized before SPEC-16 or ADR-030, without rotation.
+            # a state initialized before SPEC-16 or ADR-031, without rotation.
             temporary = path.with_suffix(".network.tmp")
-            temporary.write_text(stored.rstrip("\n") + "\n" + "".join(f"{key}={env[key]}\n" for key in missing))
+            temporary.write_text("\n".join(lines) + "\n" + "".join(f"{key}={env[key]}\n" for key in missing))
             os.chmod(temporary, 0o600)
             os.replace(temporary, path)
         print(f"Existing {PROJECT} state retained: {STATE}")
@@ -221,9 +250,10 @@ def environment():
     if "LOCAL_SUBNET" in env and "LOCAL_GATEWAY_IP" not in env:
         # States initialized before SPEC-16 derive the same fixed address instead of re-running init.
         env["LOCAL_GATEWAY_IP"] = gateway_ip(env["LOCAL_SUBNET"], env["LOCAL_PROXY_IP"])
-    if "LOCAL_SUBNET" in env and "LOCAL_WAF_IP" not in env:
-        # States initialized before ADR-030 derive the WAF address the same way.
-        env["LOCAL_WAF_IP"] = waf_ip(env["LOCAL_SUBNET"], env["LOCAL_PROXY_IP"], env["LOCAL_GATEWAY_IP"])
+    if "LOCAL_SUBNET" in env and "LOCAL_EDGE_SUBNET" not in env:
+        # The edge zone needs a free subnet, chosen and persisted only by init; until then Compose stops
+        # with "Run init" instead of trusting a WAF address from the API subnet.
+        env.pop("LOCAL_WAF_IP", None)
     https_port, _ = configured_ports(env)
     host = env.get("LOCAL_PUBLIC_HOST", "localhost") if PROFILE == "local" else "localhost"
     if PROFILE == "local":

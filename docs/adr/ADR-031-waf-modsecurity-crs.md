@@ -1,4 +1,4 @@
-# ADR-030: Firewall de aplicaciones web (ModSecurity v3 + OWASP CRS) en la entrada pública
+# ADR-031: Firewall de aplicaciones web (ModSecurity v3 + OWASP CRS) en la entrada pública
 
 - Estado: aceptada para integración local
 - Fecha: 2026-11-22
@@ -44,7 +44,11 @@ expuesto sin otra barrera.
    conexión y descarta la que envíe el cliente. Caddy confía solo en la IP fija del WAF
    (`LOCAL_WAF_IP`, `trusted_proxies_strict`) para leerla y la propaga a los servicios, que siguen
    confiando en Caddy y el Gateway. Así las cuotas por IP de Core siguen siendo por cliente.
-6. **Registro sin datos sensibles.** El log de acceso guarda método, ruta sin consulta, estado y
+6. **Zona de borde propia.** Con la segmentación de [ADR-030](ADR-030-segmentacion-red.md), el WAF
+   solo pertenece a la red `edge`, que comparte únicamente con Caddy. Tiene subred propia
+   (`LOCAL_EDGE_SUBNET`) e IP fijas para el WAF (`.2`) y el proxy (`.3`). Un WAF comprometido no alcanza
+   Core, Chat, Streaming, el broker ni ningún almacén sin pasar por Caddy.
+7. **Registro sin datos sensibles.** El log de acceso guarda método, ruta sin consulta, estado y
    duración. El log de auditoría de ModSecurity guarda solo las partes A, H y Z (cabecera, reglas que
    coincidieron y cierre), nunca cabeceras ni cuerpos, así que no guarda cookies, tokens ni contraseñas.
    Los archivos subidos no se guardan en disco.
@@ -77,9 +81,10 @@ La decisión aplica a la instalación raíz (`compose.yaml`, gestionada por `inf
 - **Límites por dirección.** Con Docker Desktop, todo el tráfico del equipo anfitrión llega al
   contenedor desde la misma dirección NAT, así que en local los límites de peticiones y conexiones se
   comportan como límites globales. En un despliegue real se aplican por cliente.
-- **Operación.** `python3 infra/local/dev.py init` añade `LOCAL_WAF_IP` a las instalaciones existentes sin
-  rotar secretos; `up` regenera la Caddyfile. Una copia de seguridad anterior a este ADR se restaura con la
-  Caddyfile actual. El perfil P1 (`infra/p1`, perfiles `default` y `load`) no tiene WAF y conserva su
+- **Operación.** `python3 infra/local/dev.py init` elige una subred libre para `edge` y añade
+  `LOCAL_EDGE_SUBNET`, `LOCAL_WAF_IP` y `LOCAL_EDGE_PROXY_IP` a las instalaciones existentes sin rotar
+  secretos; `up` regenera la Caddyfile. Una restauración elige subredes propias para su copia, y un
+  backup anterior a este ADR se restaura con la Caddyfile actual. El perfil P1 (`infra/p1`, perfiles `default` y `load`) no tiene WAF y conserva su
   comportamiento.
 - **Fuera del alcance.** RTMPS (11938) va directo a MediaMTX y no es HTTP. Mailpit (8025) es una
   herramienta de desarrollo y no pasa por el WAF.
@@ -97,6 +102,8 @@ Con la instalación raíz arriba:
    cliente, o enviada directamente a Caddy desde otro contenedor, se ignora.
 4. TLS 1.1 y HTTP plano se rechazan; `/healthz` no es accesible desde fuera.
 5. Las suites de integración pasan a través del WAF sin bloqueos de tráfico legítimo.
+6. `tests/integration/network-segmentation/run.py` comprueba que el WAF llega a Caddy y que no
+   alcanza ningún otro servicio, ni por DNS ni por IP.
 
 ## Revisión
 
