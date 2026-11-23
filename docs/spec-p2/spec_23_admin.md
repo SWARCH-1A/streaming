@@ -174,3 +174,6 @@ contrato de comprobación y los plazos deben verificarse antes de declarar suspe
 incorporan eventos de seguridad de Core/VOD, suscripciones audit.core/audit.vod y un servicio
 con almacenamiento propio. Las autorizaciones y auditorías de dominio existentes se conservan.
 La evidencia se publica desde outbox; su consulta exige sesión administrativa vigente en Core.
+La consola enlaza a `/admin/audit`: filtros Core/VOD, fechas, acción, resultado e IDs exactos,
+tabla paginada y detalle de solo lectura según SPEC-25. Reutiliza el endpoint protegido de Core
+a través del WAF; no tiene acceso directo al almacén ni a la API interna de Auditor.

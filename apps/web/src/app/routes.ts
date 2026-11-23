@@ -26,6 +26,7 @@ export default [
       route('watch-parties', 'routes/watch-parties.tsx'),
       route('watch-parties/:partyId', 'routes/watch-party.tsx'),
       route('admin', 'routes/admin.tsx'),
+      route('admin/audit', 'routes/admin-audit.tsx'),
     ]),
     route('*', 'routes/not-found.tsx'),
   ]),

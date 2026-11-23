@@ -1,3 +1,4 @@
+import { MemoryRouter } from 'react-router';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
@@ -25,7 +26,7 @@ beforeEach(() => {
 });
 it('focuses the reason and associates validation without sending an empty command', async () => {
   const user = userEvent.setup();
-  render(<AdministrationPage />);
+  render(<AdministrationPage />, { wrapper: MemoryRouter });
   await user.click(await screen.findByRole('button', { name: 'Suspender cuenta' }));
   expect(screen.getByLabelText('Motivo')).toHaveFocus();
   await user.click(screen.getByRole('button', { name: 'Confirmar cambio' }));
@@ -48,7 +49,7 @@ it('keeps the idempotency key after uncertain failure and separates operation er
     });
   });
   const user = userEvent.setup();
-  render(<AdministrationPage />);
+  render(<AdministrationPage />, { wrapper: MemoryRouter });
   await user.click(await screen.findByRole('button', { name: 'Suspender cuenta' }));
   await user.type(screen.getByLabelText('Motivo'), 'Revisión de prueba');
   await user.click(screen.getByRole('button', { name: 'Confirmar cambio' }));
@@ -67,7 +68,7 @@ it('keeps the idempotency key after uncertain failure and separates operation er
 });
 it('shows denied access without rendering a mutation control', async () => {
   vi.mocked(request).mockRejectedValue(new Error('ADMIN_REQUIRED'));
-  render(<AdministrationPage />);
+  render(<AdministrationPage />, { wrapper: MemoryRouter });
   expect(
     await screen.findByText('Tu cuenta no tiene permisos administrativos.'),
   ).toBeInTheDocument();

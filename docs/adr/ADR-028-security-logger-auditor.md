@@ -39,6 +39,13 @@ Consulta por HTTPS al Auditor con secreto dedicado; no se publica su puerto ni S
 lectura registra actor verificado e instante antes de revelar resultados. TLS verificado en
 HTTP, AMQP y SQL del perfil local; HTTP permitido solo explícitamente en fixtures aislados.
 
+La consola Web incorpora `/admin/audit`, enlazada desde Administración, como consumidor de
+esa misma API. Ofrece filtros estructurados, intervalo temporal inicial de 24 horas, páginas
+de 50 eventos por cursor y detalle de solo lectura. No añade motores de búsqueda, servicios
+ni endpoints, y no unifica los logs del WAF con los eventos de dominio. Las fechas de cada
+consulta quedan fijas entre páginas; no hay polling ni conteo global. El rol se sigue
+validando en Core; ocultar controles Web no concede ni sustituye permisos.
+
 ## Alternativas
 
 - Solo stdout/Caddy: no conserva semántica ni ofrece investigación correlacionada del dominio.

@@ -373,6 +373,11 @@ P2AuditPage: items con position decimal, receivedAtUtc y event; nextCursor nulla
 ingreso; cursor no concede acceso y no representa snapshot. No-store en ambos proveedores.
 El acceso al historial se registra en audit.reads antes de revelar datos. Ver SPEC-25.
 
+Web consume esta operación desde `/admin/audit`, sin cambios en el contrato: solicita páginas
+de 50 registros, conserva from/to entre cursores y reinicia el cursor al cambiar los filtros.
+Las fechas introducidas en hora local se convierten a UTC. La UI solo lee; la sesión ADMIN
+se valida de nuevo en Core en cada consulta y los registros del WAF no se incluyen como productor.
+
 En el despliegue completo, Core y Auditor comparten `audit-query`; Auditor no pertenece a la
 red general de APIs ni a la mensajería de los dominios. Su conexión al mismo broker usa
 `audit-messaging` y su PostgreSQL, `audit-data`. Esta frontera de red complementa los

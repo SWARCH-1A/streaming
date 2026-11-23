@@ -28,7 +28,11 @@ No ejecutar reset para habilitar auditoría: elimina los datos de desarrollo.
 Una sesión ADMIN consulta GET `/api/admin/audit-events?targetId=vod_example&limit=20`
 a través del origen HTTPS habitual de Vault TV. Admite Cookie web o Bearer móvil de Core.
 Para provisionar ADMIN usar el mecanismo existente de Core; el registro público no concede rol.
-No hay dashboard ni alerta automática en este incremento.
+La consola Web está en **Administración → Auditoría de seguridad** (`/admin/audit`).
+Permite filtrar por Core/VOD, acción, resultado, fechas e IDs exactos; ofrece páginas de 50
+eventos y detalle de solo lectura. La consulta inicial usa las últimas 24 horas y las fechas
+se muestran en hora local. El historial no incluye los registros propios del WAF.
+No hay alerta automática en este incremento.
 
 Filtros: actorId, targetId, action, outcome, producer, requestId, from, to, cursor y limit.
 Respuesta: items con position, receivedAtUtc y event; nextCursor null al agotar la página.

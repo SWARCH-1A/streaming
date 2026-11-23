@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router';
 import type { P2AccountAdmin, P2AccountAdminPage, P2ChannelAdminPage } from '@contracts/p2/index';
 
 import { Button } from '@/src/components/atoms/Button';
@@ -108,8 +109,12 @@ export function AdministrationPage() {
           <h1 ref={heading} tabIndex={-1}>
             Administración
           </h1>
-          <p>Consulta cuentas y canales, y revisa retiradas de contenido publicado.</p>
+          <p>Consulta cuentas y canales, revisa retiradas y accede al historial de seguridad.</p>
         </div>
+        <Link className={styles.auditLink} to="/admin/audit">
+          <Icon name="clock" size={17} />
+          Auditoría de seguridad
+        </Link>
         <Button className={styles.refresh} variant="secondary" onClick={refresh} disabled={busy}>
           <Icon name="refresh" size={17} />
           Actualizar listados

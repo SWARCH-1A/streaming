@@ -1,0 +1,341 @@
+.page {
+  display: grid;
+  gap: 1.5rem;
+  width: min(100%, 1280px);
+  min-width: 0;
+  margin-inline: auto;
+  padding-bottom: 2rem;
+}
+.breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  color: var(--color-muted);
+  font-size: 0.8rem;
+}
+.breadcrumb a {
+  color: var(--color-primary-soft);
+  text-underline-offset: 0.2rem;
+}
+.hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 0.25rem 0.5rem;
+}
+.eyebrow {
+  color: var(--color-primary-soft);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.hero h1 {
+  margin-block: 0.35rem 0.6rem;
+  font-size: clamp(2rem, 4vw, 2.8rem);
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+}
+.hero p:last-child {
+  max-width: 65ch;
+  color: var(--color-muted);
+  line-height: 1.6;
+}
+.readOnly {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.4rem;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+.filters,
+.results,
+.detail {
+  min-width: 0;
+  background: var(--color-panel);
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: var(--radius-lg);
+}
+.filters {
+  display: grid;
+  gap: 1.2rem;
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+}
+.sectionHeader {
+  display: grid;
+  gap: 0.4rem;
+}
+.sectionHeader h2,
+.resultsHeader h2,
+.detail h2 {
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+}
+.sectionHeader p,
+.resultsHeader p {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+.filterGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+.filterGrid > *,
+.dateGrid > *,
+.advancedGrid > * {
+  min-width: 0;
+}
+.dateGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.advanced {
+  padding-block: 1rem 0;
+  border-top: 1px solid rgb(255 255 255 / 8%);
+}
+.advanced summary,
+.rawEvent summary {
+  width: fit-content;
+  color: var(--color-primary-soft);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.advancedGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  padding-top: 1.2rem;
+}
+.filterActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.filterActions > p {
+  margin-left: auto;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+.resultsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid rgb(255 255 255 / 8%);
+}
+.resultsHeader > div {
+  display: grid;
+  gap: 0.35rem;
+}
+.pageCount {
+  color: var(--color-primary-soft);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.tableScroll {
+  position: relative;
+  overflow: auto;
+  border-radius: 0;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  text-align: left;
+}
+.table th {
+  padding: 0.9rem 1.25rem;
+  color: var(--color-muted);
+  background: rgb(0 0 0 / 14%);
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.table td {
+  padding: 1rem 1.25rem;
+  border-top: 1px solid rgb(255 255 255 / 6%);
+  vertical-align: middle;
+}
+.table tr {
+  transition: background 150ms ease;
+}
+.table tbody tr:hover,
+.selected {
+  background: rgb(128 131 255 / 6%);
+}
+.table time {
+  display: block;
+  min-width: 11rem;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.service {
+  display: inline-block;
+  margin-top: 0.45rem;
+  padding: 0.15rem 0.4rem;
+  color: var(--color-primary-soft);
+  background: rgb(128 131 255 / 10%);
+  border-radius: 0.25rem;
+  font-size: 0.68rem;
+  font-weight: 650;
+}
+.action {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+}
+.identifier {
+  display: block;
+  max-width: 20rem;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  overflow-wrap: anywhere;
+}
+.outcome {
+  display: inline-block;
+  padding: 0.3rem 0.55rem;
+  border-radius: 0.3rem;
+  font-size: 0.7rem;
+  font-weight: 650;
+}
+.success {
+  color: var(--color-success);
+  background: rgb(78 222 163 / 9%);
+}
+.denied {
+  color: var(--color-warning);
+  background: rgb(244 196 107 / 10%);
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid rgb(255 255 255 / 8%);
+}
+.pagination p {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.pagination > div {
+  display: flex;
+  gap: 0.6rem;
+}
+.state {
+  display: grid;
+  justify-items: start;
+  gap: 0.8rem;
+  padding: 2rem 1.5rem;
+}
+.state h3 {
+  font-size: 1rem;
+}
+.state p,
+.state > svg {
+  color: var(--color-muted);
+}
+.state p {
+  font-size: 0.85rem;
+}
+.detail {
+  padding: 1.5rem;
+  border-color: rgb(128 131 255 / 35%);
+}
+.detailHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.detailHeader h2 {
+  margin-top: 0.45rem;
+}
+.detailFields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
+  margin-block: 1.5rem;
+}
+.detailFields > div {
+  min-width: 0;
+}
+.detailFields dt {
+  margin-bottom: 0.4rem;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+.detailFields dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.rawEvent {
+  padding-top: 1rem;
+  border-top: 1px solid rgb(255 255 255 / 8%);
+}
+.rawEvent pre {
+  max-height: 24rem;
+  overflow: auto;
+  margin-top: 1rem;
+  padding: 1rem;
+  color: var(--color-muted);
+  background: var(--color-canvas);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+@media (max-width: 1000px) {
+  .filterGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .advancedGrid,
+  .detailFields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .hero {
+    flex-direction: column;
+  }
+  .filterGrid,
+  .dateGrid,
+  .advancedGrid,
+  .detailFields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .filterActions > p {
+    width: 100%;
+    margin-left: 0;
+  }
+  .pagination {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .table th,
+  .table td {
+    padding-inline: 1rem;
+  }
+}
