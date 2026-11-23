@@ -35,11 +35,10 @@ arrancar:
 ## Investigar un 403
 
 Una petición bloqueada recibe `{"code":"REQUEST_BLOCKED", …, "requestId": "<id>"}`. El mismo
-`requestId` aparece en el log de acceso del WAF, y el log de auditoría (JSON) nombra las reglas que
-coincidieron:
+identificador aparece en el log de acceso y como `unique_id` del registro de auditoría (JSON), que
+nombra las reglas que coincidieron (`modsecurity_transaction_id` en la plantilla):
 
     docker logs streaming-local-waf-1 2>&1 | grep '<id>'
-    docker logs streaming-local-waf-1 2>&1 | grep '"transaction"' | tail -5
 
 El log de acceso guarda método, ruta sin consulta, estado y duración. El de auditoría solo guarda la
 cabecera, las reglas y el cierre (partes A, H y Z): ni cabeceras, ni cuerpos, ni cookies. Los mensajes

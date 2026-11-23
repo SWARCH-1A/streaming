@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+import hashlib
 import json
 import ipaddress
 import os
@@ -286,6 +287,11 @@ def command(env, *args, s3=False, broker=None, timeout=180):
     if broker is None:
         broker = PROFILE == "local"
     compose = ROOT / "compose.yaml" if PROFILE == "local" else HERE / ("compose.s3.yaml" if s3 else "compose.yaml")
+    certificate = STATE / "web.crt"
+    if PROFILE == "local" and certificate.exists():
+        # Containers keep a replaced web.crt through their bind mount; its fingerprint (a label in
+        # compose.yaml) makes Compose recreate web, proxy and waf after lan reissues it.
+        env = {**env, "WEB_CERT_SHA256": hashlib.sha256(certificate.read_bytes()).hexdigest()}
     cmd = ["docker","compose","--env-file",str(STATE / "environment.env"),"-p",PROJECT,"-f",str(compose)]
     if broker:
         if PROFILE != "local": raise RuntimeError("The broker overlay currently targets the root local profile")

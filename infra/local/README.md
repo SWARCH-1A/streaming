@@ -202,7 +202,8 @@ esta guía no cambian.
 ## Provisión externa
 
 Para un iPhone conectado a la misma LAN que el Mac, `python3 infra/local/dev.py lan` prepara
-el origen, certificado y publicación HTTPS; después ejecutar `up`. La [guía de dispositivo](../../apps/mobile/iosApp/DEVICE.md)
+el origen, certificado y publicación HTTPS; después ejecutar `up`, que recrea `web`, `proxy` y `waf`
+cuando el certificado cambia (su huella es una etiqueta de Compose). La [guía de dispositivo](../../apps/mobile/iosApp/DEVICE.md)
 explica la firma gratuita con Xcode, instalación de la CA y permisos de red. `lan --loopback` retira
 el acceso de red conservando datos. RTMPS y Mailpit permanecen en loopback.
 

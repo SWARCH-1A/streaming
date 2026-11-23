@@ -98,7 +98,9 @@ class Profiles(unittest.TestCase):
                 expected = selected.ROOT / "compose.yaml" if profile == "local" else selected.HERE / "compose.yaml"
                 self.assertEqual(args[args.index("-f") + 1], str(expected))
                 self.assertEqual(args.count("-f"), 3 if profile == "local" else 1)
-                self.assertEqual(run.call_args.kwargs["env"], env)
+                # Only the certificate fingerprint may be added (covered by its own test).
+                passed = {k: v for k, v in run.call_args.kwargs["env"].items() if k != "WEB_CERT_SHA256"}
+                self.assertEqual(passed, env)
                 with self.assertRaisesRegex(RuntimeError, "Command state"):
                     selected.command({"P1_STATE": "/foreign/state"}, "down", "--volumes")
                 self.assertEqual(run.call_count, 1)
@@ -186,6 +188,25 @@ class Profiles(unittest.TestCase):
             self.assertEqual([args[i + 1] for i, arg in enumerate(args) if arg == "-f"],
                              [str(local.ROOT / "compose.yaml"), str(local.ROOT / "infra/broker/compose.yaml"), str(local.ROOT / "infra/audit/compose.yaml")])
             self.assertEqual(args[-3:], ["--profile", "tools", "build"])
+
+    def test_reissued_web_certificate_changes_compose_configuration(self):
+        local = module("local")
+        env = {"P1_STATE": str(local.STATE), "BROKER_STREAMING_PASSWORD": "fixture_private_password"}
+        seen = []
+        with tempfile.TemporaryDirectory() as folder, patch.object(local, "STATE", Path(folder)), \
+                patch.object(local, "run", side_effect=lambda *a, **k: seen.append(k["env"].get("WEB_CERT_SHA256")) or ""):
+            env["P1_STATE"] = folder
+            local.command(env, "up")
+            for content in (b"first leaf", b"reissued leaf"):
+                (Path(folder) / "web.crt").write_bytes(content)
+                local.command(env, "up")
+        self.assertIsNone(seen[0])
+        self.assertEqual(len({*seen[1:]}), 2)
+        self.assertNotIn("WEB_CERT_SHA256", env)
+        compose = (local.ROOT / "compose.yaml").read_text()
+        for service in ("web", "waf", "proxy"):
+            block = compose.split(f"\n  {service}:\n", 1)[1].split("\n\n", 1)[0]
+            self.assertIn("streaming.web-certificate: ${WEB_CERT_SHA256:-}", block, service)
 
     def test_broker_requires_initialized_local_credentials(self):
         for profile in ("default", "load"):

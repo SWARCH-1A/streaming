@@ -397,6 +397,10 @@ services:
       - ${P1_STATE}/web.crt:/run/secrets/web.crt:ro
       - ${P1_STATE}/web.key:/run/secrets/web.key:ro
       - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    labels:
+      # A reissued web.crt is a new file: a running container keeps the old one through its bind
+      # mount. The fingerprint (set by manage.py) changes the configuration so Compose recreates it.
+      streaming.web-certificate: ${WEB_CERT_SHA256:-}
     depends_on: [core]
     restart: unless-stopped
 
@@ -435,6 +439,9 @@ services:
       - ${P1_STATE}/web.crt:/run/secrets/web.crt:ro
       - ${P1_STATE}/web.key:/run/secrets/web.key:ro
       - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    labels:
+      # Serves web.crt to browsers: a LAN host/IP change or renewal recreates it (see web).
+      streaming.web-certificate: ${WEB_CERT_SHA256:-}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8081/healthz"]
       interval: 10s
@@ -462,6 +469,9 @@ services:
       - ${P1_STATE}/web.crt:/run/secrets/web.crt:ro
       - ${P1_STATE}/web.key:/run/secrets/web.key:ro
       - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    labels:
+      # The WAF verifies this certificate on every request: renewal must reach it too (see web).
+      streaming.web-certificate: ${WEB_CERT_SHA256:-}
     networks:
       default:
         ipv4_address: ${LOCAL_PROXY_IP:?Run init}

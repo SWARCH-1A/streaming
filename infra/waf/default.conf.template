@@ -45,6 +45,8 @@ server {
     ssl_session_tickets off;
 
     access_log /dev/stdout waf_access;
+    # The audit record (matched rules) carries the same id as the response and the access log.
+    modsecurity_transaction_id "$request_id";
 
     # Slow clients (slowloris) and oversized requests are cut before they reach the application.
     client_header_timeout 10s;
