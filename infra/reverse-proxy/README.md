@@ -1,6 +1,7 @@
 # Reverse proxy y entrada del API Gateway
 
-Caddy es la entrada pública: enruta Web SSR y las APIs, WebSocket y HLS, según
+En la instalación local, la entrada pública es el [WAF](../waf/README.md) (ADR-031), que inspecciona
+cada petición y la reenvía cifrada a Caddy; Caddy ya no publica puertos. Caddy enruta Web SSR y las APIs, WebSocket y HLS, según
 [ADR-013](../../docs/adr/ADR-013-web-integrada-caddy-hls.md), y envía `/api/screens/*` y
 `/api/admin/content-removals` al Gateway de agregación ([ADR-023](../../docs/adr/ADR-023-gateway-go-caddy.md),
 [SPEC-16](../../docs/spec-p2/spec_16_gateway.md)).
@@ -29,7 +30,9 @@ La [prueba reproducible](../../tests/integration/p1-domains/README.md) arranca t
 establece CORE_TRUSTED_PROXIES a la IP real del proxy. Si esa IP cambia, hay que actualizar Core;
 no confiar en todo el bridge ni aceptar X-Forwarded-For arbitrario. Caddy reemplaza forwarding con
 el socket observado y elimina X-Service-Name/X-Service-Token/X-Session-Credential/Forwarded públicos.
-En la instalación local el Gateway también tiene IP fija: acepta X-Forwarded-For solo de Caddy
+En la instalación local la Caddyfile generada toma la dirección del cliente solo del WAF (IP fija
+`LOCAL_WAF_IP`, `trusted_proxies_strict`) y la reenvía con `{client_ip}`; los perfiles P1 sin WAF usan
+el socket observado. El Gateway también tiene IP fija: acepta X-Forwarded-For solo de Caddy
 (`GATEWAY_TRUSTED_PROXIES`) y Core confía en ambas direcciones. La [prueba de borde](../../tests/integration/p2-gateway-edge/run.py)
 ejecuta este Caddyfile frente a upstreams simulados y comprueba rutas, headers, Range, cancelación y WS.
 Core aplica esa resolución a cuotas de Accounts y Discovery; las pruebas unitarias cubren spoofing.

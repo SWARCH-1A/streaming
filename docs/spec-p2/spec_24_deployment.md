@@ -62,7 +62,7 @@ El despliegue completo aplica [ADR-030](../adr/ADR-030-segmentacion-red.md): per
 explícita a redes por API, mensajería, medios, SMTP y almacén. Cada PostgreSQL/Redis comparte
 únicamente su red interna con el proceso propietario; MinIO admite VOD, el grabador lector y
 el inicializador. Auditor tiene redes separadas de datos, consulta con Core y conexión al broker.
-La [matriz y vista P3](../p3/segmentacion-red.md) define los miembros exactos de las 14 redes.
+La [matriz y vista P3](../p3/segmentacion-red.md) define los miembros exactos de las 15 redes.
 La zona API conserva `default`, su IPAM y las IP fijas confiables; no admite almacenes.
 Las bridges no filtran puertos entre sus miembros: se conservan TLS, tokens y ACL existentes.
 La aceptación reproducible está en [las pruebas de segmentación](../../tests/integration/network-segmentation/README.md).
@@ -71,8 +71,15 @@ El dominio usa HTTPS. Local conserva autenticación y aislamiento con un arranqu
 el perfil completo se ejecuta con `python3 infra/local/dev.py init/build/up/status`. Se documenta qué
 servicios requieren credenciales/provisión externa y qué pruebas se realizaron con S3 local.
 
+La entrada HTTPS la publica el WAF (ModSecurity v3 + OWASP CRS en modo bloqueo, ADR-031), que la
+reenvía cifrada a Caddy; Caddy no publica puertos. WAF y Caddy comparten solo la red de borde `edge`,
+con subred propia (`LOCAL_EDGE_SUBNET`) e IP fijas (`LOCAL_WAF_IP`, `LOCAL_EDGE_PROXY_IP`): el WAF no
+alcanza ningún servicio sin pasar por Caddy, y Caddy solo acepta `X-Forwarded-For` de esa IP. `init`
+elige la subred libre y la añade sin rotar secretos; una restauración elige otra para su copia y,
+con un backup anterior a ADR-031, usa la Caddyfile actual.
+
 El modo local predeterminado publica solo en loopback. La acción explícita `dev.py lan` permite
-clientes de la misma red: publica únicamente la entrada HTTPS, fija un origen canónico por nombre
+clientes de la misma red: publica únicamente la entrada HTTPS del WAF, fija un origen canónico por nombre
 Bonjour/IP privada y añade sus SAN al certificado de entrada conservando la CA y los secretos.
 Navegador, móvil, WS y URLs multimedia comparten ese origen. Los alias se redirigen; hosts ajenos
 se rechazan. RTMPS/Mailpit siguen en loopback y los listeners privados no se publican. `lan --loopback`

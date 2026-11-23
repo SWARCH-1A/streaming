@@ -47,6 +47,13 @@ class BackupRecovery(unittest.TestCase):
             self.assertNotIn(password, acl)
             self.assertIn('#' + hashlib.sha256(password.encode()).hexdigest(), acl)
             self.assertIn('user default off', acl)
+            # A backup made before ADR-031 gets the current Caddyfile, which trusts only the restored WAF address.
+            # The edge zone (WAF and Caddy) gets its own free subnet, separate from the API zone.
+            self.assertEqual((env['LOCAL_SUBNET'], env['LOCAL_EDGE_SUBNET']), ('192.168.240.0/24', '192.168.241.0/24'))
+            self.assertEqual((env['LOCAL_WAF_IP'], env['LOCAL_EDGE_PROXY_IP']), ('192.168.241.2', '192.168.241.3'))
+            caddyfile = (root / (prefix + '-state/Caddyfile')).read_text()
+            self.assertIn('trusted_proxies static {$LOCAL_WAF_IP}', caddyfile)
+            self.assertIn('header_up X-Forwarded-For {client_ip}', caddyfile)
             # Mounted files keep the installation modes; secrets that are never mounted stay private.
             if os.name == 'posix':
                 mode = lambda name: (root / (prefix + '-state') / name).stat().st_mode & 0o777
@@ -63,6 +70,13 @@ class BackupRecovery(unittest.TestCase):
             self.assertIn('#' + hashlib.sha256(b'p' * 48).hexdigest(), acl)
             for denied in ('-@dangerous', '-script|flush', '-function', 'resetchannels', '~chat:*'):
                 self.assertIn(denied, acl)
+
+    def test_restore_keeps_a_caddyfile_that_already_trusts_the_waf(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            (state / 'Caddyfile').write_text('servers {\n  trusted_proxies static {$LOCAL_WAF_IP}\n}\n')
+            backup.ensure_waf_trust(state)
+            self.assertEqual((state / 'Caddyfile').read_text(), 'servers {\n  trusted_proxies static {$LOCAL_WAF_IP}\n}\n')
 
     def source(self, root):
         path = root / 'volume-00.tar'

@@ -21,7 +21,7 @@ PORTS = {
     'minio': [9000], 'core': [8081, 8082], 'chat': [8085, 8086],
     'live': [8080, 8091, 8090, 8888], 'vod': [8098, 8099],
     'notifications': [8095], 'audit': [8096], 'gateway': [8097], 'web': [3443],
-    'proxy': [3443], 'media-server': [1936, 9997, 8888],
+    'proxy': [3443], 'waf': [8443], 'media-server': [1936, 9997, 8888],
     'media-recorder': [8890], 'mailpit': [1025, 8025], 'broker': [5671, 15671],
     'minio-init': [], 'broker-ops': [],
 }
@@ -55,14 +55,14 @@ def run(*args):
     return p.stdout
 
 
-def unused_subnet():
+def unused_subnet(exclude=()):
     ids = run('docker', 'network', 'ls', '-q').split()
     existing = json.loads(run('docker', 'network', 'inspect', *ids)) if ids else []
     occupied = [ipaddress.ip_network(c['Subnet']) for n in existing
                 for c in (n.get('IPAM', {}).get('Config') or []) if c.get('Subnet')]
     for octet in range(240, 255):
         candidate = ipaddress.ip_network(f'192.168.{octet}.0/24')
-        if not any(candidate.overlaps(n) for n in occupied if n.version == 4):
+        if str(candidate) not in exclude and not any(candidate.overlaps(n) for n in occupied if n.version == 4):
             return str(candidate)
     raise RuntimeError('No unused fixture subnet available')
 
@@ -75,6 +75,7 @@ def dependencies():
     for source in ('gateway', 'web'):
         edges += [(source, target, port) for target, port in [('core', 8081), ('live', 8080), ('vod', 8098)]]
     edges.append(('web', 'gateway', 8097))
+    edges.append(('waf', 'proxy', 3443))
     edges += [(source, 'core', 8082) for source in ('chat', 'live', 'vod', 'notifications')]
     edges += [('core', 'live', 8091), ('chat', 'vod', 8099), ('vod', 'media-recorder', 8890),
               ('media-recorder', 'vod', 8099), ('media-recorder', 'live', 8091),
@@ -112,8 +113,13 @@ def exercise(model, ids):
             cases[source].append([ip, port, True, f'{source}->{target}:{port} ({name})'])
     for source in ('gateway', 'web', 'proxy'):
         add(source, 'broker', 5671, False)
-    for source in ('gateway', 'web', 'proxy', 'chat', 'live', 'vod', 'notifications', 'media-recorder'):
+    for source in ('gateway', 'web', 'proxy', 'chat', 'live', 'vod', 'notifications', 'media-recorder', 'waf'):
         add(source, 'audit', 8096, False)
+    # ADR-031: the public entry reaches only Caddy, never a service or the broker directly.
+    # Published ports (RTMPS 1936) are public by design and stay reachable by IP from any bridge.
+    for target in ('core', 'chat', 'live', 'vod', 'notifications', 'gateway', 'web', 'media-server', 'broker'):
+        port = next(p for p in PORTS[target] if p not in policy.PUBLIC.get(target, ()))
+        add('waf', target, port, False)
 
     def probe(source):
         return json.loads(run('docker', 'exec', ids[source], 'python', '-c', PROBE, json.dumps(cases[source])))
@@ -136,8 +142,9 @@ def main():
         parser.error('--upgrade requires Docker')
     project = 'segmentation-test-' + uuid.uuid4().hex[:10]
     with tempfile.TemporaryDirectory(prefix=project) as folder:
-        model = policy.configuration(folder, project=project,
-                                     subnet='192.168.254.0/24' if args.static_only else unused_subnet())
+        subnet = '192.168.254.0/24' if args.static_only else unused_subnet()
+        model = policy.configuration(folder, project=project, subnet=subnet,
+                                     edge='192.168.253.0/24' if args.static_only else unused_subnet((subnet,)))
         policy.validate(model)
         if args.static_only:
             print('PASS: merged Compose network policy')

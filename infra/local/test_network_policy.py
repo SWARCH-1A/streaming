@@ -50,6 +50,16 @@ class NetworkPolicy(unittest.TestCase):
             with self.subTest(service=service), self.assertRaises(AssertionError):
                 policy.validate(altered)
 
+    def test_public_entry_reaches_only_the_reverse_proxy(self):
+        # ADR-031: the WAF publishes the HTTPS entry and shares the edge zone only with Caddy.
+        self.assertEqual(policy.networks(self.model['services']['waf']), {'edge'})
+        self.assertEqual(self.model['services']['proxy'].get('ports', []), [])
+        for network in ('default', 'messaging', 'media'):
+            altered = copy.deepcopy(self.model)
+            altered['services']['waf']['networks'][network] = {}
+            with self.subTest(network=network), self.assertRaises(AssertionError):
+                policy.validate(altered)
+
     def test_store_network_cannot_lose_internal_flag(self):
         altered = copy.deepcopy(self.model)
         altered['networks']['core-data']['internal'] = False

@@ -24,8 +24,10 @@ GROUPS = {
     'audit-query': {'core', 'audit'},
     'media': {'live', 'media-server', 'media-recorder', 'vod'},
     'smtp': {'notifications', 'mailpit'},
+    # ADR-031: the WAF is the public entry and shares a network only with Caddy.
+    'edge': {'waf', 'proxy'},
 }
-PUBLIC = {'proxy': {3443}, 'media-server': {1936}, 'mailpit': {8025}}
+PUBLIC = {'waf': {8443}, 'media-server': {1936}, 'mailpit': {8025}}
 
 
 def networks(service):
@@ -52,10 +54,11 @@ def validate(model):
         definition = definitions[network]
         assert definition.get('driver', 'bridge') == 'bridge', network
         assert not definition.get('external'), f'{network}: external/shared project network'
-        if network not in {'default', 'media', 'smtp'}:
+        if network not in {'default', 'media', 'smtp', 'edge'}:
             assert definition.get('internal') is True, f'{network}: requires internal isolation'
     for store, (network, _) in STORES.items():
         assert networks(services[store]) == {network}, f'{store}: datastore attached elsewhere'
+    assert networks(services['waf']) == {'edge'}, 'WAF reaches more than the reverse proxy'
     assert not (networks(services['gateway']) & networks(services['broker'])), 'Gateway reaches broker'
     assert not (networks(services['web']) & networks(services['broker'])), 'SSR reaches broker'
     # A common broker network would otherwise expose Audit HTTP to every producer.
@@ -63,10 +66,10 @@ def validate(model):
         assert not (networks(services[name]) & networks(services['audit'])), f'{name}: reaches private Auditor'
 
 
-def configuration(state, subnet='192.168.254.0/24', project='segmentation-config'):
+def configuration(state, subnet='192.168.254.0/24', project='segmentation-config', edge='192.168.253.0/24'):
     """Resolve actual manifests with fake secrets; never reads private installation state."""
     import ipaddress
-    addresses = ipaddress.ip_network(subnet)
+    addresses, edge_addresses = ipaddress.ip_network(subnet), ipaddress.ip_network(edge)
     env = os.environ.copy()
     for manifest in MANIFESTS:
         source = (ROOT / manifest).read_text()
@@ -77,6 +80,8 @@ def configuration(state, subnet='192.168.254.0/24', project='segmentation-config
     env.update(P1_STATE=str(state), LOCAL_SUBNET=subnet,
                LOCAL_DYNAMIC_RANGE=str(list(addresses.subnets(prefixlen_diff=1))[1]),
                LOCAL_PROXY_IP=str(addresses.network_address + 2), LOCAL_GATEWAY_IP=str(addresses.network_address + 3),
+               LOCAL_EDGE_SUBNET=edge, LOCAL_WAF_IP=str(edge_addresses.network_address + 2),
+               LOCAL_EDGE_PROXY_IP=str(edge_addresses.network_address + 3),
                WEB_ORIGIN='https://localhost:3445', COMPOSE_PROFILES='tools')
     command = ['docker', 'compose', '--env-file', os.devnull, '--project-directory', str(ROOT), '-p', project]
     for manifest in MANIFESTS:

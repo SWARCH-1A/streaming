@@ -1,0 +1,145 @@
+# Public entry of the local installation (ADR-031). Replaces the image's default server template:
+# HTTPS only, no CORS on blocked responses, no public health or metrics routes, and logs without
+# query strings, cookies or bodies. ModSecurity and the OWASP CRS are loaded by the image's
+# modsecurity.conf (environment in compose.yaml); exclusions live in infra/waf/rules.
+# The image renders this file with envsubst: ${NAME} values come from the container environment;
+# lower-case $names are nginx variables.
+
+server_tokens off;
+more_clear_headers Server;
+
+map $http_upgrade $waf_connection {
+    default upgrade;
+    ''      '';
+}
+
+# Per client address. With Docker Desktop every host client reaches the container from the same
+# NAT address, so locally these limits behave as global limits (ADR-031).
+limit_req_zone  $binary_remote_addr zone=waf_requests:10m rate=${WAF_REQUESTS_PER_SECOND}r/s;
+limit_conn_zone $binary_remote_addr zone=waf_connections:10m;
+limit_req_status  429;
+limit_conn_status 429;
+
+log_format waf_access escape=json '{"time":"$time_iso8601","requestId":"$request_id","client":"$remote_addr",'
+                                  '"method":"$request_method","path":"$uri","status":$status,"bytes":$body_bytes_sent,'
+                                  '"durationS":$request_time,"upstreamStatus":"$upstream_status"}';
+
+upstream reverse_proxy {
+    server proxy:3443;
+    keepalive 32;
+}
+
+server {
+    listen ${SSL_PORT} ssl default_server;
+    # Browsers keep HTTP/2 as they had with Caddy; the chat WebSocket still opens its own HTTP/1.1 connection.
+    http2 on;
+    server_name _;
+
+    ssl_certificate     ${SSL_CERT_FILE};
+    ssl_certificate_key ${SSL_CERT_KEY_FILE};
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ${SSL_CIPHERS};
+    ssl_prefer_server_ciphers off;
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:waf_tls:10m;
+    ssl_session_tickets off;
+
+    access_log /dev/stdout waf_access;
+    # The audit record (matched rules) carries the same id as the response and the access log.
+    modsecurity_transaction_id "$request_id";
+
+    # Slow clients (slowloris) and oversized requests are cut before they reach the application.
+    client_header_timeout 10s;
+    client_body_timeout   10s;
+    send_timeout          30s;
+    large_client_header_buffers 4 16k;
+    client_max_body_size ${WAF_CLIENT_MAX_BODY_SIZE};
+
+    limit_req  zone=waf_requests burst=${WAF_REQUEST_BURST} nodelay;
+    limit_conn waf_connections ${WAF_CONNECTIONS_PER_CLIENT};
+
+    # Responses generated here (WAF block, rate limit, size limit, malformed request) follow the
+    # application's error shape. Upstream errors pass through unchanged (no proxy_intercept_errors).
+    # 497: plain HTTP sent to this HTTPS port.
+    error_page 400 497 = @bad_request;
+    error_page 403 = @blocked;
+    error_page 405 = @not_allowed;
+    error_page 413 = @too_large;
+    error_page 429 = @rate_limited;
+    error_page 502 503 504 = @unavailable;
+
+    location / {
+        proxy_pass https://reverse_proxy;
+        proxy_http_version 1.1;
+
+        # Secure Channel to Caddy: TLS verified against the project CA and the proxy's name.
+        proxy_ssl_server_name on;
+        proxy_ssl_name proxy;
+        proxy_ssl_verify on;
+        proxy_ssl_verify_depth 2;
+        proxy_ssl_trusted_certificate /run/secrets/ca.crt;
+        proxy_ssl_protocols TLSv1.2 TLSv1.3;
+        proxy_ssl_session_reuse on;
+
+        # The client address is set here and never taken from the client; Caddy trusts only this
+        # container's fixed address to provide it.
+        proxy_set_header Host              $http_host;
+        proxy_set_header X-Forwarded-For   $remote_addr;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Forwarded         "";
+        proxy_set_header Proxy             "";
+        proxy_set_header Upgrade           $http_upgrade;
+        proxy_set_header Connection        $waf_connection;
+
+        # Chat WebSocket and HLS: no response buffering, long-lived connections.
+        proxy_buffering off;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 60s;
+        proxy_redirect off;
+
+        # Caddy advertises HTTP/3 on its own internal port; the public entry does not offer it.
+        proxy_hide_header Alt-Svc;
+    }
+
+    location @bad_request {
+        default_type application/json;
+        return 400 '{"code":"BAD_REQUEST","message":"La solicitud no es válida.","requestId":"$request_id"}';
+    }
+    location @blocked {
+        default_type application/json;
+        return 403 '{"code":"REQUEST_BLOCKED","message":"El firewall de aplicaciones bloqueó la solicitud.","requestId":"$request_id"}';
+    }
+    location @not_allowed {
+        default_type application/json;
+        return 405 '{"code":"METHOD_NOT_ALLOWED","message":"Método no permitido.","requestId":"$request_id"}';
+    }
+    location @too_large {
+        default_type application/json;
+        return 413 '{"code":"PAYLOAD_TOO_LARGE","message":"La solicitud supera el tamaño permitido.","requestId":"$request_id"}';
+    }
+    location @rate_limited {
+        default_type application/json;
+        add_header Retry-After 1 always;
+        return 429 '{"code":"RATE_LIMITED","message":"Demasiadas solicitudes; inténtalo de nuevo en unos segundos.","requestId":"$request_id"}';
+    }
+    location @unavailable {
+        default_type application/json;
+        return 503 '{"code":"SERVICE_UNAVAILABLE","message":"El servicio no está disponible en este momento.","requestId":"$request_id"}';
+    }
+}
+
+# Container healthcheck only: loopback, outside the public listener, no WAF or logs.
+server {
+    listen 127.0.0.1:8081;
+    access_log off;
+    modsecurity off;
+    location = /healthz {
+        default_type text/plain;
+        return 200 "OK\n";
+    }
+    location / {
+        return 404;
+    }
+}

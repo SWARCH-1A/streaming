@@ -160,6 +160,26 @@ def ensure_chat_redis_credential(state, env):
     acl.chmod(0o644)
 
 
+def ensure_waf_trust(state):
+    """Backups made before ADR-031 keep a Caddyfile that takes the client address from the connection.
+
+    Behind the WAF that address is always the WAF's, so the restored copy renders the current Caddyfile,
+    which trusts only LOCAL_WAF_IP to state the client address.
+    """
+    caddyfile = state / 'Caddyfile'
+    if 'trusted_proxies' in caddyfile.read_text():
+        return
+    previous = os.environ.get('P1_PROFILE')
+    os.environ['P1_PROFILE'] = 'local'
+    try:
+        caddyfile.write_text(runpy.run_path(str(ROOT / 'infra/p1/manage.py'))['render_proxy']())
+    finally:
+        if previous is None:
+            os.environ.pop('P1_PROFILE')
+        else:
+            os.environ['P1_PROFILE'] = previous
+
+
 def start_restored(source, prefix, manifest):
     """Launch only fresh restored volumes on a separate network and unused loopback ports."""
     if not (source / 'config/Caddyfile').is_file() or not manifest.get('images'):
@@ -174,13 +194,15 @@ def start_restored(source, prefix, manifest):
         target.chmod(0o644 if target.suffix in MOUNTED and target.name != 'ca.key' else 0o600)
     env = dict(line.split('=', 1) for line in (state / 'environment.env').read_text().splitlines() if '=' in line)
     ensure_chat_redis_credential(state, env)
+    ensure_waf_trust(state)
     networks = docker('network', 'ls', '-q').split()
     occupied = [ipaddress.ip_network(config['Subnet']) for network in json.loads(docker('network', 'inspect', *networks))
                 for config in (network.get('IPAM', {}).get('Config') or []) if config.get('Subnet')]
     candidates = (ipaddress.ip_network(f'192.168.{octet}.0/24') for octet in range(240, 255))
-    subnet = next((candidate for candidate in candidates if not any(candidate.overlaps(existing) for existing in occupied if existing.version == 4)), None)
-    if subnet is None:
-        raise RuntimeError('No unused recovery subnet available')
+    free = [candidate for candidate in candidates if not any(candidate.overlaps(existing) for existing in occupied if existing.version == 4)]
+    if len(free) < 2:
+        raise RuntimeError('No unused recovery subnets available (API and edge zones)')
+    subnet, edge = free[0], free[1]
     sockets = [socket.socket() for _ in range(3)]
     try:
         for sock in sockets:
@@ -193,7 +215,8 @@ def start_restored(source, prefix, manifest):
                LOCAL_HTTPS_BIND='127.0.0.1', LOCAL_PUBLIC_HOST='localhost', LOCAL_LAN_IP='127.0.0.1',
                WEB_ORIGIN=f'https://localhost:{https}', LOCAL_SUBNET=str(subnet),
                LOCAL_PROXY_IP=str(subnet.network_address + 2), LOCAL_GATEWAY_IP=str(subnet.network_address + 3),
-               LOCAL_DYNAMIC_RANGE=str(list(subnet.subnets(prefixlen_diff=1))[1]))
+               LOCAL_DYNAMIC_RANGE=str(list(subnet.subnets(prefixlen_diff=1))[1]), LOCAL_EDGE_SUBNET=str(edge),
+               LOCAL_WAF_IP=str(edge.network_address + 2), LOCAL_EDGE_PROXY_IP=str(edge.network_address + 3))
     (state / 'environment.env').write_text(''.join(f'{key}={value}\n' for key, value in sorted(env.items())))
     (state / 'environment.env').chmod(0o600)
     override = json.loads((source / (prefix + '.compose.json')).read_text())

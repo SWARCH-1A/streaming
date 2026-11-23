@@ -17,7 +17,7 @@ Un atacante conectado a la misma red que Vault tv captura el tráfico entre el n
 
 - **Cifrar datos** (resistir ataques): TLS en todas las conexiones, públicas e internas.
 - **Autenticar actores** (resistir ataques): los clientes verifican el certificado y el nombre del servidor (`verify-full`, `tls_trust_pool`, `SSL_VERIFY_HOSTNAME`).
-- **Limitar la exposición** (resistir ataques): la única entrada pública es Caddy por HTTPS (puerto 3445 del host); no hay puerto HTTP publicado.
+- **Limitar la exposición** (resistir ataques): la única entrada pública es el WAF por HTTPS (puerto 3445 del host, [ADR-031](../adr/ADR-031-waf-modsecurity-crs.md)), que reenvía cifrado a Caddy; no hay puerto HTTP publicado.
 - **Verificar la integridad de los mensajes** (detectar ataques): TLS usa cifrado autenticado, así que un mensaje modificado en el camino se descarta.
 
 ## Patrón aplicado: Canal Seguro (Secure Channel)
@@ -28,8 +28,9 @@ Un atacante conectado a la misma red que Vault tv captura el tráfico entre el n
 
 | Conexión | Protocolo seguro | Cómo se valida el servidor |
 | --- | --- | --- |
-| Navegador → Caddy | HTTPS (TLS) en el puerto 3445 | Certificado `web.crt` firmado por la CA; HSTS |
-| App Android → Caddy | HTTPS; `usesCleartextTraffic="false"` | La CA del proyecto instalada en el teléfono |
+| Navegador → WAF | HTTPS (TLS 1.2/1.3) en el puerto 3445 | Certificado `web.crt` firmado por la CA; HSTS |
+| App Android → WAF | HTTPS; `usesCleartextTraffic="false"` | La CA del proyecto instalada en el teléfono |
+| WAF → Caddy | HTTPS | `proxy_ssl_verify on` con `ca.crt` y el nombre `proxy` |
 | Emisor de video → servidor de medios | RTMPS (puerto 11938) | Certificado firmado por la CA |
 | Caddy → servicios (Core, Streaming, Chat, VOD, Notifications, Gateway, Web) | HTTPS | `tls_trust_pool file /run/secrets/ca.crt` |
 | Servicio → servicio (por ejemplo, Chat → Core) | HTTPS | CA privada |

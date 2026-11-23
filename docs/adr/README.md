@@ -35,6 +35,7 @@ y cuáles fueron sustituidos. Las fechas conservan el momento de cada decisión.
 | [ADR-027](ADR-027-suscripciones-con-efecto-y-retiro-auditable.md) | Aceptada para integración local | Dieciséis suscripciones con efecto, archivo privado de las dos colas sin consumidor y conversión del estado de reconexión P1/P2. |
 | [ADR-029](ADR-029-zero-trust-almacen-vivo-chat.md) | Aceptada para integración local | Zero Trust interno: inventario de identidades y permisos por conexión; el Redis de Chat deja de aceptar clientes anónimos y Chat entra con usuario propio limitado a `chat:*`. |
 | [ADR-030](ADR-030-segmentacion-red.md) | Aceptada para integración local | Aislamiento de almacenes por propietario y redes explícitas para APIs, mensajería, Auditor, medios, objetos y SMTP. |
+| [ADR-031](ADR-031-waf-modsecurity-crs.md) | Aceptada para integración local | WAF en la entrada pública: ModSecurity v3 + OWASP CRS (LTS 4.25) en modo bloqueo delante de Caddy, TLS de extremo a extremo, límites de tamaño y de peticiones, y `X-Forwarded-For` fijado por el WAF. |
 
 Chat conserva Go; ADR-010 describe su perfil efímero P1 y ADR-024 su almacenamiento P2 (Redis + PostgreSQL); las herramientas pendientes de operación y despliegue se registran conforme
 a la [política ADR](../politica_ADR.md). Las alternativas candidatas requieren decisión del responsable.

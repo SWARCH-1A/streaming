@@ -465,6 +465,40 @@ func TestExploreScreen(t *testing.T) {
 	}
 }
 
+// CA-03: explore only reads public data, so a presented cookie is validated with Core and a revoked
+// one gets 401 instead of the visitor view; anonymous requests and an unreachable Core keep the screen.
+func TestExploreScreenRejectsRevokedCredential(t *testing.T) {
+	f := newFixture()
+	f.core["GET /api/profile/me"] = reply(401, `{"code":"AUTH_REQUIRED"}`)
+	response, _, body := get(t, f.server(t), "/api/screens/explore", map[string]string{"Cookie": "stream_session=revoked"})
+	if response.StatusCode != 401 {
+		t.Fatal(response.StatusCode, string(body))
+	}
+	if request := f.log.find("/api/profile/me"); request == nil || request.Header.Get("Cookie") != "stream_session=revoked" {
+		t.Fatal("the presented cookie was not validated by Core")
+	}
+
+	f = newFixture()
+	f.vod["GET /api/vods"] = reply(401, `{}`)
+	if response, _, body := get(t, f.server(t), "/api/screens/explore", map[string]string{"Cookie": "stream_session=revoked"}); response.StatusCode != 401 {
+		t.Fatal("VOD rejected the credential", response.StatusCode, string(body))
+	}
+
+	f = newFixture()
+	if response, _, body := get(t, f.server(t), "/api/screens/explore", nil); response.StatusCode != 200 {
+		t.Fatal(response.StatusCode, string(body))
+	}
+	if f.log.find("/api/profile/me") != nil {
+		t.Fatal("anonymous explore must not trigger an identity read")
+	}
+
+	f = newFixture()
+	f.core["GET /api/profile/me"] = reply(503, `{}`)
+	if response, _, body := get(t, f.server(t), "/api/screens/explore", map[string]string{"Cookie": "stream_session=alice"}); response.StatusCode != 200 {
+		t.Fatal("an identity read that cannot complete keeps the public screen", response.StatusCode, string(body))
+	}
+}
+
 // CA-05: client-supplied private headers never reach a domain and forged forwarding is ignored.
 func TestPrivateHeadersAndForgedForwardingDoNotCross(t *testing.T) {
 	f := newFixture()

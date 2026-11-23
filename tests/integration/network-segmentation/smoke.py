@@ -47,7 +47,7 @@ def main():
         for name, service in model['services'].items():
             for port in service.get('ports', []):
                 port['host_ip'] = '127.0.0.1'
-                if name == 'proxy':
+                if name == 'waf':
                     port['published'] = manage.HTTPS_PORT
                 else:
                     port.pop('published', None)
