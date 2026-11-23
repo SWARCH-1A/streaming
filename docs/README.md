@@ -19,6 +19,8 @@ el diseño; la implementación y las pruebas se acreditan por separado.
 [SPEC-25](spec-p3/spec_25_security_audit.md) define Security Logger y Auditor, su escenario,
 contratos y criterios; [ADR-028](adr/ADR-028-security-logger-auditor.md) registra la decisión.
 [Servicio y ejecución](../services/audit/README.md). P2 conserva las funciones anteriores.
+Web ofrece la consulta de solo lectura en **Administración → Auditoría de seguridad**,
+con filtros y paginación, consumiendo la misma API protegida de Core a través del WAF.
 
 La [segmentación P3](p3/segmentacion-red.md) define el escenario de movimiento lateral,
 la matriz de redes y su vista de despliegue. [ADR-030](adr/ADR-030-segmentacion-red.md)

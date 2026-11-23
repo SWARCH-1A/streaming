@@ -35,3 +35,6 @@ fuera de Git. Consultar cada runner antes de ejecutarlo y detener emisiones fict
 La [aceptación de segmentación P3](network-segmentation/README.md) verifica el modelo Compose,
 conexiones TCP permitidas/bloqueadas por DNS e IP y un smoke del despliegue real TLS.
 Ambos escenarios Docker son desechables e independientes de la instalación local.
+
+La [consulta Web de auditoría](audit-ui/README.md) prepara eventos reales Core/VOD, dos páginas
+y consultas filtradas a través del WAF; incluye el recorrido de navegador para `/admin/audit`.

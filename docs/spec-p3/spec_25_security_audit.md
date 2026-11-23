@@ -68,6 +68,28 @@ WORM ni firma digital. La disponibilidad nominal de consulta verifica SQL; no ce
 de pendientes del broker. La caída del Logger/broker conserva operaciones en outbox; falta de
 persistencia local de evidencia impide confirmar una acción sensible o su consulta.
 
+### Consulta administrativa Web
+
+`/admin/audit`, enlazada desde `/admin`, presenta la evidencia de Core/VOD en modo solo lectura.
+Reutiliza la sesión Web y GET `/api/admin/audit-events`; Core comprueba ADMIN en cada petición.
+La entrada pasa por el WAF y Caddy existentes, sin nuevos puertos ni acceso directo al Auditor.
+Los registros propios de ModSecurity y otros productores no forman parte de esta vista.
+
+La consulta inicial abarca las últimas 24 horas. Permite última hora, últimos siete días o un
+intervalo personalizado; fechas locales se convierten a UTC, con inicio inclusivo y fin exclusivo.
+Filtros por productor, acción, resultado y coincidencia exacta de actorId/targetId/requestId.
+Los filtros se aplican al enviar el formulario; no se ejecuta una consulta por cada pulsación.
+
+Cada página contiene hasta 50 eventos, ordenados por posición de ingreso ascendente. Siguiente
+y Anterior usan cursores, conservando los mismos límites temporales de la consulta; cambiar
+filtros reinicia la página y cierra el detalle. La UI no solicita un total global ni acumula todas
+las páginas en memoria. El detalle distingue fecha de origen y recepción, muestra el código de
+motivo, identificadores, correlación y JSON del evento. No permite editar o borrar evidencia.
+
+Carga, resultado vacío, fallo y falta de permisos tienen estados distintos. Las consultas
+obsoletas se cancelan y sus respuestas tardías se ignoran; un nuevo 403 retira los resultados
+visibles. No hay polling, descarga masiva ni persistencia del historial en localStorage.
+
 ## Aceptación y verificación
 
 La suite reproducible se documenta en tests/integration/audit/README.md. Debe ejecutar:
@@ -80,6 +102,8 @@ La suite reproducible se documenta en tests/integration/audit/README.md. Debe ej
 6. Eventos sin cuerpos/secretos; payload inválido/duplicado/inyección no se acepta.
 7. Medir desde respuesta del dominio hasta consulta y reportar valores reales. <=2s es objetivo,
    no evidencia acreditada por compilar. La Persona 6 realiza análisis de rendimiento completo.
+8. Web: filtros, fechas, siguiente/anterior, detalle/foco, consultas obsoletas, vacío/error y
+   403 tras revocar ADMIN; navegación y consultas legítimas a través del WAF, escritorio y móvil.
 
 La ejecución y sus límites se reportan por separado; la existencia de esta SPEC no acredita pruebas.
 
