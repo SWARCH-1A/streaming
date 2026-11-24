@@ -259,11 +259,30 @@ func (g gateway) exploreScreen(ctx context.Context, w http.ResponseWriter, r *ht
 	}
 	var raw, live json.RawMessage
 	var code, liveCode int
+	identityCode := http.StatusOK
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() { defer wg.Done(); raw, code = g.read(ctx, r, g.vod, "/api/vods?"+vquery.Encode(), true) }()
 	go func() { defer wg.Done(); live, liveCode = g.discovery(ctx, r) }()
+	if presentsIdentity(r) {
+		// Discovery is anonymous and the VOD list is public: a presented credential is checked with an
+		// authenticated Core read so a revoked session never gets a visitor view (CA-03).
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, identityCode = g.read(ctx, r, g.core, "/api/profile/me", true)
+		}()
+	}
 	wg.Wait()
+	if identityCode == http.StatusUnauthorized || identityCode == http.StatusForbidden {
+		screenError(w, r, identityCode)
+		return
+	}
+	if code == http.StatusUnauthorized && presentsIdentity(r) {
+		// VOD rejected the presented credential: that is not a query error of the caller.
+		screenError(w, r, code)
+		return
+	}
 	rejected := false
 	switch code {
 	case http.StatusBadRequest, http.StatusUnauthorized, http.StatusGone, http.StatusUnprocessableEntity:

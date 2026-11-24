@@ -37,7 +37,8 @@ CA = STATE / "ca.crt"
 TLS = ssl.create_default_context(cafile=str(CA))
 # Python >= 3.13 also demands keyUsage on the local CA; chain and hostname are still verified.
 TLS.verify_flags &= ~getattr(ssl, "VERIFY_X509_STRICT", 0)
-NETWORK = "streaming-local_default"
+# The encoder container joins the media zone: media-server is no longer on the API network (ADR-030).
+NETWORK = "streaming-local_media"
 SAMPLES = STATE / "gateway-screens"
 
 
@@ -248,8 +249,12 @@ def main():
 
     anon.call("/api/screens/channels/nonexistent_" + secrets.token_hex(3), expect=404)
     anon.call("/api/screens/watch/str_" + secrets.token_hex(8), expect=404)
-    for path in ("/internal/vod/content-removals", "/internal/streaming/recordings", "/api/screens/../internal/x"):
+    for path in ("/internal/vod/content-removals", "/internal/streaming/recordings"):
         anon.call(path, expect=404)
+    # Path traversal never reaches a private route: the WAF of the entry blocks it (ADR-031) and
+    # Caddy alone answers 404.
+    status, blocked, _ = anon.call("/api/screens/../internal/x", expect=None)
+    assert status == 404 or (status == 403 and blocked["code"] == "REQUEST_BLOCKED"), status
     anon.call(screen, headers={"X-Service-Name": "vod", "X-Service-Token": "forged", "X-Session-Credential": "forged"})
     print("PASS CA-05 private routes stay 404 and forged service headers grant nothing", flush=True)
 

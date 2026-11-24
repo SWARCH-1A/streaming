@@ -101,6 +101,11 @@ incierta conserva la clave idempotente al reintentar. Los eventos nativos de car
 pista se escuchan en el propio elemento; un error tardío de otra pista no reemplaza la selección.
 El reintento vuelve a cargar las pistas sin desmontar el motor HLS ni cambiar la posición.
 
+La gestión de pistas y el reproductor con replay se adaptan al ancho útil del navegador,
+incluido el espacio ocupado por barras de desplazamiento. La regresión cubre ventanas de
+320, 390, 768 y 1440 px con y sin espacio reservado por la barra vertical, controles completos y foco visible;
+no sustituye la comprobación de zoom real ni la observación con lector de pantalla.
+
 ## 8. Criterios de aceptación
 
 - [x] CA-01: revisión de contratos/perfil con VOD, Gateway, Web y móvil; modalidad y origen definidos.

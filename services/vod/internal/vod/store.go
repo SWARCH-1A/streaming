@@ -20,8 +20,9 @@ import (
 var migrationFiles embed.FS
 
 type Store struct {
-	DB          *sql.DB
-	objectSlots chan struct{}
+	AuditEnabled bool
+	DB           *sql.DB
+	objectSlots  chan struct{}
 }
 
 func Open(ctx context.Context, url string) (*Store, error) {
@@ -280,6 +281,15 @@ func (s *Store) Command(ctx context.Context, id, actor, key, fp, operation strin
 	}
 	if _, e = tx.ExecContext(ctx, "INSERT INTO vod_audit(actor,vod_id,operation,reason) VALUES($1,$2,$3,$4)", actor, id, operation, r.AuditReason); e != nil {
 		return nil, e
+	}
+	if s.AuditEnabled && (operation == "PATCH" || operation == "PUBLISH" || operation == "DELETE" || operation == "REMOVE") {
+		request := ID("req_")
+		if attempt, ok := ctx.Value(auditKey{}).(*auditAttempt); ok {
+			request = attempt.RequestID
+		}
+		if e = s.auditEvent(ctx, tx, &actor, "VOD_"+operation, id, "SUCCESS", "COMMITTED", request); e != nil {
+			return nil, e
+		}
 	}
 	return canonical(response), tx.Commit()
 }

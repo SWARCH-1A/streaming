@@ -27,6 +27,13 @@ Broadcast y organiza sus funciones en módulos internos.
   (bandeja, leído y medios de aviso).
 
 Para levantar el sistema completo, sigue el [Compose raíz y la guía local](../../README.md).
+
+En **Administración → Auditoría de seguridad** (`/admin/audit`), una sesión ADMIN consulta
+eventos Core/VOD por servicio, acción, resultado, intervalo temporal e IDs exactos de usuario,
+recurso o solicitud. La vista solicita 50 eventos por página, conserva el intervalo entre
+cursores y muestra detalle/JSON en modo solo lectura. No almacena el historial en el navegador
+ni consulta automáticamente en bucle. El WAF protege la entrada y conserva sus logs propios.
+Contrato y límites: [SPEC-25](../../docs/spec-p3/spec_25_security_audit.md).
 [ADR-007](../../docs/adr/ADR-007-web-react-typescript.md) define la base;
 [ADR-013](../../docs/adr/ADR-013-web-integrada-caddy-hls.md) conecta los proveedores reales.
 

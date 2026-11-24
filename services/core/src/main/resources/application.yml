@@ -31,6 +31,11 @@ management:
       probes:
         enabled: true
 core:
+  audit:
+    enabled: ${CORE_AUDIT_ENABLED:false}
+    base-url: ${CORE_AUDIT_BASE_URL:}
+    query-token: ${AUDIT_QUERY_TOKEN:}
+    development-http: ${CORE_AUDIT_DEVELOPMENT_HTTP:false}
   events-transport: ${CORE_EVENTS_TRANSPORT:http}
   images:
     storage-provider: ${CORE_IMAGE_STORAGE_PROVIDER:s3}

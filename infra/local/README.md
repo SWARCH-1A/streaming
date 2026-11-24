@@ -186,10 +186,24 @@ guía mantienen su alcance original. Para incorporar VOD a la instalación compl
 `init`, `build`, `up`; se conservan secretos y datos anteriores. Certificados, identidades S3
 separadas, migraciones, salud y recuperación: [servicio VOD](../../services/vod/README.md).
 
+La instalación completa separa cada base y su propietario en redes internas; la red `default`
+se conserva como zona explícita de APIs. Broker, Auditor, MinIO, medios y SMTP tienen los
+miembros definidos en [segmentación P3](../../docs/p3/segmentacion-red.md). Para actualizar,
+repetir `init` y `up` conservando volúmenes. La recreación de contenedores interrumpe las
+emisiones activas; no requiere `reset`, borrar datos ni rotar secretos. Los Compose aislados
+de desarrollo de esta guía mantienen su topología previa.
+
+El Redis de Chat de la instalación completa no acepta clientes anónimos ([ADR-029](../../docs/adr/ADR-029-zero-trust-almacen-vivo-chat.md)).
+En una instalación anterior, repetir `init` antes de `up`: genera `CHAT_REDIS_PASSWORD` y
+`chat-redis.acl` sin rotar los demás secretos. Si falta, Compose se detiene con
+`Run python3 infra/local/dev.py init` y los datos se conservan. Los Compose básicos por servicio de
+esta guía no cambian.
+
 ## Provisión externa
 
 Para un iPhone conectado a la misma LAN que el Mac, `python3 infra/local/dev.py lan` prepara
-el origen, certificado y publicación HTTPS; después ejecutar `up`. La [guía de dispositivo](../../apps/mobile/iosApp/DEVICE.md)
+el origen, certificado y publicación HTTPS; después ejecutar `up`, que recrea `web`, `proxy` y `waf`
+cuando el certificado cambia (su huella es una etiqueta de Compose). La [guía de dispositivo](../../apps/mobile/iosApp/DEVICE.md)
 explica la firma gratuita con Xcode, instalación de la CA y permisos de red. `lan --loopback` retira
 el acceso de red conservando datos. RTMPS y Mailpit permanecen en loopback.
 

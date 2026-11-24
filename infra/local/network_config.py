@@ -67,7 +67,8 @@ def configure(env, state, run, *, host=None, address=None, loopback=False):
         raise RuntimeError("An IP-based LAN host must match --address")
     if not loopback:
         try:
-            if ipaddress.ip_address(address) in ipaddress.ip_network(env["LOCAL_SUBNET"]):
+            subnets = [env["LOCAL_SUBNET"]] + ([env["LOCAL_EDGE_SUBNET"]] if env.get("LOCAL_EDGE_SUBNET") else [])
+            if any(ipaddress.ip_address(address) in ipaddress.ip_network(subnet) for subnet in subnets):
                 raise RuntimeError("LAN overlaps the Docker subnet; choose a different Docker subnet before enabling LAN")
         except KeyError:
             raise RuntimeError("Initialize the local installation first") from None

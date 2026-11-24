@@ -2,6 +2,8 @@ name: streaming-local
 
 services:
   core-db:
+    networks:
+      core-data: {}
     image: postgres:18-alpine
     entrypoint: ["/bin/sh", "/postgres-tls.sh"]
     command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tmp/p1-tls/server.crt", "-c", "ssl_key_file=/tmp/p1-tls/server.key"]
@@ -22,6 +24,9 @@ services:
     restart: unless-stopped
 
   core:
+    networks:
+      default: {}
+      core-data: {}
     image: streaming-local-core
     build: ./services/core
     environment:
@@ -72,16 +77,23 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Zero Trust (ADR-029): sin usuario anónimo; Chat entra con su propia identidad y solo a sus claves chat:*.
   chat-db:
+    networks:
+      chat-cache: {}
     image: redis:8-alpine
-    command: ["redis-server", "--port", "0", "--tls-port", "6379", "--tls-cert-file", "/run/secrets/chat-redis.crt", "--tls-key-file", "/run/secrets/chat-redis.key", "--tls-ca-cert-file", "/run/secrets/ca.crt", "--tls-auth-clients", "no", "--appendonly", "yes", "--appendfsync", "always", "--save", "", "--maxmemory-policy", "noeviction"]
+    command: ["redis-server", "--port", "0", "--tls-port", "6379", "--tls-cert-file", "/run/secrets/chat-redis.crt", "--tls-key-file", "/run/secrets/chat-redis.key", "--tls-ca-cert-file", "/run/secrets/ca.crt", "--tls-auth-clients", "no", "--aclfile", "/run/secrets/chat-redis.acl", "--appendonly", "yes", "--appendfsync", "always", "--save", "", "--maxmemory-policy", "noeviction"]
+    environment:
+      # Solo para la comprobación de salud, que se autentica como el usuario chat.
+      REDISCLI_AUTH: ${CHAT_REDIS_PASSWORD:?Run python3 infra/local/dev.py init}
     volumes:
       - chat-db:/data
       - ${P1_STATE}/chat-redis.crt:/run/secrets/chat-redis.crt:ro
       - ${P1_STATE}/chat-redis.key:/run/secrets/chat-redis.key:ro
       - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+      - ${P1_STATE}/chat-redis.acl:/run/secrets/chat-redis.acl:ro
     healthcheck:
-      test: ["CMD", "redis-cli", "--tls", "--cacert", "/run/secrets/ca.crt", "-h", "chat-db", "ping"]
+      test: ["CMD", "redis-cli", "--tls", "--cacert", "/run/secrets/ca.crt", "-h", "chat-db", "--user", "chat", "ping"]
       interval: 5s
       timeout: 3s
       retries: 12
@@ -89,6 +101,8 @@ services:
 
   # Chat P2 (ADR-024): copia durable para replay, bloqueos y retiros. Redis sigue sirviendo el vivo.
   chat-pg:
+    networks:
+      chat-data: {}
     image: postgres:18-alpine
     entrypoint: ["/bin/sh", "/postgres-tls.sh"]
     command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tmp/p1-tls/server.crt", "-c", "ssl_key_file=/tmp/p1-tls/server.key"]
@@ -109,10 +123,14 @@ services:
     restart: unless-stopped
 
   chat:
+    networks:
+      default: {}
+      chat-cache: {}
+      chat-data: {}
     image: streaming-local-chat
     build: ./services/chat
     environment:
-      CHAT_REDIS_URL: rediss://chat-db:6379/0
+      CHAT_REDIS_URL: rediss://chat:${CHAT_REDIS_PASSWORD:?Run python3 infra/local/dev.py init}@chat-db:6379/0
       CHAT_DATABASE_URL: postgres://chat:${CHAT_DB_PASSWORD:?Run python3 infra/local/dev.py init}@chat-pg:5432/chat?sslmode=verify-full&sslrootcert=/run/secrets/ca.crt
       SSL_CERT_FILE: /run/secrets/ca.crt
       CHAT_ALLOWED_ORIGINS: ${WEB_ORIGIN:?Run init}
@@ -142,6 +160,8 @@ services:
     restart: unless-stopped
 
   live-db:
+    networks:
+      streaming-data: {}
     image: postgres:18.6-alpine3.24
     entrypoint: ["/bin/sh", "/postgres-tls.sh"]
     command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tmp/p1-tls/server.crt", "-c", "ssl_key_file=/tmp/p1-tls/server.key"]
@@ -164,6 +184,10 @@ services:
     restart: unless-stopped
 
   live:
+    networks:
+      default: {}
+      streaming-data: {}
+      media: {}
     image: streaming-local-live
     build: ./services/streaming
     environment:
@@ -232,6 +256,8 @@ services:
     restart: unless-stopped
 
   media-server:
+    networks:
+      media: {}
     image: streaming-local-mediamtx
     build:
       context: .
@@ -273,6 +299,8 @@ services:
     restart: unless-stopped
 
   notifications-db:
+    networks:
+      notifications-data: {}
     image: postgres:18-alpine
     entrypoint: ["/bin/sh", "/postgres-tls.sh"]
     command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tmp/p1-tls/server.crt", "-c", "ssl_key_file=/tmp/p1-tls/server.key"]
@@ -294,6 +322,8 @@ services:
 
   # Local SMTP test provider: catches every email (UI on 127.0.0.1:8025) and never delivers outside.
   mailpit:
+    networks:
+      smtp: {}
     image: axllent/mailpit:v1.27.0
     environment:
       MP_SMTP_TLS_CERT: /run/secrets/mailpit.crt
@@ -308,6 +338,10 @@ services:
     restart: unless-stopped
 
   notifications:
+    networks:
+      default: {}
+      notifications-data: {}
+      smtp: {}
     image: streaming-local-notifications
     build: ./services/notifications
     environment:
@@ -343,6 +377,8 @@ services:
     restart: unless-stopped
 
   web:
+    networks:
+      default: {}
     image: streaming-local-web
     build:
       context: .
@@ -361,25 +397,91 @@ services:
       - ${P1_STATE}/web.crt:/run/secrets/web.crt:ro
       - ${P1_STATE}/web.key:/run/secrets/web.key:ro
       - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    labels:
+      # A reissued web.crt is a new file: a running container keeps the old one through its bind
+      # mount. The fingerprint (set by manage.py) changes the configuration so Compose recreates it.
+      streaming.web-certificate: ${WEB_CERT_SHA256:-}
     depends_on: [core]
+    restart: unless-stopped
+
+  # Public entry (ADR-031): ModSecurity v3 + OWASP CRS in blocking mode, in front of Caddy. It terminates
+  # the public TLS, inspects each request and re-encrypts to the reverse proxy, which is no longer published.
+  waf:
+    image: owasp/modsecurity-crs:4.25.2-nginx-alpine-202610180210-lts@sha256:57fd215e2894638a02d235f88510fa2a129d64740f0edb6798ca0e4aa2f02457
+    ports:
+      - "${LOCAL_HTTPS_BIND:-127.0.0.1}:${P1_HTTPS_PORT:-3445}:8443"
+    environment:
+      SSL_PORT: "8443"
+      SSL_CERT_FILE: /run/secrets/web.crt
+      SSL_CERT_KEY_FILE: /run/secrets/web.key
+      MODSEC_RULE_ENGINE: "On"
+      BLOCKING_PARANOIA: "1"
+      ANOMALY_INBOUND: "5"
+      ANOMALY_OUTBOUND: "4"
+      ALLOWED_METHODS: GET HEAD POST OPTIONS PUT PATCH DELETE
+      # Core accepts images up to 10 MB in an 11 MB request; JSON bodies stay under 128 KiB.
+      MAX_FILE_SIZE: "10485760"
+      COMBINED_FILE_SIZES: "11534336"
+      MODSEC_REQ_BODY_LIMIT: "12582912"
+      MODSEC_REQ_BODY_NOFILES_LIMIT: "131072"
+      WAF_CLIENT_MAX_BODY_SIZE: 12m
+      MODSEC_TMP_SAVE_UPLOADED_FILES: "off"
+      # Audit log: header, matched rules and trailer only; never request/response headers or bodies.
+      MODSEC_AUDIT_LOG_PARTS: AHZ
+      MODSEC_AUDIT_LOG_RELEVANT_STATUS: "^5"
+      # One file per audit record in a volume shared only with waf-relay, which publishes the blocks
+      # to the Security Logger and deletes each file after the broker confirms it (ADR-032).
+      MODSEC_AUDIT_LOG_TYPE: Concurrent
+      MODSEC_AUDIT_STORAGE_DIR: /var/log/modsecurity/audit/
+      WAF_REQUESTS_PER_SECOND: "100"
+      WAF_REQUEST_BURST: "400"
+      WAF_CONNECTIONS_PER_CLIENT: "512"
+    volumes:
+      - ./infra/waf/default.conf.template:/etc/nginx/templates/conf.d/default.conf.template:ro
+      - ./infra/waf/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:/etc/modsecurity.d/owasp-crs/rules/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf:ro
+      - ./infra/waf/rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:/etc/modsecurity.d/owasp-crs/rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf:ro
+      - waf-audit:/var/log/modsecurity/audit
+      - ${P1_STATE}/web.crt:/run/secrets/web.crt:ro
+      - ${P1_STATE}/web.key:/run/secrets/web.key:ro
+      - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    labels:
+      # Serves web.crt to browsers: a LAN host/IP change or renewal recreates it (see web).
+      streaming.web-certificate: ${WEB_CERT_SHA256:-}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8081/healthz"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 6
+    # Edge zone only (ADR-030/031): the WAF reaches Caddy and nothing else, so a compromised entry
+    # cannot address Core, Chat, Streaming or any datastore without passing through the proxy.
+    networks:
+      edge:
+        ipv4_address: ${LOCAL_WAF_IP:?Run init}
+    depends_on: [proxy]
     restart: unless-stopped
 
   proxy:
     image: caddy:2-alpine
-    ports:
-      - "${LOCAL_HTTPS_BIND:-127.0.0.1}:${P1_HTTPS_PORT:-3445}:3443"
     environment:
       WEB_ORIGIN: ${WEB_ORIGIN:?Run init}
       LOCAL_PUBLIC_HOST: ${LOCAL_PUBLIC_HOST:-localhost}
       LOCAL_LAN_IP: ${LOCAL_LAN_IP:-127.0.0.1}
+      # Only the WAF may state the client address (X-Forwarded-For); see the generated Caddyfile.
+      LOCAL_WAF_IP: ${LOCAL_WAF_IP:?Run init}
     volumes:
       - ${P1_STATE}/Caddyfile:/etc/caddy/Caddyfile:ro
       - ${P1_STATE}/web.crt:/run/secrets/web.crt:ro
       - ${P1_STATE}/web.key:/run/secrets/web.key:ro
       - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
+    labels:
+      # The WAF verifies this certificate on every request: renewal must reach it too (see web).
+      streaming.web-certificate: ${WEB_CERT_SHA256:-}
     networks:
       default:
         ipv4_address: ${LOCAL_PROXY_IP:?Run init}
+      edge:
+        ipv4_address: ${LOCAL_EDGE_PROXY_IP:?Run init}
     depends_on: [core, chat, live, media-server, notifications, vod, gateway, web]
     restart: unless-stopped
 
@@ -406,6 +508,8 @@ services:
     restart: unless-stopped
 
   minio:
+    networks:
+      vod-storage: {}
     image: streaming-vod-minio
     build:
       context: .
@@ -430,6 +534,8 @@ services:
     restart: unless-stopped
 
   minio-init:
+    networks:
+      vod-storage: {}
     image: streaming-vod-minio
     entrypoint: ["/bin/sh", "/initialize.sh"]
     environment:
@@ -446,6 +552,8 @@ services:
         condition: service_healthy
 
   vod-db:
+    networks:
+      vod-data: {}
     image: postgres:18.6-alpine3.24
     entrypoint: ["/bin/sh", "/postgres-tls.sh"]
     command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tmp/p1-tls/server.crt", "-c", "ssl_key_file=/tmp/p1-tls/server.key"]
@@ -466,6 +574,11 @@ services:
     restart: unless-stopped
 
   vod:
+    networks:
+      default: {}
+      vod-data: {}
+      vod-storage: {}
+      media: {}
     image: streaming-local-vod
     build: ./services/vod
     environment:
@@ -500,6 +613,9 @@ services:
     restart: unless-stopped
 
   media-recorder:
+    networks:
+      media: {}
+      vod-storage: {}
     image: streaming-local-vod
     build: ./services/vod
     entrypoint: ["media-recorder"]
@@ -534,13 +650,49 @@ services:
     restart: unless-stopped
 
 networks:
+  # API zone: retain the existing network name/IPAM and trusted proxy addresses.
+  # Every service declares membership explicitly; datastores never join this network.
   default:
     ipam:
       config:
         - subnet: ${LOCAL_SUBNET:?Run init}
           ip_range: ${LOCAL_DYNAMIC_RANGE:?Run init}
+  core-data:
+    driver: bridge
+    internal: true
+  chat-cache:
+    driver: bridge
+    internal: true
+  chat-data:
+    driver: bridge
+    internal: true
+  streaming-data:
+    driver: bridge
+    internal: true
+  notifications-data:
+    driver: bridge
+    internal: true
+  vod-data:
+    driver: bridge
+    internal: true
+  vod-storage:
+    driver: bridge
+    internal: true
+  media:
+    driver: bridge
+  smtp:
+    driver: bridge
+  # Edge zone (ADR-031): only the WAF and Caddy. It publishes the HTTPS entry, so it cannot be internal;
+  # fixed addresses let Caddy trust exactly the WAF to state the client address.
+  edge:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${LOCAL_EDGE_SUBNET:?Run init}
 
 volumes:
+  # WAF audit spool (ADR-032): transient records until waf-relay confirms them.
+  waf-audit:
   core-db:
   core-avatars:
   core-banners:

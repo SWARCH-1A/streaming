@@ -5,7 +5,7 @@ RabbitMQ es un componente interno compartido. La selección y sus límites está
 Discovery, segmentos/cierre, seguimiento, cuentas, disponibilidad VOD, entregas y recuperación.
 Los workers VOD y Notificaciones procesan sus trabajos con almacenes propios; SMTP usa Mailpit.
 La entrega push real conserva la [dependencia de provisión/adaptadores](../../apps/mobile/PUSH.md).
-Las dieciséis suscripciones con efecto se aprovisionan desde el registro neutral (ADR-027).
+Las dieciocho suscripciones con efecto se aprovisionan desde el registro neutral (ADR-027/028).
 
 ## Arranque
 
@@ -118,7 +118,7 @@ Cargo.lock, para detectar incompatibilidades del adaptador AMQP. También ejecut
 de puertos de repositorio y transacciones PostgreSQL de Core/Discovery con compilación limpia,
 incluidos fallos después del efecto y antes de completar el inbox P2.
 
-El registro neutral conserva nueve tipos/dieciséis suscripciones con schemas ejecutables.
+El registro neutral conserva once tipos/dieciocho suscripciones con schemas ejecutables.
 El contrato de recuperación permite publicar desde Cuentas a `notifications.recovery.email`;
 su consumidor y la entrega STARTTLS están implementados por Notificaciones. La solicitud Web,
 correo real, enlace canónico y apertura del formulario se verificaron contra Mailpit local.
@@ -141,3 +141,13 @@ el registro privado. Las colas quorum se comprueban vacías y sin consumidores i
 antes de borrarlas; no ejecutar otro operador/redrive sobre estas dos suscripciones mientras
 se retiran. Conservar el archivo para recuperación operativa y no importarlo en otra
 suscripción. Importar definiciones por sí solo no elimina bindings antiguos.
+
+## Auditoría de seguridad P3
+
+El registro añade security.audit.core.v1 / security.audit.vod.v1 / security.audit.waf.v1 y
+audit.core / audit.vod / audit.waf. El usuario `waf` (relay del WAF, ADR-032) solo publica su routing key.
+`dev.py up` recrea el broker cuando cambian sus definiciones, porque RabbitMQ solo las importa al arrancar.
+Core y VOD solo publican su propia routing key; la identidad audit consume ambas suscripciones
+y escribe únicamente sus retry/dead exchanges. No administra topología ni lee otras colas.
+`init` genera la identidad nueva y actualiza definiciones sin rotar credenciales existentes;
+reiniciar broker aplica las definiciones al nodo existente. [SPEC-25](../../docs/spec-p3/spec_25_security_audit.md).

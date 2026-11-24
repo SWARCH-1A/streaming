@@ -1,7 +1,12 @@
 services:
   broker:
+    networks:
+      messaging: {}
     image: rabbitmq:4.3.7-management@sha256:79fb281ef7e0a15e3c5e0e12e66e944cebbf14a129493ef464369abd2c48d01a
     hostname: broker
+    labels:
+      # Definitions load only at boot; their fingerprint (set by manage.py) recreates the broker on change.
+      streaming.broker-definitions: ${BROKER_DEFINITIONS_SHA256:-}
     environment:
       RABBITMQ_NODENAME: rabbit@broker
     volumes:
@@ -19,6 +24,8 @@ services:
       retries: 12
     restart: unless-stopped
   core:
+    networks:
+      messaging: {}
     environment:
       CORE_EVENTS_TRANSPORT: amqp
       SPRING_RABBITMQ_HOST: broker
@@ -34,16 +41,22 @@ services:
       SPRING_RABBITMQ_SSL_TRUST_STORE_TYPE: PKCS12
       SPRING_RABBITMQ_DYNAMIC: "false"
   live:
+    networks:
+      messaging: {}
     environment:
       STREAMING_EVENTS_TRANSPORT: amqp
       STREAMING_BROKER_URL: amqps://streaming:${BROKER_STREAMING_PASSWORD:?Run python3 infra/local/dev.py init}@broker:5671/streaming-p2?heartbeat=30
       STREAMING_BROKER_CA_FILE: /run/secrets/ca.crt
   chat:
+    networks:
+      messaging: {}
     environment:
       CHAT_EVENTS_TRANSPORT: amqp
       CHAT_BROKER_URL: amqps://chat:${BROKER_CHAT_PASSWORD:?Run python3 infra/local/dev.py init}@broker:5671/streaming-p2?heartbeat=30
       CHAT_BROKER_CA_FILE: /run/secrets/ca.crt
   notifications:
+    networks:
+      messaging: {}
     environment:
       NOTIFICATIONS_BROKER_URL: amqps://notifications:${BROKER_NOTIFICATIONS_PASSWORD:?Run python3 infra/local/dev.py init}@broker:5671/streaming-p2?heartbeat=30
       NOTIFICATIONS_RECOVERY_BROKER_URL: amqps://recovery-email:${BROKER_RECOVERY_EMAIL_PASSWORD:?Run python3 infra/local/dev.py init}@broker:5671/streaming-p2?heartbeat=30
@@ -52,6 +65,8 @@ services:
       broker:
         condition: service_healthy
   vod:
+    networks:
+      messaging: {}
     environment:
       VOD_BROKER_URL: amqps://vod:${BROKER_VOD_PASSWORD:?Run init}@broker:5671/streaming-p2?heartbeat=30
       VOD_BROKER_CA_FILE: /run/secrets/ca.crt
@@ -59,9 +74,13 @@ services:
       broker:
         condition: service_healthy
   media-recorder:
+    networks:
+      messaging: {}
     environment:
       RECORDER_BROKER_URL: amqps://streaming:${BROKER_STREAMING_PASSWORD:?Run init}@broker:5671/streaming-p2?heartbeat=30
   broker-ops:
+    networks:
+      messaging: {}
     profiles: [tools]
     build:
       context: ./infra/broker
@@ -71,6 +90,11 @@ services:
     volumes:
       - ${P1_STATE}/ca.crt:/run/secrets/ca.crt:ro
       - broker-audit:/audit
+networks:
+  messaging:
+    driver: bridge
+    internal: true
+
 volumes:
   broker-data:
   broker-audit:

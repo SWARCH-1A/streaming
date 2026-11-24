@@ -105,6 +105,9 @@ La respuesta 202 significa retirada aceptada y acceso restringido, no limpieza f
 La UI permite consultar la operación VOD y distingue PENDING, RUNNING, FAILED y COMPLETED.
 Un fallo de limpieza no republica el contenido; el replay continúa siendo responsabilidad de Chat.
 Ayudas, errores, estados y recuperación del foco forman parte de la aceptación de accesibilidad.
+La consola debe ajustarse al ancho útil, incluso a 320 px de ventana con una barra vertical
+que reserve espacio. Las pruebas comprueban controles completos y foco, sin ocultar el
+desbordamiento; zoom real y lectura asistiva se registran por separado.
 
 Para VOD, [ADR-022](../adr/ADR-022-vod-go-postgresql-minio.md) fija autorización Core por
 manifiesto, permisos firmados de 60 segundos y renovación Web a los 45 segundos. Los eventos
@@ -164,3 +167,13 @@ Sigue pendiente la observación humana de teclado, contraste, zoom y tecnología
 
 Esfuerzo L transversal. La propagación por eventos sola deja una ventana de acceso; el
 contrato de comprobación y los plazos deben verificarse antes de declarar suspensión completa.
+
+## Integración de auditoría P3
+
+[SPEC-25](../spec-p3/spec_25_security_audit.md) y [ADR-028](../adr/ADR-028-security-logger-auditor.md)
+incorporan eventos de seguridad de Core/VOD, suscripciones audit.core/audit.vod y un servicio
+con almacenamiento propio. Las autorizaciones y auditorías de dominio existentes se conservan.
+La evidencia se publica desde outbox; su consulta exige sesión administrativa vigente en Core.
+La consola enlaza a `/admin/audit`: filtros Core/VOD, fechas, acción, resultado e IDs exactos,
+tabla paginada y detalle de solo lectura según SPEC-25. Reutiliza el endpoint protegido de Core
+a través del WAF; no tiene acceso directo al almacén ni a la API interna de Auditor.

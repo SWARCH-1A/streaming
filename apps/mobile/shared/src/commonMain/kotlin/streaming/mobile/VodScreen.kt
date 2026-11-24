@@ -134,7 +134,7 @@ fun VodScreen(api: Api, vodId: String, foreground: Boolean, back: () -> Unit) {
             Column {
                 failure?.let { Notice(it, true); TextButton(onClick = { retry++ }) { Text("Reintentar video") } }
                 if (vod != null) {
-                    Column(Modifier.fillMaxWidth().heightIn(max = 152.dp).verticalScroll(rememberScrollState())
+                    Column(Modifier.fillMaxWidth().heightIn(max = 112.dp).verticalScroll(rememberScrollState())
                         .padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(vod.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         val channel = screen?.channel?.sectionData<ChannelBootstrap>()
@@ -144,7 +144,10 @@ fun VodScreen(api: Api, vodId: String, foreground: Boolean, back: () -> Unit) {
                     }
                     var menu by remember { mutableStateOf(false) }
                     Box {
-                        TextButton(onClick = { menu = true }) { Text(tracks.firstOrNull { it.trackId == trackId }?.label ?: "Subtítulos desactivados") }
+                        TextButton(onClick = { menu = true }, modifier = Modifier.padding(horizontal = 4.dp)) {
+                            Text(tracks.firstOrNull { it.trackId == trackId }?.label ?: "Subtítulos desactivados", style = MaterialTheme.typography.labelMedium)
+                            Spacer(Modifier.width(6.dp)); VaultIcon(Glyph.Down, Modifier.size(16.dp))
+                        }
                         DropdownMenu(menu, { menu = false }) {
                             DropdownMenuItem(text = { Text("Desactivar") }, onClick = { trackId = null; menu = false })
                             tracks.forEach { track -> DropdownMenuItem(text = { Text("${track.label} (${track.language})") }, onClick = { trackId = track.trackId; menu = false }) }
@@ -219,17 +222,29 @@ private fun ReplayMessages(api: Api, vod: P2Vod, position: Long, grant: String, 
         }.onFailure { messages = emptyList(); next = null; failure = it.userMessage() }
         pending = false
     }
-    Column(modifier.fillMaxWidth().padding(12.dp)) {
-        Text("Chat de la grabación", style = MaterialTheme.typography.titleMedium)
-        if (pending) LinearProgressIndicator(Modifier.fillMaxWidth())
+    val list = rememberLazyListState()
+    val visible = messages.filter { it.mediaOffsetMs <= position }
+    var follow by remember { mutableStateOf(true) }
+    LaunchedEffect(visible.size, follow) { if (follow && visible.isNotEmpty()) list.scrollToItem(visible.lastIndex) }
+    Column(modifier.fillMaxWidth().background(Surface)) {
+        Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            VaultIcon(Glyph.Chat, Modifier.size(18.dp), tint = Primary)
+            Text("Chat de la grabación", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+            TextButton(onClick = { follow = !follow }) {
+                Text(if (follow) "Pausar" else "Seguir", style = MaterialTheme.typography.labelMedium)
+            }
+        }
+        HorizontalDivider(color = Outline.copy(alpha = .4f))
+        if (pending) LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp))
         failure?.let { Notice(it, true); TextButton(onClick = { retry++ }) { Text("Reintentar chat") } }
-        val list = rememberLazyListState()
-        val visible = messages.filter { it.mediaOffsetMs <= position }
-        var follow by remember { mutableStateOf(true) }
-        TextButton(onClick = { follow = !follow }) { Text(if (follow) "Pausar desplazamiento" else "Seguir últimos mensajes") }
-        LaunchedEffect(visible.size, follow) { if (follow && visible.isNotEmpty()) list.scrollToItem(visible.lastIndex) }
-        LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = list) {
-            items(visible, key = { it.messageId }) { message -> Text("${message.author.displayName}: ${message.text}", Modifier.padding(vertical = 4.dp)) }
+        LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = list, contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (visible.isEmpty() && !pending && failure == null) item { Text("Los mensajes aparecerán al avanzar el video.", color = Muted, style = MaterialTheme.typography.bodySmall) }
+            items(visible, key = { it.messageId }) { message ->
+                Text(androidx.compose.ui.text.buildAnnotatedString {
+                    pushStyle(androidx.compose.ui.text.SpanStyle(color = Primary, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
+                    append(message.author.displayName); pop(); append(": "); append(message.text)
+                }, style = MaterialTheme.typography.bodyMedium)
+            }
         }
         if (next != null) {
             if (pages < 10) TextButton(enabled = !pending, onClick = { pages++ }) { Text("Más mensajes") }

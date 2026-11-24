@@ -30,7 +30,8 @@ from accounts import fixture_account
 ROOT = Path(__file__).resolve().parents[3]
 STATE = ROOT / "infra/p1/.state-local"
 PROJECT = "streaming-local"
-NETWORK = PROJECT + "_default"
+# The encoder container joins the media zone: media-server is no longer on the API network (ADR-030).
+NETWORK = PROJECT + "_media"
 LIVE_IMAGE = "streaming-local-live"
 ORIGIN = CA = TLS = None
 
@@ -39,7 +40,7 @@ def configure(state=STATE, project=PROJECT, network=None, origin=None, live_imag
     """Explicit fixture configuration; importing never reads the personal installation."""
     global STATE, PROJECT, NETWORK, ORIGIN, CA, TLS, LIVE_IMAGE
     STATE, PROJECT = Path(state).resolve(), project
-    NETWORK, LIVE_IMAGE = network or project + "_default", live_image
+    NETWORK, LIVE_IMAGE = network or project + "_media", live_image
     env = dict(line.split("=", 1) for line in (STATE / "environment.env").read_text().splitlines() if "=" in line)
     ORIGIN, CA = origin or env["WEB_ORIGIN"], STATE / "ca.crt"
     TLS = ssl.create_default_context(cafile=str(CA))

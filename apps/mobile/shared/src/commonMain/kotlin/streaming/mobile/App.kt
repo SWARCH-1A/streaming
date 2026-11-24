@@ -1,6 +1,8 @@
 package streaming.mobile
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -9,6 +11,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import org.jetbrains.compose.resources.painterResource
 import streaming.mobile.resources.Res
 import streaming.mobile.resources.vault_tv
@@ -20,6 +25,7 @@ import streaming.mobile.resources.vault_tv
 fun VaultApp(api: Api) {
     val identity by api.session.state.collectAsState()
     val foreground = Foreground()
+    val largeText = LocalDensity.current.fontScale > 1.3f
     var stack by rememberSaveable { mutableStateOf(listOf("explore")) }
     LaunchedEffect(Unit) {
         DestinationLinks.pending.collect { destination ->
@@ -31,77 +37,72 @@ fun VaultApp(api: Api) {
     }
     val route = stack.last()
     val watching = route.startsWith("watch:") || route.startsWith("vod:")
-    val navigate: (String) -> Unit = { if (it != route) stack = stack + it }
+    val navigate: (String) -> Unit = { destination ->
+        if (destination != route) stack = when {
+            destination == "explore" -> listOf(destination)
+            route in listOf("login", "register", "recovery", "reset") && destination in listOf("login", "register", "recovery", "reset") -> stack.dropLast(1) + destination
+            else -> stack + destination
+        }
+    }
     val back: () -> Unit = { if (stack.size > 1) stack = stack.dropLast(1) }
     NativeBack(stack.size > 1, back)
     VaultTheme {
         Scaffold(containerColor = Canvas, topBar = {
             if (!watching) {
-                Row(Modifier.fillMaxWidth().background(Panel).statusBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth().background(Canvas).statusBarsPadding().heightIn(min = 64.dp)
+                    .padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Image(painterResource(Res.drawable.vault_tv), "Vault tv", Modifier.height(40.dp).width(118.dp))
                     Spacer(Modifier.weight(1f))
-                    TextButton(onClick = { navigate("library") }) { Text("Videos") }
-                    TextButton(onClick = { navigate(if (identity == null) "login" else "account") }) {
-                        Text(if (identity == null) "Iniciar sesión" else "Mi cuenta")
+                    IconButton(onClick = { stack = listOf("search") }) { VaultIcon(Glyph.Search, description = "Buscar") }
+                    FilledIconButton(onClick = { navigate(if (identity == null) "login" else "account") },
+                        colors = IconButtonDefaults.filledIconButtonColors(containerColor = Primary, contentColor = MaterialTheme.colorScheme.onPrimary)) {
+                        VaultIcon(Glyph.User, description = if (identity == null) "Iniciar sesión" else "Mi cuenta")
                     }
                 }
             }
         }, bottomBar = {
             if (!watching) {
-                NavigationBar(containerColor = Panel) {
-                    listOf("explore" to "Explorar", "search" to "Buscar", "following" to "Siguiendo", "inbox" to "Bandeja").forEach { (key, label) ->
-                        NavigationBarItem(selected = route == key,
-                            onClick = { stack = listOf(key) },
-                            icon = { NavigationGlyph(key) }, label = { Text(label) })
+                Column(Modifier.background(Canvas).navigationBarsPadding()) {
+                    HorizontalDivider(color = Outline.copy(alpha = .4f))
+                    Row(Modifier.fillMaxWidth().heightIn(min = 68.dp).padding(horizontal = 4.dp)) {
+                        listOf("explore" to "Explorar", "search" to "Buscar", "library" to "Videos",
+                            "following" to "Siguiendo", "inbox" to "Bandeja").forEach { (key, label) ->
+                            val selected = route == key || (route !in listOf("explore", "search", "library", "following", "inbox") && stack.first() == key)
+                            Column(Modifier.weight(1f).clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                                .semantics { contentDescription = label }
+                                .selectable(selected = selected, role = androidx.compose.ui.semantics.Role.Tab, onClick = { stack = listOf(key) })
+                                .padding(vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Box(Modifier.width(42.dp).height(27.dp).background(if (selected) Primary.copy(alpha = .12f) else androidx.compose.ui.graphics.Color.Transparent,
+                                    androidx.compose.foundation.shape.RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+                                    VaultIcon(when(key) { "search" -> Glyph.Search; "library" -> Glyph.Video; "following" -> Glyph.Heart; "inbox" -> Glyph.Inbox; else -> Glyph.Explore },
+                                        tint = if (selected) Primary else Muted)
+                                }
+                                if (!largeText) Text(label, color = if (selected) Primary else Muted, style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                            }
+                        }
                     }
                 }
             }
         }) { padding ->
-            Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
-                key(identity?.userId, api.session.generation) { when {
-                    route == "explore" || route == "search" -> ExploreScreen(api, route == "search", foreground, navigate)
-                    route.startsWith("channel:") -> ChannelScreen(api, route.substringAfter(':'), foreground, navigate)
-                    route.startsWith("watch:") -> WatchScreen(api, route.substringAfter(':'), foreground, navigate, back)
-                    route in listOf("login", "register", "recovery", "reset") -> AuthScreen(api, route, navigate) {
-                        stack = stack.dropLast(1).ifEmpty { listOf("explore") }
-                    }
-                    route == "account" -> AccountScreen(api, navigate)
-                    route == "following" -> FollowingScreen(api, foreground, navigate)
-                    route == "inbox" -> InboxScreen(api, foreground, navigate)
-                    route == "library" -> LibraryScreen(api, foreground, navigate)
-                    route.startsWith("vod:") -> VodScreen(api, route.substringAfter(':'), foreground, back)
-                    else -> Notice("Este contenido no está disponible.")
-                } }
-            }
-        }
-    }
-}
-
-@Composable
-private fun NavigationGlyph(kind: String) {
-    androidx.compose.foundation.Canvas(Modifier.size(22.dp)) {
-        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.7.dp.toPx())
-        val color = Muted
-        when (kind) {
-            "search" -> {
-                drawCircle(color, size.width * .3f, center = androidx.compose.ui.geometry.Offset(size.width * .4f, size.height * .4f), style = stroke)
-                drawLine(color, androidx.compose.ui.geometry.Offset(size.width * .63f, size.height * .63f), androidx.compose.ui.geometry.Offset(size.width * .95f, size.height * .95f), strokeWidth = stroke.width)
-            }
-            "following" -> {
-                val path = androidx.compose.ui.graphics.Path().apply {
-                    moveTo(size.width * .5f, size.height * .9f)
-                    cubicTo(-size.width * .2f, size.height * .4f, size.width * .1f, -size.height * .15f, size.width * .5f, size.height * .25f)
-                    cubicTo(size.width * .9f, -size.height * .15f, size.width * 1.2f, size.height * .4f, size.width * .5f, size.height * .9f)
-                }; drawPath(path, color, style = stroke)
-            }
-            "inbox" -> {
-                drawRoundRect(color, topLeft = androidx.compose.ui.geometry.Offset(2.dp.toPx(), 3.dp.toPx()), size = androidx.compose.ui.geometry.Size(size.width - 4.dp.toPx(), size.height - 6.dp.toPx()), cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()), style = stroke)
-                drawLine(color, androidx.compose.ui.geometry.Offset(3.dp.toPx(), size.height * .65f), androidx.compose.ui.geometry.Offset(size.width - 3.dp.toPx(), size.height * .65f), strokeWidth = stroke.width)
-            }
-            else -> {
-                drawCircle(color, size.width * .44f, style = stroke)
-                drawLine(color, androidx.compose.ui.geometry.Offset(size.width * .35f, size.height * .67f), androidx.compose.ui.geometry.Offset(size.width * .65f, size.height * .33f), strokeWidth = stroke.width * 2)
+            Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding(), contentAlignment = Alignment.TopCenter) {
+                Box(if (watching) Modifier.fillMaxSize() else Modifier.widthIn(max = 720.dp).fillMaxSize()) {
+                    key(identity?.userId, api.session.generation) { when {
+                        route == "explore" || route == "search" -> ExploreScreen(api, route == "search", foreground, navigate)
+                        route.startsWith("channel:") -> ChannelScreen(api, route.substringAfter(':'), foreground, navigate)
+                        route.startsWith("watch:") -> WatchScreen(api, route.substringAfter(':'), foreground, navigate, back)
+                        route in listOf("login", "register", "recovery", "reset") -> AuthScreen(api, route, navigate) {
+                            stack = stack.dropLast(1).ifEmpty { listOf("explore") }
+                        }
+                        route == "account" -> AccountScreen(api, navigate)
+                        route == "following" -> FollowingScreen(api, foreground, navigate)
+                        route == "inbox" -> InboxScreen(api, foreground, navigate)
+                        route == "library" -> LibraryScreen(api, foreground, navigate)
+                        route.startsWith("vod:") -> VodScreen(api, route.substringAfter(':'), foreground, back)
+                        else -> Notice("Este contenido no está disponible.")
+                    } }
+                }
             }
         }
     }

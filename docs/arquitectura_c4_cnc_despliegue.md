@@ -85,10 +85,11 @@ Web usa TypeScript y móvil Kotlin. Watch parties es un módulo de Core (ADR-025
 
 ```mermaid
 flowchart LR
-  Clients[Clientes web / móvil] -->|HTTPS localhost:3445| P[Contenedor proxy Caddy]
+  Clients[Clientes web / móvil] -->|HTTPS localhost:3445| WAF[Contenedor WAF ModSecurity + OWASP CRS]
+  WAF -->|HTTPS| P[Contenedor proxy Caddy]
   P --> W[Contenedor Web SSR]
   P --> G[Contenedor Gateway Go / agregación]
-  subgraph Private[Red privada de servicios]
+  subgraph Private[Servicios y almacenes: ver redes P3 debajo]
     C[Contenedor Core]
     S[Contenedor Streaming]
     CH[Contenedor Chat]
@@ -124,9 +125,16 @@ flowchart LR
   N -.-> Push[Push externo pendiente]
 ```
 
+Esta vista resume los procesos P2; la pertenencia concreta a redes y Auditor P3 se detalla en
+la [vista segmentada de despliegue](p3/segmentacion-red.md#vista-de-despliegue-pertenencia-a-redes).
+La instalación completa usa 14 bridges: una red explícita por almacén y su propietario,
+zona API, mensajería y dependencias de medios/SMTP. Auditor tiene bridges exclusivas para
+Core, broker y su PostgreSQL; no se conecta a la mensajería general. La zona API conserva
+el nombre `default` y las IP de proxy/Gateway, y excluye los almacenes. [ADR-030](adr/ADR-030-segmentacion-red.md).
+
 Cada servicio conserva credenciales y propiedad de escritura. VOD tiene persistencia privada;
 compartir un servidor de base de datos no permite compartir tablas ni credenciales. La selección
-de motores del despliegue local son cinco PostgreSQL privados, Redis para vivo/cuota y MinIO
+de motores del despliegue local son seis PostgreSQL privados (incluido Audit), Redis para vivo/cuota y MinIO
 para objetos S3. El broker no sustituye una base de negocio.
 
 Core, Streaming, Chat, VOD y Notificaciones constituyen cinco unidades de dominio. La clasificación
@@ -134,9 +142,11 @@ del Gateway de agregación como sexta unidad lógica debe validarse con el crite
 además de su función de comunicación/orquestación. Los módulos internos de Core no cuentan
 como procesos independientes. Este punto permanece en P2-18.
 
-El dominio público usa HTTPS y mantiene bloqueadas las rutas internas. Caddy publica solo
-loopback 3445 y Media RTMPS loopback 11938; Mailpit publica su buzón local en 8025. Los demás
-servicios y bases quedan en la red privada. Los 19 servicios persistentes y el inicializador
+El dominio público usa HTTPS y mantiene bloqueadas las rutas internas. El WAF
+([ADR-031](adr/ADR-031-waf-modsecurity-crs.md)) publica solo loopback 3445, inspecciona cada petición
+con ModSecurity y el OWASP CRS en modo bloqueo y la reenvía cifrada a Caddy, que ya no publica puertos;
+ambos comparten solo la red de borde `edge`. Media RTMPS publica loopback 11938 y Mailpit su buzón
+local en 8025. Los demás servicios y bases quedan en redes del proyecto. Con Audit P3, los 23 servicios persistentes y el inicializador
 S3 se levantan con `infra/local/dev.py`; comandos e inventario en el [README](../README.md).
 El cliente Kotlin se construye fuera de Docker para Android/iOS; completa los cinco lenguajes
 junto a Java, Rust, Go y TypeScript. La recuperación consistente de los doce volúmenes
@@ -159,3 +169,38 @@ manifiestos, segmentos, subtítulos y replay; no basta ocultar enlaces de la int
 
 La selección RabbitMQ y la integración inicial Streaming–Core/Chat están en [ADR-016](adr/ADR-016-rabbitmq-eventos-p2.md). Las nueve familias se integran en el [perfil local](../infra/broker/README.md). Push
 permanece sin proveedor; SPEC-15/19 distinguen las plataformas y recorridos verificados.
+
+## Contribución P3 — Security Logger y Auditor
+
+La Persona 4 agrega la responsabilidad transversal definida en
+[SPEC-25](spec-p3/spec_25_security_audit.md) y [ADR-028](adr/ADR-028-security-logger-auditor.md).
+Los responsables de vistas pueden integrar estos elementos en sus entregables de capas,
+componentes y despliegue:
+
+```mermaid
+flowchart LR
+  Admin[Administrador con sesión vigente] -->|HTTPS: consulta protegida| Core
+  Core -->|Transacción local| CO[(Outbox Core)]
+  VOD -->|Transacción local| VO[(Outbox VOD)]
+  CO -->|AMQPS: security.audit.core.v1| Broker
+  VO -->|AMQPS: security.audit.vod.v1| Broker
+  WAF[WAF: ModSecurity + CRS] -->|Archivo por bloqueo, volumen waf-audit| Relay[waf-relay]
+  Relay -->|AMQPS: security.audit.waf.v1| Broker
+  Broker -->|Colas audit.core, audit.vod y audit.waf| Logger[Security Logger]
+  Logger -->|SQL TLS: INSERT / SELECT| DB[(PostgreSQL Audit)]
+  Core -->|HTTPS: secreto de servicio y actor verificado| Auditor
+  Auditor -->|SQL TLS: SELECT| DB
+  Auditor -->|INSERT de lectura antes de responder| DB
+```
+
+Logger y Auditor son componentes del runtime `services/audit`; su base `audit-db` es privada.
+El despliegue local añade ambos mediante `infra/audit/compose.yaml`, sin publicar puertos al
+host. Core/VOD conservan autorización y repositorios propios. Logger confirma recepción solo
+tras persistir; Auditor se consulta a través de Core, que verifica ADMIN en cada solicitud.
+Los roles SQL separan lectura de inserción y ambos carecen de modificación/borrado del
+historial. [ADR-030](adr/ADR-030-segmentacion-red.md) concreta su segmentación: `audit-query`
+solo con Core, `audit-messaging` solo con broker y `audit-data` solo con su PostgreSQL.
+[ADR-032](adr/ADR-032-evidencia-waf-auditor.md) añade el WAF como tercer productor: `waf-relay`
+publica cada bloqueo desde el spool del WAF, sin actor ni datos del cliente, y borra el archivo tras
+la confirmación del broker; el WAF sigue sin red hacia el broker.
+Se conservan los permisos de aplicación y el perfil Zero Trust de ADR-029.

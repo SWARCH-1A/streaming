@@ -361,3 +361,26 @@ Las lecturas públicas de imágenes de perfil/canal conservan su forma P1, pero 
 la referencia pertenezca a una cuenta ACTIVE. Avatar y portada suspendidos o no referenciados
 devuelven 404; las respuestas legibles llevan `Cache-Control: no-store, private`. Suspender
 no borra objetos y reactivar vuelve a habilitar las referencias actuales.
+
+## Auditoría de seguridad P3
+
+GET `/api/admin/audit-events` (Core) requiere sesión ADMIN activa; 401 visitante, 403 usuario
+común, 503 dependencia no disponible. Core consulta GET `/internal/audit/events` (Audit) con
+X-Service-Name=core, X-Service-Token dedicado y X-Audit-Actor obtenido de la sesión validada.
+Filtros: actorId/targetId/action/outcome/producer/requestId/from/to/cursor/limit. Desde inclusivo,
+hasta exclusivo; default 50, máximo 100, parámetros repetidos/desconocidos o mal codificados dan 400. Respuesta
+P2AuditPage: items con position decimal, receivedAtUtc y event; nextCursor nullable. Orden de
+ingreso; cursor no concede acceso y no representa snapshot. No-store en ambos proveedores.
+El acceso al historial se registra en audit.reads antes de revelar datos. Ver SPEC-25.
+
+Web consume esta operación desde `/admin/audit`, sin cambios en el contrato: solicita páginas
+de 50 registros, conserva from/to entre cursores y reinicia el cursor al cambiar los filtros.
+Las fechas introducidas en hora local se convierten a UTC. La UI solo lee; la sesión ADMIN
+se valida de nuevo en Core en cada consulta. `producer` admite core, vod y waf; los bloqueos del WAF
+llegan sin actor ([ADR-032](adr/ADR-032-evidencia-waf-auditor.md)).
+
+En el despliegue completo, Core y Auditor comparten `audit-query`; Auditor no pertenece a la
+red general de APIs ni a la mensajería de los dominios. Su conexión al mismo broker usa
+`audit-messaging` y su PostgreSQL, `audit-data`. Esta frontera de red complementa los
+permisos anteriores sin cambiar rutas, schemas, credenciales ni códigos de respuesta;
+ver [ADR-030](adr/ADR-030-segmentacion-red.md).

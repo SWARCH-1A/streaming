@@ -33,8 +33,15 @@ y cuáles fueron sustituidos. Las fechas conservan el momento de cada decisión.
 | [ADR-024](ADR-024-chat-redis-postgresql-replay-moderacion.md) | Aceptada para Chat | Redis para el vivo y PostgreSQL propio para replay, bloqueos y retiros; outbox Redis Stream y moderación del propietario. |
 | [ADR-026](ADR-026-multicalidad-enhanced-rtmp.md) | Aceptada para integración local | Enhanced RTMPS con hasta cuatro H.264, HLS y captura por rendición; una sola sesión/cupo e inventario completo. |
 | [ADR-027](ADR-027-suscripciones-con-efecto-y-retiro-auditable.md) | Aceptada para integración local | Dieciséis suscripciones con efecto, archivo privado de las dos colas sin consumidor y conversión del estado de reconexión P1/P2. |
+| [ADR-029](ADR-029-zero-trust-almacen-vivo-chat.md) | Aceptada para integración local | Zero Trust interno: inventario de identidades y permisos por conexión; el Redis de Chat deja de aceptar clientes anónimos y Chat entra con usuario propio limitado a `chat:*`. |
+| [ADR-030](ADR-030-segmentacion-red.md) | Aceptada para integración local | Aislamiento de almacenes por propietario y redes explícitas para APIs, mensajería, Auditor, medios, objetos y SMTP. |
+| [ADR-031](ADR-031-waf-modsecurity-crs.md) | Aceptada para integración local | WAF en la entrada pública: ModSecurity v3 + OWASP CRS (LTS 4.25) en modo bloqueo delante de Caddy, TLS de extremo a extremo, límites de tamaño y de peticiones, y `X-Forwarded-For` fijado por el WAF. |
+| [ADR-032](ADR-032-evidencia-waf-auditor.md) | Aceptada para integración local | Bloqueos del WAF como evidencia de auditoría: spool durable, relay con bridge exclusiva hacia el broker y evento `security.audit.waf.v1` sin actor ni datos del cliente, visible en `/admin/audit`. |
 
 Chat conserva Go; ADR-010 describe su perfil efímero P1 y ADR-024 su almacenamiento P2 (Redis + PostgreSQL); las herramientas pendientes de operación y despliegue se registran conforme
 a la [política ADR](../politica_ADR.md). Las alternativas candidatas requieren decisión del responsable.
 
 La [decisión de entrega durable de callbacks Media](../../services/streaming/docs/adr/0001-media-callback-delivery.md) documenta la persistencia, reintentos, DLQ y capacidad del adaptador de SPEC-04.
+
+- [ADR-028](ADR-028-security-logger-auditor.md): auditoría de seguridad P3, outbox Core/VOD, Logger y Auditor privados.
+- [ADR-032](ADR-032-evidencia-waf-auditor.md): bloqueos del WAF publicados por un relay como tercer productor de auditoría.

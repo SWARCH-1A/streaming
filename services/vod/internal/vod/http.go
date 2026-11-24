@@ -84,7 +84,11 @@ func respondError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.As(err, &f) {
 		status, code = f.Status, f.Code
 	}
-	body := map[string]any{"code": code, "message": "No se pudo completar la operación VOD.", "requestId": requestID(r)}
+	id := w.Header().Get("X-Request-Id")
+	if !auditCorrelation.MatchString(id) {
+		id = requestID(r)
+	}
+	body := map[string]any{"code": code, "message": "No se pudo completar la operación VOD.", "requestId": id}
 	if status == 422 && strings.HasPrefix(code, "SUBTITLE_") {
 		field := "file"
 		if code == "SUBTITLE_METADATA_INVALID" {
@@ -201,9 +205,9 @@ func (s *Service) PublicHandler() http.Handler {
 		return nil
 	})
 	handle("GET /api/vods/{vodId}/thumbnail", s.thumbnail)
-	handle("PATCH /api/vods/{vodId}", s.mutate("PATCH"))
-	handle("POST /api/vods/{vodId}/publication", s.mutate("PUBLISH"))
-	handle("DELETE /api/vods/{vodId}", s.mutate("DELETE"))
+	handle("PATCH /api/vods/{vodId}", s.audited("VOD_PATCH", s.mutate("PATCH")))
+	handle("POST /api/vods/{vodId}/publication", s.audited("VOD_PUBLISH", s.mutate("PUBLISH")))
+	handle("DELETE /api/vods/{vodId}", s.audited("VOD_DELETE", s.mutate("DELETE")))
 	handle("GET /vod-media/{vodId}/{assetPath...}", s.media)
 	handle("POST /api/vods/{vodId}/subtitles", s.uploadTrack)
 	handle("GET /api/vods/{vodId}/subtitles", s.listTracks)
@@ -318,6 +322,9 @@ func (s *Service) writeAccess(r *http.Request) (Recording, Access, string, error
 	}
 	if c == "" {
 		return rec, Access{}, "", Fail(401, "SESSION_REQUIRED")
+	}
+	if e = s.auditActor(r, c); e != nil {
+		return rec, Access{}, "", e
 	}
 	if r.Header.Get("Authorization") == "" && r.Header.Get("Origin") != s.Origin {
 		return rec, Access{}, "", Fail(403, "ORIGIN_FORBIDDEN")
@@ -733,7 +740,7 @@ func (s *Service) InternalHandler(token, chatToken, gatewayToken string) http.Ha
 		response(w, 200, t)
 		return nil
 	}))
-	mux.HandleFunc("POST /internal/vod/content-removals", authorized(gatewayToken, "gateway", func(w http.ResponseWriter, r *http.Request) error {
+	mux.HandleFunc("POST /internal/vod/content-removals", authorized(gatewayToken, "gateway", s.audited("VOD_REMOVE", func(w http.ResponseWriter, r *http.Request) error {
 		var p struct {
 			VodID           string `json:"vodId"`
 			ExpectedVersion int64  `json:"expectedVersion"`
@@ -747,6 +754,12 @@ func (s *Service) InternalHandler(token, chatToken, gatewayToken string) http.Ha
 		}
 		rec, e := s.Store.Get(r.Context(), p.VodID)
 		if e != nil {
+			return e
+		}
+		if attempt, ok := r.Context().Value(auditKey{}).(*auditAttempt); ok {
+			attempt.TargetID = rec.VodID
+		}
+		if e = s.auditActor(r, r.Header.Get("X-Session-Credential")); e != nil {
 			return e
 		}
 		a, e := s.Authority.Check(r.Context(), rec.ChannelID, r.Header.Get("X-Session-Credential"), "ADMIN")
@@ -781,7 +794,7 @@ func (s *Service) InternalHandler(token, chatToken, gatewayToken string) http.Ha
 		w.WriteHeader(202)
 		_, e = w.Write(out)
 		return e
-	}))
+	})))
 	mux.HandleFunc("GET /metrics", authorized(gatewayToken, "gateway", func(w http.ResponseWriter, r *http.Request) error {
 		stats, e := s.Store.Stats(r.Context())
 		if e != nil {

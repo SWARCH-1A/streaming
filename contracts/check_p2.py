@@ -136,6 +136,10 @@ def validate_subtitle_identity(name, value):
 def validate_event_identity(value):
     payload = value["payload"]
     kind = value["eventType"]
+    if kind in {"security.audit.core.v1", "security.audit.vod.v1", "security.audit.waf.v1"}:
+        if value["aggregateId"] != "audit:" + value["eventId"] or value["sequence"] != 1:
+            raise ValueError("Audit identity/sequence mismatch")
+        return
     if kind == "credential.recovery.delivery.requested.v1":
         if value["aggregateId"] != "recovery:" + payload["recoveryId"] or value["sequence"] != 1:
             raise ValueError("Recovery aggregate/sequence do not match payload")
@@ -194,8 +198,8 @@ def verify_events(additions, merged):
     events = additions["events"]
     types = [event["eventType"] for event in events]
     subscriptions = [subscription for event in events for subscription in event["subscriptions"]]
-    if len(types) != 9 or len(set(types)) != 9 or len(subscriptions) != 16 or len(set(subscriptions)) != 16:
-        raise ValueError("The P2 registry must preserve nine types and sixteen implemented independent subscriptions")
+    if len(types) != 12 or len(set(types)) != 12 or len(subscriptions) != 19 or len(set(subscriptions)) != 19:
+        raise ValueError("The P2 registry must preserve twelve types and nineteen independent subscriptions, including P3 audit")
     documented = {}
     for line in (ROOT / "docs/contratos_p2_eventos.md").read_text().splitlines():
         columns = [column.strip() for column in line.split("|")]

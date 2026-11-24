@@ -1,7 +1,7 @@
 {
   "version": 2,
   "extends": "p1.json",
-  "coverage": "P2 lifecycle, Discovery, recovery, follow, notifications, mobile auth, administration, live renditions, VOD recording/library/timeline/private media and subtitles contracts, chat moderation contracts, watch parties.",
+  "coverage": "P2 lifecycle, Discovery, recovery, follow, notifications, mobile auth, administration, live renditions, VOD recording/library/timeline/private media and subtitles contracts, chat moderation contracts, watch parties. P3 security audit.",
   "schemas": {
     "P2StreamSessionChangedPayload": {
       "type": "object",
@@ -5764,6 +5764,593 @@
           "limit": 20
         }
       ]
+    },
+    "P2SecurityAuditPayload": {
+      "type": "object",
+      "properties": {
+        "actorId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,128}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "action": {
+          "enum": [
+            "ADMIN_ACCESS",
+            "ACCOUNT_STATUS",
+            "VOD_PATCH",
+            "VOD_PUBLISH",
+            "VOD_DELETE",
+            "VOD_REMOVE",
+            "WAF_BLOCK"
+          ]
+        },
+        "targetType": {
+          "enum": [
+            "ADMIN",
+            "ACCOUNT",
+            "VOD",
+            "ROUTE"
+          ]
+        },
+        "targetId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,128}$"
+        },
+        "outcome": {
+          "enum": [
+            "SUCCESS",
+            "DENIED"
+          ]
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[A-Z_]{1,64}$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "actorId",
+        "action",
+        "targetType",
+        "targetId",
+        "outcome",
+        "reasonCode"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "SUCCESS"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "actorId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,128}$"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "P2EventSecurityAuditCore": {
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "eventType": {
+          "const": "security.audit.core.v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "aggregateId": {
+          "type": "string",
+          "pattern": "^audit:[0-9a-f-]{36}$"
+        },
+        "sequence": {
+          "const": 1
+        },
+        "occurredAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(Z|\\+00:00)$"
+        },
+        "producer": {
+          "const": "core"
+        },
+        "payload": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/P2SecurityAuditPayload"
+            },
+            {
+              "properties": {
+                "action": {
+                  "enum": [
+                    "ADMIN_ACCESS",
+                    "ACCOUNT_STATUS"
+                  ]
+                },
+                "targetType": {
+                  "enum": [
+                    "ADMIN",
+                    "ACCOUNT"
+                  ]
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "action": {
+                    "const": "ADMIN_ACCESS"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "targetType": {
+                    "const": "ADMIN"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "action": {
+                    "const": "ACCOUNT_STATUS"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "targetType": {
+                    "const": "ACCOUNT"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "correlationId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]{1,80}$"
+        }
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "producer",
+        "payload",
+        "correlationId"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "eventId": "a38a5088-2178-444f-9ebd-a3a1dfbe7d01",
+          "eventType": "security.audit.core.v1",
+          "schemaVersion": 1,
+          "producer": "core",
+          "aggregateId": "audit:a38a5088-2178-444f-9ebd-a3a1dfbe7d01",
+          "sequence": 1,
+          "occurredAtUtc": "2026-11-20T12:00:00Z",
+          "correlationId": "req_example",
+          "payload": {
+            "actorId": "usr_example",
+            "action": "ACCOUNT_STATUS",
+            "targetType": "ACCOUNT",
+            "targetId": "usr_target",
+            "outcome": "SUCCESS",
+            "reasonCode": "SUSPENDED"
+          }
+        }
+      ]
+    },
+    "P2EventSecurityAuditVod": {
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "eventType": {
+          "const": "security.audit.vod.v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "aggregateId": {
+          "type": "string",
+          "pattern": "^audit:[0-9a-f-]{36}$"
+        },
+        "sequence": {
+          "const": 1
+        },
+        "occurredAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(Z|\\+00:00)$"
+        },
+        "producer": {
+          "const": "vod"
+        },
+        "payload": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/P2SecurityAuditPayload"
+            },
+            {
+              "properties": {
+                "action": {
+                  "enum": [
+                    "VOD_PATCH",
+                    "VOD_PUBLISH",
+                    "VOD_DELETE",
+                    "VOD_REMOVE"
+                  ]
+                },
+                "targetType": {
+                  "enum": [
+                    "VOD"
+                  ]
+                }
+              }
+            },
+            {}
+          ]
+        },
+        "correlationId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]{1,80}$"
+        }
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "producer",
+        "payload",
+        "correlationId"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "eventId": "a38a5088-2178-444f-9ebd-a3a1dfbe7d02",
+          "eventType": "security.audit.vod.v1",
+          "schemaVersion": 1,
+          "producer": "vod",
+          "aggregateId": "audit:a38a5088-2178-444f-9ebd-a3a1dfbe7d02",
+          "sequence": 1,
+          "occurredAtUtc": "2026-11-20T12:00:00Z",
+          "correlationId": "req_example",
+          "payload": {
+            "actorId": "usr_example",
+            "action": "VOD_PATCH",
+            "targetType": "VOD",
+            "targetId": "vod_example",
+            "outcome": "SUCCESS",
+            "reasonCode": "COMMITTED"
+          }
+        }
+      ]
+    },
+    "P2EventSecurityAuditWaf": {
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "eventType": {
+          "const": "security.audit.waf.v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "aggregateId": {
+          "type": "string",
+          "pattern": "^audit:[0-9a-f-]{36}$"
+        },
+        "sequence": {
+          "const": 1
+        },
+        "occurredAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(Z|\\+00:00)$"
+        },
+        "producer": {
+          "const": "waf"
+        },
+        "payload": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/P2SecurityAuditPayload"
+            },
+            {
+              "properties": {
+                "actorId": {
+                  "type": "null"
+                },
+                "action": {
+                  "const": "WAF_BLOCK"
+                },
+                "targetType": {
+                  "const": "ROUTE"
+                },
+                "outcome": {
+                  "const": "DENIED"
+                }
+              }
+            }
+          ]
+        },
+        "correlationId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]{1,80}$"
+        }
+      },
+      "required": [
+        "eventId",
+        "eventType",
+        "schemaVersion",
+        "aggregateId",
+        "sequence",
+        "occurredAtUtc",
+        "producer",
+        "payload",
+        "correlationId"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "eventId": "a38a5088-2178-544f-9ebd-a3a1dfbe7d03",
+          "eventType": "security.audit.waf.v1",
+          "schemaVersion": 1,
+          "producer": "waf",
+          "aggregateId": "audit:a38a5088-2178-544f-9ebd-a3a1dfbe7d03",
+          "sequence": 1,
+          "occurredAtUtc": "2026-11-20T12:00:00Z",
+          "correlationId": "2ef5522f57c4fe9648f2d11c094825dc",
+          "payload": {
+            "actorId": null,
+            "action": "WAF_BLOCK",
+            "targetType": "ROUTE",
+            "targetId": "api_taxonomy",
+            "outcome": "DENIED",
+            "reasonCode": "SQL_INJECTION"
+          }
+        }
+      ]
+    },
+    "P2AuditEvent": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/P2EventSecurityAuditCore"
+        },
+        {
+          "$ref": "#/$defs/P2EventSecurityAuditVod"
+        },
+        {
+          "$ref": "#/$defs/P2EventSecurityAuditWaf"
+        }
+      ],
+      "examples": [
+        {
+          "eventId": "a38a5088-2178-444f-9ebd-a3a1dfbe7d01",
+          "eventType": "security.audit.core.v1",
+          "schemaVersion": 1,
+          "producer": "core",
+          "aggregateId": "audit:a38a5088-2178-444f-9ebd-a3a1dfbe7d01",
+          "sequence": 1,
+          "occurredAtUtc": "2026-11-20T12:00:00Z",
+          "correlationId": "req_example",
+          "payload": {
+            "actorId": "usr_example",
+            "action": "ACCOUNT_STATUS",
+            "targetType": "ACCOUNT",
+            "targetId": "usr_target",
+            "outcome": "SUCCESS",
+            "reasonCode": "SUSPENDED"
+          }
+        },
+        {
+          "eventId": "a38a5088-2178-444f-9ebd-a3a1dfbe7d02",
+          "eventType": "security.audit.vod.v1",
+          "schemaVersion": 1,
+          "producer": "vod",
+          "aggregateId": "audit:a38a5088-2178-444f-9ebd-a3a1dfbe7d02",
+          "sequence": 1,
+          "occurredAtUtc": "2026-11-20T12:00:00Z",
+          "correlationId": "req_example",
+          "payload": {
+            "actorId": "usr_example",
+            "action": "VOD_PATCH",
+            "targetType": "VOD",
+            "targetId": "vod_example",
+            "outcome": "SUCCESS",
+            "reasonCode": "COMMITTED"
+          }
+        },
+        {
+          "eventId": "a38a5088-2178-544f-9ebd-a3a1dfbe7d03",
+          "eventType": "security.audit.waf.v1",
+          "schemaVersion": 1,
+          "producer": "waf",
+          "aggregateId": "audit:a38a5088-2178-544f-9ebd-a3a1dfbe7d03",
+          "sequence": 1,
+          "occurredAtUtc": "2026-11-20T12:00:00Z",
+          "correlationId": "2ef5522f57c4fe9648f2d11c094825dc",
+          "payload": {
+            "actorId": null,
+            "action": "WAF_BLOCK",
+            "targetType": "ROUTE",
+            "targetId": "api_taxonomy",
+            "outcome": "DENIED",
+            "reasonCode": "SQL_INJECTION"
+          }
+        }
+      ]
+    },
+    "P2AuditQuery": {
+      "type": "object",
+      "properties": {
+        "actorId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,128}$"
+        },
+        "targetId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,128}$"
+        },
+        "action": {
+          "type": "string",
+          "pattern": "^[A-Z_]{1,64}$"
+        },
+        "outcome": {
+          "enum": [
+            "SUCCESS",
+            "DENIED"
+          ]
+        },
+        "producer": {
+          "enum": [
+            "core",
+            "vod",
+            "waf"
+          ]
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]{1,80}$"
+        },
+        "from": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "to": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "cursor": {
+          "type": "string",
+          "pattern": "^[0-9]{1,19}$"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {},
+        {
+          "targetId": "vod_example",
+          "outcome": "DENIED",
+          "limit": 20
+        }
+      ]
+    },
+    "P2AuditPage": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "properties": {
+              "position": {
+                "type": "string",
+                "pattern": "^[0-9]+$"
+              },
+              "receivedAtUtc": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "event": {
+                "$ref": "#/$defs/P2AuditEvent"
+              }
+            },
+            "required": [
+              "position",
+              "receivedAtUtc",
+              "event"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "examples": [
+        {
+          "items": [],
+          "nextCursor": null
+        },
+        {
+          "items": [
+            {
+              "position": "1",
+              "receivedAtUtc": "2026-11-20T12:00:01Z",
+              "event": {
+                "eventId": "a38a5088-2178-444f-9ebd-a3a1dfbe7d02",
+                "eventType": "security.audit.vod.v1",
+                "schemaVersion": 1,
+                "producer": "vod",
+                "aggregateId": "audit:a38a5088-2178-444f-9ebd-a3a1dfbe7d02",
+                "sequence": 1,
+                "occurredAtUtc": "2026-11-20T12:00:00Z",
+                "correlationId": "req_example",
+                "payload": {
+                  "actorId": "usr_example",
+                  "action": "VOD_PATCH",
+                  "targetType": "VOD",
+                  "targetId": "vod_example",
+                  "outcome": "SUCCESS",
+                  "reasonCode": "COMMITTED"
+                }
+              }
+            }
+          ],
+          "nextCursor": null
+        }
+      ]
     }
   },
   "events": [
@@ -5913,6 +6500,54 @@
         "SPEC-01",
         "SPEC-17",
         "SPEC-20",
+        "SPEC-10"
+      ]
+    },
+    {
+      "eventType": "security.audit.core.v1",
+      "producers": [
+        "core"
+      ],
+      "subscriptions": [
+        "audit.core"
+      ],
+      "schema": "P2EventSecurityAuditCore",
+      "status": "contract-ready",
+      "spec": [
+        "SPEC-25",
+        "SPEC-17",
+        "SPEC-10"
+      ]
+    },
+    {
+      "eventType": "security.audit.vod.v1",
+      "producers": [
+        "vod"
+      ],
+      "subscriptions": [
+        "audit.vod"
+      ],
+      "schema": "P2EventSecurityAuditVod",
+      "status": "contract-ready",
+      "spec": [
+        "SPEC-25",
+        "SPEC-17",
+        "SPEC-10"
+      ]
+    },
+    {
+      "eventType": "security.audit.waf.v1",
+      "producers": [
+        "waf"
+      ],
+      "subscriptions": [
+        "audit.waf"
+      ],
+      "schema": "P2EventSecurityAuditWaf",
+      "status": "contract-ready",
+      "spec": [
+        "SPEC-25",
+        "SPEC-16",
         "SPEC-10"
       ]
     }
@@ -9176,6 +9811,66 @@
       "requiredHeaders": [
         "X-Service-Name",
         "X-Service-Token"
+      ],
+      "status": "implemented",
+      "semantics": "read"
+    },
+    {
+      "id": "p3.audit.query",
+      "method": "GET",
+      "path": "/api/admin/audit-events",
+      "provider": "Core",
+      "consumer": "Operator",
+      "owner": "Security audit",
+      "auth": "active-admin-session",
+      "request": null,
+      "query": "P2AuditQuery",
+      "responses": {
+        "200": "P2AuditPage",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Safe read; records access to evidence without changing events.",
+      "recovery": "Fail closed; unavailable evidence is not an empty result.",
+      "spec": "SPEC-25",
+      "traceability": "docs/spec-p3/spec_25_security_audit.md",
+      "visibility": "public",
+      "limits": "100 entries per page; query <=2048 bytes; response <=256 KiB.",
+      "requiredHeaders": [],
+      "status": "implemented",
+      "semantics": "read"
+    },
+    {
+      "id": "p3.audit.internal-query",
+      "method": "GET",
+      "path": "/internal/audit/events",
+      "provider": "Audit",
+      "consumer": "Core",
+      "owner": "Security audit",
+      "auth": "service:core-audit-query",
+      "request": null,
+      "query": "P2AuditQuery",
+      "responses": {
+        "200": "P2AuditPage",
+        "400": "Error",
+        "401": "Error",
+        "403": "Error",
+        "503": "Error"
+      },
+      "timeoutMs": 3000,
+      "idempotency": "Safe read; records access to evidence without changing events.",
+      "recovery": "Fail closed; unavailable evidence is not an empty result.",
+      "spec": "SPEC-25",
+      "traceability": "docs/spec-p3/spec_25_security_audit.md",
+      "visibility": "private",
+      "limits": "100 entries per page; query <=2048 bytes; response <=256 KiB.",
+      "requiredHeaders": [
+        "X-Service-Name",
+        "X-Service-Token",
+        "X-Audit-Actor"
       ],
       "status": "implemented",
       "semantics": "read"

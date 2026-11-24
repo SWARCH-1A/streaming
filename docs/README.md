@@ -14,6 +14,18 @@ el diseño; la implementación y las pruebas se acreditan por separado.
 6. [Recorridos P2](matriz_recorridos_p2.md), [flujos](integracion_sistema_p1.md) y [Web, móvil y Gateway](integracion_frontend_reverse_proxy.md): integración y aceptación.
 7. [Fases futuras](fases_futuras.md), [ADR](adr/README.md), [política ADR](politica_ADR.md) y [plantilla SPEC](sdd_template.md).
 
+## Incremento P3 de auditoría
+
+[SPEC-25](spec-p3/spec_25_security_audit.md) define Security Logger y Auditor, su escenario,
+contratos y criterios; [ADR-028](adr/ADR-028-security-logger-auditor.md) registra la decisión.
+[Servicio y ejecución](../services/audit/README.md). P2 conserva las funciones anteriores.
+Web ofrece la consulta de solo lectura en **Administración → Auditoría de seguridad**,
+con filtros y paginación, consumiendo la misma API protegida de Core a través del WAF.
+
+La [segmentación P3](p3/segmentacion-red.md) define el escenario de movimiento lateral,
+la matriz de redes y su vista de despliegue. [ADR-030](adr/ADR-030-segmentacion-red.md)
+registra la decisión; [pruebas](../tests/integration/network-segmentation/README.md).
+
 ## Documentación de P1
 
 Las [SPEC P1](spec-p1/README.md), los [recorridos P1](matriz_recorridos_p1.md), la

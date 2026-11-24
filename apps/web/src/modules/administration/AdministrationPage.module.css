@@ -73,6 +73,22 @@
   flex: 0 0 auto;
 }
 
+.auditLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  color: var(--color-primary-soft);
+  font-size: 0.8rem;
+  font-weight: 650;
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+
+.auditLink:hover {
+  background: rgb(128 131 255 / 10%);
+}
+
 .loading {
   padding: 0.25rem 0.15rem;
   color: var(--color-muted);
@@ -337,6 +353,10 @@
 
 .resultPanel p {
   margin: 0;
+}
+
+.resultPanel > button {
+  white-space: normal;
 }
 
 @media (max-width: 760px) {

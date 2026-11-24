@@ -42,6 +42,9 @@ S3 compatible; MinIO es el proveedor local fijado por ADR-022; el tamaño de dis
 - [ ] CA-07: inventario acredita mínimos con artefactos ejecutados y criterio docente; no cuenta módulos Core como procesos o el broker como BD de negocio.
 - [ ] CA-08: logs/métricas permiten seguir requestId/eventId/deliveryId, cola/DLQ y fallos parciales sin tokens ni payloads privados.
 - [ ] CA-09: los recorridos de SPEC-15 funcionan con dependencias detenidas y después de recuperarlas.
+- [x] CA-10 (P3): cada almacén solo admite conexiones desde sus propietarios; Gateway/SSR no
+  alcanzan bases ni broker y la API de Auditor queda fuera de la mensajería general.
+  La aceptación verifica tanto DNS como IP directa y conserva las dependencias necesarias.
 
 ## 7. Diseño técnico y datos
 
@@ -55,12 +58,28 @@ S3 y bases tienen credenciales por responsabilidad. Política de almacenamiento 
 VOD/Notificaciones deben soportar recuperación y el inventario de cuatro componentes de datos.
 Bases lógicas dentro de un solo motor no se cuentan automáticamente como componentes distintos.
 
+El despliegue completo aplica [ADR-030](../adr/ADR-030-segmentacion-red.md): pertenencia
+explícita a redes por API, mensajería, medios, SMTP y almacén. Cada PostgreSQL/Redis comparte
+únicamente su red interna con el proceso propietario; MinIO admite VOD, el grabador lector y
+el inicializador. Auditor tiene redes separadas de datos, consulta con Core y conexión al broker.
+La [matriz y vista P3](../p3/segmentacion-red.md) define los miembros exactos de las 16 redes.
+La zona API conserva `default`, su IPAM y las IP fijas confiables; no admite almacenes.
+Las bridges no filtran puertos entre sus miembros: se conservan TLS, tokens y ACL existentes.
+La aceptación reproducible está en [las pruebas de segmentación](../../tests/integration/network-segmentation/README.md).
+
 El dominio usa HTTPS. Local conserva autenticación y aislamiento con un arranque sencillo;
 el perfil completo se ejecuta con `python3 infra/local/dev.py init/build/up/status`. Se documenta qué
 servicios requieren credenciales/provisión externa y qué pruebas se realizaron con S3 local.
 
+La entrada HTTPS la publica el WAF (ModSecurity v3 + OWASP CRS en modo bloqueo, ADR-031), que la
+reenvía cifrada a Caddy; Caddy no publica puertos. WAF y Caddy comparten solo la red de borde `edge`,
+con subred propia (`LOCAL_EDGE_SUBNET`) e IP fijas (`LOCAL_WAF_IP`, `LOCAL_EDGE_PROXY_IP`): el WAF no
+alcanza ningún servicio sin pasar por Caddy, y Caddy solo acepta `X-Forwarded-For` de esa IP. `init`
+elige la subred libre y la añade sin rotar secretos; una restauración elige otra para su copia y,
+con un backup anterior a ADR-031, usa la Caddyfile actual.
+
 El modo local predeterminado publica solo en loopback. La acción explícita `dev.py lan` permite
-clientes de la misma red: publica únicamente la entrada HTTPS, fija un origen canónico por nombre
+clientes de la misma red: publica únicamente la entrada HTTPS del WAF, fija un origen canónico por nombre
 Bonjour/IP privada y añade sus SAN al certificado de entrada conservando la CA y los secretos.
 Navegador, móvil, WS y URLs multimedia comparten ese origen. Los alias se redirigen; hosts ajenos
 se rechazan. RTMPS/Mailpit siguen en loopback y los listeners privados no se publican. `lan --loopback`
@@ -73,6 +92,14 @@ certificados y secretos privados, con hashes SHA-256, directorio 0700 y archivos
 nunca se incluye en Git. La restauración verifica todos los hashes antes de crear volúmenes
 nuevos y rechaza destinos existentes; entrega un mapa Compose de esos volúmenes. No modifica
 la instalación original ni confunde conservar un volumen con restaurarlo desde un archivo.
+
+Ningún almacén interno acepta clientes anónimos. El Redis de Chat usa el ACL `chat-redis.acl` y
+`CHAT_REDIS_PASSWORD`, que genera `init` sin rotar los demás secretos (ADR-029); una instalación
+anterior repite `init` antes de `up`, y Compose se detiene si falta la credencial. El backup copia el
+ACL, que solo guarda el hash de la contraseña, y al restaurar un backup anterior a ADR-029 se crea una
+credencial propia para la copia. La copia conserva los permisos de la instalación: certificados, llaves
+y ACL que se montan en contenedores quedan legibles dentro del directorio 0700, y `ca.key` y
+`environment.env` quedan en 0600. Mailpit, el capturador de correos local, es la excepción de desarrollo.
 
 ## 8. Dependencias y contratos de integración
 
@@ -112,3 +139,10 @@ independiente con `backup.py restore --start`; arrancó los cinco PostgreSQL y l
 persistentes. El runner `tests/integration/p2-recovery/run.py` comprobó login, metadatos/timeline,
 replay moderado y frames decodificados del VOD servido desde los objetos MinIO restaurados.
 La instalación original y el contenedor ajeno al proyecto conservaron sus datos y funcionamiento.
+
+## Integración de auditoría P3
+
+[SPEC-25](../spec-p3/spec_25_security_audit.md) y [ADR-028](../adr/ADR-028-security-logger-auditor.md)
+incorporan eventos de seguridad de Core/VOD, suscripciones audit.core/audit.vod y un servicio
+con almacenamiento propio. Las autorizaciones y auditorías de dominio existentes se conservan.
+La evidencia se publica desde outbox; su consulta exige sesión administrativa vigente en Core.
